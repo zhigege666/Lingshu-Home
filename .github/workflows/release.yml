@@ -1,0 +1,59 @@
+name: Source release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-release:
+    name: Validate, package and publish source assets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate version and package source
+        id: package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          PYTHONDONTWRITEBYTECODE: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/check_repository.py --tag "$RELEASE_TAG"
+          python3 scripts/build_source_release.py --tag "$RELEASE_TAG" --output dist/source
+          cd dist/source
+          sha256sum --check SHA256SUMS
+
+      - name: Publish GitHub Release with the matching CHANGELOG section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          IS_PRERELEASE: ${{ steps.package.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_args=(--verify-tag --title "Lingshu-Home $RELEASE_TAG · Source/assets only" --notes-file dist/source/release-notes.md)
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            release_args+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" "${release_args[@]}" \
+            dist/source/*.tar.gz dist/source/*.zip dist/source/SHA256SUMS dist/source/release-notes.md
+
+      # Docker/Linux binaries and Windows/macOS installers are future build gates.
+      # Add real source, native build/test jobs, signing and upgrade verification
+      # before changing the artifact type. Keep README.md in sync with supported outputs.

@@ -1,0 +1,48 @@
+name: Repository CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-checks:
+    name: Repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate metadata and documentation changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python3 scripts/check_repository.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" --diff-mode merge-base
+          else
+            python3 scripts/check_repository.py --base "$PUSH_BEFORE_SHA" --head "$PUSH_HEAD_SHA" --diff-mode direct
+          fi
+
+      - name: Check Python script syntax
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/lingshu-home-pycache
+        run: python3 -m py_compile scripts/check_repository.py scripts/build_source_release.py

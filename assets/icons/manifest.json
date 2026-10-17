@@ -1,0 +1,472 @@
+{
+  "schemaVersion": 1,
+  "collection": "lingshu-home-builtin",
+  "upstream": {
+    "name": "Lucide",
+    "url": "https://github.com/lucide-icons/lucide",
+    "commit": "1ef60af944de207e0d5176905a0759ba12e6ee8d"
+  },
+  "licenseNotice": "licenses/lucide-LICENSE",
+  "licenseDescription": "Full upstream ISC and Feather-derived MIT notices are preserved; see the notice for scope.",
+  "icons": [
+    {
+      "id": "lucide:house",
+      "label": "首页",
+      "keywords": [
+        "house",
+        "首页",
+        "家庭"
+      ],
+      "file": "lucide/house.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/house.svg",
+      "sha256": "28216c479005731ef5e382e7d8627eda2b129b019eb1f3d9de9f5915576d448e"
+    },
+    {
+      "id": "lucide:compass",
+      "label": "导航",
+      "keywords": [
+        "compass",
+        "导航",
+        "指南针"
+      ],
+      "file": "lucide/compass.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/compass.svg",
+      "sha256": "c5a4d147bf48424f48b514712dd61c1b07cb689612a7baef87c88870092c1659"
+    },
+    {
+      "id": "lucide:search",
+      "label": "搜索",
+      "keywords": [
+        "search",
+        "搜索",
+        "查找"
+      ],
+      "file": "lucide/search.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/search.svg",
+      "sha256": "283d371c2e433817bb9c0c8310caa6c77fa4177c0f4f1168d9c83b97af7389dc"
+    },
+    {
+      "id": "lucide:bookmark",
+      "label": "书签",
+      "keywords": [
+        "bookmark",
+        "书签",
+        "阅读"
+      ],
+      "file": "lucide/bookmark.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/bookmark.svg",
+      "sha256": "1d5023760db81f21c3b5a63f012ef540acc01932731c733e4645012a876d39f4"
+    },
+    {
+      "id": "lucide:star",
+      "label": "收藏",
+      "keywords": [
+        "star",
+        "收藏",
+        "星标"
+      ],
+      "file": "lucide/star.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/star.svg",
+      "sha256": "c59da86b889569387db28e69ad00a89f96af22863ad9eea9aa12c4876a14338c"
+    },
+    {
+      "id": "lucide:folder",
+      "label": "分类",
+      "keywords": [
+        "folder",
+        "分类",
+        "目录"
+      ],
+      "file": "lucide/folder.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/folder.svg",
+      "sha256": "f0d92b94b797a8ab7d4c4ae33c3236c47f64068351b4e14bdb5014ee42898a39"
+    },
+    {
+      "id": "lucide:tags",
+      "label": "标签",
+      "keywords": [
+        "tags",
+        "标签",
+        "分组"
+      ],
+      "file": "lucide/tags.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/tags.svg",
+      "sha256": "61ffd6d11beb2073bfed08a318d2804492545e11356995c7fc9bc6d20ca1873a"
+    },
+    {
+      "id": "lucide:layout-grid",
+      "label": "卡片",
+      "keywords": [
+        "layout-grid",
+        "卡片",
+        "网格"
+      ],
+      "file": "lucide/layout-grid.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/layout-grid.svg",
+      "sha256": "b8903f61d09b1d75e55c71158277d26570962f69c2099446a251871e0a2d6678"
+    },
+    {
+      "id": "lucide:list",
+      "label": "列表",
+      "keywords": [
+        "list",
+        "列表",
+        "目录"
+      ],
+      "file": "lucide/list.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/list.svg",
+      "sha256": "ff97a7379eb962ddc3863bb59f0f45875ac8da91aac8a38a67361e7118d2d627"
+    },
+    {
+      "id": "lucide:panel-left",
+      "label": "侧栏",
+      "keywords": [
+        "panel-left",
+        "侧栏",
+        "布局"
+      ],
+      "file": "lucide/panel-left.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/panel-left.svg",
+      "sha256": "029f67b9e3eeb7ddf7c7c499b174c50388725e8ea50d4ea59ed7dbaf8d61cb82"
+    },
+    {
+      "id": "lucide:settings",
+      "label": "设置",
+      "keywords": [
+        "settings",
+        "设置",
+        "管理"
+      ],
+      "file": "lucide/settings.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/settings.svg",
+      "sha256": "0ae27fd0f81999229e3127ac96c5b32edfea448e291d509e76212b917551d66b"
+    },
+    {
+      "id": "lucide:sliders-horizontal",
+      "label": "配置",
+      "keywords": [
+        "sliders-horizontal",
+        "配置",
+        "筛选"
+      ],
+      "file": "lucide/sliders-horizontal.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/sliders-horizontal.svg",
+      "sha256": "e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4"
+    },
+    {
+      "id": "lucide:plus",
+      "label": "添加",
+      "keywords": [
+        "plus",
+        "添加",
+        "新增"
+      ],
+      "file": "lucide/plus.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/plus.svg",
+      "sha256": "7f6af73bf1ff6c4bca3f18351c8d1bdec6749c0c2530c4de5da85d520c21df17"
+    },
+    {
+      "id": "lucide:pencil",
+      "label": "编辑",
+      "keywords": [
+        "pencil",
+        "编辑",
+        "修改"
+      ],
+      "file": "lucide/pencil.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/pencil.svg",
+      "sha256": "7e1ca7a6f5c1eb949671df762f2baadd32f5bd841d43153c3a15279af7d78d0c"
+    },
+    {
+      "id": "lucide:trash",
+      "label": "删除",
+      "keywords": [
+        "trash",
+        "删除",
+        "回收"
+      ],
+      "file": "lucide/trash.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/trash.svg",
+      "sha256": "27299f69ad7c6272be64b1b8e2d48cbd6dcf0ef0d4f92827a1affa945c91700e"
+    },
+    {
+      "id": "lucide:upload",
+      "label": "导入",
+      "keywords": [
+        "upload",
+        "导入",
+        "上传"
+      ],
+      "file": "lucide/upload.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/upload.svg",
+      "sha256": "42816ee1fa0e9d3b82272a97615c1e562b0e9de64780ebf21963bc1db0ceffd1"
+    },
+    {
+      "id": "lucide:download",
+      "label": "导出",
+      "keywords": [
+        "download",
+        "导出",
+        "下载"
+      ],
+      "file": "lucide/download.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/download.svg",
+      "sha256": "3daeee13ded5a3afa2198b1bb4e2262d163922f97d96ac6ff9953e8ed4fe039d"
+    },
+    {
+      "id": "lucide:external-link",
+      "label": "外部链接",
+      "keywords": [
+        "external-link",
+        "外部链接",
+        "打开"
+      ],
+      "file": "lucide/external-link.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/external-link.svg",
+      "sha256": "3891241b8c3bfc3a8a930078f26ffc5a7e9763da6d0162ace2050b28d4c1d1fe"
+    },
+    {
+      "id": "lucide:link",
+      "label": "链接",
+      "keywords": [
+        "link",
+        "链接",
+        "网址"
+      ],
+      "file": "lucide/link.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/link.svg",
+      "sha256": "4f3237183dcaabfac92f4e94c776a9a9e45c3c5e77a921061a6b34b61eb5413f"
+    },
+    {
+      "id": "lucide:globe",
+      "label": "网络",
+      "keywords": [
+        "globe",
+        "网络",
+        "站点"
+      ],
+      "file": "lucide/globe.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/globe.svg",
+      "sha256": "82c6b8fa0b8e8d775ec9becd86f74a4e50bff7bee4c81f7362de45348504f14d"
+    },
+    {
+      "id": "lucide:server",
+      "label": "服务器",
+      "keywords": [
+        "server",
+        "服务器",
+        "主机"
+      ],
+      "file": "lucide/server.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/server.svg",
+      "sha256": "f7bea54b609dc488f3b848995014041846b2443fd2a880653e9e583d7a034f61"
+    },
+    {
+      "id": "lucide:database",
+      "label": "数据库",
+      "keywords": [
+        "database",
+        "数据库",
+        "存储"
+      ],
+      "file": "lucide/database.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/database.svg",
+      "sha256": "471eb14bc8d144896a82dfc4aa9daf350f769f0896f4bef33e50aabdbb51130d"
+    },
+    {
+      "id": "lucide:shield",
+      "label": "安全",
+      "keywords": [
+        "shield",
+        "安全",
+        "权限"
+      ],
+      "file": "lucide/shield.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/shield.svg",
+      "sha256": "be32f6a86df7cbe43a83c439dd8849e5bcf5145e484d23420c20d8b98a78e82b"
+    },
+    {
+      "id": "lucide:activity",
+      "label": "监控",
+      "keywords": [
+        "activity",
+        "监控",
+        "状态"
+      ],
+      "file": "lucide/activity.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/activity.svg",
+      "sha256": "050fbcda05e13c2051cf857683645e19c6b180861ef4d0cc28a6f09ba1ea1666"
+    },
+    {
+      "id": "lucide:book-open",
+      "label": "知识库",
+      "keywords": [
+        "book-open",
+        "知识库",
+        "文档"
+      ],
+      "file": "lucide/book-open.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/book-open.svg",
+      "sha256": "9b9bed0ff057283d5c5c5a1c71f8d3e927db26a56639603a92fdf7b25961510e"
+    },
+    {
+      "id": "lucide:code-xml",
+      "label": "开发",
+      "keywords": [
+        "code-xml",
+        "开发",
+        "代码"
+      ],
+      "file": "lucide/code-xml.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/code-xml.svg",
+      "sha256": "a6d2110227be375be21da7324d3c09262c1bf019d06bdeab356d515342ab7cce"
+    },
+    {
+      "id": "lucide:clapperboard",
+      "label": "影音",
+      "keywords": [
+        "clapperboard",
+        "影音",
+        "媒体"
+      ],
+      "file": "lucide/clapperboard.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/clapperboard.svg",
+      "sha256": "e4d78946cda7812f13c431c68b6d4d0077a92217c7f468667a203f237e247d7e"
+    },
+    {
+      "id": "lucide:puzzle",
+      "label": "模块",
+      "keywords": [
+        "puzzle",
+        "模块",
+        "插件"
+      ],
+      "file": "lucide/puzzle.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/puzzle.svg",
+      "sha256": "6d80d0c3b214c96945ed0f1c6ee0e4c4ea3911c6cc91c75751fdba08c31eab02"
+    },
+    {
+      "id": "lucide:sun",
+      "label": "浅色",
+      "keywords": [
+        "sun",
+        "浅色",
+        "白天"
+      ],
+      "file": "lucide/sun.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/sun.svg",
+      "sha256": "a3955c8b0425fcc5c9ba12d2bdd77fe53b2cd5dd05e7742a56f342e996fb2ef8"
+    },
+    {
+      "id": "lucide:moon",
+      "label": "深色",
+      "keywords": [
+        "moon",
+        "深色",
+        "夜间"
+      ],
+      "file": "lucide/moon.svg",
+      "viewBox": "0 0 24 24",
+      "colorMode": "currentColor",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/icons/moon.svg",
+      "sha256": "205b959e940d5841f0ce1d09c933153da9d9c94130a54d5cc0c68c2af1d403da"
+    }
+  ],
+  "fallback": "lucide:link",
+  "applicationFallbacks": [
+    {
+      "name": "Docker",
+      "icon": "lucide:server"
+    },
+    {
+      "name": "Proxmox",
+      "icon": "lucide:server"
+    },
+    {
+      "name": "Grafana",
+      "icon": "lucide:activity"
+    },
+    {
+      "name": "Komari",
+      "icon": "lucide:activity"
+    },
+    {
+      "name": "Jellyfin",
+      "icon": "lucide:clapperboard"
+    },
+    {
+      "name": "Home Assistant",
+      "icon": "lucide:house"
+    },
+    {
+      "name": "Admin.NET",
+      "icon": "lucide:settings"
+    },
+    {
+      "name": "知识库",
+      "icon": "lucide:book-open"
+    },
+    {
+      "name": "GitHub",
+      "icon": "lucide:code-xml"
+    }
+  ]
+}

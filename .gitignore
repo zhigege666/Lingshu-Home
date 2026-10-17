@@ -1,0 +1,31 @@
+# Local analysis and developer state
+.gitnexus/
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Private design documents, mockups and working references
+/design/
+
+# Runtime data and credentials
+.env
+.env.*
+!.env.example
+/data/
+/uploads/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.pfx
+*.p12
+*.key
+
+# Build output
+/dist/
+/release/
+node_modules/
+bin/
+obj/
+target/
