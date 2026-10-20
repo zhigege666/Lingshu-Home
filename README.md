@@ -12,7 +12,7 @@ The jade folded-house logo is shared throughout the Web interface. [Brand assets
 
 ## Quick start
 
-Version **[0.0.1](VERSION)** is the first application release. Get the Linux amd64 executable, Docker image archive, source and checksums from **[Release v0.0.1](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.1)**. The published executable and image target **Linux amd64 (x86-64)**. Choose one installation below; both use embedded SQLite by default and need no external database or other Home service.
+Version **[0.0.1](VERSION)** is the first application release. Get the Linux amd64 executable, Docker image archive, source and checksums from **[Release v0.0.1](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.1)**. The published executable and image target **Linux amd64 (x86-64)**. Choose one installation below; all use embedded SQLite by default and need no external database or other Home service.
 
 ### Docker image
 
@@ -45,6 +45,10 @@ cd Lingshu-Home-0.0.1-linux-amd64
 Open **http://127.0.0.1:5180** on that computer. Leave the terminal open while using the service. The command keeps persistence outside the versioned release directory; reuse that data path after upgrading. Keep `web/dist` and `VERSION` beside the executable as supplied, and start from the extracted directory unless you explicitly configure their paths. Use `./lingshu-home -help` for server options.
 
 Both examples bind access to the host's loopback address. For another computer, configure the published interface or an HTTPS reverse proxy and use that deployment address. An HTTPS reverse proxy supplies TLS; set `LINGSHU_SECURE_COOKIES=true` for that deployment. This setting requires HTTPS cookies and does not enable a TLS listener in Home.
+
+### Unraid
+
+Use the [Unraid template and installation guide](docs/UNRAID.md) for Docker Manager or Community Applications. The template maps host port `5180` to container port `8080`, keeps data at `/mnt/user/appdata/lingshu-home`, and explicitly runs as `99:100` for that appdata directory. It uses the fixed `0.0.1` image tag; the guide covers first setup, Chinese/English selection, backups and explicit version upgrades. Manual template installation is available while the app is not listed in Apps.
 
 ### First-run setup
 
@@ -96,11 +100,13 @@ Historical `0.1.0-dev.1` development browser captures at 2560 × 1440, using [pu
 
 ![Lingshu-Home English homepage with the built-in iOS inspired theme and app-icon navigation](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.1/assets/screenshots/home-ios-en-2k.png)
 
-### Visual homepage editor
+### Classic theme · English interface
 
-![Lingshu-Home visual editor with component layers, selectable canvas and theme properties](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.1/assets/screenshots/home-editor-ios-zh-CN-2k.png)
+![Lingshu-Home English homepage with the Classic theme, grouped navigation cards and favorites](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.1/assets/screenshots/home-brand-en-2k.png)
 
-More captures from the same development iteration: [Chinese iOS theme](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/home-ios-zh-CN-2k.png) · [390 px mobile editing canvas](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/home-editor-mobile-zh-CN-390.png).
+Editor captures currently available in the [screenshot record](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/README.md) use the Chinese interface and are labelled accordingly. For English editing instructions, see the [user guide](docs/USER_GUIDE.md).
+
+Other language and mobile captures: [Chinese iOS theme](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/home-ios-zh-CN-2k.png) · [390 px mobile editing canvas](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/home-editor-mobile-zh-CN-390.png).
 
 Earlier Classic, admin and preview captures remain available as historical examples in the [screenshot record](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/README.md).
 
@@ -267,6 +273,7 @@ The earlier visual editor passed eight real browser workflows in each interface 
 | 日常操作（中文） | [docs/USER_GUIDE.zh-CN.md](docs/USER_GUIDE.zh-CN.md) |
 | Performance methodology and results | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) |
 | API and page schema | [docs/API.md](docs/API.md) |
+| Unraid installation and upgrades | [docs/UNRAID.md](docs/UNRAID.md) · [简体中文](docs/UNRAID.zh-CN.md) |
 | Storage, migrations, backup/restore | [docs/STORAGE.md](docs/STORAGE.md) |
 | Network proxy and internal/external bookmark routing | [docs/NETWORK.md](docs/NETWORK.md) |
 | Dashboard presets and data handoff | [docs/DASHBOARDS.md](docs/DASHBOARDS.md) |

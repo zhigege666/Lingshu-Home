@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>Lingshu-Home is an independent, self-hosted personal dashboard maintained by zhigege666. This repository contains the application source and its Unraid Docker installation template. Use GitHub Issues for installation questions and bug reports; consult the Unraid guide for configuration, data ownership, backups and pinned-version upgrades.</Profile>
+  <Icon>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.1/web/src/assets/apple-touch-icon.png</Icon>
+  <WebPage>https://github.com/zhigege666/Lingshu-Home</WebPage>
+</CommunityApplications>

@@ -4,7 +4,15 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Unraid distribution
+
+- Add a Docker Manager / Community Applications template for the published Linux amd64 `0.0.1` image, with configurable WebUI port, persistent appdata, English/Chinese interface selection and HTTPS-cookie setting.
+- Run the Unraid template as UID/GID `99:100` for dedicated appdata ownership, with no-new-privileges, dropped capabilities and a 30-second default stop timeout; document the Unraid global timeout override and Autostart setting.
+- Add repository profile metadata and English/Chinese installation, backup, ownership and explicit-version upgrade instructions. Catalog submission and approval remain separate from publishing the template.
+
+### Documentation
+
+- Replace the Chinese visual-editor image embedded in the English README with the verified English Classic-theme capture, and label the available Chinese editor gallery explicitly. Preserve the historical capture dates and distinguish interface language from existing bookmark/category text.
 
 ## [0.0.1] - 2026-10-20
 

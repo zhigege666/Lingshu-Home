@@ -12,7 +12,7 @@ Web 界面统一使用玉绿色折带房屋 Logo。[品牌资产、用法与来�
 
 ## 快速开始
 
-**[0.0.1](VERSION)** 是首个应用发行版。Linux amd64 程序、Docker 镜像归档、源码与校验和见 **[v0.0.1 发布页](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.1)**。正式程序和镜像面向 **Linux amd64（x86-64）**。选择下面一种安装方式即可；两者默认使用内置 SQLite，无需另装数据库或其他 Home 服务。
+**[0.0.1](VERSION)** 是首个应用发行版。Linux amd64 程序、Docker 镜像归档、源码与校验和见 **[v0.0.1 发布页](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.1)**。正式程序和镜像面向 **Linux amd64（x86-64）**。选择下面一种安装方式即可；均默认使用内置 SQLite，无需另装数据库或其他 Home 服务。
 
 ### Docker 镜像
 
@@ -45,6 +45,10 @@ cd Lingshu-Home-0.0.1-linux-amd64
 在运行 Home 的机器上打开 **http://127.0.0.1:5180**，使用期间保持终端运行。上面的命令把数据放在版本目录之外，升级后继续使用同一路径。保留发行包中的 `web/dist` 和 `VERSION`，在解压目录启动，或显式配置它们的路径。服务参数可用 `./lingshu-home -help` 查看。
 
 以上示例都只在宿主机回环地址开放访问。其他设备需使用配置后的发布地址或 HTTPS 反向代理地址。由反向代理提供 TLS，并为 HTTPS 部署设置 `LINGSHU_SECURE_COOKIES=true`；这个变量只要求 Cookie 通过 HTTPS 传输，不会让 Home 自行启用 TLS 监听。
+
+### Unraid
+
+使用 [Unraid 模板和安装说明](docs/UNRAID.zh-CN.md)，通过 Docker Manager 或 Community Applications 安装。模板将宿主机 `5180` 映射到容器 `8080`，数据保存在 `/mnt/user/appdata/lingshu-home`，并明确以 `99:100` 访问该数据目录。模板固定使用 `0.0.1` 镜像，文档包含初始化、中英文切换、备份和指定版本升级方法；Apps 尚未收录时可手动安装模板。
 
 ### 首次初始化
 
@@ -267,6 +271,7 @@ Tailwind 类名扫描明确限制在 `web/src`，构建输出目录、public 资
 | English user guide | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
 | 性能方法与结果 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) |
 | API 与页面配置 | [docs/API.md](docs/API.md) |
+| Unraid 安装与升级 | [docs/UNRAID.zh-CN.md](docs/UNRAID.zh-CN.md) · [English](docs/UNRAID.md) |
 | 存储、迁移与备份恢复 | [docs/STORAGE.md](docs/STORAGE.md) |
 | 网络代理与书签内外网选路 | [docs/NETWORK.md](docs/NETWORK.md) |
 | 预置仪表板与数据接入交接 | [docs/DASHBOARDS.md](docs/DASHBOARDS.md) |
