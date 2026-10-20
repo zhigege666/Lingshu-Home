@@ -1,0 +1,39 @@
+.dashboard-presets-dialog { display: grid; gap: 20px; min-width: 0; }
+.dashboard-preset-gallery { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.dashboard-preset-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-width: 0; text-align: left; border: 1px solid var(--admin-border); border-radius: 11px; color: var(--admin-ink); background: #fff; }
+.dashboard-preset-card[aria-pressed=true] { border-color: #4c9476; background: #f1f7f1; box-shadow: 0 0 0 1px #4c9476; }
+.dashboard-preset-card:disabled { opacity: .7; }
+.dashboard-preset-thumb { display: grid; grid-template-columns: repeat(24,minmax(0,1fr)); gap: 2px; width: 100%; height: 90px; padding: 5px; border-radius: 6px; background: #e7ede5; }
+.dashboard-preset-thumb > span { display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; font-size: 9px; line-height: 1.1; white-space: nowrap; border-radius: 2px; color: #526859; background: #fcfdfb; }
+.dashboard-preset-thumb > [data-renderer="builtin/weather"] { background: #e1f0f7; color: #3e697c; }
+.dashboard-preset-thumb > [data-renderer="builtin/calendar"] { background: #e4f3e9; color: #406852; }
+.dashboard-preset-thumb > [data-renderer="builtin/metrics"] { background: #f7eccf; color: #7c6833; }
+.dashboard-preset-thumb > [data-renderer="builtin/status"] { background: #eae7f6; color: #625b7d; }
+.dashboard-preset-thumb > [data-renderer="builtin/github-traffic"] { background: #e7edf6; color: #52657e; }
+.dashboard-preset-card-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+.dashboard-preset-card-title > svg { flex: 0 0 auto; color: var(--admin-accent); }
+.dashboard-preset-description { font-size: 12px; line-height: 1.6; color: var(--admin-muted); }
+.dashboard-preset-bindings { display: grid; gap: 12px; min-width: 0; }
+.dashboard-preset-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dashboard-preset-section-heading > h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.dashboard-preset-note { margin: 0; font-size: 12px; line-height: 1.7; color: var(--admin-muted); overflow-wrap: anywhere; }
+.dashboard-preset-slot { display: grid; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--admin-border); border-radius: 9px; }
+.dashboard-preset-slot[data-state=omitted] { background: var(--admin-bg); }
+.dashboard-preset-slot-heading, .dashboard-preset-check { display: flex; align-items: center; gap: 9px; }
+.dashboard-preset-slot-heading { justify-content: space-between; flex-wrap: wrap; }
+.dashboard-preset-check { font-size: 13px; }
+.dashboard-preset-check small { color: var(--admin-muted); font-size: 11px; }
+.dashboard-preset-slot-state { padding: 2px 7px; border-radius: 4px; font-size: 11px; color: #57725b; background: #eff5ec; }
+.dashboard-preset-slot[data-state=pending] .dashboard-preset-slot-state { background: #fff4de; color: #8a682a; }
+.dashboard-preset-slot[data-state=omitted] .dashboard-preset-slot-state { color: var(--admin-muted); background: #e9eee6; }
+.dashboard-preset-slot .admin-field { margin: 0; }
+.dashboard-preset-source-action { display: flex; justify-content: flex-end; }
+.dashboard-preset-warning, .dashboard-preset-issues { display: grid; gap: 7px; padding: 12px 14px; border-radius: 8px; font-size: 12px; line-height: 1.7; background: #fff7e6; color: #80612d; border: 1px solid #ebdfc7; }
+.dashboard-preset-apply-note { padding-top: 16px; border-top: 1px solid var(--admin-border); font-size: 12px; line-height: 1.8; color: #506252; }
+.dashboard-preset-actions { display: flex; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
+@media (max-width: 660px) {
+  .dashboard-preset-gallery { grid-template-columns: minmax(0,1fr); }
+  .dashboard-preset-card { display: grid; grid-template-columns: 108px minmax(0,1fr); gap: 5px 12px; }
+  .dashboard-preset-thumb { grid-row: span 2; height: 70px; }
+  .dashboard-preset-description { font-size: 11px; }
+}

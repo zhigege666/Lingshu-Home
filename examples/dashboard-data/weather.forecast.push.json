@@ -1,0 +1,39 @@
+{
+  "requestId": "example-weather-forecast-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "weather.forecast",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "timezone": "UTC",
+    "latitude": 0,
+    "longitude": 0,
+    "locationName": "Example location (fictional weather)",
+    "current": {
+      "time": 1705305600,
+      "temperature": 20,
+      "apparentTemperature": 19,
+      "weatherCode": 2,
+      "humidity": 50,
+      "windSpeed": 10,
+      "isDay": true
+    },
+    "daily": [
+      {
+        "date": "2024-01-15",
+        "weatherCode": 2,
+        "temperatureMax": 23,
+        "temperatureMin": 15,
+        "sunrise": 1705300200,
+        "sunset": 1705339800,
+        "precipitationProbability": 20
+      },
+      {
+        "date": "2024-01-16",
+        "weatherCode": 3,
+        "temperatureMax": 21,
+        "temperatureMin": 14
+      }
+    ]
+  }
+}

@@ -18,4 +18,24 @@ The initial built-in SVG pack contains generic UI and category icons. It does no
 
 Future brand assets must retain their own source, asset license, attribution, guidelines, permitted use and modification records. A general icon collection's license does not automatically settle the rights to each brand mark; see [Simple Icons' disclaimer](https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md).
 
-UI concept images may illustrate familiar application identities. They are design references, not the source of redistributable brand SVGs. Lingshu-Home's own logo candidate is tracked separately in the design document; public similarity research is not a trademark clearance certificate.
+UI concept images may illustrate familiar application identities. They are design references, not the source of redistributable brand SVGs. Current application branding uses a temporary generic Compass and wordmark. No third-party brand SVGs or private design images are bundled.
+
+## REUI public components
+
+- Upstream: https://github.com/keenthemes/reui
+- Pinned revision: `067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a`.
+- Original MIT license and file provenance: `web/vendor/reui/LICENSE.md` and `web/vendor/reui/manifest.json`.
+- Seven public components are adapted in `web/src/components/ui/`: Button, Dialog, Input, Label, Table, Tabs, and Textarea. Original upstream files and original/adapted hashes are retained in the vendor record.
+- Changes adapt local imports, the dialog close icon, and Tabs orientation/state attributes for this application's Radix and Tailwind setup. No REUI Pro assets are included.
+
+## Frontend dependencies
+
+React, Radix UI, React Grid Layout, Lucide React and the build dependencies keep the licenses shipped by their respective packages. `scripts/collect_node_licenses.mjs` collects original notice files, records package versions and SHA-256 hashes, and separates runtime dependencies from build-only packages. The generated manifest is included in the application image and Linux bundle under `licenses/npm/`.
+
+The npm package `react-remove-scroll-bar@2.3.8` declares MIT but does not ship a LICENSE file. Its original upstream MIT notice is retained at the fixed license commit recorded in `web/vendor/dependency-notices/manifest.json`, with a SHA-256 check. Missing notices for non-shipped build-only platform bindings are recorded explicitly; missing runtime notices fail the build.
+
+## Go runtime and server modules
+
+`scripts/collect_go_licenses.go` uses the actual server dependency graph and copies original module notices, plus the Go distribution and available vendor notices. The resulting `licenses/go/manifest.json` lists files and hashes. Unreferenced test/build modules are outside that shipped graph.
+
+The Go 1.26.8 BSD license is also retained in `assets/licenses/go/` with its official source and checksum for packaged toolchains that omit the root GOROOT notice. This fallback is accepted only for the matching Go runtime version and original file hash. Third-party notices are not relicensed under Apache-2.0.

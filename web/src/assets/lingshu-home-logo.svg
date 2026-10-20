@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="ivory" x1="12" y1="4" x2="116" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f6f3eb"/>
+      <stop offset="1" stop-color="#eeeae0"/>
+    </linearGradient>
+    <linearGradient id="jade" x1="23" y1="40" x2="80" y2="103" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#108a80"/>
+      <stop offset="1" stop-color="#128e7d"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="62" y1="23" x2="110" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#75d5be"/>
+      <stop offset="1" stop-color="#6ed1b9"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="25" fill="url(#ivory)"/>
+  <path fill="url(#mint)" d="m56.6 24.3 2.5-1.7c4-2.7 8.5-2.8 12.5 0l33.8 23.7c3.3 2.3 4.4 4.8 4.4 8.4v35.1c0 7.7-4.8 12.5-12.3 12.5h-1.7c-7.4 0-12.2-4.8-12.2-12.2V59c0-1.6-.4-2.6-1.8-3.6L65.9 42.6c-1.3-.9-2.6-.9-3.9 0L42.3 54.7z"/>
+  <path fill="url(#jade)" d="M56.6 24.3 23.9 46.8c-4.4 3-5.4 5.3-5.4 9.4v34c0 7.8 4.5 12.2 12.3 12.2h21.7c2.3 0 3.8-.1 5.7-.6l20.2-4.9c2.6-.6 2.7-2 .5-3.2L59.2 83.4c-1.6-.8-2.8-1.2-4.5-1.2h-9.6c-1 0-1.5-.6-1.5-1.6V57.9c0-1.5.5-2.6 1.9-3.5l16.7-11.2c1.2-.8 2.6-.8 3.8 0l32 21.2z"/>
+</svg>

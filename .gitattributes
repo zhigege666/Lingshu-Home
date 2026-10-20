@@ -7,3 +7,9 @@ VERSION text eol=lf
 *.jpeg binary
 *.ico binary
 *.icns binary
+/design export-ignore
+/.runtime export-ignore
+/data export-ignore
+/uploads export-ignore
+/.env export-ignore
+/.env.* export-ignore

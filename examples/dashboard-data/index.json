@@ -1,0 +1,512 @@
+{
+  "format": "lingshu-home-dashboard-data-examples",
+  "indexVersion": 1,
+  "contractVersion": 1,
+  "exampleCollectedAt": "2024-01-15T08:00:00Z",
+  "description": "Machine-readable handoff index for existing component contracts. This index is not a Home API payload, JSON Schema validator, source registration or dashboard import file.",
+  "automaticallyLoaded": false,
+  "api": {
+    "createSource": {
+      "method": "POST",
+      "path": "/api/v1/spaces/{spaceId}/sources"
+    },
+    "pushSnapshot": {
+      "method": "PUT",
+      "path": "/api/v1/sources/{id}/snapshot"
+    },
+    "readSnapshot": {
+      "method": "GET",
+      "path": "/api/v1/sources/{id}/snapshot"
+    },
+    "queuePoll": {
+      "method": "POST",
+      "path": "/api/v1/sources/{id}/sync",
+      "body": {}
+    },
+    "externalJSON": {
+      "method": "GET",
+      "responseObject": "The data property of a push example, without the envelope."
+    }
+  },
+  "limits": {
+    "maximumRawDataBytes": 1048576,
+    "maximumNormalizedDataBytes": 1048576,
+    "maximumSourcesPerSpace": 64,
+    "maximumBindingsPerPage": 32,
+    "maximumViewsPerPage": 32,
+    "storage": "one-latest-snapshot-per-component-source",
+    "unknownDataFields": "rejected"
+  },
+  "semantics": {
+    "timestampFormat": {
+      "envelope.sourceUpdatedAt": "RFC3339 or null",
+      "calendarAndWeatherInstants": "UTC Unix seconds, not milliseconds"
+    },
+    "freshness": {
+      "values": [
+        "fresh",
+        "stale",
+        "disabled"
+      ],
+      "clock": "Home receivedAt plus source staleAfterSeconds; lastError also makes retained data stale.",
+      "sourceUpdatedAtDoesNotDriveFreshness": true
+    },
+    "missingSnapshot": "Awaiting data; not a synthetic zero or empty successful result.",
+    "sampleTime": "All examples are fixed at 2024-01-15T08:00:00Z. Calendar events and weather values are fictional; metrics/status are unknown. Never refresh their timestamp and present them as live.",
+    "requiredFields": "Required fields must be present and non-null, except metric value explicitly allows null.",
+    "fieldNotes": "These handoff notes are not an exhaustive validator. The Go normalizeComponentData implementation is authoritative."
+  },
+  "contracts": [
+    {
+      "schemaId": "metrics.summary",
+      "schemaVersion": 1,
+      "renderer": "builtin/metrics",
+      "input": "metrics",
+      "sourceCreate": {
+        "name": "Example metrics handoff",
+        "kind": "external-push",
+        "schemaId": "metrics.summary",
+        "schemaVersion": 1,
+        "connection": {},
+        "sync": {
+          "mode": "push",
+          "staleAfterSeconds": 300
+        },
+        "enabled": true
+      },
+      "requiredFields": [
+        "metrics"
+      ],
+      "collection": {
+        "field": "metrics",
+        "maximumEntries": 32,
+        "requiredEntryFields": [
+          "id",
+          "label",
+          "value"
+        ],
+        "entryFields": [
+          "id",
+          "label",
+          "value",
+          "unit",
+          "min",
+          "max",
+          "status"
+        ],
+        "uniqueKey": "id"
+      },
+      "fieldRules": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "label": {
+          "nonBlank": true,
+          "maximumUtf8Bytes": 100
+        },
+        "value": {
+          "types": [
+            "number",
+            "null"
+          ],
+          "minimum": -1e+18,
+          "maximum": 1e+18,
+          "nullMeans": "unknown"
+        },
+        "unit": {
+          "maximumUtf8Bytes": 30,
+          "semantics": "Display label; upstream performs conversion."
+        },
+        "min": {
+          "types": [
+            "number",
+            "null"
+          ],
+          "minimum": -1e+18,
+          "maximum": 1e+18
+        },
+        "max": {
+          "types": [
+            "number",
+            "null"
+          ],
+          "minimum": -1e+18,
+          "maximum": 1e+18
+        },
+        "status": {
+          "values": [
+            "ok",
+            "warning",
+            "critical",
+            "unknown"
+          ],
+          "omissionAllowed": true
+        }
+      },
+      "crossFieldRules": [
+        "IDs are unique within the snapshot.",
+        "When both numeric min and max are supplied, max must be greater than min.",
+        "value:null is normalized to status:unknown.",
+        "Missing value is invalid; zero is a measured value."
+      ],
+      "examples": [
+        {
+          "file": "metrics.resources.push.json",
+          "semantics": "explicit-unknown",
+          "suggestedSlots": [
+            "service-operations/resources"
+          ]
+        },
+        {
+          "file": "metrics.overview.push.json",
+          "semantics": "explicit-unknown",
+          "suggestedSlots": [
+            "data-summary/overview"
+          ]
+        },
+        {
+          "file": "metrics.secondary.push.json",
+          "semantics": "explicit-unknown",
+          "suggestedSlots": [
+            "data-summary/secondary"
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "status.collection",
+      "schemaVersion": 1,
+      "renderer": "builtin/status",
+      "input": "status",
+      "sourceCreate": {
+        "name": "Example service status handoff",
+        "kind": "external-push",
+        "schemaId": "status.collection",
+        "schemaVersion": 1,
+        "connection": {},
+        "sync": {
+          "mode": "push",
+          "staleAfterSeconds": 300
+        },
+        "enabled": true
+      },
+      "requiredFields": [
+        "items"
+      ],
+      "collection": {
+        "field": "items",
+        "maximumEntries": 64,
+        "requiredEntryFields": [
+          "id",
+          "label",
+          "status"
+        ],
+        "entryFields": [
+          "id",
+          "label",
+          "status",
+          "message",
+          "latencyMs",
+          "url"
+        ],
+        "uniqueKey": "id"
+      },
+      "fieldRules": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "label": {
+          "nonBlank": true,
+          "maximumUtf8Bytes": 100
+        },
+        "status": {
+          "values": [
+            "up",
+            "degraded",
+            "down",
+            "unknown"
+          ]
+        },
+        "message": {
+          "maximumUtf8Bytes": 500
+        },
+        "latencyMs": {
+          "types": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 86400000,
+          "unit": "ms",
+          "omissionMeans": "not measured"
+        },
+        "url": {
+          "allowedSchemes": [
+            "http",
+            "https"
+          ],
+          "semantics": "Display link only; no server-side probe."
+        }
+      },
+      "examples": [
+        {
+          "file": "status.services.push.json",
+          "semantics": "explicit-unknown",
+          "suggestedSlots": [
+            "service-operations/services"
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "calendar.events",
+      "schemaVersion": 1,
+      "renderer": "builtin/calendar",
+      "input": "events",
+      "sourceCreate": {
+        "name": "Example calendar handoff",
+        "kind": "external-push",
+        "schemaId": "calendar.events",
+        "schemaVersion": 1,
+        "connection": {},
+        "sync": {
+          "mode": "push",
+          "staleAfterSeconds": 1800
+        },
+        "enabled": true
+      },
+      "requiredFields": [
+        "timezone",
+        "windowStart",
+        "windowEnd",
+        "events"
+      ],
+      "collection": {
+        "field": "events",
+        "maximumEntries": 500,
+        "requiredEntryFields": [
+          "id",
+          "title",
+          "startAt",
+          "endAt",
+          "allDay"
+        ],
+        "entryFields": [
+          "id",
+          "title",
+          "startAt",
+          "endAt",
+          "allDay",
+          "startDate",
+          "endDate",
+          "timezone",
+          "location",
+          "description",
+          "url",
+          "status"
+        ],
+        "uniqueKey": "id"
+      },
+      "fieldRules": {
+        "timezone": {
+          "semantics": "Explicit IANA timezone, not Local.",
+          "maximumUtf8Bytes": 80
+        },
+        "windowStart": {
+          "unit": "unix-seconds",
+          "minimumExclusive": 0
+        },
+        "windowEnd": {
+          "unit": "unix-seconds",
+          "exclusive": true,
+          "maximumLocalCalendarDaysFromWindowStart": 90
+        },
+        "events[].id": {
+          "nonBlank": true,
+          "maximumUtf8Bytes": 256
+        },
+        "events[].title": {
+          "nonBlank": true,
+          "maximumUtf8Bytes": 300
+        },
+        "events[].startAt": {
+          "unit": "unix-seconds"
+        },
+        "events[].endAt": {
+          "unit": "unix-seconds",
+          "maximumDurationSeconds": 31622400
+        },
+        "events[].startDate": {
+          "format": "YYYY-MM-DD",
+          "requiredWhen": "allDay:true"
+        },
+        "events[].endDate": {
+          "format": "YYYY-MM-DD",
+          "exclusive": true,
+          "requiredWhen": "allDay:true"
+        },
+        "events[].status": {
+          "values": [
+            "confirmed",
+            "tentative",
+            "cancelled"
+          ],
+          "default": "confirmed"
+        },
+        "events[].location": {
+          "maximumUtf8Bytes": 500
+        },
+        "events[].description": {
+          "maximumUtf8Bytes": 4000
+        }
+      },
+      "crossFieldRules": [
+        "Events must overlap the declared time window; its end is exclusive.",
+        "All-day dates must match midnight startAt/endAt in event timezone, falling back to dataset timezone.",
+        "Timed events must not contain startDate or endDate.",
+        "The normalizer sorts events by startAt then id."
+      ],
+      "examples": [
+        {
+          "file": "calendar.events.push.json",
+          "semantics": "synthetic-fixed-time",
+          "suggestedSlots": [
+            "personal-overview/calendar"
+          ]
+        },
+        {
+          "file": "calendar.empty.push.json",
+          "semantics": "successful-empty-window",
+          "suggestedSlots": [
+            "personal-overview/calendar"
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "weather.forecast",
+      "schemaVersion": 1,
+      "renderer": "builtin/weather",
+      "input": "weather",
+      "sourceCreate": {
+        "name": "Example weather handoff",
+        "kind": "external-push",
+        "schemaId": "weather.forecast",
+        "schemaVersion": 1,
+        "connection": {},
+        "sync": {
+          "mode": "push",
+          "staleAfterSeconds": 3600
+        },
+        "enabled": true
+      },
+      "requiredFields": [
+        "timezone",
+        "latitude",
+        "longitude",
+        "daily"
+      ],
+      "optionalFields": [
+        "locationName",
+        "current"
+      ],
+      "collection": {
+        "field": "daily",
+        "maximumEntries": 7,
+        "requiredEntryFields": [
+          "date",
+          "weatherCode",
+          "temperatureMax",
+          "temperatureMin"
+        ],
+        "entryFields": [
+          "date",
+          "weatherCode",
+          "temperatureMax",
+          "temperatureMin",
+          "sunrise",
+          "sunset",
+          "precipitationProbability"
+        ],
+        "uniqueKey": "date"
+      },
+      "currentRequiredFieldsWhenPresent": [
+        "time",
+        "temperature",
+        "weatherCode",
+        "isDay"
+      ],
+      "currentOptionalFields": [
+        "apparentTemperature",
+        "humidity",
+        "windSpeed"
+      ],
+      "units": {
+        "current.time": "unix-seconds",
+        "current.temperature": "celsius",
+        "current.apparentTemperature": "celsius",
+        "current.humidity": "percent",
+        "current.windSpeed": "km/h",
+        "daily[].date": "provider-calendar-date",
+        "daily[].temperatureMax": "celsius",
+        "daily[].temperatureMin": "celsius",
+        "daily[].sunrise": "unix-seconds",
+        "daily[].sunset": "unix-seconds",
+        "daily[].precipitationProbability": "percent"
+      },
+      "weatherCodes": [
+        0,
+        1,
+        2,
+        3,
+        45,
+        48,
+        51,
+        53,
+        55,
+        56,
+        57,
+        61,
+        63,
+        65,
+        66,
+        67,
+        71,
+        73,
+        75,
+        77,
+        80,
+        81,
+        82,
+        85,
+        86,
+        95,
+        96,
+        99
+      ],
+      "crossFieldRules": [
+        "Unknown current observations omit current entirely; current:null is not accepted.",
+        "A present current object requires time, temperature, weatherCode and isDay.",
+        "Forecast dates are unique and temperatureMax must be at least temperatureMin.",
+        "Daily may be empty but must be an array.",
+        "No upstream attribution is inferred from an external-push weather payload."
+      ],
+      "examples": [
+        {
+          "file": "weather.forecast.push.json",
+          "semantics": "synthetic-fixed-time",
+          "suggestedSlots": [
+            "personal-overview/weather"
+          ]
+        },
+        {
+          "file": "weather.empty.push.json",
+          "semantics": "no-observations",
+          "suggestedSlots": [
+            "personal-overview/weather"
+          ]
+        }
+      ]
+    }
+  ]
+}

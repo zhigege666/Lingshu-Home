@@ -1,17 +1,24 @@
-name: Repository CI
+name: Application CI
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Existing v<VERSION> tag being validated for an application release
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
   group: repository-ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   repository-checks:
@@ -32,17 +39,122 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           PUSH_HEAD_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
           python3 --version
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          if [[ -n "$RELEASE_TAG" ]]; then
+            # A reusable workflow retains the caller's push event. A tag push's
+            # before SHA is not a branch documentation diff; validate its exact
+            # VERSION and dated changelog instead of guessing that range.
+            [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" == "$RELEASE_TAG" ]]
+            python3 scripts/check_repository.py --tag "$RELEASE_TAG"
+            [[ "$(git rev-parse HEAD)" == "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" ]]
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
             python3 scripts/check_repository.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" --diff-mode merge-base
-          else
+          elif [[ -n "$PUSH_BEFORE_SHA" ]]; then
             python3 scripts/check_repository.py --base "$PUSH_BEFORE_SHA" --head "$PUSH_HEAD_SHA" --diff-mode direct
+          else
+            python3 scripts/check_repository.py
           fi
 
       - name: Check Python script syntax
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/lingshu-home-pycache
-        run: python3 -m py_compile scripts/check_repository.py scripts/build_source_release.py
+        run: python3 -m compileall -q scripts tests
+
+      - name: Release artifact, exclusion and Linux launcher regressions
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+  application:
+    name: Build and validate SQLite and PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18.6-bookworm
+        env:
+          POSTGRES_USER: home_ci
+          POSTGRES_PASSWORD: isolated_ci_database_only
+          POSTGRES_DB: lingshu_core
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U home_ci -d lingshu_core"
+          --health-interval 5s --health-timeout 5s --health-retries 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.8
+          cache-dependency-path: server/go.sum
+      - name: Build the complete application and dependency notices
+        run: python3 scripts/dev.py build
+      - name: Visual composer operations and draft invariants
+        run: node tests/composer_operations.cjs
+      - name: Browser routing, dashboard presets and initialization space selection
+        run: |
+          node tests/endpoint_routing_core.test.mjs
+          node tests/dashboard_presets_core.test.mjs
+          node tests/space_selection_core.test.mjs
+      - name: Original Go license and verified fallback regressions
+        working-directory: server
+        run: go test ../scripts/collect_go_licenses.go ../scripts/collect_go_licenses_test.go
+      - name: SQLite, permissions, integrations, icons and component regressions
+        working-directory: server
+        run: go test -race -count=1 ./...
+      - name: Prepare isolated PostgreSQL databases
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: home_ci
+          PGPASSWORD: isolated_ci_database_only
+        run: |
+          createdb lingshu_integrations
+          createdb lingshu_icons
+          createdb lingshu_components
+          createdb lingshu_component_migration
+          createdb lingshu_http
+          createdb lingshu_ownerless
+      - name: PostgreSQL core, integrations, icons, components and migration regressions
+        working-directory: server
+        env:
+          LINGSHU_TEST_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_core?sslmode=disable
+          LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_integrations?sslmode=disable
+          LINGSHU_TEST_ICONS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_icons?sslmode=disable
+          LINGSHU_TEST_COMPONENTS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_components?sslmode=disable
+          LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_component_migration?sslmode=disable
+        run: |
+          : "${LINGSHU_TEST_POSTGRES_URL:?core test database is required}"
+          : "${LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL:?integrations test database is required}"
+          : "${LINGSHU_TEST_ICONS_POSTGRES_URL:?icons test database is required}"
+          : "${LINGSHU_TEST_COMPONENTS_POSTGRES_URL:?components test database is required}"
+          : "${LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL:?component migration test database is required}"
+          go test -count=1 -v ./...
+      - name: SQLite HTTP acceptance and process restart
+        run: python3 scripts/validate_http.py --provider sqlite --output-dir .runtime/ci-sqlite
+      - name: PostgreSQL HTTP acceptance and process restart
+        env:
+          LINGSHU_HTTP_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_http?sslmode=disable
+          LINGSHU_OWNERLESS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_ownerless?sslmode=disable
+        run: python3 scripts/validate_http.py --provider postgres --output-dir .runtime/ci-postgres
+      - name: Build and exercise Docker image
+        run: |
+          docker build --network=host -t lingshu-home:ci .
+          python3 scripts/check_container.py --image lingshu-home:ci
+      - name: Save credential-free test summaries
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: acceptance-summaries
+          path: .runtime/ci-*/summary.json
+          if-no-files-found: ignore
+          retention-days: 14

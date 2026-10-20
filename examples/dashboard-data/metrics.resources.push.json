@@ -1,0 +1,36 @@
+{
+  "requestId": "example-resources-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "metrics.summary",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "metrics": [
+      {
+        "id": "cpu-utilization",
+        "label": "CPU utilization (example)",
+        "value": null,
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "status": "unknown"
+      },
+      {
+        "id": "memory-utilization",
+        "label": "Memory utilization (example)",
+        "value": null,
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "status": "unknown"
+      },
+      {
+        "id": "disk-used",
+        "label": "Disk used (example)",
+        "value": null,
+        "unit": "GiB",
+        "status": "unknown"
+      }
+    ]
+  }
+}

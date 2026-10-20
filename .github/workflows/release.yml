@@ -1,4 +1,4 @@
-name: Source release
+name: Application release
 
 on:
   push:
@@ -8,24 +8,40 @@ permissions:
   contents: read
 
 concurrency:
-  group: source-release-${{ github.ref }}
+  group: application-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  source-release:
-    name: Validate, package and publish source assets
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  validate:
+    name: All application CI gates
+    uses: ./.github/workflows/ci.yml
+    with:
+      release_tag: ${{ github.ref_name }}
     permissions:
-      contents: write
+      contents: read
+
+  package:
+    name: Build and exercise Linux amd64 release artifacts
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.coordinates.outputs.artifact_name }}
+      commit: ${{ steps.package.outputs.commit }}
     steps:
-      - name: Check out tagged source
+      - name: Check out the validated tagged commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Validate version and package source
+      - name: Name this build's artifact set
+        id: coordinates
+        shell: bash
+        run: printf 'artifact_name=application-%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - name: Build, test and save the exact release image and downloads
         id: package
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -33,27 +49,114 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/check_repository.py --tag "$RELEASE_TAG"
-          python3 scripts/build_source_release.py --tag "$RELEASE_TAG" --output dist/source
-          cd dist/source
+          python3 scripts/build_app_release.py --tag "$RELEASE_TAG" --output dist/release
+          cd dist/release
           sha256sum --check SHA256SUMS
+      - name: Transfer the complete tested artifact set
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.coordinates.outputs.artifact_name }}
+          path: dist/release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
 
-      - name: Publish GitHub Release with the matching CHANGELOG section
+  publish:
+    name: Publish the verified image and complete GitHub Release
+    needs: [validate, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+    steps:
+      - name: Check out verification scripts at the same commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download this build's tested bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ARTIFACT_NAME: ${{ needs.package.outputs.artifact_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$GITHUB_RUN_ID" --name "$ARTIFACT_NAME" --dir dist/release
+      - name: Recheck source identity, hashes and loaded image identity
+        id: verified
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          BUILT_COMMIT: ${{ needs.package.outputs.commit }}
+          PYTHONDONTWRITEBYTECODE: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_commit="$(git rev-parse HEAD)"
+          [[ "$release_commit" == "$BUILT_COMMIT" ]]
+          [[ "$release_commit" == "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" ]]
+          python3 scripts/check_repository.py --tag "$RELEASE_TAG"
+          python3 scripts/build_app_release.py --verify --tag "$RELEASE_TAG" --commit "$release_commit" --output dist/release
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          metadata = json.loads(Path("dist/release/release-metadata.json").read_text())
+          image = metadata["image"]
+          subprocess.run(["docker", "image", "load", "--input", "dist/release/" + image["archive"]], check=True)
+          actual = json.loads(subprocess.check_output(["docker", "image", "inspect", image["reference"]]))[0]
+          if actual["Id"] != image["id"] or actual["Os"] != "linux" or actual["Architecture"] != "amd64":
+              raise SystemExit("Loaded image does not match the exercised release image")
+          PY
+      - name: Stage all downloads as a draft release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-          IS_PRERELEASE: ${{ steps.package.outputs.prerelease }}
+          IS_PRERELEASE: ${{ steps.verified.outputs.prerelease }}
+          BUILT_COMMIT: ${{ needs.package.outputs.commit }}
         shell: bash
         run: |
           set -euo pipefail
-          release_args=(--verify-tag --title "Lingshu-Home $RELEASE_TAG · Source/assets only" --notes-file dist/source/release-notes.md)
+          [[ "$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq '.sha')" == "$BUILT_COMMIT" ]]
+          release_args=(--draft --verify-tag --title "Lingshu-Home $RELEASE_TAG" --notes-file dist/release/release-notes.md)
           if [[ "$IS_PRERELEASE" == "true" ]]; then
             release_args+=(--prerelease --latest=false)
           fi
-          gh release create "$RELEASE_TAG" "${release_args[@]}" \
-            dist/source/*.tar.gz dist/source/*.zip dist/source/SHA256SUMS dist/source/release-notes.md
+          # Existing published versions or drafts are never silently overwritten.
+          gh release create "$RELEASE_TAG" "${release_args[@]}" dist/release/*
+      - name: Push the already tested image to its exact version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_REF: ${{ steps.verified.outputs.image_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE_REF"
+      - name: Publish the complete release after the image push succeeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          IS_PRERELEASE: ${{ steps.verified.outputs.prerelease }}
+          BUILT_COMMIT: ${{ needs.package.outputs.commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq '.sha')" == "$BUILT_COMMIT" ]]
+          release_args=(--draft=false --verify-tag)
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            release_args+=(--prerelease --latest=false)
+          fi
+          gh release edit "$RELEASE_TAG" "${release_args[@]}"
+      - name: Clear registry login
+        if: always()
+        run: docker logout ghcr.io
 
-      # Docker/Linux binaries and Windows/macOS installers are future build gates.
-      # Add real source, native build/test jobs, signing and upgrade verification
-      # before changing the artifact type. Keep README.md in sync with supported outputs.
+# Publishing between GitHub Releases and GHCR is not an atomic operation. If a
+# publish step fails, the workflow fails and an unpublished draft may remain.
+# Inspect that draft/registry tag before retrying; this workflow never deletes
+# an existing release or replaces its assets. GHCR uses exact version tags only.

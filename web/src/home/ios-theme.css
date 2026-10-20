@@ -1,0 +1,83 @@
+/* A bundled Web theme, inspired by platform design principles. No Apple app
+   artwork, font binaries, SF Symbols or native UI framework are redistributed. */
+.lh-home[data-page-theme="builtin/ios"] {
+  --lh-bg: #eff3f9; --lh-surface: #fff; --lh-soft: #e8edf6; --lh-ink: #182235;
+  --lh-muted: #566278; --lh-line: #dce3ef; --lh-accent: #125fc6; --lh-tint: #dfebff;
+  --lh-hover: #f4f7fd; --lh-shadow: 0 4px 18px #354e7910; --lh-scroll-thumb: #899bb8;
+  --lh-ios-material: #f8fbffe8;
+  background: radial-gradient(ellipse at 4% 2%,#d8e7ff 0,transparent 44%),
+    radial-gradient(ellipse at 98% 15%,#f1dcf5 0,transparent 39%),var(--lh-bg);
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  letter-spacing: 0;
+}
+.lh-home[data-page-theme="builtin/ios"][data-theme="dark"] {
+  --lh-bg: #111722; --lh-surface: #202938; --lh-soft: #283448; --lh-ink: #eef3fc;
+  --lh-muted: #b0bfd4; --lh-line: #39475c; --lh-accent: #83b9ff; --lh-tint: #263f64;
+  --lh-hover: #28354a; --lh-shadow: 0 5px 18px #00000018; --lh-scroll-thumb: #697f9f;
+  --lh-ios-material: #1c2737ed;
+  background: radial-gradient(ellipse at 3% 0,#203c62 0,transparent 42%),
+    radial-gradient(ellipse at 98% 12%,#332341 0,transparent 39%),var(--lh-bg);
+}
+.lh-home[data-page-theme="builtin/ios"] .lh-brand strong { font-weight: 670; letter-spacing: -.035em; }
+.lh-home[data-page-theme="builtin/ios"] .lh-home-heading h1 { font-weight: 650; }
+.lh-home[data-page-theme="builtin/ios"] .lh-search { min-height: 40px; border-radius: 14px; background: var(--lh-ios-material); box-shadow: 0 2px 8px #17366005; }
+.lh-home[data-page-theme="builtin/ios"] .lh-search kbd { border-radius: 5px; background: var(--lh-surface); }
+.lh-home[data-page-theme="builtin/ios"] .lh-categories {
+  border: 1px solid var(--lh-line); padding: 10px; border-radius: 22px;
+  background: var(--lh-ios-material); box-shadow: 0 8px 24px #17366008;
+}
+.lh-home[data-page-theme="builtin/ios"] .lh-category-toolbar { padding-top: 3px; padding-bottom: 9px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-category-select { min-height: 40px; border-radius: 12px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-category-select[aria-pressed="true"] { background: var(--lh-tint); box-shadow: inset 0 1px 0 #ffffff35; }
+.lh-home[data-page-theme="builtin/ios"] .lh-category-select b { border-radius: 6px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-categories.is-horizontal { padding: 6px 8px; gap: 5px; border-radius: 19px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-categories.is-horizontal .lh-category-list { padding: 3px 1px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-categories.is-horizontal .lh-category-select { border-radius: 12px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-categories.is-icons { padding: 8px 6px; border-radius: 20px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-categories.is-icons .lh-category-select { min-height: 40px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-categories.is-icons .lh-category-row { justify-content: center; }
+/* Translucency is restricted to navigation. Content cards have opaque fills so
+   dense text remains legible and every bookmark avoids a blur compositor. */
+@supports (backdrop-filter: blur(10px)) {
+  .lh-home[data-page-theme="builtin/ios"] .lh-categories { backdrop-filter: blur(10px); }
+}
+.lh-home[data-page-theme="builtin/ios"] .lh-group-heading { min-height: 29px; margin-bottom: 10px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-group-heading h2 { font-weight: 650; font-size: 14px; letter-spacing: -.015em; }
+.lh-home[data-page-theme="builtin/ios"] .lh-count { border-radius: 7px; background: var(--lh-soft); color: var(--lh-muted); }
+.lh-home[data-page-theme="builtin/ios"] .lh-bookmark { border-radius: 18px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-bookmark-title[href]::after { border-radius: inherit; }
+.lh-home[data-page-theme="builtin/ios"] .lh-bookmark-icon { border-radius: 11px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-favorites-group { border-radius: 24px; padding: 16px 18px 14px; background: var(--lh-surface); box-shadow: var(--lh-shadow); }
+.lh-home[data-page-theme="builtin/ios"] .lh-favorites-empty { border-radius: 16px; background: var(--lh-surface); }
+.lh-home[data-page-theme="builtin/ios"] .lh-panel { border-radius: 22px; box-shadow: var(--lh-shadow); }
+.lh-home[data-page-theme="builtin/ios"] .lh-directory-groups .lh-link-group { border-radius: 19px; box-shadow: var(--lh-shadow); }
+.lh-home[data-page-theme="builtin/ios"] .lh-bookmark.is-directory { border-radius: 0; }
+.lh-home[data-page-theme="builtin/ios"] .lh-endpoints a { border-radius: 7px; padding: 2px 6px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-traffic-stats strong { font-weight: 650; }
+.lh-home[data-page-theme="builtin/ios"] .lh-baseline > div { border-radius: 12px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-page-chrome { color: var(--lh-muted); }
+.lh-home[data-page-theme="builtin/ios"] .lh-chrome-slot a { color: var(--lh-accent); }
+.lh-home[data-page-theme="builtin/ios"] .lh-custom-header { padding-top: 8px; padding-bottom: 18px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-footer { padding-top: 12px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-header-actions :is(.lh-admin-link,.lh-segmented,.lh-space-control,.lh-space-placeholder) { border-radius: 12px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-header-actions .lh-segmented button { border-radius: 8px; }
+.lh-home[data-page-theme="builtin/ios"] .lh-header-actions .lh-icon-button { border-radius: 12px; }
+@media (max-width: 560px) {
+  .lh-home[data-page-theme="builtin/ios"] .lh-categories.is-horizontal { border-radius: 17px; padding: 5px; }
+  .lh-home[data-page-theme="builtin/ios"] .lh-favorites-group { border-radius: 20px; padding: 13px 10px 10px; }
+  .lh-home[data-page-theme="builtin/ios"] .lh-group-heading { padding-left: 2px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .lh-home[data-page-theme="builtin/ios"] { --lh-ios-material: var(--lh-surface); background: var(--lh-bg); }
+  .lh-home[data-page-theme="builtin/ios"] .lh-categories { backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  .lh-home[data-page-theme="builtin/ios"] { --lh-line: #8894a9; --lh-muted: #364861; --lh-ios-material: #fff; background: var(--lh-bg); }
+  .lh-home[data-page-theme="builtin/ios"][data-theme="dark"] { --lh-line: #a1b1c9; --lh-muted: #d3dff1; --lh-ios-material: #202938; }
+  .lh-home[data-page-theme="builtin/ios"] .lh-categories { backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .lh-home[data-page-theme="builtin/ios"] .lh-categories,
+  .lh-home[data-page-theme="builtin/ios"] .lh-bookmark,
+  .lh-home[data-page-theme="builtin/ios"] .lh-bookmark-icon { border-color: CanvasText; box-shadow: none; backdrop-filter: none; }
+}

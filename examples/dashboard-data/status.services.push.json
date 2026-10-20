@@ -1,0 +1,29 @@
+{
+  "requestId": "example-services-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "status.collection",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "items": [
+      {
+        "id": "api",
+        "label": "API (example)",
+        "status": "unknown",
+        "message": "No observation supplied; connect the existing collector."
+      },
+      {
+        "id": "worker",
+        "label": "Worker (example)",
+        "status": "unknown",
+        "message": "No observation supplied; this card does not run probes."
+      },
+      {
+        "id": "storage",
+        "label": "Storage (example)",
+        "status": "unknown",
+        "message": "No observation supplied; latency is intentionally absent."
+      }
+    ]
+  }
+}

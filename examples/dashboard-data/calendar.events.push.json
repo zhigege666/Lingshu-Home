@@ -1,0 +1,37 @@
+{
+  "requestId": "example-calendar-events-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "calendar.events",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "timezone": "UTC",
+    "windowStart": 1705276800,
+    "windowEnd": 1705881600,
+    "events": [
+      {
+        "id": "example-planning-20240115",
+        "title": "Example planning session (fictional)",
+        "startAt": 1705309200,
+        "endAt": 1705311000,
+        "allDay": false,
+        "timezone": "UTC",
+        "location": "Example room",
+        "description": "Fixed fixture: 2024-01-15 09:00-09:30 UTC. This is not a real appointment.",
+        "status": "confirmed"
+      },
+      {
+        "id": "example-day-20240116",
+        "title": "Example all-day entry (fictional)",
+        "startAt": 1705363200,
+        "endAt": 1705449600,
+        "allDay": true,
+        "startDate": "2024-01-16",
+        "endDate": "2024-01-17",
+        "timezone": "UTC",
+        "description": "The exclusive end date is the next local midnight.",
+        "status": "tentative"
+      }
+    ]
+  }
+}

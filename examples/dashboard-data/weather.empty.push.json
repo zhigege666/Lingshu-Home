@@ -1,0 +1,14 @@
+{
+  "requestId": "example-weather-empty-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "weather.forecast",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "timezone": "UTC",
+    "latitude": 0,
+    "longitude": 0,
+    "locationName": "Example location (no observations)",
+    "daily": []
+  }
+}

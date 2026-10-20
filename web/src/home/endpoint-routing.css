@@ -1,0 +1,7 @@
+.lh-network-endpoints { column-gap: 5px; row-gap: 5px; }
+.lh-network-endpoints a, .lh-additional-endpoints a { max-width: 100%; min-width: 0; }
+.lh-endpoint-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lh-network-endpoints a > svg, .lh-additional-endpoints a > svg { flex: 0 0 auto; }
+.lh-network-endpoints .lh-endpoint-role { flex: 0 0 auto; color: var(--lh-muted); font-size: 8px; }
+.lh-bookmark .lh-routing-status { margin: 6px 0 0; font-size: 10px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; color: var(--lh-muted); }
+.lh-bookmark[data-routing="pending"] .lh-bookmark-title > svg { opacity: .4; }

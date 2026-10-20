@@ -1,0 +1,549 @@
+# User guide
+
+**English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
+
+This guide explains everyday operation of the Lingshu-Home 0.0.1 and uses its English interface labels. Start the instance with `en` to match these labels; the default language is `zh-CN`, covered by the Chinese guide. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md).
+
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md).
+
+## 1. Start and initialize an instance
+
+Install the **Docker image or Linux amd64 release** using [Quick start](../README.md#quick-start). The release executable includes its frontend and needs no Go or Node.js. Both quick-start examples use SQLite and preserve the database and instance keys outside the replaceable application files.
+
+For the source Compose alternative, obtain the matching checkout as described in the README, then run from its repository directory:
+
+```bash
+LINGSHU_LANGUAGE=en docker compose up -d --build
+docker compose ps
+```
+
+Open `http://127.0.0.1:5180` on the computer running Home. The examples bind access to that host's loopback address. For another computer, use the address provided by the instance administrator after configuring the published interface or reverse proxy. The homepage, admin, API and MCP use the same service.
+
+If Home displays **Set up Home**:
+
+1. Enter a site name, separate from an individual page name, and select an access mode. **Public browsing** is the default: visitors can read published shared content, while maintenance requires an Owner. Personal spaces stay private.
+2. Create the Owner in modes requiring an account. There is no default administrator username or password. Usernames use 3–40 ASCII letters, digits, `.`, `_` or `-`; passwords contain 10–128 characters. The display name is optional. In **Open editing**, **Also create an administrator (optional)** is off by default; enable it to create an account while keeping anonymous navigation maintenance.
+3. Enable **Add example bookmarks** only if wanted. In **Example content pack**, choose the **Chinese website collection** or **English website collection** and optionally expand **Preview the websites to add**. Examples are off by default, editable later, and added only to the shared space. This choice does not change the interface language.
+4. Select **Create my Home**. A newly created Owner is signed in automatically. Open editing and Public browsing open the shared space after setup; private modes open the shared space when examples were selected, otherwise the Owner's personal space.
+5. Use **Admin** for management. An editable empty homepage also offers **Add your first link** and **Import browser bookmarks**, opening the corresponding admin flow directly in the current space.
+
+If the setup request fails or its result is unclear, **Check setup status again** reads the server's current initialization and sign-in state. It does not resubmit the setup form or sign in with a retained password. If setup is still incomplete, the form stays available; if it completed, continue to the homepage or sign-in screen as directed.
+
+If an existing instance opens its homepage or login screen, setup has already been completed. Continue using that instance and its existing data. Home does not import personal browser data automatically.
+
+### Choose the instance language
+
+[View the earlier English homepage capture](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/home-brand-en-2k.png). This historical image predates the visual editor and iOS theme. Existing category and bookmark names retain their original language.
+
+Language belongs to the running instance. The homepage, setup, login and admin use the same `en` or `zh-CN` setting; browsers do not override it, and there is no in-page language switcher.
+
+| Deployment | English example |
+| --- | --- |
+| Published Docker image | Use `-e LINGSHU_LANGUAGE=en` in the complete README `docker run` command |
+| Linux release, from its extracted directory | `./lingshu-home --language en --data-dir "$HOME/.local/share/lingshu-home"` |
+| Source Compose / SQLite | `LINGSHU_LANGUAGE=en docker compose up -d --build` |
+| Source Compose / PostgreSQL | `LINGSHU_LANGUAGE=en docker compose -f compose.postgres.yaml up -d --build`, retaining the database environment |
+| Development helper | `python3 scripts/dev.py start --language en` or `python3 scripts/dev.py run --language en` |
+| Built server, from the checkout root | `./dist/lingshu-home --language en` |
+
+Use `zh-CN` instead for Simplified Chinese. `LINGSHU_LANGUAGE` supplies the default to the server and helper; an explicit `--language` takes precedence. With neither set, Home uses `zh-CN`.
+
+To change an existing local instance, stop it and start it with the chosen language and the same database/data directory. For the published image, recreate the container with the new `-e LINGSHU_LANGUAGE=...` and the original named volume. For source Compose, run `up -d --build` using the new environment. Docker or Compose `restart` alone does not apply new environment variables. Retain the language in the deployment environment or a private `.env` file on later starts; keep an explicit language flag when using the development helper.
+
+Changing language preserves stored user-entered site, page, space, category, link and header/footer text. New default spaces/pages use the instance language; optional example links use the content pack independently selected during setup. Existing default names are not renamed retroactively. The bootstrap response exposes `language`, and the Go-served HTML shell has the matching `lang` before the application mounts.
+
+### Choose the access mode
+
+| Interface option | Mode | Who can view and maintain content? |
+| --- | --- | --- |
+| Open editing | `open_edit` | Published shared navigation is readable and editable without signing in. Setup can optionally create an Owner at the same time. |
+| Public browsing | `public_read` | Anyone can read published shared navigation. The Owner signs in to maintain it and their own personal space. |
+| Private navigation | `private_single` | The Owner signs in to view or maintain the instance. |
+| Multiple users | `private_multi` | Accounts sign in. Each Member maintains a private personal space; the Owner maintains shared content and manages accounts. |
+
+**Public browsing** is the setup default. Personal spaces remain private in every mode. The Owner cannot open another user's personal space. Self-registration is a separate setting, initially off, available only in multi-user mode.
+
+Database selection is a deployment setting, not an initialization-page option. SQLite is built in; use the standalone PostgreSQL Compose file for an external database. Changing providers does not convert existing data. Follow [STORAGE.md](STORAGE.md) before choosing or changing storage.
+
+### Add an account after account-free setup
+
+In an ownerless **Open editing** instance, open **Access and accounts**, enable **Also create the first administrator (optional)**, enter a username, optional display name and password, and select **Save access settings**. Keep Open editing or choose an account-required mode in the same form; switching modes twice is unnecessary. A successful creation signs you in as the new Owner and retains shared content. Open editing continues to allow anonymous navigation maintenance, while the account can manage integrations and other account-required features.
+
+External source configuration, Home access tokens and MCP always require an account. Anonymous local navigation maintenance does not grant credential-management access. Once an Owner exists, global access settings are maintained by the Owner.
+
+## 2. Find the right space and management page
+
+Open **Admin** from the homepage, or append `/#/admin` to your instance address. Where multiple spaces are available, use **Current space** in the admin heading or the space selector on the homepage. Check it before adding content or importing bookmarks.
+
+The selected space survives a full refresh in the same browser tab. It is recorded separately for each signed-in or anonymous identity and checked against current access permissions. An inaccessible space is discarded; a new tab, cleared browser session or another device need not retain the choice. Examples belong to the shared space, so an empty personal space does not mean they were lost. An editable empty homepage also offers **Add your first link** and **Import browser bookmarks** directly.
+
+| Menu | Typical task |
+| --- | --- |
+| Link management | Create, edit, search and delete local links |
+| Category management | Organize nested categories and their sort order |
+| Layout and theme | Configure the page, presets, category navigation and component bindings |
+| Import and export | Import browser HTML bookmarks; export the current space; edit its name |
+| Sources and MCP | Configure external sources and create or revoke your access tokens |
+| Access and accounts | Site name, access mode, registration settings and first-Owner creation when ownerless |
+| Network settings | Automatic internal/external selection and the Owner-managed server proxy |
+| Member management | Create and manage Members; visible to an Owner in multi-user mode |
+| About Home | Check application/frontend versions and project information |
+
+The admin uses a fixed-height workspace. Link/category tables scroll inside their content area; headings, search, actions and pagination stay visible. Settings use their own content area and the layout editor keeps save/cancel controls at the bottom. The whole browser document does not grow with every table row.
+
+### Pagination and search
+
+Link and category lists start at **25 rows per page**. Select 25, 50 or 100 at the bottom, and use the first/previous/next/last controls. Search returns to page 1; changing space or section does the same. Deleting the last row of a final page moves the list back to an available page.
+
+This is pagination of the authorized navigation snapshot already loaded by the browser. It limits mounted table rows; it is not server-side paging, streaming or an infinite “load more” list. Link-list search covers title, main URL, description and tags. Category search includes the parent path. Reload the page to read changes made elsewhere.
+
+## 3. Maintain categories and links
+
+### Categories
+
+1. Open **Category management → Add category**.
+2. Enter **Category name** and choose an icon from the built-in collection or an imported library, as described below.
+3. Leave **Parent category** as **Top level**, or select an existing parent. The parent selector excludes the category itself and its descendants while editing.
+4. Enter **Sort order** and save. Lower numbers appear first; use gaps such as 10, 20 and 30 if you expect to insert more categories later.
+
+Use the pencil action to rename, move or reorder a category. Changing its parent changes the hierarchy; switching the homepage's tree/flat presentation only changes how the same hierarchy is displayed. The resulting hierarchy supports at most 32 levels.
+
+A category containing links or child categories cannot be deleted. Move its links to another category or **Uncategorized**, move or remove its child categories, then use the delete action and confirm. Deletion has no recycle-bin workflow in this version.
+
+### Links and multiple project entrances
+
+1. Open **Link management → Add link**.
+2. Enter **Link name** and a complete `http://` or `https://` address in **Primary URL**. Select a category or **Uncategorized**.
+3. Add an optional description and comma-separated tags. Keep the default automatic icon mode, or choose a built-in/imported icon to use a manual selection.
+4. Use **Add to favorites** for frequently used entries and set their sort order.
+5. For automatic selection, use **Internal and external access → Add internal route / Add external route**, with a label, complete URL and read-only probe path. Keep documentation, administration pages and other manual destinations in **Additional URLs → Add URL**; unmarked entries do not participate in automatic routing. A link supports up to 12 entries across these groups. Cross-origin probes require the service to allow Home through CORS; otherwise Home retains the external/primary fallback. See [Network settings](#network-settings-and-internalexternal-access).
+6. Select **Save link**.
+
+The table keeps long content compact. It shows the main URL, up to two tag chips and two additional entrances, plus a count for remaining items. Hover the count for its summary or open the editor for all values. No stored tags or URLs are discarded by the compact table.
+
+Use the pencil to edit; use the trash action and confirmation to delete the link and its additional entrances from the current space. Links only accept HTTP/HTTPS; executable bookmarklets, browser-internal addresses and file URLs are not supported.
+
+On an editable homepage, the star button also updates a local link's favorite status immediately. External snapshot links are maintained by their source, so their favorite data cannot be changed through the local-link star action. A favorite appearing in both the favorites panel and the full navigation is one stored link shown twice.
+
+### Choose or import icons
+
+Link and category forms use the same icon picker. **Built-in** provides 30 offline Lucide outline icons, with search by name or keyword and a preview of the selected icon. **Use default** returns the form to the normal link/category fallback. Selecting an icon changes the form draft; use **Save link** or the category's save action to apply it.
+
+To use your own image or collection:
+
+1. Check the current space, then open the icon picker's **Import** tab.
+2. Select one `.png`, `.jpg`/`.jpeg` or supported static `.svg`, or a Schema 1 `.json` icon library following [ICONS.md](ICONS.md#import-a-pack).
+3. Check **Library name**, the optional **Source URL**, and the required **License or ownership notice**. Keep the actual original notice for third-party assets. Source URL records provenance; importing does not fetch it.
+4. Select **Import and select** for a single image, or **Import library** for a collection. A single imported icon is selected in the form; for a collection, choose an entry under **Libraries**.
+5. Save the link/category form to apply its selected icon.
+
+Single-image input is at most 256 KiB and 512 × 512; SVG has a stricter 64 KiB input limit and requires a positive bounded `viewBox`. Libraries contain 1–64 images with at most 4 MiB decoded image data. A space accepts at most 32 libraries. The server checks the real format and rewrites raster images; SVG supports static geometry without scripts, external references, text, gradients or embedded images. Convert complex SVG to PNG first. ZIP, icon-font and CSS packages are not accepted. Full per-space limits and a JSON example are in [ICONS.md](ICONS.md).
+
+Under **Libraries**, choose a library, search its entries, inspect **Source and license**, or refresh the list. Deleting requires its inline confirmation. If deleting the last retained copy of an icon would break a saved link, category, page or source snapshot, Home rejects the deletion; replace those saved references first. Another library or website cache can retain an identical image.
+
+### Fetch a website icon
+
+**Access and accounts → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported public website icons in the background. Choose **Refresh list** in link management or **Refresh content** on a navigation-only homepage to display completed results. There is no automatic navigation polling loop.
+
+The link form distinguishes automatic and manual modes. Selecting a built-in/library image, **Use default**, or an explicit fetched image makes the link manual, so background work cannot replace your choice. Choose automatic mode and save to opt a link in again. Existing links and the offline starter collection retain their original images after upgrade.
+
+Turning the instance switch off clears queued work, cancels/discards in-flight automatic results and keeps saved images. Explicit lookup still works. Turning it back on affects subsequent saves/imports; it does not scan old links. Once the instance has an Owner, that account controls this setting. An ownerless Open editing instance can configure it without creating an account. Changing only the icon switch keeps current sessions signed in.
+
+In a link form, enter a complete primary URL and select **Fetch website icon**. Home requests the website's public origin page, checks its declared icon candidates and `/favicon.ico`, validates the image, and returns a local selection. It does not forward your bookmark's path, query or fragment. Save the link to apply that selection.
+
+Homepage visitors only load Home's authorized local images; there is no visitor-triggered missing-icon lookup or Google/other favicon proxy. Automatic and explicit lookup accept public HTTP/HTTPS origins on standard ports. For internal, login-only or unsupported websites, use a local import or bundled icon. PNG, JPEG, the supported static SVG subset and bounded common ICO encodings are handled; not every site's icon format is supported. Failure or a full queue leaves the bookmark usable with its saved/fallback image.
+
+Successful results are cached for 24 hours. Initial failures are cached for 30 minutes; a failed refresh preserves a previous good image. A later eligible save or explicit request after expiry can refresh it; expiry alone does not start work. Only one remote icon lookup runs at a time per instance, so retry after the current request finishes if the manual picker reports a busy service.
+
+The selected Home database stores the actual image bytes and per-space cache. Browsers reuse image content through private HTTP caching with permission revalidation, rather than keeping the only copy in browser storage. Clearing browser data or using another device does not erase your saved images. An empty automatic queue has no periodic timer, and it needs no separate cache service.
+
+**Imports, confirmed library deletions and website-cache writes take effect immediately in the current space.** Canceling the link/category form only discards its icon selection; it does not undo those library/cache operations. These actions use the current space's maintenance permission, including anonymous maintenance in **Open editing**, plus the normal browser CSRF checks. Personal images stay private to their space.
+
+## 4. Import Chrome bookmarks
+
+### Export a file from Chrome
+
+In desktop Chrome, open its menu, go to **Bookmarks and lists → Bookmark Manager**, then use the manager's menu to export bookmarks. Save the resulting HTML file somewhere you can find again. These steps follow [Google's bookmark export instructions](https://support.google.com/chrome/answer/96816?hl=en).
+
+Home imports the file you choose. It does not connect to Google account synchronization or read a browser profile automatically.
+
+### Preview and import in Home
+
+1. Choose the destination space.
+2. Open **Import and export → Choose bookmark file**, or **Link management → Import**.
+3. Select the exported `.html` or `.htm` file.
+4. Choose **Skip duplicates** or **Keep duplicates**. Skipping is the default.
+5. Select **Import into category**. **Root** retains the exported folder structure at the space root; selecting a category puts the imported structure beneath that category.
+6. Select **Preview file** and check totals, invalid URLs, duplicates and folder paths.
+7. Select **Import bookmarks**. Read the imported/skipped result and inspect the resulting links and categories.
+
+| Import detail | Behavior |
+| --- | --- |
+| File size / link limit | At most 2 MiB of UTF-8 bookmark HTML and 10,000 links |
+| Folder depth | At most 32 resulting levels, including the destination category path |
+| Preview | Shows up to 200 entries; totals cover the whole file |
+| Duplicate identity | Canonical URL against existing links in that destination space and earlier entries in the file |
+| Skip | Leaves matching existing links intact; it does not update their names or categories |
+| Keep | Adds valid repeated URLs as separate links |
+| Invalid URLs | Counted separately and not imported |
+| Changing file/options | Clears the old preview; preview again before confirming |
+
+“Valid” includes entries also counted as duplicates. Do not add those counts together. Preview is read-only; import reparses and rechecks the current destination before writing. A wholly rejected file does not leave a partial import. For a repeated skip import that creates no new links or folders, the data revision does not advance.
+
+Other browsers may export compatible Netscape-style HTML. Home's JSON export is not accepted by this HTML importer. HTML export represents additional project entrances as separate bookmarks, so reimporting that HTML does not reconstruct the original multi-entrance grouping.
+
+## 5. Arrange the homepage
+
+The page is composed from source bindings, components and placements. Changing layout does not reassign or delete links and categories. Each space currently has one managed homepage. Both the visual homepage editor and the admin page editor save the same page configuration; third-party theme installation and a multi-page library remain future work.
+
+### Edit directly on the homepage
+
+With edit permission, select **Edit page** on the homepage. The ordinary site header is replaced by a dedicated editing toolbar, so the workspace is available for composition:
+
+| Part | Use |
+| --- | --- |
+| Top toolbar | Open the component library, preview, restore, cancel or save the page; check **Unsaved / No changes** |
+| Left rail → Layers | Select the page appearance, an existing component, or a header/footer slot; hidden and locked components remain listed |
+| Left rail → Add | Add a component, or select Header/Footer to edit page content |
+| Center canvas | See the current draft and select components or any of the six header/footer slots, including empty slots |
+| Right inspector | Edit the selected object's settings without opening a separate management page |
+
+In smaller editor windows the side rails become drawers, opened with **Add component** and **Properties**. Close a drawer or use **Back to canvas** to inspect the result. The draft remains in memory. Closing a drawer does not save or discard it.
+
+The search box remains an editable component in the canvas while the ordinary header is hidden. Category navigation is also a selectable component: click its edit label or select it under Layers. Account controls and the site's ordinary identity header remain owned by Home; the configurable header/footer content described below is separate.
+
+### Choose a theme and page appearance
+
+Select the page at the top of **Layers**. **Homepage theme** offers two bundled choices:
+
+| Theme | Default link appearance | What changes |
+| --- | --- | --- |
+| **Classic** | Icon + text | The classic navigation surfaces, spacing details and visual treatment |
+| **iOS inspired** | App icons | Rounded icon containers, softer surfaces and an iOS-inspired visual treatment |
+
+Switching the theme changes only its saved theme ID. Source bindings, component IDs, placement and locks, header/footer content, color mode, density and gap are retained. It does not reset the page or create another copy of the links. Both themes support the same built-in components and all six header/footer slots. They style the homepage; admin, setup and login retain the built-in management interface.
+
+Under **Appearance**, set **Color mode**, **Content density** and **Component spacing**. These are page draft settings. To rename the page, use **Layout and theme → Page and appearance** in admin; the page name and the instance's site name are separate.
+
+The admin's **Current theme** chooses the same two themes. **Grouped cards / Compact directory** are layout presets, a different operation: confirming one replaces the draft's components, bindings and placements, while retaining the current theme, custom header/footer content and the underlying local/external data. Preview before saving a replacement arrangement.
+
+### Add and configure components
+
+1. Choose **Add component**, then Search, Categories, Favorites, Bookmarks or GitHub Traffic. Traffic becomes available after a compatible GitHub Traffic source exists in the current space.
+2. Select the component on the canvas or under **Layers**. Set its optional **Component title**.
+3. Use **Position** to move it to a supported region, and **Up / Down** to reorder within that region. Category navigation supports top, left, right, bottom or hidden; it does not occupy the main grid.
+4. Choose **Data source** when the component consumes data. Navigation, favorites and categories accept compatible navigation collections; Traffic requires its own schema. Search filters linked components and has no direct dataset selector.
+5. For navigation and favorites, choose **Presentation → Cards / Directory**, then **Icons and text** as described below.
+6. Configure **Search and category linking** if several components should filter together.
+7. Use **Preview**, then **Save page** when the complete page is ready.
+
+| Action or setting | Effect on the draft |
+| --- | --- |
+| **Duplicate component** | Copies the component's configuration and binding references to a new instance; it does not copy or create source records |
+| **Hide / Show** | Keeps the component and its bindings available in Layers; showing a hidden component gives it a supported visible placement |
+| **Remove component** | Removes that instance and its placement; source data and existing binding definitions are retained |
+| **Lock position and size** | Prevents movement, resizing, hiding, duplication and removal until unlocked; content settings remain editable |
+| **Width** | Changes an unlocked main-grid component's width in columns |
+| **Height → Fit content** | Uses content height with a three-row minimum; avoids a fixed-height viewport where the surrounding layout permits |
+| **Height → Fixed height** | Uses the selected height in rows and internal scrolling where content exceeds it |
+| **Search width** | Keeps a region-based search component compact, up to 360 px |
+
+A page accepts at most **32 components** and **32 source bindings**. Adding the same component type multiple times is supported. A shared binding or duplicated component does not grant additional data access. An unavailable source keeps its stored reference; it is not silently changed to another source.
+
+The main region uses a **24-column grid**. On a wide canvas, drag an unlocked component's title handle to move it and the lower-right handle to resize it. Inspector controls provide an alternative to dragging. The layout keeps placements within bounds and avoids overlapping other configured grid footprints; a size change can reposition a component to make room. Locked components continue to constrain the available space.
+
+At a canvas width of 900 px or less, components use the narrow arrangement and desktop dragging is disabled. This depends on the canvas's available width, including the space taken by the editor rails. Changing window size or opening a drawer does not write desktop coordinates. Existing fixed-height layouts remain unchanged until explicitly edited and saved.
+
+Card columns use available width. Adjacent small categories can share a row while retaining their order, and larger categories use the full row. A final row can still have unused cells. **Cards / Directory** chooses the arrangement; the following setting independently chooses how each navigation or favorites component displays its icons:
+
+| Icons and text | Behavior |
+| --- | --- |
+| **Theme default** | Follows the current theme; stored by omitting the `linkAppearance` key |
+| **Icon + text** | Uses an icon beside the link text |
+| **Minimal text** | Hides the decorative link icon while retaining the link text and actions |
+| **App icons** | Uses rounded app-style icon containers with the link labels |
+
+An explicit icon presentation remains selected after a theme switch. To let that component adopt each theme's default again, choose **Theme default**; in admin this option is labeled **Follow theme**. Changing presentation does not clear the icons saved on the links.
+
+For exact X/Y, grid dimensions, region order or sticky behavior, the admin's **Layout and theme → Panels and data → Advanced settings** remains available. That editor expands one selected component at a time and uses the same page API and validation.
+
+### Link search and category filters
+
+Use **Search and category linking** in the selected component:
+
+| Choice | Effect |
+| --- | --- |
+| **Main navigation** | The preset group. Search, category and link components in this group filter together. |
+| A named group | Components with that same group share search/category state independently from other groups. |
+| **Use independently** | Only this component uses its filtering state; **Independent from other panels** in admin. |
+| **Existing group 1**, and so on | A previously saved custom identifier without a friendly-name prefix; its full value is retained. The admin inspector also exposes the identifier in a tooltip. |
+
+In the visual editor, select **New linking group**, enter a name such as `Work`, `Personal` or a Chinese name, then select **Create**. The admin labels these actions **New group** and **Create and select**. Names support up to 75 characters. Select the same group for the associated search, category and navigation components, then save the page. Creating a group with an existing name selects the same group.
+
+A group controls filtering relationships, not permission or data copying. No internal English identifier needs to be typed. An independent search has no other component to filter; give it and its target navigation component the same named group. Homepage search includes titles, descriptions, tags, main URLs and additional entrance labels/URLs. A parent category includes its descendants' links.
+
+### Maintain header and footer content visually
+
+1. In homepage edit mode, select the **Header** or **Footer** under Layers, or click its Left, Center or Right slot directly on the canvas. Empty and disabled areas remain selectable while editing.
+2. Set **Show header / Show footer** as needed. The inspector's alignment buttons select which slot you are editing.
+3. Select **Text**, **Link** or **Branding** to add an item. Adding an item enables that area. Fill in the text and, for a link, **Link URL** and **Open in a new tab**.
+4. Select an existing item to edit it. Use its up/down actions to reorder within the slot, or **Remove item** to remove it from the draft.
+5. Use **Area** and **Alignment** to move the selected item between any of the six slots. If its new area is disabled, enable that area to show the moved content.
+6. Preview the whole page and use the same top-level **Save page** as for components and themes.
+
+| Content / rule | Limit and behavior |
+| --- | --- |
+| Text | Required plain text, up to 500 characters; line breaks allowed |
+| Link | Required text up to 160 characters and a complete HTTP/HTTPS URL up to 2,048 characters; no credentials, whitespace, control characters or backslashes in the URL |
+| Branding | Jade folded-house project mark, name and version; may be moved or removed |
+| Capacity | Up to 8 items per alignment slot; the complete page configuration must remain within 64 KiB |
+| Disabled area | Items are retained and still validated when saving |
+| Type changes | Inapplicable link/text fields are removed; retained overlong text must be shortened before saving |
+
+Saving validates **all six slots**, including another selected alignment and disabled areas. If an item is invalid, the editor exits preview if necessary, selects its area/slot/item, opens its inspector and focuses the invalid field. No page update is sent until validation succeeds. Header/footer changes have no separate save action.
+
+All content fields render plain text; they do not execute HTML, Markdown, scripts, arbitrary widgets or custom CSS. IDs are generated automatically. The technical [page chrome contract](API.md#header-and-footer-content) also applies to external writers. The admin's **Layout and theme → Header and footer** remains an alternative editor for the same data.
+
+An older page without `chrome` displays an empty disabled header and an enabled footer with branding in the right slot. In normal browsing, the configurable header is an additional content row below the site header. During editing the site header is replaced by the dedicated toolbar; in preview the normal header presentation returns. The footer is at the bottom of a short page and after the content of a long page. It does not overlay links. Themes and layout presets retain custom header/footer content.
+
+### Preview without saving
+
+In the homepage editor, select **Preview**. The rails and selection outlines disappear, and the draft uses the ordinary homepage header presentation. **Keep editing** returns to the same draft and selection. The editing toolbar remains available so you can save, cancel or return without leaving the page.
+
+The admin offers a separate size-controlled preview:
+
+1. Open **Layout and theme → Preview homepage**.
+2. Choose **Preview resolution**: **2560 × 1440**, **1920 × 1080**, **1600 × 900** or **2560 × 1080**. A scaled iframe uses that full logical viewport, not the dimensions of the small preview container.
+3. Change settings and inspect the draft. Use **Enlarge preview** for a larger surface; **Return to editing** or Escape closes the enlarged view, and **Close preview** hides the side preview.
+4. **Save page** in the enlarged preview submits through the same page validation and revision check. Opening or enlarging it does not save automatically.
+
+Both previews use authorized source data. Matching projections are reused; a newly selected visible source may require a read of its existing snapshot. Previewing does not request an upstream synchronization. Unavailable snapshots or filtered projections remain unavailable, with a notice and Retry where a read failed.
+
+Search and category disclosure in preview use isolated in-memory state. They do not update the page, normal browsing preferences or links. Favorite writes, account/space changes and navigation to external links are unavailable during homepage editing and preview. Leaving or reloading the editor can discard unsaved drafts. The [older admin preview capture](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/admin-brand-preview-2k.png) is historical and does not show the new homepage editor or iOS theme.
+
+### Save, restore or cancel
+
+- **Save page** validates and sends one revision-checked replacement of the complete page draft, including theme, components, layout and header/footer content. It is enabled when the draft has changed. Ctrl/Cmd+S uses the same action in the visual editor.
+- **Restore** returns to the configuration captured at the start of this edit and keeps the editor open. It does not fetch a newer server version or apply a factory preset.
+- **Cancel** discards the homepage draft, exits editing and reads the current saved page. In admin, **Cancel changes** restores the currently loaded saved page.
+
+In the editable canvas, folding a whole category component updates its draft default; tree branches and search remain temporary. When a changed category default/style is saved, conflicting whole-panel preferences for those components are cleared in the current tab. Other components and visitors' tabs are not rewritten.
+
+If saving succeeds but the following reload fails, the UI reports that distinction and retains the saved configuration and its new revision. Do not assume the write failed and repeat it blindly.
+
+### Resolve a page-save conflict
+
+If another window or client saved first, Home returns HTTP **409 `page_version_conflict`** and keeps your draft. It does not silently overwrite the newer version.
+
+In admin, use **Download current draft** for a reference copy. **Inspect server version** reads the newer page; **Load server version and replace current draft** is the explicit replacement step. Reapply the intended differences and save. This version does not offer a draft-file import button.
+
+Homepage editing also preserves a conflicting draft. Record the intended changes, then Cancel to load the current saved layout and repeat them. Restore returns only to the start of the local edit, so it does not resolve a stale revision by itself. An in-memory draft is not a durable backup.
+
+### Know which controls save data
+
+| Action | Persistence |
+| --- | --- |
+| Ordinary homepage search, category selection, card/directory and color buttons | Temporary viewing state; no page write or upstream synchronization |
+| Ordinary category panel/branch folding | Browser-tab preference, scoped to page and component |
+| Component/theme/chrome changes, **Fit content** or whole-category folding in the editable canvas | In-memory page draft until **Save page** |
+| Opening/closing homepage preview; changing resolution/enlarging admin preview; preview search/folding | Read-only preview and isolated temporary state |
+| **Save page** in either editor | Saved complete page configuration, checked against its revision |
+| **Cancel changes**, **Cancel**, **Restore** | Change local editing state as described above; no page write |
+| Star a local link in ordinary browsing | Immediate saved navigation change, requiring edit permission |
+| Choose an icon in a link/category form | Form draft until that link/category is saved |
+| Import/delete an icon library or fetch a website icon | Immediate space-scoped library/cache write; canceling the link/category form does not roll it back |
+
+To make an appearance choice the default for visitors, change it in an editor and save the page. Refreshing starts from saved appearance; ordinary browsing does not clear the tab's category-folding preference.
+
+## 6. Configure category navigation
+
+In homepage edit mode, select a Categories component on the canvas or under Layers and open its **Category style** settings. You can add additional category components through **Add component**. The admin alternative is **Layout and theme → Panels and data → Category navigation appearance**. Each component can choose its own data source, linking group and top/left/right/bottom/hidden placement.
+
+| Control | Choices and effect |
+| --- | --- |
+| Display mode | **Icon + text**, **Icons only**, or **Text only** |
+| Category hierarchy | **Tree hierarchy** preserves expandable parent/child presentation; **Flat categories** lists every category with its full path |
+| Show link counts | Shows or hides category counts |
+| Allow expanding and collapsing | Allows the entire text-based category panel to collapse to an icon strip; **Allow collapsing to icons** in admin |
+| Collapsed by default | Starting state without a manual tab-session preference; **Collapsed to icons by default** in admin |
+
+Defaults are icon + text, tree hierarchy, counts on, collapse allowed and initially expanded. Existing pages without these fields use the same defaults. Pure-icon mode is already compact, so whole-panel folding controls do not apply; tree branch controls remain available.
+
+The main collapse button changes the whole strip or side panel. Each tree node's arrow expands/collapses its children separately, without selecting that category. Clicking the category itself filters links, including descendants. The ancestor path of a selected child stays open; choose another category or all links before collapsing that path.
+
+Icon buttons retain full labels through accessible names and hover/keyboard-focus tooltips. Escape dismisses a tooltip. Top, bottom and narrow-screen categories stay on a horizontal line; scroll the strip or use its overflow arrows. Left/right icon-only category regions can shrink to 72 px. If another component shares that side region, its space is preserved.
+
+In ordinary browsing, manual panel and branch states survive refresh within the tab and are isolated by page and component. An existing manual choice takes precedence over the saved collapsed default; check that default in a session without a prior choice. These preferences do not change server data or another user's configuration. In the editable canvas, whole-panel folding changes the unsaved default; both preview paths use separate in-memory state.
+
+Homepage parent counts include descendant links in the bound dataset. The category management table counts links directly assigned to each category, so the two views can legitimately show different numbers.
+
+## 7. Connect external sources, GitHub Traffic and MCP
+
+Use a signed-in account with edit rights to the destination space. The step-by-step UI tasks below lead into the exact formats in [INTEGRATIONS.md](INTEGRATIONS.md).
+
+### External navigation pushes
+
+1. Open **Sources and MCP → Sources → Add source**.
+2. Select **External push · Bookmark collection**, give it a name and create it.
+3. In **MCP and access tokens**, create a token scoped to that source. The UI grants source read and snapshot push for this scope. Copy the secret when it is shown; it cannot be shown again later.
+4. Return to the source and open **Push template**. Use its endpoint and replace the sample payload and token in your external client.
+5. Send a complete snapshot with a unique request ID and its revision/sequence guard. An identical retry reuses that request ID; changed content needs a new request ID.
+6. After a successful push, inspect **Snapshot**, then bind a navigation component to this source in the layout editor and save the page.
+
+A push replaces that external source's snapshot. It does not merge records into **Link management** or overwrite local bookmarks. Empty collections are meaningful replacement data. The protocol supports 10,000 links, 5,000 categories and at most 8 MiB of canonical snapshot JSON; see [push validation and retries](INTEGRATIONS.md#push-protocol).
+
+### GitHub repository Traffic
+
+1. Add a **GitHub Traffic · Repository traffic** source with repository owner, repository name and a GitHub token authorized for that repository's Traffic API.
+2. Create it, then use **Collect baseline** if you want to queue a capture immediately. Creation also enables the scheduled source. The default schedule is every six hours.
+3. Wait for **Snapshot available** and inspect **Last success**. “Collecting” means work is queued/in progress, not that GitHub data has been received.
+4. Add a GitHub Traffic component in **Layout and theme**, select the source and save.
+5. Use **Collect again** to queue another collection when needed. For credential rotation, open **Configure** and enter a replacement; leaving it blank retains an existing credential.
+
+The first successful views-and-clones capture becomes the immutable baseline. Later polling preserves observed UTC daily history. Rolling-window comparisons are not lifetime totals; missing observations remain missing. Failed collection keeps the previous successful snapshot. SSH access to a Git repository is not a GitHub API token. Permission requirements and the exact metrics are documented in [GitHub Traffic](INTEGRATIONS.md#github-traffic).
+
+A source cannot be retargeted to a different repository after its first snapshot. Create a separate source for that repository. Source configuration can disable a source while retaining data; source deletion is not exposed in this version. No real repository credentials or baseline are bundled by default.
+
+### Home tokens and MCP clients
+
+Open **MCP and access tokens → Create token**. Name the client, choose current-space or source-specific scope, select the necessary actions and choose the UI's 7-, 30- or 90-day lifetime. A source-specific token is suitable for one external publisher; use current-space scope for local bookmark or page management.
+
+Configure an MCP client that supports **Streamable HTTP** with the displayed `/mcp` address and `Authorization: Bearer <Home token>`. This token is issued by Home and is separate from a GitHub source token. The client must support sending the header; an OAuth-only setup is not provided by Home. Discover the tool schemas through the client, then use actions allowed by that token.
+
+The token can be viewed only at creation. Revoke it from the token list to stop a client. Changing access mode invalidates existing sessions and tokens; password resets or disabling a Member invalidate that Member's access. Tokens cannot create accounts, change global security settings or issue more tokens. Detailed scopes, protocol negotiation and examples are in [MCP transport](INTEGRATIONS.md#mcp-transport).
+
+## 8. Manage members and access
+
+As Owner, open **Access and accounts** to change the site name and mode. In **Multiple users**, optionally enable **Allow visitors to register member accounts**. Save and sign in again when the change invalidates your current session. Switching modes preserves personal-space data and does not publish it.
+
+In multi-user mode, open **Member management → Create member** to set a username, display name and initial password. The member can then sign in to their own space. Use **Edit** to change the display name, disable/enable the account, or set a replacement password. Leave the reset-password field empty to retain the password. Disabling or resetting invalidates that account's existing access. The interface does not expose Member deletion or an email password-recovery flow.
+
+An Owner can maintain the shared space and their own personal space; they cannot inspect Member personal pages. A Member may see shared navigation but cannot maintain it. If edit actions are unavailable, first check both the selected space and the active access mode.
+
+## 9. Export, back up and restart
+
+### Export the current space
+
+Use **Import and export → Export HTML** for a browser-compatible bookmark file, or **Export JSON** for local links, categories, the space and its page configuration. JSON does not include accounts, source credentials, external snapshots or the binary images and metadata of imported icon libraries. Neither export is a full-instance backup; JSON is not a one-click restore or SQLite-to-PostgreSQL conversion format. Custom icon references require their original database assets to render.
+
+### Preserve the database and keys
+
+For a complete backup, follow [STORAGE.md](STORAGE.md#backups). For SQLite, the straightforward procedure is to stop Home cleanly and back up the complete persistent directory/volume, including both keys and any WAL files. For PostgreSQL, back up the dedicated database and the matching local keys together. Restore with the appropriate application version before starting one instance.
+
+Custom icon images, library metadata, website caches, the automatic switch and pending jobs are included in the database, with no extra upload directory to copy. Version 0.0.1 includes automatic-icon **migration 005** and network-setting **migration 006**. An older binary that does not recognize an applied migration refuses that database. Rolling back requires the matching pre-upgrade database and keys as well as the older binary/image.
+
+The README image command uses the **`lingshu-home-data`** named volume; source Compose uses its project-scoped **`home-data`** volume. Retain the original volume and Compose project identity when restarting or replacing a container. Switching installation methods does not transfer data automatically. For a Linux release, reuse the original `--data-dir` instead of a new empty `data/` beneath the next version directory. Removing a volume discards persistent data; do not use volume-removal commands as a restart procedure. Keep exports, full backups and credential files private.
+
+### Restart and check the service
+
+For the published image command in the README:
+
+```bash
+docker restart lingshu-home
+docker ps
+docker logs --tail=100 lingshu-home
+curl -fsS http://127.0.0.1:5180/health
+```
+
+Use `docker stop lingshu-home` and `docker start lingshu-home` around a backup, retaining `lingshu-home-data`. The image example sets a 30-second stop timeout.
+
+For source Compose:
+
+```bash
+docker compose restart home
+docker compose ps
+docker compose logs --tail=100 home
+curl -fsS http://127.0.0.1:5180/health
+```
+
+For PostgreSQL Compose, use `docker compose -f compose.postgres.yaml` consistently with the same private environment configuration. To stop and start for a backup, use `docker compose stop home` and `docker compose start home`; stop alone does not remove the volume.
+
+For a foreground Linux release, press `Ctrl+C` and wait for exit, then run from the release directory with the original language and stable data path, for example:
+
+```bash
+./lingshu-home --language en --data-dir "$HOME/.local/share/lingshu-home"
+```
+
+A deployment started with the Linux development helper uses:
+
+```bash
+python3 scripts/dev.py stop
+python3 scripts/dev.py start --language en
+python3 scripts/dev.py status
+```
+
+Keep the original language, provider and data-directory options when restarting; this example uses English. A restart does not build new source. For a source update, retain a recoverable backup and the prior version, build the new version using the README, and restart using the same data directory/provider. See [storage migration rules](STORAGE.md#versioned-migrations) before downgrading.
+
+The Linux development helper permits an immediate restart while closed connections finish their TCP timeout. A port still used by a running listener remains an error; check `status` and the selected listen address before starting another instance.
+
+## 10. Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Cannot open Home from another device | The default host port is loopback-only. Check the deployment address, published interface and proxy; `127.0.0.1` on another device refers to that device. |
+| A previously used instance asks for setup | Check the selected database/provider and data volume. Stop and verify the intended persistent storage before initializing what may be an empty replacement location. |
+| Admin content appears missing | Check **Current space**, search text, page number and category filter. Local link management reads the local dataset even if homepage bindings have changed. |
+| Link exists in admin but not on the homepage | Check whether a navigation component is present/visible, its source binding, category/search/favorites filters, and fixed-height panel scrolling. |
+| Cannot save a page | Read the inline error. Check revision conflicts, overlapping/out-of-range grid coordinates and locked components; the draft is retained after a rejected save. |
+| Language did not change | Confirm the service's `--language` / `LINGSHU_LANGUAGE`, recreate Compose for environment changes, and reload the page. Existing stored names are intentionally preserved. |
+| Preview differs from the saved homepage | Check the Unsaved draft marker and any temporary filters. Preview follows the current editor draft; other visitors see saved configuration. |
+| Changing theme does not change a component's icons | That navigation/favorites component may have an explicit **Icons and text** choice. Choose **Theme default** to follow each theme, then save the page. |
+| Cannot add, duplicate or move a component | Check its lock, the 32-component/binding limits and available placement. GitHub Traffic needs a compatible source first; Categories cannot occupy the main grid. |
+| Preview shows incomplete source data | Check the binding and source snapshot. Missing filtered projections are not fabricated; Retry can repeat failed authorized reads. |
+| Footer content is absent | Check Footer → Show footer content, the selected alignment and unsaved state. A long page places its footer after the full content. |
+| A hidden header/footer item prevents saving | Disabled regions retain and validate their items. Follow the error to fill or remove the invalid item, then save again. |
+| Cannot delete a category | Move its direct links and child categories first. |
+| Cannot delete an icon library | Replace saved references to images owned only by that library; links, categories, page configuration and external snapshots are checked. |
+| Website icon is unavailable | Check the instance switch and link mode, then refresh the list after background work finishes. Lookup is limited to public standard HTTP/HTTPS ports and supported image formats. Failures have a 30-minute cache; for internal/login-only sites or complex artwork, import a PNG or use a bundled icon. |
+| Canceling a link form did not remove its imported icons | Library imports/deletions and website caching save immediately; cancel only discards the form's selected icon. |
+| Bookmark import shows only 200 rows | This is the preview display limit. Its totals still cover the full file. |
+| Import rejects a URL or file | Use browser-exported UTF-8 HTML within 2 MiB / 10,000 links; only HTTP/HTTPS links are accepted. Check the combined destination folder depth. |
+| “Default collapsed” does not change the current tab | Manual tab-session choices take priority. Toggle the panel yourself or inspect the default in a new session without that preference. |
+| Source has no data | Open its configuration/status and snapshot. A push source needs its first successful push; Traffic needs authorized GitHub collection and compatible component binding. |
+| Token/client stopped working | Check expiry, revocation, account status, mode changes and token scope. Create a replacement from a signed-in account when appropriate. |
+| Copy button fails | Select and copy the displayed value manually; clipboard access depends on the browser's origin/security rules. |
+| Login repeatedly fails or shows a request limit | Check credentials and the active mode. Wait for the indicated retry interval after rate limiting; do not bypass it with an alternate route. |
+| Service reports storage unavailable or cannot start | Check logs, data ownership, database connectivity and singleton locks. PostgreSQL lease loss requires a controlled restart after connectivity is restored; do not start competing instances against the same database. |
+
+For performance with many entries, use categories/search to narrow the homepage, try directory/compact presentation, and choose a smaller admin page size. These controls change presentation workload; they do not turn the API into server pagination or provide a measured latency guarantee. Capture the dataset size, browser, viewport and operation when reporting a performance issue.
+
+## 11. Current boundaries and further references
+
+The delivered model is a standalone navigation application with embedded/external storage, a built-in admin, visual page composition, two bundled themes, local icon libraries and optional integrations. Arbitrary third-party theme packages, general real-time adapters, knowledge-base connectors, multiple homepage management, automatic provider migration, a full backup GUI, native Windows/macOS clients and desktop auto-update are not implemented features.
+
+Use [API.md](API.md) for field contracts and limits, [INTEGRATIONS.md](INTEGRATIONS.md) for external writers, [ICONS.md](ICONS.md) for custom images and website caching, [STORAGE.md](STORAGE.md) for persistence, and [RELEASING.md](RELEASING.md) for packaging. Runtime screenshots and their historical/current scope are linked from the [README](../README.md#screenshots). Public runtime screenshots and user documentation may be shared; internal design files, private configuration and user data must stay out of Git, frontend assets and release packages.
+
+## Calendar, weather and other data components
+
+Open **Admin → Integrations** and add a data source before binding a calendar, weather, metrics or service-status component. An ICS subscription keeps following its secret HTTP/HTTPS URL. A one-time ICS file import uses a calendar push source and replaces its current finite-window snapshot. Choose a personal space for a private calendar; shared-space event content follows that space's viewing permissions. Source URLs/credentials stay on the server.
+
+For weather, choose a city shortcut or enter coordinates and an IANA timezone, then select the free non-commercial provider or the commercial provider with its API key as appropriate. Saving an enabled polling source queues collection; **Sync** queues another attempt. Its success/error status reports the actual result. The homepage's **Refresh data** reads stored data and does not force an upstream request. Disabling a source stops collection while preserving its last successful snapshot. Hiding a component only changes the page.
+
+In **Edit page → Add**, add the compatible component, or choose **Import template** and paste a public component URL / JSON. Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
+
+The complete data schemas, provider limits, replay/storage policy, supported template format and currently deferred connectors are in [COMPONENTS.md](COMPONENTS.md). Initial setup also previews independent Chinese and English website packs; leaving examples off starts with no bookmarks.
+
+
+## Network settings and internal/external access
+
+Open **Network settings** in Admin. Automatic selection is enabled by default, and its save changes only that preference. In the link editor, explicitly configure Internal and External network routes. Keep documentation/admin links in Additional URLs for manual access. An empty probe path uses `/favicon.ico`; a read-only, unauthenticated `/healthz` is also suitable. A click waits at most about 800 ms before choosing an internal response or falling back to the external/primary URL. Manual routes are always available.
+
+Loading, hovering and leaving Home idle do not probe the network. A cross-origin probe path must allow Home to read its response. If the site's favicon does not permit this, configure a public read-only health path on that service/reverse proxy or use its manual route. Browser permissions or network policies can also block detection; no response does not prove a service is offline. Observations exist only in short-lived browser memory and are invalidated by connectivity changes or refresh.
+
+An Owner can configure a server HTTP, HTTPS or SOCKS5 proxy with separate credentials on the same page. It applies to Home icon/template/source fetches, and addresses are interpreted from the Home server/container. Credentials are encrypted and never returned. Changing the proxy endpoint requires replacement credentials or an explicit clear. Saving does not test connectivity; the proxy must support CONNECT to the target port, including port 80 for HTTP. See [the complete protocol and recovery rules](NETWORK.md).
+
+## Choose a component template from a web page
+
+Select **Import a component template** in the homepage editor and enter a page or JSON URL. A page must advertise compatible Home templates in its head; select one when multiple declarations are found. Review the renderer, version, license, data format and source. Errors preserve the input, and loading can be stopped before retrying.
+
+**Template examples and page declaration** provides seven component examples to insert or download as JSON. Choose a compatible source before adding a component to the page draft. Signed-in editors can create a compatible source within the same workflow and return to the preserved preview. Source creation saves immediately; the component still requires Add to page draft and the normal page Save. Template source URLs are public provenance shared/exported with the page; put private subscription addresses in separate encrypted source configuration.
+
+## Start with a dashboard preset
+
+Open **Edit page → Add → Dashboard presets**. **Personal overview** combines weather, an agenda and bookmarks. **Service operations** combines service status, resource metrics and operational links. **Data summary** combines two metric groups with optional GitHub Traffic and reference links. The layout preview uses component labels, without adding sample values or starting collection.
+
+For each selected component, choose an enabled source with its matching data format. A component marked **Needs a source** must be bound or deselected before applying. A source without a first snapshot is allowed and displays the usual waiting-for-data state. Bookmarks and favorites retain their existing compatible source, filters and interaction group; a new or changed source starts without the old source's filters. Selecting the same source for both metrics groups displays the complete group twice, and the dialog explains this.
+
+**Replace draft layout** changes only the unsaved page arrangement. Existing theme, appearance, header/footer and search/category settings remain. Use **Save page** to persist, or the editor's Cancel/Restore controls to discard the draft. Creating a source inside the dialog saves that source immediately and is a separate operation. Hiding, omitting or removing a component does not disable an existing polling source; disable the source itself to stop its collection.
+
+The [dashboard guide](DASHBOARDS.md) describes each slot. The [data handoff examples](../examples/dashboard-data/README.md) provide eight validated push bodies and a contract index for future adapters. Their fixed example dates and unknown values are for development and are never automatically installed as current observations.

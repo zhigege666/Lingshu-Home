@@ -6,6 +6,9 @@ __pycache__/
 
 # Private design documents, mockups and working references
 /design/
+/.runtime/
+**/dist/
+**/wwwroot/
 
 # Runtime data and credentials
 .env

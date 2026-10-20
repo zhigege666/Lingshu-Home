@@ -1,0 +1,50 @@
+/* Editing chrome is neutral; page skins continue to own the canvas content. */
+.lh-composer-canvas > .lh-home { min-height: 100%; width: 100%; }
+.lh-home[data-composing] { --lh-editor-accent: #426bd1; }
+.lh-home[data-composing] > :is(.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 28px; padding-right: 28px; }
+.lh-home[data-composing] > .lh-custom-header { padding-top: 22px; padding-bottom: 22px; }
+.lh-home[data-composing] .lh-region-item.is-editable { position: relative; min-width: 0; border: 1px dashed color-mix(in srgb,var(--lh-ink) 20%,transparent); border-radius: 10px; padding: 34px 8px 8px; }
+.lh-home[data-composing] .lh-region-item.is-editable:hover { border-color: var(--lh-editor-accent); }
+.lh-home[data-composing] .lh-region-item.is-selected,
+.lh-home[data-composing] .lh-grid-frame.is-selected { border: 1px solid var(--lh-editor-accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--lh-editor-accent) 12%,transparent); }
+.lh-home[data-composing] .lh-grid-frame.is-editing { background: transparent; }
+.lh-home[data-composing] .lh-region-edit-label { position: absolute; inset: 0 0 auto; height: 28px; padding: 0 9px; display: flex; align-items: center; gap: 6px; min-width: 0; background: transparent; color: var(--lh-muted); text-align: left; font-size: 10px; }
+.lh-home[data-composing] .lh-region-edit-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lh-home[data-composing] .is-selected > .lh-region-edit-label { color: var(--lh-editor-accent); }
+.lh-home .lh-grid-select { min-width: 0; padding: 3px 0; background: transparent; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: inherit; }
+.lh-home[data-composing] .lh-side-content { overflow-x: clip; padding: 3px; top: 12px; max-height: calc(100dvh - 105px); }
+.lh-home[data-composing] .lh-editor-search-region { flex-flow: row wrap; justify-content: flex-end; padding-bottom: 20px; }
+.lh-home[data-composing] .lh-editor-search-region .lh-type-search { max-width: min(100%,360px); }
+.lh-home .lh-page-chrome.is-editing { gap: 12px; }
+.lh-home .lh-page-chrome.is-editing .lh-chrome-slot { position: relative; min-height: 76px; padding: 30px 12px 12px; border: 1px dashed color-mix(in srgb,var(--lh-ink) 20%,transparent); border-radius: 9px; cursor: pointer; }
+.lh-home .lh-page-chrome.is-editing .lh-chrome-slot:hover { border-color: var(--lh-editor-accent); }
+.lh-home .lh-page-chrome.is-editing .lh-chrome-slot.is-selected { border: 1px solid var(--lh-editor-accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--lh-editor-accent) 12%,transparent); }
+.lh-home .lh-page-chrome .lh-chrome-slot-label { position: absolute; top: 6px; left: 10px; display: flex; align-items: center; gap: 8px; color: var(--lh-muted); font-size: 9px; text-align: left; }
+.lh-home .lh-chrome-slot-label small { padding: 0 4px; border: 1px solid var(--lh-line); border-radius: 3px; font-size: 8px; }
+.lh-home .lh-chrome-placeholder { color: var(--lh-muted); font-size: 10px; }
+.lh-home .lh-page-chrome.is-disabled .lh-chrome-slot > :not(.lh-chrome-slot-label) { opacity: .65; }
+.lh-composer-loading { align-items: center; justify-content: center; gap: 16px; }
+/* The canvas can be narrower than the window because editor panels occupy space. */
+.lh-home[data-canvas-compact] .lh-header { padding: 18px 28px; gap: 15px; }
+.lh-home[data-canvas-compact] .lh-header-identity { gap: 12px; }
+.lh-home[data-canvas-compact] .lh-home-heading { padding-left: 12px; }
+.lh-home[data-canvas-compact] .lh-header-search .lh-region-item { width: 280px !important; }
+.lh-home[data-canvas-compact] .lh-workspace { --lh-left-width: 184px; --lh-right-width: 200px; gap: 20px; }
+.lh-home[data-canvas-compact] .lh-workspace.has-compact-left { --lh-left-width: 72px; }
+.lh-home[data-canvas-compact] .lh-workspace.has-compact-right { --lh-right-width: 72px; }
+.lh-home[data-canvas-narrow] .lh-header { grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 16px 20px; }
+.lh-home[data-canvas-narrow] .lh-header-search { grid-row: 2; grid-column: 1/-1; justify-content: flex-start; }
+.lh-home[data-canvas-narrow] .lh-header-search:empty { display: none; }
+.lh-home[data-canvas-narrow] .lh-header-actions { justify-content: flex-end; }
+.lh-home[data-canvas-narrow] .lh-workspace { display: flex; flex-direction: column; gap: 20px; padding: 8px 20px 26px; }
+.lh-home[data-canvas-narrow] :is(.lh-main,.lh-side-region) { width: 100%; }
+.lh-home[data-canvas-narrow] .lh-right-region { order: 3; }
+.lh-home[data-canvas-narrow] .lh-side-content { position: static; max-height: none; overflow: visible; gap: 14px; scrollbar-gutter: auto; }
+.lh-home[data-canvas-narrow] :is(.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 20px; padding-right: 20px; }
+.lh-home[data-canvas-narrow] .lh-main-flow { gap: 22px; }
+@media (max-width: 560px) {
+  .lh-home[data-canvas-narrow] > :is(.lh-header,.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 12px; padding-right: 12px; }
+  .lh-home[data-composing] .lh-page-chrome { gap: 5px; }
+  .lh-home[data-composing] .lh-chrome-slot { min-height: 84px; padding-left: 7px; padding-right: 7px; }
+  .lh-home .lh-page-chrome .lh-chrome-slot-label { left: 7px; display: block; }
+}

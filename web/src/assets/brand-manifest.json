@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-18",
+  "source": "Project artwork: native SVG redraw of the visually reviewed selected ivory/jade folded-house concept; PNGs exported from that SVG. No third-party comparison image is a runtime asset.",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "file": "lingshu-home-logo.svg",
+      "format": "svg",
+      "width": 128,
+      "height": 128,
+      "bytes": 1298,
+      "sha256": "08e6b19dc7ec581ec18a023960fb68312d06cae9661424a535312821231c6197",
+      "purpose": "Canonical vector mark and SVG browser icon"
+    },
+    {
+      "file": "favicon-32.png",
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 1262,
+      "sha256": "84c71459ca242c935cf058b9a504a6718d40b16eeec0e6803ed45f6c545d7a9d",
+      "purpose": "PNG browser-icon fallback"
+    },
+    {
+      "file": "apple-touch-icon.png",
+      "format": "png",
+      "width": 180,
+      "height": 180,
+      "bytes": 6444,
+      "sha256": "fc7f61c5cd770f78a3fda183613d89b6443cd4a3448fbc125783411f02b34a91",
+      "purpose": "Touch icon"
+    }
+  ],
+  "note": "Private concept/research files are not required to build these assets. Native desktop icon packages are not included."
+}

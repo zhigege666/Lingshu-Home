@@ -1,0 +1,20 @@
+services:
+  home:
+    build: .
+    image: lingshu-home:local
+    ports:
+      - "127.0.0.1:5180:8080"
+    environment:
+      LINGSHU_STORAGE_PROVIDER: sqlite
+      LINGSHU_LANGUAGE: "${LINGSHU_LANGUAGE:-zh-CN}"
+      LINGSHU_SECURE_COOKIES: "${LINGSHU_SECURE_COOKIES:-false}"
+    volumes:
+      - home-data:/data
+    restart: unless-stopped
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  home-data:

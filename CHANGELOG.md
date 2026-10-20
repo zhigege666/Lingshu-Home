@@ -1,19 +1,59 @@
 # Changelog
 
-本文件记录对用户、部署者和维护者有意义的变更。日常变更先写入 `Unreleased`；发布时移动到与 `VERSION` 和 Git 标签一致的版本节。
+Changes describe user-visible behavior, deployment, interfaces, and maintenance. Development changes stay under `Unreleased`; a release adds a dated section matching `VERSION` and its Git tag.
 
 ## [Unreleased]
 
-### Added
+No unreleased changes.
 
-- 采用 Apache-2.0，补充项目定位、维护规则和第三方资源许可说明。
-- 完善公开产品方向：可组合导航、主题布局、四种访问模式与三种数据更新方式。
-- 记录 Docker/Linux 主部署和 Windows/macOS 客户端的规划状态。
-- 内置 30 个固定来源的 Lucide SVG，保留原始许可和资源清单。
-- 建立统一 VERSION、PR 文档检查、源码打包及从版本记录生成 GitHub Release 说明的自动化流程。
-- 为内部设计资料建立 Git、Docker 上下文与发布排除规则；公开文档检查不依赖这些未提交文件。
+## [0.0.1] - 2026-10-20
 
-### Notes
+### First application release
 
-- 本次为设计、资产和仓库流程变更；产品服务、Docker 镜像及桌面安装包尚未实现。
-- 未发布版本标签；`0.1.0-dev.1` 为当前开发版本。
+Lingshu-Home is an independent navigation dashboard with its own administration, accounts, storage and APIs. The first release provides a Linux amd64 application bundle, matching source archives, a tested Docker image archive and the exact-version GHCR image. Native Windows/macOS applications and other CPU architectures are not part of this release.
+
+### Navigation and homepage
+
+- Manage nested categories, links, tags, favorites and ordering. Preview and import Chrome/Netscape bookmark HTML with folder preservation and duplicate handling; export authorized navigation as HTML or JSON.
+- Configure internal and external routes separately from ordinary additional links. Default-on automatic selection uses bounded, click-triggered browser probes and short-lived observations; it does not continuously scan the network.
+- Use cards or a directory, light/dark/system colors, density controls and category navigation on the top, left, right or bottom, or hide it. Desktop layouts target 2560×1440 and also support 1920×1080, 1600×900 and 2560×1080.
+- Edit the homepage in a visual composer with component selection, page structure, a 24-column grid, positioning, resizing, content fitting, locking and a live preview. Header/footer slots, navigation and optional components share a revision-checked draft with explicit Save, Cancel and Restore.
+- Choose the built-in Classic or iOS-inspired theme and icon/text presentation. Personal overview, Service operations and Data summary presets bind compatible local sources without starting collectors or copying navigation data.
+- Use 30 licensed offline icons, space-scoped icon libraries or validated SVG/PNG/JPEG imports. Automatic website-icon retrieval is enabled by default, uses a bounded background queue, and stores canonical icon bytes in the selected database; manual icons are preserved.
+
+### Initialization and access
+
+- Complete first-run setup with a site name, one of four access modes, and an Owner when required. There is no default administrator password. Open editing can remain account-free or optionally create an Owner while retaining anonymous shared-space editing.
+- Choose an optional Chinese or English starter website collection with a preview. The collections contain distinct sites and offline icons; examples are off by default and are placed in the shared space. Content selection is independent from the instance interface language.
+- Keep English and Simplified Chinese interfaces consistent across setup, sign-in, home and administration. Set `en` or `zh-CN` at startup; existing user-entered content is retained when the interface language changes.
+- Direct public setup to the shared space, retain a valid selected space across reloads within the same browser tab, and isolate that preference by identity. Backend default-space and data-permission contracts remain unchanged.
+- Provide an explicit setup-state recovery action after interrupted or conflicting initialization. Recheck the server before choosing sign-in or home, preserve unsubmitted inputs when setup is still incomplete, and never automatically repeat the setup write.
+- Guide editors from an empty local homepage directly to adding a first link or importing bookmarks. Show appropriate read-only and external-source empty states, and allow an account-free instance to create its first Owner without changing access mode.
+- Enforce open editing, public read, private single-user and private multi-user modes on the server. Keep personal spaces private, shared content explicit, registration off by default, and sessions/tokens invalidated after relevant permission changes.
+
+### Components and data sources
+
+- Add calendar, weather, numeric metrics, service status and GitHub Traffic components with bounded, versioned data contracts. Load optional renderers only when used and share authorized cached snapshots.
+- Receive authenticated external pushes, query normalized HTTP JSON APIs, subscribe to read-only ICS calendars, and use the fixed Open-Meteo provider. Configure source credentials on the server with encrypted storage and scoped tokens.
+- Import declarative component templates from JSON, a public URL or advertised HTML-head links. Preview compatible templates, bind local sources and save the page draft explicitly. Templates use installed renderers; they do not execute downloaded plugin code.
+- Expose a scoped HTTP API and Streamable HTTP MCP endpoint using the same authorization and business functions as the built-in UI. Keep local navigation authoritative and separate from external snapshots.
+- Configure an optional Owner-managed outbound HTTP/HTTPS/SOCKS5 proxy with encrypted write-only credentials. Preserve each adapter's destination policy and discard work collected under obsolete configuration.
+- Run source polling only when enabled sources need it. The default navigation-only setup creates no external data source or recurring navigation polling loop; an unavailable external service cannot block local navigation.
+
+### Storage, reliability and distribution
+
+- Use embedded SQLite by default or a dedicated external PostgreSQL database, with separate migrations through `006_network_routing.sql`, transaction boundaries, instance locking and documented recovery.
+- Isolate PostgreSQL lease-health pings from request cancellation while retaining a latched unavailable response after actual lease loss. Do not silently reacquire a lost singleton lock.
+- Drain HTTP requests before closing application resources, release resources after listener failures, and report forced shutdowns honestly. Compose provides a 30-second stop allowance around the application's 15-second HTTP drain budget.
+- Serve compressed JavaScript/CSS with cache policies appropriate to static assets, HTML, authorized icons and APIs. Keep authentication hashing parameters unchanged while avoiding an unnecessary additional startup derivation.
+- Include the public dashboard producer examples in source archives. Validate archive paths and exclude private design files, runtime data, credentials and generated build backups from source and application deliverables.
+- Derive release identity from `VERSION`, the matching dated changelog and an immutable `v0.0.1` tag. Validate the application before packaging, extract the Linux program from the same tested image, and attach source/image identity, original dependency notices and SHA-256 checksums.
+- Reorganize both READMEs around executable Docker and Linux quick starts, first-run setup, stable data paths and stopping/upgrading. Correct the distinction between container port 8080 and the default host loopback port 5180.
+
+### Upgrade and scope
+
+- This is the first published application version. Earlier `0.1.0-dev.1` screenshots and working-tree test records describe development builds; the change to the first public version number does not reset stored data.
+- Preserve the database and its matching instance encryption key. Reuse the same data directory or Docker volume when replacing the application. Database-provider conversion is not automatic; rollback to a binary that predates a migration requires the matching database/key backup.
+- GitHub Traffic requires the user's own repository authorization. Weather usage must follow the chosen provider's terms. No real repository traffic baseline is included in the starter data.
+- Executable third-party plugins, general WebSocket/SSE/MQTT ingress, a full theme SDK, knowledge-base connectors and native desktop installers remain future work.
+- Reproducible development checks and their exact scope are recorded in `tests/README.md` and `docs/PERFORMANCE.md`. Final release identity and artifact integrity are recorded by the tagged release workflow and its `release-metadata.json`; historical test counts are not substitutes for that workflow.

@@ -1,0 +1,141 @@
+/* Host-owned composition tools stay neutral while the live canvas uses its theme. */
+.lh-composer,.lh-composer-chrome-ui{
+  --hc-bg:#f5f6f8;--hc-surface:#fff;--hc-line:#e5e7eb;--hc-ink:#28313f;--hc-muted:#7d8795;
+  --hc-accent:#2672ec;--hc-tint:#edf4ff;--hc-hover:#f4f6f9;--hc-danger:#c24944;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:12px;line-height:1.5;letter-spacing:0;color:var(--hc-ink);color-scheme:light;
+}
+.lh-composer{width:100%;height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--hc-bg);isolation:isolate}
+.lh-composer *,.lh-composer-chrome-ui *{box-sizing:border-box}
+.lh-composer-toolbar{display:flex;align-items:center;gap:26px;flex:0 0 auto;min-height:62px;padding:12px 20px;background:var(--hc-surface);border-bottom:1px solid var(--hc-line);z-index:40;color:var(--hc-ink)}
+.lh-composer-toolbar-title,.lh-composer-toolbar-tools,.lh-composer-toolbar-actions{display:flex;align-items:center;gap:8px;min-width:0}
+.lh-composer-toolbar-title{gap:10px;flex-shrink:0}
+.lh-composer-toolbar-title>strong{font-size:14px;font-weight:620;white-space:nowrap}
+.lh-composer-draft-status{font-size:10px;line-height:1.5;color:var(--hc-muted);padding:2px 7px;border:1px solid var(--hc-line);border-radius:5px;white-space:nowrap}
+.lh-composer-toolbar-tools{margin-left:auto;padding-right:20px;border-right:1px solid var(--hc-line)}
+.lh-composer-toolbar-actions{flex-shrink:0}
+.lh-composer .lh-composer-button,.lh-composer-chrome-ui .lh-composer-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--hc-line);border-radius:6px;background:var(--hc-surface);color:var(--hc-ink);font:inherit;font-size:12px;line-height:1.5;font-weight:500;white-space:nowrap;cursor:pointer;box-shadow:none;transition:background-color .12s,border-color .12s}
+.lh-composer .lh-composer-button:hover:not(:disabled),.lh-composer-chrome-ui .lh-composer-button:hover:not(:disabled){border-color:#c5d0de;background:var(--hc-hover)}
+.lh-composer .lh-composer-button.is-primary,.lh-composer-chrome-ui .lh-composer-button.is-primary{color:#fff;background:var(--hc-accent);border-color:var(--hc-accent)}
+.lh-composer .lh-composer-button.is-primary:hover:not(:disabled),.lh-composer-chrome-ui .lh-composer-button.is-primary:hover:not(:disabled){background:#1c64d7;border-color:#1c64d7}
+.lh-composer .lh-composer-button.is-icon,.lh-composer-chrome-ui .lh-composer-button.is-icon{width:30px;height:30px;min-height:30px;padding:0;border-color:transparent;background:transparent;flex:0 0 auto}
+.lh-composer .lh-composer-button.is-danger,.lh-composer-chrome-ui .lh-composer-button.is-danger{color:var(--hc-danger)}
+.lh-composer .lh-composer-button[aria-pressed=true],.lh-composer-chrome-ui .lh-composer-button[aria-pressed=true]{color:var(--hc-accent);background:var(--hc-tint);border-color:#bbd4fb}
+.lh-composer .lh-composer-button:disabled,.lh-composer-chrome-ui button:disabled,.lh-composer .lh-composer-sidebar button:disabled{cursor:not-allowed;opacity:.45}
+.lh-composer-toolbar .lh-composer-inspector-toggle{display:none}
+.lh-composer-workbench{flex:1;min-height:0;display:grid;grid-template-columns:240px minmax(0,1fr)296px;align-items:stretch;overflow:hidden}
+.lh-composer-sidebar{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;background:var(--hc-surface);color:var(--hc-ink)}
+.lh-composer-sidebar.is-library{border-right:1px solid var(--hc-line)}
+.lh-composer-sidebar.is-inspector{border-left:1px solid var(--hc-line)}
+.lh-composer-stage{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;isolation:isolate}
+.lh-composer-canvas-bar{min-height:32px;padding:7px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--hc-muted);background:var(--hc-bg);font-size:10px;flex:0 0 auto;border-bottom:1px solid var(--hc-line)}
+.lh-composer-canvas-bar>span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.lh-composer-canvas-bar>small{font-size:10px;text-align:right}
+.lh-composer-canvas{min-width:0;flex:1;display:flex;flex-direction:column;color:var(--lh-ink);background:var(--lh-bg);font-size:14px;line-height:1.5;letter-spacing:.005em;color-scheme:light}
+.lh-composer-canvas>.lh-home{min-height:100%;flex:1}
+.lh-home[data-theme=dark] .lh-composer-canvas{color-scheme:dark}
+.lh-composer-canvas :is(.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome){max-width:none;padding-left:28px;padding-right:28px}
+.lh-composer-canvas .lh-side-content{top:12px;max-height:calc(100dvh - 140px)}
+.lh-composer-canvas .lh-workspace{padding-top:20px;padding-bottom:24px;gap:24px;--lh-left-width:190px;--lh-right-width:200px}
+.lh-composer-canvas .lh-workspace.has-compact-left{--lh-left-width:72px}
+.lh-composer-canvas .lh-workspace.has-compact-right{--lh-right-width:72px}
+.lh-composer.is-previewing .lh-composer-workbench{grid-template-columns:minmax(0,1fr)}
+.lh-composer-feedback{flex:0 0 auto;max-height:140px;overflow:auto;padding:8px 20px;background:#fff8ed;border-bottom:1px solid #efdbb8;color:#7c5516}
+.lh-composer-feedback .lh-notice{margin:0;width:100%;max-width:none}
+.lh-composer-tabs{position:sticky;top:0;z-index:3;display:flex;gap:4px;padding:14px 12px 10px;background:var(--hc-surface);border-bottom:1px solid var(--hc-line)}
+.lh-composer-tabs>button{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-width:0;min-height:32px;padding:6px;border:0;border-radius:6px;background:transparent;color:var(--hc-muted);font:inherit;font-size:11px;font-weight:550;cursor:pointer;white-space:nowrap}
+.lh-composer-tabs>button[data-state=active]{color:var(--hc-accent);background:var(--hc-tint)}
+.lh-composer-tab-body{padding:12px;outline:none}
+.lh-composer-layer-list{display:flex;flex-direction:column;gap:3px;padding-top:10px;margin-top:10px;border-top:1px solid var(--hc-line)}
+.lh-composer-layer{display:flex;align-items:center;gap:10px;width:100%;min-width:0;padding:10px;border:1px solid transparent!important;background:transparent;color:var(--hc-muted);border-radius:7px;text-align:left;font:inherit;cursor:pointer}
+.lh-composer-layer>span:not(.lh-composer-layer-dot){display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
+.lh-composer-layer strong{font-size:12px;font-weight:500;color:var(--hc-ink);text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.lh-composer-layer small{font-size:10px;color:var(--hc-muted)}
+.lh-composer-layer>svg{flex:0 0 auto}
+.lh-composer-layer:hover:not(:disabled){background:var(--hc-hover)}
+.lh-composer-layer[aria-pressed=true]{background:var(--hc-tint);border-color:#d8e8ff!important;color:var(--hc-accent)}
+.lh-composer-layer[aria-pressed=true] strong{color:#2869c6}
+.lh-composer-layer-dot{width:5px;height:5px;flex:none;border-radius:50%;background:#a8bdad}
+.lh-composer .lh-composer-add-button,.lh-composer-chrome-ui .lh-composer-add-button{width:100%;margin-top:14px;border-style:dashed;color:var(--hc-accent)}
+.lh-composer-library-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 2px 10px}
+.lh-composer-library-heading:not(:first-child){margin-top:22px}
+.lh-composer-library-heading h3{margin:0;font-size:11px;font-weight:550;color:var(--hc-muted)}
+.lh-composer-library-heading>span{font-size:10px;color:var(--hc-muted)}
+.lh-composer-library-items{display:flex;flex-direction:column;gap:8px}
+.lh-composer-library-item{display:flex;align-items:center;gap:11px;min-width:0;width:100%;padding:12px 9px;border:1px solid var(--hc-line)!important;border-radius:8px;background:var(--hc-surface);color:var(--hc-muted);text-align:left;font:inherit;cursor:pointer}
+.lh-composer-library-item:hover:not(:disabled){border-color:#b8d0f3!important;background:var(--hc-tint)}
+.lh-composer-library-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;background:var(--hc-hover);border:1px solid var(--hc-line);border-radius:7px;color:#536b8e}
+.lh-composer-library-item>span:nth-child(2){display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.lh-composer-library-item strong{font-weight:500;color:var(--hc-ink);font-size:12px}
+.lh-composer-library-item small{font-size:10px;color:var(--hc-muted)}
+.lh-composer-inspector-heading{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:17px 18px;border-bottom:1px solid var(--hc-line);background:var(--hc-surface);color:#65738b;min-height:57px}
+.lh-composer-inspector-heading h2{font-size:12px;font-weight:600;color:var(--hc-ink);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lh-composer-inspector-section{display:flex;flex-direction:column;gap:12px;padding:18px;border-bottom:1px solid var(--hc-line)}
+.lh-composer-inspector-section>h3,.lh-composer-section-title>h3{font-size:11px;font-weight:600;color:var(--hc-ink);margin:0}
+.lh-composer-section-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lh-composer-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.lh-composer-field>label{font-size:11px;color:#5c6879;font-weight:450}
+.lh-composer-field>small{font-size:10px;line-height:1.6;color:var(--hc-muted)}
+.lh-composer-field-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.lh-composer .lh-composer-input,.lh-composer-chrome-ui .lh-composer-input{appearance:none;display:block;width:100%;min-width:0;min-height:35px;padding:8px 10px;border:1px solid #dce2e9;border-radius:6px;background:var(--hc-surface);color:var(--hc-ink);font:inherit;font-size:12px;line-height:1.5;outline:none;box-shadow:none;resize:vertical}
+.lh-composer .lh-composer-input::placeholder,.lh-composer-chrome-ui .lh-composer-input::placeholder{color:#9ba4b1}
+.lh-composer .lh-composer-input:hover:not(:disabled),.lh-composer-chrome-ui .lh-composer-input:hover:not(:disabled){border-color:#b4c5dc}
+.lh-composer .lh-composer-input:focus,.lh-composer-chrome-ui .lh-composer-input:focus{border-color:var(--hc-accent);outline:2px solid var(--hc-accent);outline-offset:2px;box-shadow:none}
+.lh-composer .lh-composer-input[aria-invalid=true],.lh-composer-chrome-ui .lh-composer-input[aria-invalid=true]{border-color:var(--hc-danger)}
+.lh-composer .lh-composer-input:disabled,.lh-composer-chrome-ui .lh-composer-input:disabled{opacity:.55;cursor:not-allowed;background:var(--hc-bg)}
+.lh-composer :is(.lh-composer-sidebar,.lh-composer-toolbar) .lh-control-select,.lh-composer-chrome-ui .lh-control-select{min-height:35px;padding:7px 10px;border:1px solid #dce2e9;border-radius:6px;font-size:12px;background:#fff;color:var(--hc-ink);--control-focus:#2672ec;--control-accent:#2672ec}
+.lh-composer-check{display:flex;align-items:center;gap:8px;color:#5c6879;font-size:11px;line-height:1.6;cursor:pointer}
+.lh-composer-check>span{min-width:0}
+.lh-composer .lh-control-checkbox,.lh-composer-chrome-ui .lh-control-checkbox{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;min-width:16px;flex:none;padding:0;border:1px solid #b6c4d8;border-radius:4px;background:#fff;color:#fff;cursor:pointer;vertical-align:middle}
+.lh-composer .lh-control-checkbox[data-state=checked],.lh-composer-chrome-ui .lh-control-checkbox[data-state=checked]{background:var(--hc-accent);border-color:var(--hc-accent)}
+.lh-composer .lh-control-checkbox:disabled,.lh-composer-chrome-ui .lh-control-checkbox:disabled{cursor:not-allowed;opacity:.5}
+.lh-composer-panel-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.lh-composer-panel-actions .lh-composer-button{font-size:10px;padding:6px 3px}
+.lh-composer .lh-composer-hint,.lh-composer-chrome-ui .lh-composer-hint{display:flex;gap:6px;align-items:flex-start;font-size:10px;line-height:1.65;color:var(--hc-muted);margin:0}
+.lh-composer-hint>svg{margin-top:2px}
+.lh-composer-delete-actions{gap:8px}
+.lh-composer .lh-composer-text-action,.lh-composer-chrome-ui .lh-composer-text-action{min-height:27px;margin-top:4px;border:0;padding:4px 0;font-size:10px;color:var(--hc-accent)}
+.lh-composer-new-group{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.lh-composer-mini-actions{display:flex;align-items:center;gap:3px}
+.lh-composer .lh-composer-inline-error,.lh-composer-chrome-ui .lh-composer-inline-error{font-size:11px;line-height:1.6;color:var(--hc-danger);margin:0}
+.lh-composer-themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.lh-composer-theme{padding:5px;border:1px solid var(--hc-line)!important;border-radius:8px;background:var(--hc-surface);color:var(--hc-ink);font:inherit;cursor:pointer;text-align:left}
+.lh-composer-theme[aria-pressed=true]{border-color:var(--hc-accent)!important;box-shadow:0 0 0 1px var(--hc-accent)}
+.lh-composer-theme>span:last-child{display:flex;align-items:center;justify-content:space-between;gap:3px;padding:6px 2px 2px;font-size:10px}
+.lh-composer-theme>span:last-child>svg{color:var(--hc-accent)}
+.lh-composer-theme-preview{height:65px;display:grid;grid-template-columns:15px repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:4px;padding:9px 6px;border-radius:4px;background:#f1f3ef}
+.lh-composer-theme-preview>i{grid-row:1/-1;background:color-mix(in srgb,var(--hc-theme-accent) 20%,white);border-radius:3px}
+.lh-composer-theme-preview>b{display:block;border-radius:3px;background:#fff;border:1px solid #e2e7e1}
+.lh-composer-theme-preview.is-ios{background:linear-gradient(135deg,#9ab8f5,#d7d4f8 62%,#bfd6f0);gap:5px;grid-template-columns:repeat(3,minmax(0,1fr));padding:9px 14px}
+.lh-composer-theme-preview.is-ios>i{display:none}
+.lh-composer-theme-preview.is-ios>b{border:1px solid #ffffff9c;background:#ffffffb3;border-radius:6px;box-shadow:0 2px 5px #5673a91a}
+.lh-composer-slot-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.lh-composer-slot-options>button{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px;min-height:49px;padding:7px 3px;border:1px solid var(--hc-line)!important;border-radius:6px;font:inherit;font-size:10px;background:var(--hc-surface);color:var(--hc-muted);cursor:pointer}
+.lh-composer-slot-options>button>small{font-size:9px;background:var(--hc-bg);padding:0 3px;border-radius:3px}
+.lh-composer-slot-options>button[aria-pressed=true]{border-color:#afcffa!important;background:var(--hc-tint);color:var(--hc-accent)}
+.lh-composer-add-chrome{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.lh-composer-add-chrome .lh-composer-button{font-size:10px;padding:6px 3px;gap:4px}
+.lh-composer-chrome-items{display:flex;flex-direction:column;gap:5px}
+.lh-composer-chrome-items>button{display:flex;align-items:center;gap:8px;width:100%;min-width:0;padding:8px;border:1px solid var(--hc-line)!important;border-radius:6px;font:inherit;font-size:11px;background:var(--hc-surface);color:var(--hc-muted);text-align:left;cursor:pointer}
+.lh-composer-chrome-items>button>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lh-composer-chrome-items>button[aria-pressed=true]{color:var(--hc-accent);border-color:#c7daf7!important;background:var(--hc-tint)}
+.lh-composer-brand-preview{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--hc-line);border-radius:7px;background:var(--hc-bg)}
+.lh-composer-brand-preview strong{font-weight:550;font-size:12px}
+.lh-composer .lh-composer-empty,.lh-composer-chrome-ui .lh-composer-empty{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;text-align:center;padding:20px 6px;color:var(--hc-muted);font-size:11px;line-height:1.7;margin:0}
+.lh-composer :is(.lh-composer-toolbar,.lh-composer-sidebar) :focus-visible,.lh-composer-chrome-ui :focus-visible{outline:2px solid var(--hc-accent);outline-offset:2px;box-shadow:none}
+.lh-composer :is(.lh-composer-stage,.lh-composer-sidebar),.lh-composer-drawer-body{scrollbar-width:thin;scrollbar-color:#b9c2cf transparent}
+.lh-composer :is(.lh-composer-stage,.lh-composer-sidebar)::-webkit-scrollbar,.lh-composer-drawer-body::-webkit-scrollbar{width:8px;height:8px}
+.lh-composer :is(.lh-composer-stage,.lh-composer-sidebar)::-webkit-scrollbar-thumb,.lh-composer-drawer-body::-webkit-scrollbar-thumb{background:#b9c2cf;border:2px solid transparent;border-radius:8px;background-clip:padding-box}
+.lh-composer-drawer-overlay{position:fixed;inset:0;z-index:1300;background:#16243c5e}
+.lh-composer-drawer{position:fixed;inset:0 0 0 auto;z-index:1301;display:flex;flex-direction:column;width:min(380px,calc(100vw - 26px));max-height:100dvh;min-height:0;background:#fff;box-shadow:-10px 0 50px #14294a22;outline:none}
+.lh-composer-drawer-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--hc-line);flex:none}
+.lh-composer-drawer-header h2{margin:0;font-size:14px;font-weight:600}
+.lh-composer-drawer-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.lh-composer-drawer-footer{display:flex;justify-content:flex-end;flex:none;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--hc-line);background:#fff}
+@media(min-width:2000px){.lh-composer-workbench{grid-template-columns:252px minmax(0,1fr)312px}.lh-composer-toolbar{padding-left:24px;padding-right:24px}.lh-composer-inspector-section{padding:20px}}
+@media(max-width:1399px){.lh-composer-workbench{grid-template-columns:215px minmax(0,1fr)270px}.lh-composer-toolbar{gap:14px}.lh-composer-toolbar-tools{padding-right:14px}.lh-composer-inspector-section{padding:15px}}
+@media(max-width:1099px){.lh-composer-workbench{grid-template-columns:minmax(0,1fr)}.lh-composer-toolbar .lh-composer-inspector-toggle{display:inline-flex}.lh-composer-toolbar-tools{padding-right:10px}.lh-composer-canvas :is(.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome){padding-left:20px;padding-right:20px}}
+@media(max-width:767px){.lh-composer-toolbar{flex-wrap:wrap;gap:10px;padding:10px 14px}.lh-composer-toolbar-title{flex:1;gap:7px}.lh-composer-toolbar-title>strong{font-size:13px}.lh-composer-toolbar-title>.project-logo{width:23px;height:23px}.lh-composer-toolbar-tools{order:3;width:100%;margin:0;padding:0;border:0;justify-content:flex-start}.lh-composer-toolbar-actions{gap:5px}.lh-composer-toolbar-actions .lh-composer-button{min-height:31px;padding:5px 8px;font-size:11px}.lh-composer-toolbar-actions .lh-composer-restore{width:31px;padding:0}.lh-composer-toolbar-actions .lh-composer-restore>span{display:none}.lh-composer-canvas-bar{padding:6px 16px}.lh-composer-canvas-bar>small{max-width:62%;font-size:9px}.lh-composer-canvas :is(.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome){padding-left:16px;padding-right:16px}.lh-composer-canvas .lh-workspace{gap:16px}.lh-composer-feedback{padding:8px 14px}}
+@media(max-width:430px){.lh-composer-toolbar{gap:8px;padding-left:10px;padding-right:10px}.lh-composer-draft-status{display:none}.lh-composer-toolbar-title>strong{font-size:12px}.lh-composer-toolbar-actions .lh-composer-button{gap:4px}.lh-composer-toolbar-tools>.lh-composer-button{flex:1;padding:6px 4px;font-size:11px}.lh-composer-toolbar-actions .is-primary>svg{display:none}}
+@media(prefers-reduced-motion:reduce){.lh-composer .lh-composer-button,.lh-composer-chrome-ui .lh-composer-button{transition:none}}
+@media(forced-colors:active){.lh-composer,.lh-composer-chrome-ui{--hc-ink:CanvasText;--hc-bg:Canvas;--hc-surface:Canvas;--hc-line:ButtonText;--hc-muted:CanvasText;--hc-accent:Highlight;--hc-tint:Canvas;--hc-hover:Canvas}.lh-composer-theme[aria-pressed=true],.lh-composer-layer[aria-pressed=true],.lh-composer-slot-options>button[aria-pressed=true]{outline:2px solid Highlight}.lh-composer .lh-composer-button.is-primary,.lh-composer-chrome-ui .lh-composer-button.is-primary,.lh-composer .lh-control-checkbox[data-state=checked],.lh-composer-chrome-ui .lh-control-checkbox[data-state=checked]{background:Highlight;color:HighlightText}}

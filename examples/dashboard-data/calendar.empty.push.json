@@ -1,0 +1,13 @@
+{
+  "requestId": "example-calendar-empty-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "calendar.events",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "timezone": "UTC",
+    "windowStart": 1705276800,
+    "windowEnd": 1705881600,
+    "events": []
+  }
+}

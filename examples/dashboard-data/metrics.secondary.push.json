@@ -1,0 +1,34 @@
+{
+  "requestId": "example-secondary-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "metrics.summary",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "metrics": [
+      {
+        "id": "request-errors-24h",
+        "label": "Request errors / previous 24 h (example)",
+        "value": null,
+        "unit": "requests",
+        "status": "unknown"
+      },
+      {
+        "id": "error-ratio-24h",
+        "label": "Error ratio / previous 24 h (example)",
+        "value": null,
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "status": "unknown"
+      },
+      {
+        "id": "latency-p95-24h",
+        "label": "Response latency p95 / previous 24 h (example)",
+        "value": null,
+        "unit": "ms",
+        "status": "unknown"
+      }
+    ]
+  }
+}

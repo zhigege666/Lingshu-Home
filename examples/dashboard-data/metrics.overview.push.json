@@ -1,0 +1,32 @@
+{
+  "requestId": "example-overview-20240115-v1",
+  "expectedRevision": "0",
+  "schemaId": "metrics.summary",
+  "schemaVersion": 1,
+  "sourceUpdatedAt": "2024-01-15T08:00:00Z",
+  "data": {
+    "metrics": [
+      {
+        "id": "visitors-24h",
+        "label": "Unique visitors / previous 24 h (example)",
+        "value": null,
+        "unit": "people",
+        "status": "unknown"
+      },
+      {
+        "id": "pageviews-24h",
+        "label": "Page views / previous 24 h (example)",
+        "value": null,
+        "unit": "views",
+        "status": "unknown"
+      },
+      {
+        "id": "requests-24h",
+        "label": "Requests / previous 24 h (example)",
+        "value": null,
+        "unit": "requests",
+        "status": "unknown"
+      }
+    ]
+  }
+}

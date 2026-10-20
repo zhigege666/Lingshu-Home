@@ -1,0 +1,69 @@
+/* Panel appearance is independent from the page skin and the cards/directory
+   grouping choice. Its selector lives on the real navigation panel instance. */
+.lh-home .lh-navigation-panel[data-link-appearance="minimal"] .lh-bookmark-icon { display: none; }
+.lh-home .lh-navigation-panel[data-link-appearance="minimal"] .lh-bookmark { min-height: 65px; gap: 0; box-shadow: none; }
+.lh-home .lh-navigation-panel[data-link-appearance="minimal"] .lh-bookmark-tags { display: none; }
+.lh-home .lh-navigation-panel[data-link-appearance="minimal"] .lh-bookmark.is-directory { min-height: 49px; }
+
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] {
+  --lh-card-min: 106px;
+  --lh-card-gap: 14px;
+  --lh-group-gap: 24px;
+  --lh-app-tile: 62px;
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"].lh-card-groups {
+  display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,450px),1fr)); gap: 20px;
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"].lh-card-groups > .lh-custom-panel-title,
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"].lh-card-groups > .lh-favorites-group { grid-column: 1 / -1; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"].lh-card-groups > .lh-link-group:not(.lh-favorites-group) {
+  min-width: 0; width: 100%; max-width: none; margin: 0; padding: 14px;
+  border: 1px solid var(--lh-line); border-radius: 22px; background: var(--lh-surface); box-shadow: var(--lh-shadow);
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"].lh-card-groups > .lh-link-group:not(.lh-favorites-group) .lh-group-heading { margin-bottom: 5px; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-links:not(.is-directory) {
+  grid-template-columns: repeat(auto-fit,minmax(min(100%,var(--lh-card-min)),1fr));
+  gap: var(--lh-card-gap);
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-favorites-group.is-sparse {
+  width: min(100%,calc(var(--lh-link-count) * 126px + (var(--lh-link-count) - 1) * var(--lh-card-gap) + 40px));
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-favorites-group.is-sparse .lh-links { max-width: none; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) {
+  flex-direction: column; align-items: center; gap: 10px; min-height: 124px;
+  padding: 14px 10px 12px; border-color: transparent; border-radius: 20px;
+  background: transparent; box-shadow: none;
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory):hover {
+  border-color: var(--lh-line); background: var(--lh-surface); transform: translateY(-2px);
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-title[href]::after { border-radius: 20px; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark-icon {
+  width: var(--lh-app-tile); height: var(--lh-app-tile); flex: 0 0 var(--lh-app-tile);
+  border: 1px solid color-mix(in srgb,var(--lh-accent) 14%,var(--lh-line)); border-radius: 24%;
+  color: var(--lh-accent); background: linear-gradient(150deg,var(--lh-surface),var(--lh-tint));
+  box-shadow: 0 4px 9px color-mix(in srgb,var(--lh-ink) 8%,transparent), inset 0 1px 0 #ffffff70;
+}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark-icon > :is(img,svg) { width: 31px; height: 31px; opacity: 1; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-body { width: 100%; text-align: center; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-title { justify-content: center; font-size: 12px; line-height: 1.5; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-title > svg { display: none; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-body p { font-size: 10px; margin-top: 3px; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-tags { display: none; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-endpoints { justify-content: center; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) :is(.lh-favorite-button,.lh-favorite-indicator) { right: 7px; top: 7px; }
+/* Directory keeps its readable row structure, including descriptions/endpoints. */
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark.is-directory .lh-bookmark-icon { width: 36px; height: 36px; flex-basis: 36px; border-radius: 10px; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark.is-directory .lh-bookmark-icon > :is(img,svg) { width: 21px; height: 21px; }
+.lh-home[data-density="compact"] .lh-navigation-panel[data-link-appearance="app-icons"] { --lh-card-min: 96px; --lh-card-gap: 10px; --lh-app-tile: 50px; }
+.lh-home[data-density="compact"] .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) { min-height: 112px; padding: 11px 8px 9px; gap: 8px; }
+.lh-home[data-density="compact"] .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-icon > :is(img,svg) { width: 27px; height: 27px; }
+@media (max-width: 560px) {
+  .lh-home .lh-navigation-panel[data-link-appearance="app-icons"] { --lh-card-min: 92px; --lh-card-gap: 8px; --lh-app-tile: 54px; }
+  .lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-links:not(.is-directory) { grid-template-columns: repeat(auto-fit,minmax(min(100%,92px),1fr)); }
+  .lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) { min-height: 117px; padding: 12px 6px 9px; gap: 9px; }
+  .lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-title { font-size: 11px; }
+  .lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark:not(.is-directory) .lh-bookmark-icon > :is(img,svg) { width: 27px; height: 27px; }
+  .lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-favorites-group { width: 100%; max-width: none; }
+  .lh-home .lh-navigation-panel[data-link-appearance="app-icons"].lh-card-groups > .lh-link-group:not(.lh-favorites-group) { padding: 12px 10px; border-radius: 20px; }
+}

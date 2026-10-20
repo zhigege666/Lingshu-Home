@@ -1,0 +1,4 @@
+.lh-icon-asset { display: inline-block; flex: none; object-fit: contain; vertical-align: middle; }
+.lh-icon-asset.is-color { filter: none; }
+.lh-home :is(.lh-bookmark-icon,.lh-category-select) img.lh-icon-asset.is-color { opacity: 1; }
+.admin-ui .admin-image-icon { width: 20px; height: 20px; object-fit: contain; }

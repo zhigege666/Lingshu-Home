@@ -1,0 +1,112 @@
+{
+  "repository": "https://github.com/keenthemes/reui",
+  "commit": "067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a",
+  "license": "MIT",
+  "licenseURL": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/LICENSE.md",
+  "components": [
+    {
+      "component": "button",
+      "url": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/registry/bases/radix/ui/button.tsx",
+      "sha256": "76c6abdf94fae4085fd6c50c97c7a99ec21240af187c63ea4b2e71551d33495f"
+    },
+    {
+      "component": "dialog",
+      "url": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/registry/bases/radix/ui/dialog.tsx",
+      "sha256": "71fb4e64866fa41cd770866c433342b3c469a1576d6cc7afe0b3b6cb3b06ae04"
+    },
+    {
+      "component": "input",
+      "url": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/registry/bases/radix/ui/input.tsx",
+      "sha256": "df7e02c82048862d719d69c7b101de130e47f2448d3933f76317c3c853b8a01e"
+    },
+    {
+      "component": "tabs",
+      "url": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/registry/bases/radix/ui/tabs.tsx",
+      "sha256": "96ad5bec050c42dc755c8254c9d7408a04969df29ce5230d29196d1c64bff497"
+    },
+    {
+      "component": "table",
+      "url": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/registry/bases/radix/ui/table.tsx",
+      "sha256": "77d15e11fcf1fb2f5e1b814aa64868e7644bb59c5e1498ecb93bcbdca1c7a070"
+    },
+    {
+      "component": "label",
+      "url": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/registry/bases/radix/ui/label.tsx",
+      "sha256": "075c3ea03aec0f887b9b00c407e1de3b2969371059b9ba84ecd84908f24bdde2"
+    },
+    {
+      "component": "textarea",
+      "url": "https://raw.githubusercontent.com/keenthemes/reui/067aa0dc7f8bbfec1cd76fc5ad31f842be5f569a/registry/bases/radix/ui/textarea.tsx",
+      "sha256": "8f527c89dec40a9b372376dc93d2ebb149bfd82f209856d110ead1aabec19c6a"
+    }
+  ],
+  "modifications": [
+    "Application components adapt local imports and replace IconPlaceholder with Lucide X. Original source snapshots retained in upstream/.",
+    "Tabs forwards Radix orientation and uses explicit orientation/state variants so horizontal admin tab content remains below its tab list."
+  ],
+  "adaptedComponents": [
+    {
+      "file": "web/src/components/ui/button.tsx",
+      "sha256": "1f30d90faa0f19537ca1531f3f51336a375fed94c48289dba6389fc50d555854",
+      "upstreamSha256": "76c6abdf94fae4085fd6c50c97c7a99ec21240af187c63ea4b2e71551d33495f",
+      "modifications": [
+        "Local cn/Button imports",
+        "Lucide X replaces upstream IconPlaceholder"
+      ]
+    },
+    {
+      "file": "web/src/components/ui/dialog.tsx",
+      "sha256": "de4d826caf97630444f2c4738f70f66cd7d9ee2fda468ff8f5bc9694dafcae95",
+      "upstreamSha256": "71fb4e64866fa41cd770866c433342b3c469a1576d6cc7afe0b3b6cb3b06ae04",
+      "modifications": [
+        "Local cn/Button imports",
+        "Lucide X replaces upstream IconPlaceholder"
+      ]
+    },
+    {
+      "file": "web/src/components/ui/input.tsx",
+      "sha256": "2e280edb417b34f7a1737551e4d07200c4cdfdbf519a8730eff2cd26c3b00779",
+      "upstreamSha256": "df7e02c82048862d719d69c7b101de130e47f2448d3933f76317c3c853b8a01e",
+      "modifications": [
+        "Local cn/Button imports",
+        "Lucide X replaces upstream IconPlaceholder"
+      ]
+    },
+    {
+      "file": "web/src/components/ui/label.tsx",
+      "sha256": "3390e91aca0f1f0bf8444854a543c85d83c2310aad8dfebdb8ea2055bcecb4db",
+      "upstreamSha256": "075c3ea03aec0f887b9b00c407e1de3b2969371059b9ba84ecd84908f24bdde2",
+      "modifications": [
+        "Local cn/Button imports",
+        "Lucide X replaces upstream IconPlaceholder"
+      ]
+    },
+    {
+      "file": "web/src/components/ui/table.tsx",
+      "sha256": "d0df374639eb41101855aedb30372f86a0a0cf86bf17ac6656736eb4126ba625",
+      "upstreamSha256": "77d15e11fcf1fb2f5e1b814aa64868e7644bb59c5e1498ecb93bcbdca1c7a070",
+      "modifications": [
+        "Local cn/Button imports",
+        "Lucide X replaces upstream IconPlaceholder"
+      ]
+    },
+    {
+      "file": "web/src/components/ui/tabs.tsx",
+      "sha256": "b17ff8d33b71308ef596a7f12b05f6c5350bad1d61fc87c0079b752ceea3336c",
+      "upstreamSha256": "96ad5bec050c42dc755c8254c9d7408a04969df29ce5230d29196d1c64bff497",
+      "modifications": [
+        "Local cn import",
+        "Forward orientation to Radix Root; use explicit data-orientation and data-state variants without REUI custom Tailwind variants"
+      ]
+    },
+    {
+      "file": "web/src/components/ui/textarea.tsx",
+      "sha256": "1801916cd424a615f5aaedab9162758263ec83290284bc627bcd250a6dd199ba",
+      "upstreamSha256": "8f527c89dec40a9b372376dc93d2ebb149bfd82f209856d110ead1aabec19c6a",
+      "modifications": [
+        "Local cn/Button imports",
+        "Lucide X replaces upstream IconPlaceholder"
+      ]
+    }
+  ]
+}

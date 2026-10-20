@@ -1,0 +1,11 @@
+.admin-network-settings { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 22px; align-items: start; max-width: 1520px; min-width: 0; }
+.admin-network-settings > .admin-card { min-width: 0; margin: 0; }
+.admin-network-settings .network-section-heading { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 18px; }
+.admin-network-settings .network-section-heading > svg { flex: none; color: #5e806c; }
+.admin-network-settings .admin-hint { max-width: 76ch; }
+.admin-network-settings .network-proxy-modes { margin-top: 22px; }
+.admin-network-settings .network-owner-note { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-top: 22px; color: #597463; font-size: 13px; line-height: 1.7; }
+.admin-network-settings .network-owner-note > svg { flex: none; margin-top: 3px; }
+.admin-network-settings .network-owner-note > p { flex: 1; min-width: 180px; margin: 0; }
+.admin-network-settings .network-owner-note > .cn-button { margin-left: auto; }
+@media (max-width: 1250px) { .admin-network-settings { grid-template-columns: minmax(0,1fr); max-width: 860px; } }
