@@ -17,6 +17,7 @@ const (
 
 type Settings struct {
 	Initialized         bool   `json:"initialized"`
+	Language            string `json:"language"`
 	SiteName            string `json:"siteName"`
 	Mode                string `json:"mode"`
 	RegistrationEnabled bool   `json:"registrationEnabled"`

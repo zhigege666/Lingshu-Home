@@ -93,6 +93,41 @@ class ReleasePackagingTests(unittest.TestCase):
             for name, body in expected.items():
                 self.assertEqual(archive.read(name), body)
 
+    def test_real_unraid_templates_survive_source_extraction_and_both_archives(self):
+        repository = Path(__file__).resolve().parents[1]
+        payloads = {}
+        for name in ("ca_profile.xml", "templates/lingshu-home.xml"):
+            original = repository / name
+            self.assertTrue(original.is_file() and not original.is_symlink())
+            payloads[name] = original.read_bytes()
+            self.assertTrue(payloads[name], "public Unraid templates must not be empty")
+
+        raw_archive = self.root / "unraid-source-input.tar"
+        with tarfile.open(raw_archive, "w") as archive:
+            for name, body in payloads.items():
+                entry = tarfile.TarInfo(name)
+                entry.size = len(body)
+                archive.addfile(entry, io.BytesIO(body))
+        extracted = self.root / "extracted"
+        extracted.mkdir()
+        release.extract_source(raw_archive, extracted)
+        for name, body in payloads.items():
+            self.assertEqual((extracted / name).read_bytes(), body)
+
+        prefix = "Lingshu-Home-1.2.3/"
+        expected = {prefix + name: body for name, body in payloads.items()}
+        tar_path, zip_path = self.root / "unraid-source.tar.gz", self.root / "unraid-source.zip"
+        release.archive_tree(extracted, tar_path, prefix, 1700000000, source=True)
+        release.archive_tree(extracted, zip_path, prefix, 1700000000, source=True)
+        with tarfile.open(tar_path) as archive:
+            self.assertEqual(set(archive.getnames()), set(expected))
+            for name, body in expected.items():
+                self.assertEqual(archive.extractfile(name).read(), body)
+        with zipfile.ZipFile(zip_path) as archive:
+            self.assertEqual(set(archive.namelist()), set(expected))
+            for name, body in expected.items():
+                self.assertEqual(archive.read(name), body)
+
     def test_private_generated_and_unreviewed_source_paths_are_rejected(self):
         forbidden = [".", "", "design/architecture.md", ".runtime/secret.json", "data/home.db", ".env", ".env.example",
                      "web/.env.production", "docs/../design/secret.md", "/etc/passwd", "server\\private.go",
@@ -101,7 +136,10 @@ class ReleasePackagingTests(unittest.TestCase):
                      "credentials.json", "docs/line\nbreak.md", "docs/./README.md", "docs//README.md",
                      "examples/design/private.md", "examples/.runtime/report.json", "examples/dashboard-data/data/private.json",
                      "examples/dashboard-data/.env.local", "examples/dashboard-data/integrations.key",
-                     "examples/dashboard-data/home.sqlite3", "examples/dashboard-data/dist/index.json"]
+                     "examples/dashboard-data/home.sqlite3", "examples/dashboard-data/dist/index.json",
+                     "templates/.env", "templates/.env.local", "templates/design/private.xml",
+                     "templates/.runtime/secret.xml", "templates/data/home.db", "templates/.git/config",
+                     "templates/private.key", "templates/home.sqlite3", "templates/dist/generated.xml"]
         for name in forbidden:
             with self.subTest(path=name), self.assertRaises(release.ValidationError):
                 release.safe_path(name, source=True)
@@ -112,6 +150,7 @@ class ReleasePackagingTests(unittest.TestCase):
 
     def test_archive_validation_finishes_before_extracting_any_member(self):
         for bad_name, kind in [("design/private.md", tarfile.REGTYPE), ("examples/design/private.md", tarfile.REGTYPE),
+                               ("templates/.env", tarfile.REGTYPE), ("templates/link.xml", tarfile.SYMTYPE),
                                ("examples/.runtime/private.json", tarfile.REGTYPE), ("examples/dashboard-data/link", tarfile.SYMTYPE),
                                ("docs/link", tarfile.SYMTYPE), ("web/dist.compose-previous/index.html", tarfile.REGTYPE),
                                ("README.md", tarfile.REGTYPE), ("docs/hard", tarfile.LNKTYPE),

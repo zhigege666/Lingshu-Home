@@ -3,6 +3,8 @@
 
 Python 3.10+; standard library only. Never run against a user's populated service.
 The script deliberately refuses non-loopback URLs and an initialized database.
+Only after that preflight, an undecided instance selects Chinese for the fixture;
+an existing fixed language is preserved.
 It creates no fixtures in the application other than randomly named test data.
 """
 
@@ -102,7 +104,7 @@ class Client:
             except (urllib.error.URLError, TimeoutError, OSError) as error:
                 raise Failure(f"Transport failed for {method} {path}: {type(error).__name__}") from error
             if (result.status != 429 or method != "POST" or
-                    path not in ("/setup", "/auth/login", "/auth/register") or attempt == 2):
+                    path not in ("/setup", "/setup/language", "/auth/login", "/auth/register") or attempt == 2):
                 return result
             # Keep the real production rate limit enabled. Only a documented rejection
             # before auth execution is retryable; never retry CRUD writes or transport errors.
@@ -169,6 +171,7 @@ class Suite:
         self.private_link = None
         self.members = {}
         self.retained_link = None
+        self.instance_language = None
 
     def client(self) -> Client:
         return Client(self.base, self.args.timeout)
@@ -373,8 +376,21 @@ class Suite:
         self.denied(self.owner.request("POST", "/setup", {
             "siteName": "Rejected missing CSRF", "mode": "open_edit", "seedDemo": False,
         }, csrf=False), "setup without CSRF", (400, 403))
-        self.check(self.owner.bootstrap().get("initialized") is False,
+        bootstrap = self.owner.bootstrap()
+        self.check(bootstrap.get("initialized") is False,
                    "Rejected setup still initialized the instance.")
+        if bootstrap.get("languageSelectionRequired") is True:
+            self.ok(self.owner, "POST", "/setup/language", {"language": "zh-CN"})
+            bootstrap = self.owner.bootstrap()
+            self.check(bootstrap.get("language") == "zh-CN",
+                       "First-run fixture language was not persisted.")
+        self.check(bootstrap.get("languageSelectionRequired") is False and
+                   bootstrap.get("language") in ("zh-CN", "en"),
+                   "The disposable instance must have a fixed language before setup.")
+        self.check(bootstrap.get("initialized") is False and bootstrap.get("user") is None and
+                   bootstrap.get("spaces") == [],
+                   "Language selection must not initialize the instance or create account/navigation data.")
+        self.instance_language = bootstrap["language"]
 
     def setup_atomic(self):
         second = self.client()
@@ -403,6 +419,9 @@ class Suite:
         self.check(bootstrap.get("initialized") is True and
                    (bootstrap.get("user") or {}).get("role") == "Owner",
                    "Setup must atomically initialize and sign in the winning Owner.")
+        self.check(bootstrap.get("language") == self.instance_language and
+                   bootstrap.get("languageSelectionRequired") is False,
+                   "Setup changed the fixture's fixed language.")
         shared = [space for space in bootstrap["spaces"] if space["kind"] == "shared"]
         personal = [space for space in bootstrap["spaces"] if space["kind"] == "personal"]
         self.check(len(shared) == 1 and len(personal) == 1,
@@ -986,6 +1005,9 @@ class Suite:
         bootstrap = self.owner.bootstrap()
         self.check(bootstrap["user"] is None and bootstrap["mode"] == "open_edit",
                    "Ownerless setup should remain anonymous in open_edit mode.")
+        self.check(bootstrap.get("language") == self.instance_language and
+                   bootstrap.get("languageSelectionRequired") is False,
+                   "Ownerless setup changed the fixture's fixed language.")
         shared = [space for space in bootstrap["spaces"] if space["kind"] == "shared"]
         self.check(len(shared) == 1 and shared[0]["canEdit"], "Ownerless setup needs an editable shared space.")
         self.shared = shared[0]["id"]
@@ -1036,7 +1058,7 @@ class Suite:
                  "marker": self.retained_link, "page": self.persisted_page,
                  "navigationRevision": navigation["revision"],
                  "navigationSourceUpdatedAt": navigation["meta"]["sourceUpdatedAt"],
-                 "expectedMode": "private_multi"}
+                 "expectedMode": "private_multi", "expectedLanguage": self.instance_language}
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
@@ -1058,6 +1080,10 @@ class Suite:
         bootstrap = self.owner.bootstrap()
         self.check(bootstrap.get("initialized") is True and bootstrap.get("mode") == state["expectedMode"],
                    "Initialization or access mode did not survive restart.")
+        if "expectedLanguage" in state:
+            self.check(bootstrap.get("language") == state["expectedLanguage"] and
+                       bootstrap.get("languageSelectionRequired") is False,
+                       "The fixed instance language did not survive restart.")
         bootstrap = self.owner.login(state["ownerUsername"], state["ownerPassword"])
         self.check(bootstrap["user"]["role"] == "Owner", "Persisted Owner cannot log in after restart.")
         dashboard = self.dash(self.owner, state["personalSpaceId"])

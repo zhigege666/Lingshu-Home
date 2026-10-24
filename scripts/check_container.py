@@ -47,11 +47,13 @@ created = False
 try:
     command("volume", "create", prefix)
     command("run", "-d", "--name", prefix, "--network=host", "--cap-drop=ALL", "--security-opt=no-new-privileges",
-            "-e", f"LINGSHU_LISTEN=127.0.0.1:{args.port}", "-v", prefix + ":/data", args.image)
+            "-e", f"LINGSHU_LISTEN=127.0.0.1:{args.port}", "-e", "LINGSHU_LANGUAGE=zh-CN",
+            "-v", prefix + ":/data", args.image)
     created = True
     ready()
     bootstrap = api("/bootstrap")
     assert bootstrap["initialized"] is False, "Container must start with fresh data"
+    assert bootstrap["language"] == "zh-CN", "The explicit fixture language must be applied"
     api("/setup", {"siteName": "Container persistence check", "mode": "open_edit", "seedDemo": False}, bootstrap["csrfToken"])
     before = api("/bootstrap")
     assert before["initialized"] is True
@@ -59,6 +61,7 @@ try:
     ready()
     after = api("/bootstrap")
     assert after["initialized"] is True and after["siteName"] == before["siteName"]
+    assert after["language"] == before["language"] == "zh-CN", "Container restart must retain the instance language"
     with opener.open(url + "/", timeout=10) as response:
         html = response.read()
         assert response.status == 200 and b"<html" in html.lower(), "Frontend assets must be served"

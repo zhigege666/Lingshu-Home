@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { getLocale, t } from '../core/i18n'
 import { messageOf, request } from '../core/api'
 import type { Space } from '../core/types'
@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input'
 import { Checkbox } from '../components/ui/checkbox'
 import { StyledSelect } from '../components/ui/select'
 import { ErrorMessage, Field, Modal, handleFormInvalid } from '../components/Shared'
+import { sourceExample } from './source-examples'
 
 export const sourceSchemas = () => [
   { value: 'navigation.collection', label: t('导航书签', 'Bookmarks') },
@@ -51,6 +52,7 @@ export default function SourceDialog({ space, source, onSaved, onClose, initialK
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const isCalendar = kind === 'calendar-ics' || kind === 'external-push' && schema === 'calendar.events' || kind === 'external-json' && schema === 'calendar.events'
   const selectedSchema = kind === 'calendar-ics' ? 'calendar.events' : kind === 'weather-open-meteo' ? 'weather.forecast' : kind === 'github-traffic' ? 'github.traffic' : schema
+  const exampleData = useMemo(() => JSON.stringify(sourceExample(selectedSchema), null, 2), [selectedSchema])
   const availableKinds = sourceKinds().filter(item => !requiredSchema || (item.value === 'calendar-ics' ? requiredSchema === 'calendar.events'
     : item.value === 'weather-open-meteo' ? requiredSchema === 'weather.forecast'
     : item.value === 'github-traffic' ? requiredSchema === 'github.traffic'
@@ -91,7 +93,16 @@ export default function SourceDialog({ space, source, onSaved, onClose, initialK
     {contextNote && <p className="admin-info">{contextNote}</p>}
     <form onSubmit={save} onInvalid={event => handleFormInvalid(event, setError)}><fieldset disabled={busy} className="admin-plain-fieldset">
       <div className="admin-form-row equal"><Field label={t('名称', 'Name')}><Input required autoFocus maxLength={80} value={name} onChange={event => setName(event.target.value)} /></Field><Field label={t('数据来源类型', 'Source type')}><StyledSelect disabled={!!source || busy} value={kind} onValueChange={changeKind} options={availableKinds} /></Field></div>
-      {['external-push', 'external-json'].includes(kind) && <Field label={t('组件数据格式', 'Component data format')} hint={source ? t('已创建来源的数据格式不能更改。', 'An existing source’s data format cannot be changed.') : requiredSchema ? t('已按当前组件模板选择兼容格式。', 'The compatible format is selected for the current component template.') : undefined}><StyledSelect value={schema} disabled={!!source || !!requiredSchema || busy} onValueChange={setSchema} options={sourceSchemas().filter(item => kind !== 'external-json' || item.value !== 'navigation.collection')} /></Field>}
+      {['external-push', 'external-json'].includes(kind) && <>
+        <Field label={t('组件数据格式', 'Component data format')} hint={source ? t('已创建来源的数据格式不能更改。', 'An existing source’s data format cannot be changed.') : requiredSchema ? t('已按当前组件模板选择兼容格式。', 'The compatible format is selected for the current component template.') : t('选择 Home 已支持的内置格式；此处不能新增格式。', 'Choose a format built into Home; new formats cannot be added here.')}><StyledSelect value={schema} disabled={!!source || !!requiredSchema || busy} onValueChange={setSchema} options={sourceSchemas().filter(item => kind !== 'external-json' || item.value !== 'navigation.collection')} /></Field>
+        <details className="admin-source-example">
+          <summary>{t('查看数据格式示例', 'View data format example')}</summary>
+          <p>{kind === 'external-push'
+            ? t('下面是快照中的 data 内容。创建来源后，在列表点击“推送模板”获取完整请求，再将来源绑定到首页的对应组件。', 'This is the snapshot’s data content. After creating the source, choose Push template in the list for the full request, then bind the source to the matching homepage component.')
+            : t('外部 API 需返回下面结构的 JSON 对象。保存来源后，将它绑定到首页的对应组件。', 'The external API must return a JSON object with this structure. After saving the source, bind it to the matching homepage component.')}</p>
+          <pre className="admin-code-block" tabIndex={0} aria-label={t('数据格式 JSON 示例', 'Data format JSON example')}>{exampleData}</pre>
+        </details>
+      </>}
       {isCalendar && space.kind === 'shared' && space.published && <p className="admin-info">{t('日程内容将按此空间的访问权限展示；私人日程请使用个人空间。订阅地址始终保存在服务器。', 'Calendar content follows this space’s access permissions. Use a personal space for private calendars. Subscription URLs remain on the server.')}</p>}
       {kind === 'github-traffic' && <><div className="admin-form-row equal"><Field label={t('仓库所有者', 'Repository owner')}><Input required value={owner} onChange={event => setOwner(event.target.value)} /></Field><Field label={t('仓库名称', 'Repository name')}><Input required value={repo} onChange={event => setRepo(event.target.value)} /></Field></div><Field label={t('GitHub 访问令牌', 'GitHub access token')} hint={secretHint}><Input type="password" autoComplete="new-password" required={!source?.credentialConfigured} value={token} onChange={event => setToken(event.target.value)} /></Field><p className="admin-hint">{t('为指定仓库授予 Administration 只读权限。首次成功采集会保留不可覆盖的流量基线。', 'Grant read-only Administration permission for this repository. The first successful collection preserves an immutable traffic baseline.')}</p></>}
       {['calendar-ics', 'external-json'].includes(kind) && <><Field label={kind === 'calendar-ics' ? t('ICS 订阅地址', 'ICS subscription URL') : t('JSON 数据地址', 'JSON data URL')} hint={secretHint}><Input type="password" autoComplete="new-password" required={!source?.credentialConfigured} maxLength={2048} value={url} onChange={event => setURL(event.target.value)} placeholder="https://…" /></Field>{kind === 'external-json' && <><Field label={t('Bearer 访问令牌', 'Bearer access token')} hint={t('选填；留空保留已有令牌。更换数据地址的协议、主机或端口时，请填写新令牌或明确清除旧令牌。', 'Optional; leave blank to retain the saved token. When changing the URL scheme, host or port, provide a new token or explicitly clear the old one.')}><Input type="password" autoComplete="new-password" value={bearer} disabled={busy || clearBearer} onChange={event => setBearer(event.target.value)} /></Field>{source && <label className="admin-check-line"><Checkbox checked={clearBearer} disabled={busy} onCheckedChange={value => { setClearBearer(value); if (value) setBearer('') }} /><span>{t('清除已保存的 Bearer 凭据', 'Clear the saved Bearer credential')}</span></label>}</>}<label className="admin-check-line"><Checkbox checked={allowPrivate} onCheckedChange={setAllowPrivate} /><span>{t('允许读取内网地址', 'Allow private network addresses')}</span></label></>}

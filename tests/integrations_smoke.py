@@ -4,6 +4,8 @@
 Standard library only. The initialized synthetic instance is left for inspection.
 GitHub network traffic is not used: this script creates only a disabled source
 without a credential. Deterministic worker tests live in integrations_test.go.
+An undecided empty instance selects Chinese for the fixture; a fixed language
+is preserved.
 """
 from __future__ import annotations
 
@@ -164,10 +166,24 @@ def payload(request_id, revision, sequence=None):
 def run(base):
     started = time.monotonic()
     owner, anon = Client(base), Client(base)
-    require(owner.boot()["initialized"] is False, "Refusing an initialized instance; use a new isolated data directory/database.")
+    boot = owner.boot()
+    require(boot["initialized"] is False, "Refusing an initialized instance; use a new isolated data directory/database.")
+    require(boot.get("user") is None and boot.get("spaces") == [],
+            "Refusing a supposedly empty instance that already exposes accounts or spaces.")
+    if boot.get("languageSelectionRequired") is True:
+        owner.api("POST", "/setup/language", {"language": "zh-CN"})
+        boot = owner.boot()
+        require(boot.get("language") == "zh-CN", "First-run fixture language was not persisted.")
+    require(boot.get("languageSelectionRequired") is False and boot.get("language") in ("zh-CN", "en"),
+            "The disposable instance must have a fixed language before setup.")
+    require(boot["initialized"] is False and boot.get("user") is None and boot.get("spaces") == [],
+            "Language selection must not initialize the instance or create account/navigation data.")
+    language = boot["language"]
     username = "smoke-" + secrets.token_hex(5)
     owner.api("POST", "/setup", {"siteName": "Integration HTTP fixture", "mode": "private_multi", "username": username, "displayName": "Fixture owner", "password": secrets.token_urlsafe(24), "seedDemo": False}, expected=201)
     boot = owner.boot()
+    require(boot.get("language") == language and boot.get("languageSelectionRequired") is False,
+            "Setup changed the fixture's fixed language.")
     shared, personal = space(boot, "shared"), space(boot, "personal")
     actions = ["navigation:read", "navigation:write", "sources:read", "sources:write", "datasets:write", "pages:read", "pages:write"]
     full = mint(owner, shared, actions)["token"]

@@ -1,4 +1,6 @@
 .dashboard-presets-dialog { display: grid; gap: 20px; min-width: 0; }
+/* This grid already owns vertical spacing; avoid adding feedback margins twice. */
+.admin-ui .dashboard-presets-dialog > .admin-info { margin: 0; }
 .dashboard-preset-gallery { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
 .dashboard-preset-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-width: 0; text-align: left; border: 1px solid var(--admin-border); border-radius: 11px; color: var(--admin-ink); background: #fff; }
 .dashboard-preset-card[aria-pressed=true] { border-color: #4c9476; background: #f1f7f1; box-shadow: 0 0 0 1px #4c9476; }

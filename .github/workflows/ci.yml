@@ -101,6 +101,8 @@ jobs:
         run: python3 scripts/dev.py build
       - name: Visual composer operations and draft invariants
         run: node tests/composer_operations.cjs
+      - name: Draft undo and redo invariants
+        run: node tests/draft_history_core.test.mjs
       - name: Browser routing, dashboard presets and initialization space selection
         run: |
           node tests/endpoint_routing_core.test.mjs
@@ -120,6 +122,7 @@ jobs:
         run: |
           createdb lingshu_integrations
           createdb lingshu_icons
+          createdb lingshu_navigation
           createdb lingshu_components
           createdb lingshu_component_migration
           createdb lingshu_http
@@ -129,12 +132,14 @@ jobs:
         env:
           LINGSHU_TEST_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_core?sslmode=disable
           LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_integrations?sslmode=disable
+          LINGSHU_TEST_NAVIGATION_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_navigation?sslmode=disable
           LINGSHU_TEST_ICONS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_icons?sslmode=disable
           LINGSHU_TEST_COMPONENTS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_components?sslmode=disable
           LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_component_migration?sslmode=disable
         run: |
           : "${LINGSHU_TEST_POSTGRES_URL:?core test database is required}"
           : "${LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL:?integrations test database is required}"
+          : "${LINGSHU_TEST_NAVIGATION_POSTGRES_URL:?navigation batch test database is required}"
           : "${LINGSHU_TEST_ICONS_POSTGRES_URL:?icons test database is required}"
           : "${LINGSHU_TEST_COMPONENTS_POSTGRES_URL:?components test database is required}"
           : "${LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL:?component migration test database is required}"

@@ -42,7 +42,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.1` uses `ghcr.io/zhigege666/lingshu-home:0.0.1`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.2` uses `ghcr.io/zhigege666/lingshu-home:0.0.2`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 Only exact version tags are pushed; there is no floating `latest` tag. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`. Release metadata retains the original SemVer.
 
@@ -52,7 +52,7 @@ Windows/macOS native clients and additional CPU architectures require their own 
 
 The packager validates allowed source roots and archive paths, rejects links and unsafe paths, and excludes `design`, `.runtime`, `.env*`, user data, key files, database files and generated dependency/build directories. The runtime image explicitly copies public build inputs and outputs. Git ignore rules alone are not the release boundary.
 
-The public `examples/` tree is included in source archives, including the dashboard handoff index and producer samples. Its contents remain subject to the same private-path, key, database, generated-output and link exclusions.
+The public `examples/` tree is included in source archives, including the dashboard handoff index and producer samples. The public Unraid `templates/` tree and `ca_profile.xml` are also included. All remain subject to the same private-path, key, database, generated-output and link exclusions; allowing a source root does not permit secrets or generated files beneath it.
 
 Source validation also rejects old frontend build backups directly under `web/dist.*`, such as `web/dist.compose-previous`. These are generated outputs, not source inputs. This restriction does not reject ordinary source modules such as `web/src/dist.ts` or remove any existing backup directory from the working checkout.
 
@@ -62,7 +62,7 @@ Downloads are first uploaded to a draft GitHub Release. The workflow pushes the 
 
 GitHub Releases and GHCR are separate services, so publication across them cannot be atomic. A failure can leave an unpublished draft or an image already pushed. Inspect those recorded artifacts before retrying. Existing releases and drafts are not silently overwritten or deleted by the workflow.
 
-## First-release availability check
+## Published-release availability check
 
 After the tagged workflow completes, read back the published release, exact tag commit and all seven expected assets. Download the actual files, verify `SHA256SUMS`, and check that `release-metadata.json` identifies the same version, source commit and tested image. Verify the Linux archive's documented extraction/start commands against fresh data and a real restart.
 
@@ -91,6 +91,14 @@ sha256sum --check SHA256SUMS
 ```
 
 The packaging command builds and validates files locally; it does not authenticate to a registry, push an image or create a GitHub Release. Online publication is a separate workflow stage.
+
+## Version 0.0.2 upgrade and evidence
+
+Version 0.0.2 includes the navigation batch/draft-history work, one-time instance language, shared form spacing and source-format examples. It also updates the pinned Unraid image and includes the public Unraid metadata in source archives. The matching dated changelog defines the release scope; all seven artifacts and the registry image still require the complete tagged workflow above.
+
+Migration `007_instance_language.sql` fixes the language for each database. Back up the database and matching instance keys before upgrading. An existing English 0.0.1 deployment must retain its `en` startup configuration on its first 0.0.2 startup. Once saved, the database language wins over later startup configuration. Rolling back to 0.0.1 requires the pre-upgrade database/key backup; replacing only the executable or image cannot downgrade the migrated database. See [storage and recovery](STORAGE.md).
+
+The full 2026-10-24 working-tree browser and dual-database evidence, final-version Docker checks, exact source correspondence and remaining release boundaries are recorded in [the test guide](../tests/README.md). Pre-release deployment checks and published-download verification are separate evidence: a local image is not proof that the final GHCR tag or GitHub assets are available. Published identity remains the exact tag commit, successful release workflow, actual downloads and `release-metadata.json`.
 
 ## Development verification and release boundary
 

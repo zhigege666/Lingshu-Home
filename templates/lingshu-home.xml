@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Container version="2">
   <Name>Lingshu-Home</Name>
-  <Repository>ghcr.io/zhigege666/lingshu-home:0.0.1</Repository>
+  <Repository>ghcr.io/zhigege666/lingshu-home:0.0.2</Repository>
   <Network>bridge</Network>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/zhigege666/Lingshu-Home/issues</Support>
   <Project>https://github.com/zhigege666/Lingshu-Home</Project>
-  <Overview>A self-hosted personal dashboard for links, browser bookmarks, nested categories and modular widgets. Customize your homepage with a visual editor, Classic or iOS-inspired themes, and English or Simplified Chinese. SQLite is included; no external database is required. Open the WebUI to complete first-run setup. There is no default administrator password. Keep the /data mapping to preserve your database, saved icons and instance encryption keys. This template uses the published Linux amd64 release and runs as Unraid's appdata user (99:100). The image tag is pinned; read the upgrade guide before changing versions.</Overview>
+  <Overview>A self-hosted personal dashboard for links, browser bookmarks, nested categories and modular widgets. Customize your homepage with a visual editor and Classic or iOS-inspired themes. Choose English or Simplified Chinese before the first start; the saved language also determines example bookmarks and cannot be switched later. SQLite is included; no external database is required. Open the WebUI to complete first-run setup. There is no default administrator password. Keep the /data mapping to preserve your database, saved icons and instance encryption keys. This template targets Linux amd64 version 0.0.2 and runs as Unraid's appdata user (99:100). The image tag is pinned; read the upgrade guide before changing versions.</Overview>
   <Category>Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
-  <Icon>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.1/web/src/assets/apple-touch-icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.2/web/src/assets/apple-touch-icon.png</Icon>
   <TemplateURL>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/templates/lingshu-home.xml</TemplateURL>
-  <ReadMe>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/docs/UNRAID.md</ReadMe>
+  <ReadMe>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.2/docs/UNRAID.md</ReadMe>
   <License>Apache-2.0</License>
   <ExtraSearchTerms>lingshu home dashboard homepage bookmarks navigation startpage selfhosted</ExtraSearchTerms>
   <Requires>Linux amd64 (x86-64). Persistent appdata storage writable by UID 99 and GID 100.</Requires>
   <ExtraParams>--user=99:100 --stop-timeout=30 --security-opt=no-new-privileges=true --cap-drop=ALL</ExtraParams>
   <Config Name="WebUI port" Target="8080" Default="5180" Mode="tcp" Description="Host HTTP port. Keep the container port at 8080. Complete setup on your trusted LAN before configuring remote access." Type="Port" Display="always" Required="true" Mask="false">5180</Config>
   <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/lingshu-home" Mode="rw" Description="Database, saved icons and instance keys. Keep this mapping when recreating or upgrading. Existing directories must be writable by UID 99 and GID 100." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/lingshu-home</Config>
-  <Config Name="Interface language" Target="LINGSHU_LANGUAGE" Default="en|zh-CN" Description="en: English; zh-CN: Simplified Chinese. Changing the interface language preserves your existing bookmarks and text." Type="Variable" Display="always" Required="true" Mask="false">en</Config>
+  <Config Name="Interface language" Target="LINGSHU_LANGUAGE" Default="en|zh-CN" Description="First-start language: en (English) or zh-CN (Simplified Chinese). Saved once; later field changes do not switch it. When upgrading from 0.0.1, keep the previous value, especially en for an English instance." Type="Variable" Display="always" Required="true" Mask="false">en</Config>
   <Config Name="HTTPS-only cookies" Target="LINGSHU_SECURE_COOKIES" Default="false|true" Description="Keep false for direct HTTP access. Set true only when using Home through an HTTPS reverse proxy. This setting does not enable HTTPS itself." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>
 </Container>

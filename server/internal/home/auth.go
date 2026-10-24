@@ -127,7 +127,7 @@ func canLogin(user *User, s Settings) bool {
 
 func (a *App) loadSettings(ctx context.Context, q Queryer) (Settings, error) {
 	var s Settings
-	err := q.QueryRowContext(ctx, "SELECT initialized,site_name,mode,registration_enabled,auth_epoch,auto_fetch_icons,auto_select_endpoint FROM settings WHERE id=1").Scan(&s.Initialized, &s.SiteName, &s.Mode, &s.RegistrationEnabled, &s.AuthEpoch, &s.AutoFetchIcons, &s.AutoSelectEndpoint)
+	err := q.QueryRowContext(ctx, "SELECT initialized,site_name,mode,registration_enabled,auth_epoch,auto_fetch_icons,auto_select_endpoint,language FROM settings WHERE id=1").Scan(&s.Initialized, &s.SiteName, &s.Mode, &s.RegistrationEnabled, &s.AuthEpoch, &s.AutoFetchIcons, &s.AutoSelectEndpoint, &s.Language)
 	if err != nil {
 		return s, err
 	}

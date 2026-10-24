@@ -8,7 +8,9 @@
  *   --output-dir /tmp/home-initialization-run --allow-write --expected-version 0.0.1
  *
  * fixtures.json is an array of { name, url, language, scenario }. Each origin
- * must be fresh and unique. Every fixture is preflighted before any UI write.
+ * must be fresh and unique. Ordinary fixtures require an explicit startup
+ * language; language_choice fixtures omit it and declare their eventual choice.
+ * Every fixture is preflighted before any UI write.
  * Ordinary writes use the UI; APIRequestContext is used only for GET evidence,
  * except the explicit committed-response-loss fault injected with route.fetch.
  * This script does not restart servers, create upstream sources, visit example
@@ -27,7 +29,7 @@ const timeout = 20000;
 const protectedPorts = new Set(['5180', '5182', '5183', '5184', '5185', '5194', '5195']);
 const scenarios = new Set([
   'seed', 'blank', 'private_single', 'private_multi', 'open_ownerless',
-  'open_owner', 'recover_uncommitted', 'recover_committed', 'conflict'
+  'open_owner', 'recover_uncommitted', 'recover_committed', 'conflict', 'language_choice'
 ]);
 const viewports = [
   { width: 2560, height: 1440 }, { width: 1920, height: 1080 },
@@ -84,6 +86,9 @@ function button(st, side, zh, en) { return side.page.getByRole('button', { name:
 function field(st, side, zh, en) { return side.page.getByLabel(l(st, zh, en), { exact: true }); }
 function setupCount(st, side) {
   return st.result.requests.filter(item => item.method === 'POST' && item.path === '/api/v1/setup' && (!side || item.context === side.label)).length;
+}
+function languageChoiceCount(st) {
+  return st.result.requests.filter(item => item.method === 'POST' && item.path === '/api/v1/setup/language').length;
 }
 function credentials(st, suffix = 'owner') {
   const value = {
@@ -143,7 +148,7 @@ function newState(fixture, index) {
     harnessErrors: [], faultEvents: [], measurements: [], screenshots: [], reloads: [],
     unexpectedConsole: [], unexpectedHTTP: [], unexpectedFailedRequests: []
   };
-  const st = { fixture, index, origin: fixture.url, result, phase: 'preflight', sides: [], inspections: new Set(), configured: false, ready: false, closing: false };
+  const st = { fixture, index, origin: fixture.url, result, phase: 'preflight', sides: [], inspections: new Set(), configured: false, languageSelected: fixture.scenario !== 'language_choice', ready: false, closing: false };
   report.fixtures.push(result); states.push(st); return st;
 }
 function inspect(st, pending) {
@@ -269,7 +274,9 @@ async function get(st, side, relative, purpose = 'observation') {
 async function readBoot(st, side) {
   const boot = await get(st, side, '/bootstrap');
   equal(st, boot.version, options.expectedVersion, 'Bootstrap version matches the explicitly expected release');
-  equal(st, boot.language, st.fixture.language, 'Bootstrap language matches this fixture');
+  equal(st, boot.languageSelectionRequired, !st.languageSelected, 'Bootstrap reports whether an explicit first-run language choice is still required');
+  if (st.languageSelected) equal(st, boot.language, st.fixture.language, 'Bootstrap language matches this fixture and remains locked');
+  else check(st, ['zh-CN', 'en'].includes(boot.language), 'Pending bootstrap uses a supported rendering language without treating it as the final choice');
   return boot;
 }
 async function verifyFresh(st, side) {
@@ -280,15 +287,33 @@ async function verifyFresh(st, side) {
   return boot;
 }
 async function openSetup(st, side) {
-  await verifyFresh(st, side);
+  const boot = await verifyFresh(st, side);
   side.page = await side.context.newPage();
   await side.page.goto(st.origin + '/', { waitUntil: 'networkidle' });
+  if (boot.languageSelectionRequired) {
+    await side.page.getByRole('heading', { level: 1, name: /选择语言|Choose your language/ }).waitFor();
+    await settle(st, side);
+    equal(st, await side.page.locator('input[name="setup-language"]').count(), 2, 'First-run language screen offers exactly Simplified Chinese and English');
+    equal(st, await side.page.locator('input[name="setup-language"]:checked').count(), 0, 'No language is silently preselected');
+    equal(st, await side.page.locator('button[type="submit"]').isEnabled(), false, 'Language confirmation waits for an explicit selection');
+    equal(st, await side.page.locator('input[name="setup-mode"]').count(), 0, 'Access-mode setup is not available before language confirmation');
+    equal(st, (await get(st, side, '/starter-packs')).length, 0, 'No starter content pack is offered before the language is fixed');
+    equal(st, setupCount(st), 0, 'Opening language selection performs no setup write');
+    equal(st, languageChoiceCount(st), 0, 'Opening language selection performs no language write');
+    return;
+  }
+  await assertSetupScreen(st, side);
+}
+async function assertSetupScreen(st, side) {
   await side.page.getByRole('heading', { level: 1, name: l(st, '初始化 Home', 'Set up Home'), exact: true }).waitFor();
   await settle(st, side);
   equal(st, await side.page.locator('.auth-footer').innerText(), options.expectedVersion, 'Setup visibly identifies the expected release');
   equal(st, await side.page.getByRole('checkbox', { name: l(st, '填充示例导航', 'Add example bookmarks'), exact: true }).isChecked(), false, 'Example bookmarks are opt-in by default');
   equal(st, await modeRadio(st, side, 'public_read', 'setup-mode').isChecked(), true, 'Setup starts with the documented public-browsing choice');
-  check(st, await side.page.getByText(l(st, '界面语言：简体中文，由服务启动配置决定。示例内容可以另选语言。', 'Interface language: English, set by the service startup configuration. Example content can use a different language.'), { exact: true }).isVisible(), 'Interface-language and independent example-language guidance is visible');
+  check(st, await side.page.getByText(l(st, '语言已确定：简体中文，示例内容将自动匹配。', 'Language is set to English. Example content will match automatically.'), { exact: true }).isVisible(), 'Setup explains that language is fixed and example content will match it');
+  equal(st, await side.page.locator('input[name="setup-language"]').count(), 0, 'Confirmed setup offers no language-change controls');
+  equal(st, await side.page.getByRole('combobox').count(), 0, 'Setup offers no independent example-language selector');
+  equal(st, await side.page.locator('html').getAttribute('lang'), st.fixture.language, 'Document language follows the fixed instance language');
 }
 function modeRadio(st, side, mode, group) {
   const names = {
@@ -478,17 +503,33 @@ async function responsive(st, side, label, controls) {
   for (const viewport of viewports) {
     await side.page.setViewportSize(viewport);
     await settle(st, side);
-    const measured = await side.page.evaluate(() => ({
-      innerWidth, clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth,
-      innerHeight, bookmarkElements: document.querySelectorAll('.lh-home:not([data-preview]) article.lh-bookmark[data-link-id]').length,
-      overflows: [...document.querySelectorAll('body *')].filter(element => {
-        const style = getComputedStyle(element), r = element.getBoundingClientRect();
-        return style.display !== 'none' && style.visibility !== 'hidden' && r.width > 0 && (r.left < -1 || r.right > innerWidth + 1);
-      }).slice(0, 15).map(element => ({ tag: element.tagName, className: String(element.className).slice(0, 160), left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right }))
-    }));
+    const measured = await side.page.evaluate(() => {
+      const submit = document.querySelector('.auth-setup button[type="submit"]');
+      const notice = [...document.querySelectorAll('.auth-setup .admin-plain-fieldset > p.admin-info')].at(-1);
+      const infoBox = notice?.getBoundingClientRect(), actionBox = submit?.getBoundingClientRect();
+      return {
+        innerWidth, clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth,
+        innerHeight, bookmarkElements: document.querySelectorAll('.lh-home:not([data-preview]) article.lh-bookmark[data-link-id]').length,
+        setupSpacing: infoBox && actionBox ? {
+          gap: actionBox.top - infoBox.bottom,
+          notice: { left: infoBox.left, right: infoBox.right, top: infoBox.top, bottom: infoBox.bottom },
+          submit: { left: actionBox.left, right: actionBox.right, top: actionBox.top, bottom: actionBox.bottom },
+          background: getComputedStyle(notice).backgroundColor
+        } : null,
+        overflows: [...document.querySelectorAll('body *')].filter(element => {
+          const style = getComputedStyle(element), r = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && r.width > 0 && (r.left < -1 || r.right > innerWidth + 1);
+        }).slice(0, 15).map(element => ({ tag: element.tagName, className: String(element.className).slice(0, 160), left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right }))
+      };
+    });
     const entry = { ...stamp(st, side), label, viewport, ...measured, controls: [] };
     st.result.measurements.push(entry);
     check(st, measured.scrollWidth <= measured.clientWidth + 1 && measured.scrollWidth <= viewport.width + 1, label + ' ' + viewport.width + 'x' + viewport.height + ': document has no horizontal overflow after painting');
+    if (label === 'setup' || label.startsWith('setup-')) {
+      check(st, !!measured.setupSpacing, label + ': final setup notice and submit button are both measurable');
+      check(st, measured.setupSpacing.gap >= 13 && measured.setupSpacing.gap <= 15, label + ' ' + viewport.width + 'x' + viewport.height + ': final notice and submit button have the intended 14px separation without overlap');
+      check(st, Math.abs(measured.setupSpacing.notice.left - measured.setupSpacing.submit.left) <= 1 && Math.abs(measured.setupSpacing.notice.right - measured.setupSpacing.submit.right) <= 1, label + ': final notice and submit button keep their aligned horizontal edges');
+    }
     for (const control of controls()) {
       await control.locator.scrollIntoViewIfNeeded();
       await control.locator.click({ trial: true });
@@ -496,6 +537,7 @@ async function responsive(st, side, label, controls) {
       entry.controls.push({ name: control.name, box });
       check(st, !!box && box.x >= -1 && box.x + box.width <= viewport.width + 1 && box.y >= -1 && box.y + box.height <= viewport.height + 1, label + ': ' + control.name + ' is reachable inside the viewport');
     }
+    if (measured.setupSpacing) await screenshot(st, side, label + '-actions-' + viewport.width + 'x' + viewport.height);
     await side.page.evaluate(() => window.scrollTo(0, 0));
     await side.page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await screenshot(st, side, label + '-' + viewport.width + 'x' + viewport.height);
@@ -520,38 +562,41 @@ async function returnHome(st, side, space) {
   await waitHome(st, side, space);
 }
 
-async function seedScenario(st, side, identity) {
-  step(st, 'Seeded public setup and both content-pack previews');
-  await fillSetup(st, side, identity, 'public_read', true);
+async function starterPreview(st, side) {
   const packs = await get(st, side, '/starter-packs');
-  equal(st, packs.length, 2, 'Server publishes exactly the two supported starter packs');
-  const picker = side.page.getByRole('combobox', { name: l(st, '示例内容包', 'Example content pack'), exact: true });
+  equal(st, packs.length, 1, 'Server publishes only the starter pack for the locked instance language');
+  equal(st, packs[0].id, st.fixture.language, 'The only starter pack matches the interface language');
+  equal(st, await side.page.getByRole('combobox').count(), 0, 'Enabling examples does not introduce a language or content-pack selector');
+  check(st, await side.page.locator('.auth-starter-heading').isVisible(), 'Example content has a static heading rather than a language selector');
   const details = side.page.locator('.auth-starter-pack details');
-  await details.locator('summary').click();
-  const previews = new Map();
-  for (const packId of ['zh-CN', 'en']) {
-    await picker.click();
-    const title = packId === 'en' ? l(st, '英文网站预置', 'English website collection') : l(st, '中文网站预置', 'Chinese website collection');
-    await side.page.getByRole('option', { name: title, exact: true }).click();
-    await side.page.waitForFunction(() => document.querySelectorAll('.auth-starter-pack li').length === 12);
-    const urls = await details.locator('li small').allTextContents();
-    const expected = packs.find(pack => pack.id === packId)?.groups.flatMap(group => group.links.map(link => link.url));
-    equal(st, urls, expected, 'Visible ' + packId + ' preview lists the actual twelve websites');
-    equal(st, await details.locator('h4').count(), 3, 'Visible starter pack has three real categories');
-    previews.set(packId, urls);
-  }
-  check(st, JSON.stringify(previews.get('zh-CN')) !== JSON.stringify(previews.get('en')), 'Chinese and English packs contain genuinely different website URLs');
-  await picker.click();
-  await side.page.getByRole('option', { name: st.fixture.language === 'en' ? l(st, '英文网站预置', 'English website collection') : l(st, '中文网站预置', 'Chinese website collection'), exact: true }).click();
+  if (!(await details.evaluate(element => element.open))) await details.locator('summary').click();
+  await side.page.waitForFunction(() => document.querySelectorAll('.auth-starter-pack li').length === 12);
+  const links = packs[0].groups.flatMap(group => group.links);
+  equal(st, await details.locator('li small').allTextContents(), links.map(link => link.url), 'Visible preview lists exactly the twelve websites from the locked-language pack');
+  equal(st, await details.locator('li span').allTextContents(), links.map(link => link.title), 'Visible bookmark titles follow the locked language');
+  equal(st, await details.locator('h4').allTextContents(), packs[0].groups.map(group => group.name), 'Visible category names follow the locked language');
+  equal(st, packs[0].groups.length, 3, 'The matching starter pack has three real categories');
+  return packs[0];
+}
+function assertSavedStarter(st, configured, pack) {
+  const expectedLinks = pack.groups.flatMap(group => group.links);
+  const comparable = links => links.map(link => ({ title: link.title, url: link.url })).sort((a, b) => a.url.localeCompare(b.url));
+  equal(st, comparable(configured.nav.data.links), comparable(expectedLinks), 'Saved example URLs and titles exactly match the locked-language preview');
+  equal(st, configured.nav.data.categories.map(category => category.name).sort(), pack.groups.map(group => group.name).sort(), 'Saved category names exactly match the locked-language preview');
+}
+async function seedScenario(st, side, identity) {
+  step(st, 'Seeded public setup and its locked-language content preview');
+  await fillSetup(st, side, identity, 'public_read', true);
+  const pack = await starterPreview(st, side);
   await responsive(st, side, 'setup', () => [
     { name: 'site name', locator: field(st, side, '站点名称', 'Site name') },
-    { name: 'example content pack', locator: picker },
+    { name: 'example preview', locator: side.page.locator('.auth-starter-pack summary') },
     { name: 'create Home', locator: button(st, side, '创建我的 Home', 'Create my Home') }
   ]);
   await submitSetup(st, side);
   const configured = await assertConfigured(st, side, identity, 'public_read', true, true);
   await waitHome(st, side, configured.shared);
-  equal(st, configured.nav.data.links.map(link => link.url).sort(), [...previews.get(st.fixture.language)].sort(), 'Saved examples match the selected collection');
+  assertSavedStarter(st, configured, pack);
   equal(st, await side.page.locator('.lh-home article.lh-bookmark[data-link-id]').count(), 15, 'Twelve links plus three favorite cards are actually rendered');
   await assertLightweight(st, side, configured.shared);
   step(st, 'Natural shared reload, manual personal reload and identity isolation');
@@ -580,6 +625,55 @@ async function seedScenario(st, side, identity) {
   equal(st, (await readBoot(st, side)).user.id, configured.boot.user.id, 'Signing in again restores the same Owner identity');
   await naturalReload(st, side, configured.personal, 'Returning Owner keeps its own selected space');
   await selectSpace(st, side, configured.shared);
+}
+async function languageChoiceScenario(st, side, identity) {
+  step(st, 'Explicit first-run language selection before site initialization');
+  const choice = side.page.locator('input[name="setup-language"][value="' + st.fixture.language + '"]');
+  await choice.check();
+  equal(st, await choice.isChecked(), true, 'The user-selected language is visible before confirmation');
+  equal(st, languageChoiceCount(st), 0, 'Selecting a radio does not prematurely persist the language');
+  const confirm = button(st, side, '使用简体中文并继续', 'Continue in English');
+  check(st, await confirm.isEnabled(), 'The explicit language choice enables its localized confirmation button');
+  await responsive(st, side, 'language-choice', () => [
+    { name: 'selected language', locator: choice },
+    { name: 'confirm language', locator: confirm }
+  ]);
+  const selected = await writeUI(st, side, 'POST', '/setup/language', 200,
+    () => confirm.click(), 'Confirm the instance language through the first-run form');
+  equal(st, selected.value.language, st.fixture.language, 'Language confirmation returns the selected language');
+  equal(st, selected.value.languageSelectionRequired, false, 'Language confirmation locks further selection');
+  equal(st, selected.value.initialized, false, 'Language selection alone does not create a site or account');
+  equal(st, selected.value.user, null, 'Language selection creates no authenticated identity');
+  st.languageSelected = true;
+  await assertSetupScreen(st, side);
+  equal(st, setupCount(st), 0, 'Language confirmation does not silently submit the initialization form');
+  await readBoot(st, side);
+
+  step(st, 'Natural reload retains the language lock before setup');
+  await side.page.reload({ waitUntil: 'networkidle' });
+  await assertSetupScreen(st, side);
+  equal(st, await side.page.evaluate(() => performance.getEntriesByType('navigation')[0]?.type), 'reload', 'The language lock is checked after a real document reload');
+  await readBoot(st, side);
+  equal(st, languageChoiceCount(st), 1, 'Reloading the locked setup sends no second language-selection write');
+
+  step(st, 'Continue initialization with automatically matching example content');
+  await fillSetup(st, side, identity, 'public_read', true);
+  const pack = await starterPreview(st, side);
+  await responsive(st, side, 'setup-selected-language', () => [
+    { name: 'site name', locator: field(st, side, '站点名称', 'Site name') },
+    { name: 'example preview', locator: side.page.locator('.auth-starter-pack summary') },
+    { name: 'create Home', locator: button(st, side, '创建我的 Home', 'Create my Home') }
+  ]);
+  await submitSetup(st, side);
+  const configured = await assertConfigured(st, side, identity, 'public_read', true, true);
+  assertSavedStarter(st, configured, pack);
+  await waitHome(st, side, configured.shared);
+  await assertLightweight(st, side, configured.shared);
+  await naturalReload(st, side, configured.shared, 'Explicit-language setup shared landing');
+  await readBoot(st, side);
+  equal(st, languageChoiceCount(st), 1, 'Completing setup and reloading Home never reopen or rewrite the chosen language');
+  equal(st, await side.page.locator('input[name="setup-language"]').count(), 0, 'Completed Home exposes no first-run language selector');
+  equal(st, await side.page.locator('html').getAttribute('lang'), st.fixture.language, 'Completed Home keeps the originally chosen document language');
 }
 async function blankScenario(st, side, identity) {
   step(st, 'Blank public setup lands in shared navigation');
@@ -642,6 +736,10 @@ async function blankScenario(st, side, identity) {
 async function privateScenario(st, side, identity, mode) {
   step(st, 'Private setup, initial Owner and registration defaults');
   await fillSetup(st, side, identity, mode);
+  if (mode === 'private_multi') await responsive(st, side, 'setup-private-multi', () => [
+    { name: 'site name', locator: field(st, side, '站点名称', 'Site name') },
+    { name: 'create Home', locator: button(st, side, '创建我的 Home', 'Create my Home') }
+  ]);
   await submitSetup(st, side);
   const configured = await assertConfigured(st, side, identity, mode, true, false);
   await waitHome(st, side, configured.personal);
@@ -848,11 +946,13 @@ async function runFixture(st) {
       case 'recover_uncommitted': await recoveryUncommitted(st, side, identity); break;
       case 'recover_committed': await recoveryCommitted(st, side, identity); break;
       case 'conflict': await conflictScenario(st, side, identity); break;
+      case 'language_choice': await languageChoiceScenario(st, side, identity); break;
     }
     step(st, 'Final browser and request audit');
     for (const current of st.sides) if (current.page && !current.page.isClosed()) await settle(st, current);
     const expectedPosts = ['conflict', 'recover_uncommitted'].includes(st.fixture.scenario) ? 2 : 1;
     equal(st, setupCount(st), expectedPosts, 'Scenario sends exactly the intended total number of setup POST requests');
+    equal(st, languageChoiceCount(st), st.fixture.scenario === 'language_choice' ? 1 : 0, 'Only the pending-language scenario submits one explicit language-selection request');
     await audit(st);
     await screenshot(st, side, 'final');
     st.result.status = 'passed';

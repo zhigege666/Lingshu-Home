@@ -8,6 +8,8 @@ import { readPageChrome } from '../core/chrome';
 import { getPageTheme, readLinkAppearance } from '../core/themes';
 import { useDraftDashboard } from '../core/useDraftDashboard';
 import { useUnsavedChanges } from '../core/useUnsavedChanges';
+import { createDraftHistory, inputHistoryGroup, recordDraft, redoDraft, undoDraft, type DraftHistory } from '../core/draft-history';
+import { useHistoryShortcuts } from '../core/useHistoryShortcuts';
 import { requestNavigation } from '../core/navigation';
 import { validatePageChrome } from '../core/chrome-validation';
 import { panelLocked, panelTitle, type ComposerSource, type HomeSelection } from './composition';
@@ -24,7 +26,7 @@ import './composer-canvas.css';
 import './endpoint-routing.css';
 
 type HomeProps = { bootstrap: Bootstrap; dashboard: Dashboard; onRefresh: () => Promise<void>; onSpaceChange: (spaceId: string) => void; onLogout?: () => Promise<void>; preview?: boolean; viewportWindow?: Window };
-type EditDraft = { pageId: string; spaceId: string; revision: string; config: PageConfig; original: PageConfig };
+type EditDraft = { pageId: string; spaceId: string; identity: string; revision: string; history: DraftHistory<PageConfig>; original: PageConfig };
 const SpaceSelect = lazy(() => import('./SpaceSelect'));
 const HomeEditor = lazy(() => import('./HomeEditor'));
 const DataPanel = lazy(() => import('./DataPanels'));
@@ -69,6 +71,11 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   const [sourceState, setSourceState] = useState<{ spaceId: string; items: ComposerSource[] }>({ spaceId: dashboard.space.id, items: [] });
   const systemDark = useMedia('(prefers-color-scheme: dark)', ownerWindow);
   const [draft, setDraft] = useState<EditDraft | null>(null);
+  const [gridInteracting, setGridInteracting] = useState(false);
+  const identity = `${bootstrap.user?.id || 'visitor'}:${bootstrap.mode}`;
+  const canEdit = dashboard.space.canEdit && bootstrap.spaces.some(space => space.id === dashboard.space.id && space.canEdit);
+  const editContext = `${identity}:${dashboard.space.id}:${dashboard.page.id}`;
+  const currentContext = useRef(editContext); currentContext.current = editContext;
   const [filters, setFilters] = useState<Record<string, NavigationFilter>>({});
   const [temporaryVariant, setTemporaryVariant] = useState<'cards' | 'directory' | null>(null);
   const [temporaryColor, setTemporaryColor] = useState<'light' | 'dark' | null>(null);
@@ -81,8 +88,8 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   const [notice, setNotice] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const [categoryCollapseState, setCategoryCollapseState] = useState(() => ({ pageId: dashboard.page.id, preview, config: dashboard.page.config, values: preview ? {} : readCategoryCollapses(dashboard.page.id) }));
   const categoryCollapses = categoryCollapseState.pageId === dashboard.page.id && categoryCollapseState.preview === preview && (!preview || categoryCollapseState.config === dashboard.page.config) ? categoryCollapseState.values : preview ? {} : readCategoryCollapses(dashboard.page.id);
-  const activeDraft = !preview && draft?.pageId === dashboard.page.id && draft.spaceId === dashboard.space.id ? draft : null;
-  const config = activeDraft?.config || dashboard.page.config;
+  const activeDraft = !preview && canEdit && draft?.identity === identity && draft.pageId === dashboard.page.id && draft.spaceId === dashboard.space.id ? draft : null;
+  const config = activeDraft?.history.present || dashboard.page.config;
   const editing = activeDraft !== null;
   const inspecting = editing && !editorPreview;
   const narrow = canvasWidth > 0 ? canvasWidth <= 900 : viewportNarrow;
@@ -99,13 +106,13 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
     return () => observer.disconnect();
   }, [canvasElement]);
   useEffect(() => { if (selection.kind === 'view' && !config.views.some(view => view.id === selection.id)) setSelection({ kind: 'page' }); }, [config.views, selection]);
-  const dirty = useMemo(() => !!activeDraft && JSON.stringify(activeDraft.config) !== JSON.stringify(activeDraft.original), [activeDraft]);
+  const dirty = useMemo(() => !!activeDraft && JSON.stringify(activeDraft.history.present) !== JSON.stringify(activeDraft.original), [activeDraft]);
   const leaveGuard = useUnsavedChanges(dirty && !preview, busy, () => {
-    setDraft(current => current ? { ...current, config: structuredClone(current.original) } : current);
+    setDraft(current => current ? { ...current, history: createDraftHistory(current.original) } : current);
   });
   const chrome = useMemo(() => readPageChrome(config.chrome), [config.chrome]);
   const color = temporaryColor || (config.appearance.colorMode === 'system' ? (systemDark ? 'dark' : 'light') : config.appearance.colorMode);
-  useEffect(() => { setDraft(null); setSelection({ kind: 'page' }); setEditorPreview(false); setFilters({}); setTemporaryVariant(null); setTemporaryColor(null); setNotice(null); }, [dashboard.space.id, dashboard.page.id, preview]);
+  useEffect(() => { setDraft(null); setSelection({ kind: 'page' }); setEditorPreview(false); setFilters({}); setTemporaryVariant(null); setTemporaryColor(null); setNotice(null); }, [dashboard.space.id, dashboard.page.id, identity, canEdit, preview]);
   // Refreshing an admin draft must display its exact appearance, even after a
   // visitor tested a temporary viewing control inside the preview.
   useEffect(() => { if (preview) { setTemporaryVariant(null); setTemporaryColor(null); } }, [dashboard.page.config, preview]);
@@ -119,12 +126,13 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   }, []);
 
   const save = async () => {
-    if (preview || !dashboard.space.canEdit || !activeDraft || !dirty || saving.current) return;
-    const chromeIssue = validatePageChrome(activeDraft.config.chrome);
+    if (preview || !canEdit || !activeDraft || !dirty || saving.current || gridInteracting) return;
+    const chromeIssue = validatePageChrome(activeDraft.history.present.chrome);
     if (chromeIssue) { setSelection({ kind: 'chrome', area: chromeIssue.area, alignment: chromeIssue.alignment }); setNotice({ kind: 'error', text: chromeIssue.message }); return; }
     saving.current = true; setBusy(true); setNotice(null);
     try {
-      const saved = await request<Page>(`/spaces/${encodeURIComponent(activeDraft.spaceId)}/page`, { name: dashboard.page.name, expectedRevision: activeDraft.revision, config: activeDraft.config });
+      const saved = await request<Page>(`/spaces/${encodeURIComponent(activeDraft.spaceId)}/page`, { name: dashboard.page.name, expectedRevision: activeDraft.revision, config: activeDraft.history.present });
+      if (currentContext.current !== editContext) return;
       const changedCategoryDefaults = saved.config.views.filter(view => {
         if (view.panel.id !== 'builtin/category-navigation') return false;
         const before = readCategoryNavigationSettings(activeDraft.original.views.find(item => item.id === view.id)?.settings);
@@ -141,20 +149,37 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
       }
       // If the read-after-save fails, retain the saved preview with its new
       // revision and a clean baseline. Retrying must not send the same draft twice.
-      setDraft(current => current === activeDraft ? { ...current, revision: saved.revision, original: current.config } : current);
-      try { await onRefresh(); setDraft(null); setNotice({ kind: 'success', text: t('页面布局已保存。', 'Page layout saved.') }); }
-      catch { setNotice({ kind: 'error', text: t('布局已经保存，但重新加载失败。当前画面保留了已保存内容；可稍后取消编辑并重试加载。', 'The layout was saved, but reloading failed. The saved layout remains visible. Cancel editing later to try reloading again.') }); }
-    } catch (error) { setNotice({ kind: 'error', text: error instanceof Error ? error.message : t('保存失败，草稿仍然保留。', 'Saving failed. Your draft is still here.') }); }
+      setDraft(current => current === activeDraft ? { ...current, revision: saved.revision, original: structuredClone(saved.config), history: createDraftHistory(saved.config) } : current);
+      try { await onRefresh(); if (currentContext.current !== editContext) return; setDraft(null); setNotice({ kind: 'success', text: t('页面布局已保存。', 'Page layout saved.') }); }
+      catch { if (currentContext.current !== editContext) return; setNotice({ kind: 'error', text: t('布局已经保存，但重新加载失败。当前画面保留了已保存内容；可稍后取消编辑并重试加载。', 'The layout was saved, but reloading failed. The saved layout remains visible. Cancel editing later to try reloading again.') }); }
+    } catch (error) { if (currentContext.current !== editContext) return; setNotice({ kind: 'error', text: error instanceof Error ? error.message : t('保存失败，草稿仍然保留。', 'Saving failed. Your draft is still here.') }); }
     finally { saving.current = false; setBusy(false); }
   };
-  const cancel = async () => { if (preview || saving.current) return; setDraft(null); setNotice(null); try { await onRefresh(); } catch { setNotice({ kind: 'error', text: t('重新加载失败，请稍后刷新页面。', 'Reloading failed. Please refresh the page later.') }); } };
-  const changeDraft = (next: PageConfig) => { if (!preview && !saving.current) setDraft(current => current ? { ...current, config: next } : current); };
-  const restore = () => { if (!preview && !saving.current) { setDraft(current => current ? { ...current, config: structuredClone(current.original) } : current); setNotice(null); } };
+  const cancel = async () => {
+    if (preview || saving.current) return;
+    saving.current = true; setBusy(true); setDraft(null); setNotice(null);
+    try { await onRefresh(); }
+    catch { if (currentContext.current === editContext) setNotice({ kind: 'error', text: t('重新加载失败，请稍后刷新页面。', 'Reloading failed. Please refresh the page later.') }); }
+    finally { saving.current = false; setBusy(false); }
+  };
+  const changeDraft = (next: PageConfig) => {
+    if (preview || !canEdit || saving.current || gridInteracting || currentContext.current !== editContext) return;
+    const group = inputHistoryGroup(ownerWindow?.document);
+    setDraft(current => current ? { ...current, history: recordDraft(current.history, next, group) } : current);
+  };
+  const restore = () => { if (!preview && canEdit && !saving.current && !gridInteracting) { setDraft(current => current ? { ...current, history: createDraftHistory(current.original) } : current); setNotice(null); } };
+  const historyAction = (redo: boolean) => {
+    if (!inspecting || !canEdit || saving.current || gridInteracting) return;
+    setDraft(current => current ? { ...current, history: (redo ? redoDraft : undoDraft)(current.history) } : current);
+    setNotice(null);
+  };
+  const canUndo = !!activeDraft?.history.past.length, canRedo = !!activeDraft?.history.future.length;
+  useHistoryShortcuts({ enabled: inspecting && !busy && !gridInteracting, undo: () => historyAction(false), redo: () => historyAction(true), canUndo, canRedo, ownerWindow });
   const startEditing = () => {
-    if (preview || !dashboard.space.canEdit) return;
+    if (preview || !canEdit || busy || saving.current) return;
     const original = structuredClone(dashboard.page.config);
     setTemporaryVariant(null); setTemporaryColor(null); setNotice(null); setFilters({}); setSelection({ kind: 'page' }); setEditorPreview(false);
-    setDraft({ pageId: dashboard.page.id, spaceId: dashboard.space.id, revision: dashboard.page.revision, original, config: structuredClone(original) });
+    setDraft({ pageId: dashboard.page.id, spaceId: dashboard.space.id, identity, revision: dashboard.page.revision, original, history: createDraftHistory(original) });
   };
   const favorite = useCallback(async (link: NavigationLink) => {
     if (preview || editing || !dashboard.space.canEdit || favoriting.current) return;
@@ -210,7 +235,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   const changeCategoryCollapse = (viewId: string, collapsed: boolean) => {
     if (editing) {
       if (editorPreview) { setPreviewCollapses(previous => ({ ...previous, [viewId]: collapsed })); return; }
-      if (!saving.current) setDraft(current => current ? { ...current, config: { ...current.config, views: current.config.views.map(view => view.id === viewId ? { ...view, settings: { ...view.settings, defaultCollapsed: collapsed } } : view) } } : current);
+      if (!saving.current) setDraft(current => current ? { ...current, history: recordDraft(current.history, { ...current.history.present, views: current.history.present.views.map(view => view.id === viewId ? { ...view, settings: { ...view.settings, defaultCollapsed: collapsed } } : view) }) } : current);
       return;
     }
     const values = { ...categoryCollapses, [viewId]: collapsed }; setCategoryCollapseState({ pageId: dashboard.page.id, preview, config: dashboard.page.config, values });
@@ -263,11 +288,11 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
       {render(view, placement)}</div>;
   });
   const updateGrid = useCallback((updates: Record<string, GridPosition>) => setDraft(previous => {
-    if (preview || !previous || saving.current) return previous;
-    const config = structuredClone(previous.config);
+    if (preview || !canEdit || !previous || saving.current || currentContext.current !== editContext) return previous;
+    const config = structuredClone(previous.history.present);
     for (const [id, position] of Object.entries(updates)) if (config.layout.placements[id] && !panelLocked(config, id)) config.layout.placements[id].base = position;
-    return { ...previous, config };
-  }), [preview]);
+    return { ...previous, history: recordDraft(previous.history, config) };
+  }), [preview, canEdit, editContext]);
   const compactLeft = compactSide(left), compactRight = compactSide(right);
   const widthRevision = `${left.length}:${right.length}:${compactLeft}:${compactRight}:${narrow}:${config.appearance.density}:${config.layout.gap}:${mainVariant}:${config.pageTheme.id}:${editing}:${editorPreview}`;
   const number = useMemo(() => new Intl.NumberFormat(getLocale()), [bootstrap.language]);
@@ -283,7 +308,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
         {!editing && <><div className="lh-segmented" aria-label={t('链接展示方式', 'Link presentation')}><button aria-label={t('卡片模式', 'Card view')} title={t('卡片模式', 'Card view')} aria-pressed={mainVariant === 'cards'} onClick={() => setTemporaryVariant('cards')}><LayoutGrid size={16} /></button><button aria-label={t('目录模式', 'Directory view')} title={t('目录模式', 'Directory view')} aria-pressed={mainVariant === 'directory'} onClick={() => setTemporaryVariant('directory')}><List size={17} /></button></div>
         <button className="lh-icon-button" onClick={() => setTemporaryColor(color === 'dark' ? 'light' : 'dark')} title={t('切换深浅色', 'Toggle light or dark')} aria-label={t('切换深浅色', 'Toggle light or dark')}>{color === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></>}
         {!preview && !editing && <button type="button" className="lh-quiet-button" disabled={refreshingData} aria-label={hasExternalPanels ? t('读取最新组件快照', 'Read latest component snapshots') : t('刷新内容', 'Refresh content')} title={t('读取已保存内容，不触发外部获取', 'Read saved content without starting external requests')} onClick={() => { void readSavedData(); }}><RefreshCw size={14} className={refreshingData ? 'lh-spin' : undefined} /><span>{hasExternalPanels ? t('更新数据', 'Refresh data') : t('刷新内容', 'Refresh content')}</span></button>}
-        {!preview && dashboard.space.canEdit && !editing && <button className="lh-quiet-button lh-edit-trigger" title={t('编辑页面', 'Edit page')} aria-label={t('编辑页面', 'Edit page')} onClick={startEditing}><Pencil size={14} /><span>{t('编辑页面', 'Edit page')}</span></button>}
+        {!preview && dashboard.space.canEdit && !editing && <button className="lh-quiet-button lh-edit-trigger" title={t('编辑页面', 'Edit page')} aria-label={t('编辑页面', 'Edit page')} disabled={busy} onClick={startEditing}><Pencil size={14} /><span>{t('编辑页面', 'Edit page')}</span></button>}
         {!preview && !editing && <a className="lh-admin-link" href="#/admin" aria-label={managementLabel} title={managementLabel}><Settings2 size={16} /><span>{managementLabel}</span></a>}
         {!preview && !editing && bootstrap.user && onLogout && <button className="lh-icon-button" aria-label={t('退出登录', 'Sign out')} title={t('{name} · 退出登录', '{name} · Sign out', { name: bootstrap.user.displayName || bootstrap.user.username })} onClick={() => { void onLogout(); }}><LogOut size={16} /></button>}
       </div>
@@ -298,7 +323,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
         {!config.views.length && <section className="lh-panel lh-panel-empty"><Compass size={30} /><strong>{t('为这个页面添加积木', 'Add panels to this page')}</strong><p>{t('链接和分类仍保存在你的空间中，可以在管理中心选择首页预设或添加展示组件。', 'Your links and categories are still in this space. Choose a homepage preset or add panels in the admin.')}</p>{!preview && !editing && dashboard.space.canEdit && <a className="lh-primary-button" href="#/admin?tab=appearance">{t('配置首页', 'Configure homepage')}<ArrowUpRight size={14} /></a>}</section>}
         {config.schemaVersion !== 2 || !getPageTheme(config.pageTheme.id) ? <section className="lh-panel lh-panel-empty"><strong>{t('此页面需要兼容的主题', 'This page needs a compatible theme')}</strong><p>{t('现有页面配置已保留。请在管理中心查看主题与页面版本。', 'The existing page configuration is preserved. Check its theme and schema version in the admin.')}</p></section>
           : <><div className="lh-main-flow">{renderRegion(main.filter(item => item.placement.kind !== 'grid'))}</div>
-            {!!main.some(item => item.placement.kind === 'grid') && <HomeGrid gap={config.layout.gap} editing={inspecting && !narrow} disabled={busy} selectedId={selection.kind === 'view' ? selection.id : undefined} onSelect={id => setSelection({ kind: 'view', id })} widthRevision={widthRevision} onChange={updateGrid} panels={main.filter(item => item.placement.kind === 'grid').map(({view,placement}) => ({ id: view.id, label: panelName(view), placement: { ...(placement as GridPosition), locked: panelLocked(config, view.id) }, content: render(view, placement) }))} />}</>}
+            {!!main.some(item => item.placement.kind === 'grid') && <HomeGrid gap={config.layout.gap} editing={inspecting && !narrow} disabled={busy} selectedId={selection.kind === 'view' ? selection.id : undefined} onSelect={id => setSelection({ kind: 'view', id })} widthRevision={widthRevision} onChange={updateGrid} onInteractionChange={setGridInteracting} panels={main.filter(item => item.placement.kind === 'grid').map(({view,placement}) => ({ id: view.id, label: panelName(view), placement: { ...(placement as GridPosition), locked: panelLocked(config, view.id) }, content: render(view, placement) }))} />}</>}
       </main>
       {!!right.length && <aside className="lh-side-region lh-right-region"><div className="lh-side-content">{renderRegion(right)}</div></aside>}
     </div>
@@ -306,7 +331,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
     <PageChromeArea area={chrome.footer} placement="footer" version={bootstrap.version} editing={inspecting} selectedSlot={selection.kind === 'chrome' && selection.area === 'footer' ? selection.alignment || 'right' : undefined} onSelect={alignment => setSelection({ kind: 'chrome', area: 'footer', alignment })} />
   </div>;
   return <HomeEnvironment.Provider value={environment}>{editing ? <Suspense fallback={<div className="lh-home lh-composer-loading"><LoaderCircle className="lh-spin" size={20} /><span>{t('正在加载页面编辑器', 'Loading the page editor')}</span><button className="lh-quiet-button" onClick={() => { void cancel(); }}><X size={14}/>{t('取消', 'Cancel')}</button></div>}>
-    <HomeEditor config={config} theme={color} pageName={dashboard.page.name} busy={busy} dirty={dirty} narrow={narrow}
+    <HomeEditor config={config} theme={color} pageName={dashboard.page.name} busy={busy} dirty={dirty} narrow={narrow} historyBusy={gridInteracting} canUndo={canUndo} canRedo={canRedo} onUndo={() => historyAction(false)} onRedo={() => historyAction(true)}
       selection={selection} onSelect={setSelection} previewing={editorPreview} onPreviewChange={value => { setPreviewCollapses({}); setEditorPreview(value); }}
       datasets={datasets} spaceId={dashboard.space.id} space={dashboard.space} canManageSources={!!bootstrap.user && dashboard.space.canEdit} onSourcesChange={updateSources}
       onChange={changeDraft} onSave={() => { void save(); }} onCancel={() => leaveGuard.requestLeave(() => { void cancel(); })} onRestore={() => leaveGuard.requestLeave(restore)}

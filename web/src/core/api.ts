@@ -16,6 +16,11 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   return data as T
 }
 export async function bootstrap(): Promise<Bootstrap> { const value = await request<Bootstrap>('/bootstrap'); csrf = value.csrfToken; return value }
+export async function selectSetupLanguage(language: Bootstrap['language']): Promise<Bootstrap> {
+  const value = await request<Bootstrap>('/setup/language', { method: 'POST', body: { language } })
+  csrf = value.csrfToken
+  return value
+}
 export function messageOf(error: unknown): string { return error instanceof Error ? error.message : t("操作未完成，请重试。", "The action could not be completed. Please try again.") }
 export async function downloadExport(spaceId: string, format: 'html' | 'json'): Promise<void> {
   const response = await fetch(`/api/v1/spaces/${encodeURIComponent(spaceId)}/export?format=${format}`, { credentials: 'same-origin' })

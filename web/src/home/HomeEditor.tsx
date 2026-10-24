@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from 'radix-ui'
-import { Activity, CalendarDays, CloudSun, BarChart3, Upload, RefreshCw, Bookmark, Check, ChevronRight, Eye, EyeOff, LayoutDashboard, LayoutTemplate, Layers3, LoaderCircle, LockKeyhole, PanelBottom, PanelLeft, PanelRight, PanelTop, Pencil, Plus, RotateCcw, Search, Settings2, Star, X } from 'lucide-react'
+import { Activity, CalendarDays, CloudSun, BarChart3, Upload, RefreshCw, Undo2, Redo2, Bookmark, Check, ChevronRight, Eye, EyeOff, LayoutDashboard, LayoutTemplate, Layers3, LoaderCircle, LockKeyhole, PanelBottom, PanelLeft, PanelRight, PanelTop, Pencil, Plus, RotateCcw, Search, Settings2, Star, X } from 'lucide-react'
 import { request } from '../core/api'
 import { t } from '../core/i18n'
 import { readPageChrome } from '../core/chrome'
@@ -20,6 +20,7 @@ export type HomeEditorProps = {
   config: PageConfig; theme: 'light' | 'dark'; busy: boolean; dirty: boolean; narrow: boolean;
   selection: HomeSelection; onSelect: (selection: HomeSelection) => void; previewing: boolean; onPreviewChange: (preview: boolean) => void;
   onChange: (config: PageConfig) => void; onSave: () => void; onCancel: () => void; onRestore: () => void;
+  historyBusy: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
   children: ReactNode; notice?: ReactNode; pageName?: string; spaceId?: string; datasets?: Record<string, Dataset<unknown>>;
   sources?: ComposerSource[]; onSourcesChange?: (sources: ComposerSource[]) => void; space?: Space; canManageSources?: boolean
 }
@@ -34,7 +35,7 @@ function useCompactEditor() {
   return compact
 }
 
-export default function HomeEditor({ config, busy, dirty, narrow, selection, onSelect, previewing, onPreviewChange, onChange, onSave, onCancel, onRestore, children, notice, pageName, spaceId, datasets, sources: providedSources, onSourcesChange, space, canManageSources = false }: HomeEditorProps) {
+export default function HomeEditor({ config, busy, dirty, narrow, selection, onSelect, previewing, onPreviewChange, onChange, onSave, onCancel, onRestore, historyBusy, canUndo, canRedo, onUndo, onRedo, children, notice, pageName, spaceId, datasets, sources: providedSources, onSourcesChange, space, canManageSources = false }: HomeEditorProps) {
   const compact = useCompactEditor(), [libraryTab, setLibraryTab] = useState('layers')
   const [drawer, setDrawer] = useState<'library' | 'inspector' | null>(null)
   const [sources, setSources] = useState<ComposerSource[]>([]), [sourceError, setSourceError] = useState(false)
@@ -44,6 +45,7 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
   const sourceCallback = useRef(onSourcesChange), returnFocus = useRef<HTMLElement | null>(null)
   const previousSelection = useRef(selection)
   sourceCallback.current = onSourcesChange
+  useEffect(() => { setError(''); setChromeIssue(null) }, [config])
   const supplied = providedSources !== undefined
   useEffect(() => {
     if (supplied || !spaceId) return
@@ -162,6 +164,10 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
     <header className="lh-composer-toolbar">
       <div className="lh-composer-toolbar-title"><ProjectLogo size={26} /><strong>{t('编辑首页', 'Edit homepage')}</strong><span className="lh-composer-draft-status" role="status">{dirty ? t('未保存', 'Unsaved') : t('未修改', 'No changes')}</span></div>
       <div className="lh-composer-toolbar-tools">
+        <div className="lh-composer-history" role="group" aria-label={t('编辑历史', 'Edit history')}>
+          <ComposerButton kind="icon" aria-label={t('撤销', 'Undo')} title={t('撤销（Ctrl / ⌘ + Z）', 'Undo (Ctrl / ⌘ + Z)')} disabled={busy || previewing || historyBusy || !canUndo} onClick={() => { setError(''); setChromeIssue(null); onUndo() }}><Undo2 size={16}/></ComposerButton>
+          <ComposerButton kind="icon" aria-label={t('重做', 'Redo')} title={t('重做（Ctrl / ⌘ + Shift + Z）', 'Redo (Ctrl / ⌘ + Shift + Z)')} disabled={busy || previewing || historyBusy || !canRedo} onClick={() => { setError(''); setChromeIssue(null); onRedo() }}><Redo2 size={16}/></ComposerButton>
+        </div>
         <ComposerButton className="lh-composer-library-toggle" disabled={busy || previewing} aria-label={t('组件与页面结构', 'Components and layers')} aria-expanded={compact ? drawer === 'library' : undefined} onClick={() => openLibrary('library')}><Plus size={16} /><span>{t('添加组件', 'Add component')}</span></ComposerButton>
         <ComposerButton className="lh-composer-inspector-toggle" disabled={busy || previewing} aria-label={t('打开属性设置', 'Open properties')} aria-expanded={drawer === 'inspector'} onClick={() => { returnFocus.current = document.activeElement as HTMLElement; setDrawer('inspector') }}><PanelRight size={16} /><span>{t('属性', 'Properties')}</span></ComposerButton>
         <ComposerButton aria-pressed={previewing} disabled={busy} onClick={() => { onPreviewChange(!previewing); setDrawer(null) }}>{previewing ? <Pencil size={16} /> : <Eye size={16} />}<span>{previewing ? t('继续编辑', 'Keep editing') : t('预览', 'Preview')}</span></ComposerButton>

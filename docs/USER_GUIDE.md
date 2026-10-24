@@ -2,9 +2,9 @@
 
 **English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
 
-This guide explains everyday operation of the Lingshu-Home 0.0.1 and uses its English interface labels. Start the instance with `en` to match these labels; the default language is `zh-CN`, covered by the Chinese guide. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md).
+This guide covers **Lingshu-Home 0.0.2**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/tests/README.md).
 
-The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md).
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/tests/README.md).
 
 ## 1. Start and initialize an instance
 
@@ -21,9 +21,11 @@ Open `http://127.0.0.1:5180` on the computer running Home. The examples bind acc
 
 If Home displays **Set up Home**:
 
+If startup did not specify a language, first select English or 简体中文 on the bilingual language page and confirm. Only a successful confirmation opens the setup form. An explicitly configured or previously saved language skips that page. The choice is saved immediately, even if account setup is finished later.
+
 1. Enter a site name, separate from an individual page name, and select an access mode. **Public browsing** is the default: visitors can read published shared content, while maintenance requires an Owner. Personal spaces stay private.
 2. Create the Owner in modes requiring an account. There is no default administrator username or password. Usernames use 3–40 ASCII letters, digits, `.`, `_` or `-`; passwords contain 10–128 characters. The display name is optional. In **Open editing**, **Also create an administrator (optional)** is off by default; enable it to create an account while keeping anonymous navigation maintenance.
-3. Enable **Add example bookmarks** only if wanted. In **Example content pack**, choose the **Chinese website collection** or **English website collection** and optionally expand **Preview the websites to add**. Examples are off by default, editable later, and added only to the shared space. This choice does not change the interface language.
+3. Enable **Add example bookmarks** only if wanted, then expand **Preview the websites to add** if needed. The example collection automatically matches the saved instance language and cannot be switched. Examples are off by default, editable later, and added only to the shared space.
 4. Select **Create my Home**. A newly created Owner is signed in automatically. Open editing and Public browsing open the shared space after setup; private modes open the shared space when examples were selected, otherwise the Owner's personal space.
 5. Use **Admin** for management. An editable empty homepage also offers **Add your first link** and **Import browser bookmarks**, opening the corresponding admin flow directly in the current space.
 
@@ -35,7 +37,7 @@ If an existing instance opens its homepage or login screen, setup has already be
 
 [View the earlier English homepage capture](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/screenshots/home-brand-en-2k.png). This historical image predates the visual editor and iOS theme. Existing category and bookmark names retain their original language.
 
-Language belongs to the running instance. The homepage, setup, login and admin use the same `en` or `zh-CN` setting; browsers do not override it, and there is no in-page language switcher.
+The homepage, setup, login and admin use the same `en` or `zh-CN` setting. **Version 0.0.2 saves it once for the instance**, including the example collection, and provides no later UI switch or browser-language override. The following startup values select a language only while the instance has none saved.
 
 | Deployment | English example |
 | --- | --- |
@@ -46,11 +48,13 @@ Language belongs to the running instance. The homepage, setup, login and admin u
 | Development helper | `python3 scripts/dev.py start --language en` or `python3 scripts/dev.py run --language en` |
 | Built server, from the checkout root | `./dist/lingshu-home --language en` |
 
-Use `zh-CN` instead for Simplified Chinese. `LINGSHU_LANGUAGE` supplies the default to the server and helper; an explicit `--language` takes precedence. With neither set, Home uses `zh-CN`.
+Use `zh-CN` instead for Simplified Chinese. Before a language is saved, an explicit `--language` takes precedence over `LINGSHU_LANGUAGE`. An omitted or empty value leaves a new instance at the first-run language page. The development helper and Compose files preserve that unset state. Confirming a language saves it to the instance database before the account form opens; reloading or restarting continues in that language. If confirmation returns an error, stay on the choice page and retry or read the current state rather than assuming it was saved.
 
-To change an existing local instance, stop it and start it with the chosen language and the same database/data directory. For the published image, recreate the container with the new `-e LINGSHU_LANGUAGE=...` and the original named volume. For source Compose, run `up -d --build` using the new environment. Docker or Compose `restart` alone does not apply new environment variables. Retain the language in the deployment environment or a private `.env` file on later starts; keep an explicit language flag when using the development helper.
+After confirmation, changing parameters or container environment does not switch the language. A conflicting valid startup value produces a warning and the saved language remains in use; the service does not stop. There is no supported page or settings API for changing it later. The starter collection is displayed as the matching Chinese or English collection, with no additional selection. Existing stored names and custom text are not translated or renamed.
 
-Changing language preserves stored user-entered site, page, space, category, link and header/footer text. New default spaces/pages use the instance language; optional example links use the content pack independently selected during setup. Existing default names are not renamed retroactively. The bootstrap response exposes `language`, and the Go-served HTML shell has the matching `lang` before the application mounts.
+**Upgrading an initialized 0.0.1 instance:** back up the database and keys, and retain the original `--language` / `LINGSHU_LANGUAGE` value for the first 0.0.2 start, especially `en` for an English instance. The first start after migration 007 saves that language; if none is supplied, it preserves the old default `zh-CN`. An initialized instance does not reopen the language chooser. A database that has applied 007 requires its corresponding application; reverting to 0.0.1 requires the pre-upgrade database/key backup.
+
+**Compatibility with 0.0.1:** that version had no first-run language page or persisted language and allowed independent example collections. Starting with 0.0.2, the saved instance language controls both the interface and examples.
 
 ### Choose the access mode
 
@@ -124,6 +128,20 @@ The table keeps long content compact. It shows the main URL, up to two tag chips
 Use the pencil to edit; use the trash action and confirmation to delete the link and its additional entrances from the current space. Links only accept HTTP/HTTPS; executable bookmarklets, browser-internal addresses and file URLs are not supported.
 
 On an editable homepage, the star button also updates a local link's favorite status immediately. External snapshot links are maintained by their source, so their favorite data cannot be changed through the local-link star action. A favorite appearing in both the favorites panel and the full navigation is one stored link shown twice.
+
+### Organize selected links
+
+After importing, open **Link management** and search for the links to organize:
+
+1. Row checkboxes select individual links. The header checkbox selects **this page** only. Selection is retained when changing pages or page size.
+2. **Select all results (count)** explicitly selects the current search results, up to 500 links per batch. Narrow your search if it contains more than 500 results. The toolbar always shows the selected count.
+3. Choose **Move category**, **Edit tags** or **Set favorites**. Move to an existing category or **Uncategorized**; add/remove only the specified tags; add/remove favorites.
+4. Check the space, selection count and expected change count, then select **Apply to N links**. Links already matching the choice stay unchanged.
+5. Completion reloads the list and clears the selection. Search changes, refresh, menu/space/identity changes and lost edit permission also clear it.
+
+Each link supports at most 32 tags of at most 40 characters each. Separate tags with commas; whitespace is trimmed and matching is case-sensitive. If another window, import or automatic icon completion changes the navigation revision, the dialog explains that this request made no changes and offers **Refresh and select again**. A batch either commits completely or rolls back completely.
+
+These actions write navigation records immediately and are outside page draft history. Only the selected category, tag or favorite field changes; URLs, additional URLs, icons and automatic/manual icon mode are preserved. This workflow does not offer batch deletion.
 
 ### Choose or import icons
 
@@ -202,7 +220,7 @@ With edit permission, select **Edit page** on the homepage. The ordinary site he
 
 | Part | Use |
 | --- | --- |
-| Top toolbar | Open the component library, preview, restore, cancel or save the page; check **Unsaved / No changes** |
+| Top toolbar | Open the component library, undo/redo, preview, restore, cancel or save the page; check **Unsaved / No changes** |
 | Left rail → Layers | Select the page appearance, an existing component, or a header/footer slot; hidden and locked components remain listed |
 | Left rail → Add | Add a component, or select Header/Footer to edit page content |
 | Center canvas | See the current draft and select components or any of the six header/footer slots, including empty slots |
@@ -211,6 +229,16 @@ With edit permission, select **Edit page** on the homepage. The ordinary site he
 In smaller editor windows the side rails become drawers, opened with **Add component** and **Properties**. Close a drawer or use **Back to canvas** to inspect the result. The draft remains in memory. Closing a drawer does not save or discard it.
 
 The search box remains an editable component in the canvas while the ordinary header is hidden. Category navigation is also a selectable component: click its edit label or select it under Layers. Account controls and the site's ordinary identity header remain owned by Home; the configurable header/footer content described below is separate.
+
+### Undo, redo and save boundaries
+
+The homepage toolbar and the bottom of **Layout and theme** both provide **Undo/Redo**. History covers page appearance, themes, components, placements, bindings and header/footer content; the admin editor also includes the page name.
+
+- A drag or resize is one step. Consecutive edits in the same focused input merge while pauses remain under 750 ms; leaving the field starts a new step.
+- Up to 60 steps are kept. Editing after undo clears the old redo branch. Returning to the saved content clears the unsaved-changes state.
+- Use `Ctrl/⌘ + Z` to undo and `Ctrl/⌘ + Shift + Z` to redo; Windows/Linux also support `Ctrl + Y`. Inputs retain native text undo. Visible dialogs, homepage preview, active dragging and saving do not consume page-history shortcuts.
+- History is local to the current edit session and does not survive reloads, identity, space or page changes. Successful save, cancel/restore or loading a server version clears it. It does not undo bookmark import, navigation maintenance, icon or source-record writes.
+- **Save page** remains the explicit commit action. A failed or conflicting write retains the draft/history. If the write succeeds but the next read fails, the UI clearly reports that it was saved and retains the new revision and clean saved content for subsequent edits.
 
 ### Choose a theme and page appearance
 
@@ -381,10 +409,26 @@ Homepage parent counts include descendant links in the bound dataset. The catego
 
 Use a signed-in account with edit rights to the destination space. The step-by-step UI tasks below lead into the exact formats in [INTEGRATIONS.md](INTEGRATIONS.md).
 
+### What Component data format means
+
+**Sources and MCP → Sources → Add source → Component data format** selects the data contract that the source will supply. It does not create a new kind of component or register a custom format. The generic source editor has five built-in choices:
+
+| Format | Schema ID | Compatible presentation |
+| --- | --- | --- |
+| Bookmarks | `navigation.collection@1` | Navigation, categories and favorites |
+| Calendar | `calendar.events@1` | Calendar/agenda |
+| Weather | `weather.forecast@1` | Weather |
+| Metrics | `metrics.summary@1` | Metric cards |
+| Service status | `status.collection@1` | Service status |
+
+The periodic JSON source supports the four component formats, not Bookmarks. GitHub Traffic uses its dedicated source type and `github.traffic@1`, rather than adding another choice to this generic selector. Creating multiple sources with the same format is supported; the format of an existing source cannot be changed.
+
+The source form explains this boundary and lets you expand a JSON data example for the selected format. For a push source, create it, open **Push template**, replace the example data in the external sender, send a snapshot, then bind a compatible homepage component and save the page. For periodic JSON, the configured endpoint must return the selected format's `data` object. Adding an entirely new schema requires application development: a server validator, compatible renderer and exposed capability must be implemented together. Importing a component template does not install a new format. See [component contracts](COMPONENTS.md) and [source configuration](INTEGRATIONS.md#source-configuration).
+
 ### External navigation pushes
 
 1. Open **Sources and MCP → Sources → Add source**.
-2. Select **External push · Bookmark collection**, give it a name and create it.
+2. Select **External push / Calendar file import**, choose **Bookmarks** as the component data format, give it a name and create it.
 3. In **MCP and access tokens**, create a token scoped to that source. The UI grants source read and snapshot push for this scope. Copy the secret when it is shown; it cannot be shown again later.
 4. Return to the source and open **Push template**. Use its endpoint and replace the sample payload and token in your external client.
 5. Send a complete snapshot with a unique request ID and its revision/sequence guard. An identical retry reuses that request ID; changed content needs a new request ID.
@@ -430,7 +474,7 @@ Use **Import and export → Export HTML** for a browser-compatible bookmark file
 
 For a complete backup, follow [STORAGE.md](STORAGE.md#backups). For SQLite, the straightforward procedure is to stop Home cleanly and back up the complete persistent directory/volume, including both keys and any WAL files. For PostgreSQL, back up the dedicated database and the matching local keys together. Restore with the appropriate application version before starting one instance.
 
-Custom icon images, library metadata, website caches, the automatic switch and pending jobs are included in the database, with no extra upload directory to copy. Version 0.0.1 includes automatic-icon **migration 005** and network-setting **migration 006**. An older binary that does not recognize an applied migration refuses that database. Rolling back requires the matching pre-upgrade database and keys as well as the older binary/image.
+Custom icon images, library metadata, website caches, the automatic switch and pending jobs are included in the database, with no extra upload directory to copy. Version 0.0.1 includes automatic-icon **migration 005** and network-setting **migration 006**. Version 0.0.2 adds **migration 007** for the fixed instance language; a database backup retains that choice too. An older binary that does not recognize an applied migration refuses that database. Rolling back requires the matching pre-upgrade database and keys as well as the older binary/image.
 
 The README image command uses the **`lingshu-home-data`** named volume; source Compose uses its project-scoped **`home-data`** volume. Retain the original volume and Compose project identity when restarting or replacing a container. Switching installation methods does not transfer data automatically. For a Linux release, reuse the original `--data-dir` instead of a new empty `data/` beneath the next version directory. Removing a volume discards persistent data; do not use volume-removal commands as a restart procedure. Keep exports, full backups and credential files private.
 
@@ -472,7 +516,7 @@ python3 scripts/dev.py start --language en
 python3 scripts/dev.py status
 ```
 
-Keep the original language, provider and data-directory options when restarting; this example uses English. A restart does not build new source. For a source update, retain a recoverable backup and the prior version, build the new version using the README, and restart using the same data directory/provider. See [storage migration rules](STORAGE.md#versioned-migrations) before downgrading.
+Keep the original provider and data-directory options when restarting. These examples keep an explicit English language value, which is needed to preserve English on the first upgrade from 0.0.1; after 0.0.2 saves the language, the database remains authoritative even if that option is omitted. A restart does not build new source. For a source update, retain a recoverable backup and the prior version, build using the README, and restart using the same data directory/provider. See [storage migration rules](STORAGE.md#versioned-migrations) before downgrading.
 
 The Linux development helper permits an immediate restart while closed connections finish their TCP timeout. A port still used by a running listener remains an error; check `status` and the selected listen address before starting another instance.
 
@@ -485,7 +529,7 @@ The Linux development helper permits an immediate restart while closed connectio
 | Admin content appears missing | Check **Current space**, search text, page number and category filter. Local link management reads the local dataset even if homepage bindings have changed. |
 | Link exists in admin but not on the homepage | Check whether a navigation component is present/visible, its source binding, category/search/favorites filters, and fixed-height panel scrolling. |
 | Cannot save a page | Read the inline error. Check revision conflicts, overlapping/out-of-range grid coordinates and locked components; the draft is retained after a rejected save. |
-| Language did not change | Confirm the service's `--language` / `LINGSHU_LANGUAGE`, recreate Compose for environment changes, and reload the page. Existing stored names are intentionally preserved. |
+| Language did not change | In 0.0.2 this is expected once the language is saved; a conflicting startup value is ignored with a warning. It is not a setting you can switch later. Stored names remain unchanged. |
 | Preview differs from the saved homepage | Check the Unsaved draft marker and any temporary filters. Preview follows the current editor draft; other visitors see saved configuration. |
 | Changing theme does not change a component's icons | That navigation/favorites component may have an explicit **Icons and text** choice. Choose **Theme default** to follow each theme, then save the page. |
 | Cannot add, duplicate or move a component | Check its lock, the 32-component/binding limits and available placement. GitHub Traffic needs a compatible source first; Categories cannot occupy the main grid. |
@@ -521,7 +565,7 @@ For weather, choose a city shortcut or enter coordinates and an IANA timezone, t
 
 In **Edit page → Add**, add the compatible component, or choose **Import template** and paste a public component URL / JSON. Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
 
-The complete data schemas, provider limits, replay/storage policy, supported template format and currently deferred connectors are in [COMPONENTS.md](COMPONENTS.md). Initial setup also previews independent Chinese and English website packs; leaving examples off starts with no bookmarks.
+The complete data schemas, provider limits, replay/storage policy, supported template format and currently deferred connectors are in [COMPONENTS.md](COMPONENTS.md). Setup previews the website pack matching the saved instance language; leaving examples off starts with no bookmarks.
 
 
 ## Network settings and internal/external access

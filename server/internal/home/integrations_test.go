@@ -218,7 +218,7 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			config := Config{StorageProvider: provider, DatabaseURL: databaseURL, DataDir: t.TempDir(), WebDir: t.TempDir(), VersionFile: version}
+			config := Config{StorageProvider: provider, DatabaseURL: databaseURL, DataDir: t.TempDir(), WebDir: t.TempDir(), VersionFile: version, Language: "zh-CN"}
 			app, err := Open(config)
 			if err != nil {
 				t.Fatal(err)

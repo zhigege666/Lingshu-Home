@@ -20,9 +20,9 @@ LOG = RUNTIME / "service.log"
 BINARY = ROOT / "dist" / ("lingshu-home.exe" if os.name == "nt" else "lingshu-home")
 
 
-def instance_language(value: str) -> str:
+def instance_language(value: str) -> str | None:
     if value == "":
-        return "zh-CN"
+        return None
     if value not in ("zh-CN", "en"):
         raise argparse.ArgumentTypeError("instance language must be zh-CN or en")
     return value
@@ -58,12 +58,19 @@ def build() -> None:
 
 
 def app_environment(args: argparse.Namespace) -> dict[str, str]:
-    return {**os.environ, "LINGSHU_LISTEN": args.listen,
-            "LINGSHU_DATA_DIR": str(Path(args.data_dir).resolve()),
-            "LINGSHU_STORAGE_PROVIDER": args.provider,
-            "LINGSHU_LANGUAGE": args.language,
-            "LINGSHU_WEB_DIR": str(ROOT / "web" / "dist"),
-            "LINGSHU_VERSION_FILE": str(ROOT / "VERSION")}
+    environment = {**os.environ, "LINGSHU_LISTEN": args.listen,
+                   "LINGSHU_DATA_DIR": str(Path(args.data_dir).resolve()),
+                   "LINGSHU_STORAGE_PROVIDER": args.provider,
+                   "LINGSHU_WEB_DIR": str(ROOT / "web" / "dist"),
+                   "LINGSHU_VERSION_FILE": str(ROOT / "VERSION")}
+    # Do not turn the server's first-run language choice into an implicit
+    # startup override. Omission also lets an existing instance reuse its
+    # persisted language after the helper restarts it.
+    if args.language is None:
+        environment.pop("LINGSHU_LANGUAGE", None)
+    else:
+        environment["LINGSHU_LANGUAGE"] = args.language
+    return environment
 
 
 def process_identity(pid: int) -> dict | None:
@@ -171,8 +178,9 @@ def main() -> int:
     parser.add_argument("--data-dir", default=os.environ.get("LINGSHU_DATA_DIR", str(ROOT / "data")))
     parser.add_argument("--provider", choices=("sqlite", "postgres"),
                         default=os.environ.get("LINGSHU_STORAGE_PROVIDER", "sqlite"))
-    parser.add_argument("--language", type=instance_language, choices=("zh-CN", "en"),
-                        default=os.environ.get("LINGSHU_LANGUAGE", "zh-CN"))
+    parser.add_argument("--language", type=instance_language, metavar="{zh-CN,en}",
+                        default=os.environ.get("LINGSHU_LANGUAGE") or None,
+                        help="Set the instance language; omit to choose on first setup or reuse its saved language")
     args = parser.parse_args()
     try:
         if args.action == "build":

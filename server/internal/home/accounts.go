@@ -35,7 +35,11 @@ func (a *App) bootstrap(r *Request) (*Response, error) {
 		capabilities[key] = value
 	}
 	capabilities["pageChrome"] = map[string]any{"regions": []string{"header", "footer"}, "alignments": []string{"left", "center", "right"}, "itemTypes": []string{"text", "link", "branding"}, "maxItemsPerSlot": 8}
-	return ok(map[string]any{"version": a.version, "language": a.config.Language, "initialized": r.Settings.Initialized, "siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "user": r.User, "spaces": spaces, "defaultSpaceId": defaultID, "csrfToken": a.csrfToken(r), "capabilities": capabilities}), nil
+	language := r.Settings.Language
+	if language == "" {
+		language = "zh-CN"
+	}
+	return ok(map[string]any{"version": a.version, "language": language, "languageSelectionRequired": r.Settings.Language == "" && !r.Settings.Initialized, "initialized": r.Settings.Initialized, "siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "user": r.User, "spaces": spaces, "defaultSpaceId": defaultID, "csrfToken": a.csrfToken(r), "capabilities": capabilities}), nil
 }
 
 func (a *App) insertUser(r *Request, input accountInput, role string) (*User, error) {
@@ -71,6 +75,9 @@ func (a *App) setup(r *Request) (*Response, error) {
 	if r.Bearer {
 		return nil, forbidden()
 	}
+	if r.Settings.Language == "" {
+		return nil, languageRequired()
+	}
 	var input struct {
 		SiteName    string `json:"siteName"`
 		Mode        string `json:"mode"`
@@ -86,6 +93,9 @@ func (a *App) setup(r *Request) (*Response, error) {
 	if input.StarterPack != "" {
 		if _, err := starterPack(input.StarterPack); err != nil {
 			return nil, err
+		}
+		if input.StarterPack != r.Settings.Language {
+			return nil, &APIError{Status: 400, Code: "starter_language_mismatch", Message: "Starter content must use the instance language."}
 		}
 	}
 	name, err := required(input.SiteName, "siteName", 80)

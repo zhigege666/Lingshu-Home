@@ -34,9 +34,9 @@ function MeasuredPanel({ panel, editing, disabled, width, widthRevision, onMeasu
   </div>;
 }
 
-export function HomeGrid({ panels, editing, gap, onChange, widthRevision, disabled = false, selectedId, onSelect }: {
+export function HomeGrid({ panels, editing, gap, onChange, widthRevision, disabled = false, selectedId, onSelect, onInteractionChange }: {
   panels: GridPanel[]; editing: boolean; gap: number;
-  onChange: (positions: Record<string, GridPosition>) => void; widthRevision?: string; disabled?: boolean; selectedId?: string; onSelect?: (id: string) => void;
+  onChange: (positions: Record<string, GridPosition>) => void; onInteractionChange?: (active: boolean) => void; widthRevision?: string; disabled?: boolean; selectedId?: string; onSelect?: (id: string) => void;
 }) {
   const { containerRef, width, mounted, measureWidth } = useContainerWidth({ initialWidth: 1440 });
   // RGL's default position strategy emits pixel widths even on its first render.
@@ -44,6 +44,7 @@ export function HomeGrid({ panels, editing, gap, onChange, widthRevision, disabl
   useLayoutEffect(() => { measureWidth(); }, [measureWidth, widthRevision]);
   const [heights, setHeights] = useState<Record<string, number>>({});
   const interaction = useRef(false);
+  useEffect(() => () => { if (interaction.current) onInteractionChange?.(false); }, [onInteractionChange]);
   const measure = useCallback((id: string, height: number) => {
     setHeights(previous => Math.abs((previous[id] || 0) - height) < 1 ? previous : { ...previous, [id]: height });
   }, []);
@@ -78,7 +79,7 @@ export function HomeGrid({ panels, editing, gap, onChange, widthRevision, disabl
 
   const commit = useCallback((value: Layout, resized?: string) => {
     if (!interaction.current) return;
-    interaction.current = false;
+    interaction.current = false; onInteractionChange?.(false);
     const positions: Record<string, GridPosition> = {};
     for (const item of value) {
       const original = panels.find(panel => panel.id === item.i)?.placement;
@@ -88,9 +89,9 @@ export function HomeGrid({ panels, editing, gap, onChange, widthRevision, disabl
         heightMode: resized === item.i ? 'fixed' : original.heightMode };
     }
     onChange(positions);
-  }, [onChange, panels]);
+  }, [onChange, panels, onInteractionChange]);
   // RGL also compares stop-handler identities when memoizing individual grid items.
-  const startInteraction = useCallback(() => { interaction.current = true; }, []);
+  const startInteraction = useCallback(() => { interaction.current = true; onInteractionChange?.(true); }, [onInteractionChange]);
   const stopDrag = useCallback((value: Layout) => commit(value), [commit]);
   const stopResize = useCallback((value: Layout, _old: LayoutItem | null, updated: LayoutItem | null) => commit(value, updated?.i), [commit]);
 

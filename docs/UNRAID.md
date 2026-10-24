@@ -2,7 +2,9 @@
 
 **English** | [简体中文](UNRAID.zh-CN.md)
 
-Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template uses the published **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:0.0.1`, with embedded SQLite. No external database is required.
+Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template selects the **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:0.0.2`, with embedded SQLite. No external database is required.
+
+These instructions target **0.0.2**. Its language is chosen once and saved in the database. Before upgrading an existing 0.0.1 instance, read the language and migration-007 backup requirements below.
 
 ## Install
 
@@ -10,7 +12,7 @@ When Lingshu-Home is available in **Apps**, search for **Lingshu-Home**, check t
 
 ### Manual template installation
 
-Download [the raw template](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/templates/lingshu-home.xml) and save it on your Unraid boot device as:
+Download [the raw template](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.2/templates/lingshu-home.xml) and save it on your Unraid boot device as:
 
 `/boot/config/plugins/dockerMan/templates-user/my-lingshu-home.xml`
 
@@ -22,11 +24,11 @@ Open **Docker → Add Container**, select **Lingshu-Home** from the template lis
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Repository | `ghcr.io/zhigege666/lingshu-home:0.0.1` | Published, fixed version; see the upgrade procedure below. |
+| Repository | `ghcr.io/zhigege666/lingshu-home:0.0.2` | Fixed version; see the upgrade procedure below. |
 | Network | `bridge` | Publishes Home through a host port. |
 | WebUI port | Host `5180` → container `8080/tcp` | Change the host port if it is already used; keep the container port at `8080`. |
 | Appdata | `/mnt/user/appdata/lingshu-home` → `/data` | Database, saved icons and instance keys. Retain this mapping during container replacement. |
-| Interface language | `en` | Select `en` or `zh-CN`. This selects the whole instance's interface language at startup. |
+| Interface language | `en` | Choose `en` or `zh-CN` before the first start or first upgrade from 0.0.1. A saved instance language takes precedence on later starts. |
 | HTTPS-only cookies | `false` | Advanced setting. Use `true` only when accessing Home through an HTTPS reverse proxy. |
 
 Use a dedicated appdata directory for each Home instance. To use a different share or pool path, change the **host** side of the Appdata mapping and retain `/data` as the container path. Do not use the same data directory for two running containers.
@@ -47,7 +49,15 @@ Open the container's **WebUI** action or visit `http://<Unraid-IP>:5180` using t
 
 Complete the setup wizard on your trusted network. Choose a site name and access mode, then create an Owner when that mode requires one. There is no default administrator account or password. The default public-browsing mode requires an Owner for changes and keeps personal spaces private. Open editing can be account-free.
 
-To use Simplified Chinese, set **Interface language** to `zh-CN` and apply the container settings. Changing this value preserves your existing bookmarks, account data and text; it does not translate content you have entered.
+For a new Simplified Chinese instance, set **Interface language** to `zh-CN` before the first start. The template defaults to `en`, so its explicit language skips the browser's language-selection page. After the language is saved, changing this field cannot switch it.
+
+### One-time language and upgrading from 0.0.1
+
+A new instance with an explicit container language saves it once and skips language selection. Without a configured language, its first page asks for English or Simplified Chinese before setup. The interface and optional starter collection use that same language; there is no independent example-language dropdown or later in-page switch.
+
+An initialized 0.0.1 instance saves the language supplied on its first upgraded start, or the old `zh-CN` default if none is supplied. Keep **Interface language** set to the original value during the first 0.0.2 start, especially `en` for an English instance. Once saved in the database, the language survives container replacement with the same Appdata. A conflicting startup value is ignored with a warning while the service keeps running; editing the Unraid field later is not a supported language-change mechanism.
+
+Version 0.0.2 applies migration **007** to SQLite or PostgreSQL. Before upgrading, stop Home and back up its database and matching keys. Rolling back to 0.0.1 needs that pre-upgrade backup, not just the old image. See [storage and recovery](STORAGE.md).
 
 For remote access, configure an HTTPS reverse proxy, then set **HTTPS-only cookies** to `true`. That setting controls cookie transport; it does not enable TLS in Home. Keep it `false` when using the direct HTTP WebUI, or the browser cannot use secure login cookies over HTTP.
 
@@ -57,13 +67,13 @@ The `/data` directory contains `lingshu-home.db`, `csrf.key` and `integrations.k
 
 To recreate the same version, retain the same Appdata host path, user setting and other configuration. Removing a container does not require removing its appdata.
 
-This template pins `0.0.1`. The release workflow publishes exact version tags; it does not publish `latest` or `stable`. Unraid's image update check for the existing `0.0.1` reference will not select a future `0.0.2` tag automatically. Updating a catalog template also does not itself upgrade an existing installation.
+This template pins `0.0.2`. The release workflow uses exact version tags, with no `latest` or `stable` alias. An installed container still pointing to `0.0.1` will not select `0.0.2` automatically, and a container pinned to `0.0.2` will not select a later version. Updating a catalog template also does not itself upgrade an existing installation.
 
 For a new release:
 
 1. Read its [release notes](https://github.com/zhigege666/Lingshu-Home/releases) and migration requirements.
-2. Stop Home and back up its complete data directory.
-3. Edit the container's **Repository** to the desired, actually published version tag; retain `/data`, the same Appdata host path and the `--user=99:100` setting.
+2. Stop Home and back up its complete data directory. Keep the previous image and, for a first upgrade from 0.0.1, retain the original **Interface language** value.
+3. Edit the container's **Repository** to the desired version tag after verifying it exists in the release, using `ghcr.io/zhigege666/lingshu-home:0.0.2` for this version; retain `/data`, the same Appdata host path and the `--user=99:100` setting.
 4. Apply the change so Docker Manager pulls the selected image and recreates the container.
 5. Check the logs, open the WebUI, sign in and confirm your existing links and settings.
 

@@ -22,10 +22,13 @@ import dev
 
 
 class DevelopmentLanguageTests(unittest.TestCase):
-    def test_language_defaults_environment_and_flag_precedence(self):
+    def test_language_omission_environment_and_flag_precedence(self):
         for environment, flags, expected in (
-            ({}, [], "zh-CN"),
-            ({"LINGSHU_LANGUAGE": ""}, [], "zh-CN"),
+            ({}, [], None),
+            ({"LINGSHU_LANGUAGE": ""}, [], None),
+            ({}, ["--language", ""], None),
+            ({"LINGSHU_LANGUAGE": "en"}, ["--language="], None),
+            ({}, ["--language", "en"], "en"),
             ({"LINGSHU_LANGUAGE": "en"}, [], "en"),
             ({"LINGSHU_LANGUAGE": "zh-CN"}, [], "zh-CN"),
             ({"LINGSHU_LANGUAGE": "en"}, ["--language", "zh-CN"], "zh-CN"),
@@ -39,7 +42,11 @@ class DevelopmentLanguageTests(unittest.TestCase):
                 launch.assert_called_once()
                 args = launch.call_args.args[0]
                 self.assertEqual(args.language, expected)
-                self.assertEqual(dev.app_environment(args)["LINGSHU_LANGUAGE"], expected)
+                environment = dev.app_environment(args)
+                if expected is None:
+                    self.assertNotIn("LINGSHU_LANGUAGE", environment)
+                else:
+                    self.assertEqual(environment["LINGSHU_LANGUAGE"], expected)
 
     def test_invalid_language_fails_before_starting_any_process(self):
         for environment, flags in (

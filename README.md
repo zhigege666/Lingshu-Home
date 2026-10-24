@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.1/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home logo" width="80" height="80">
+<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.2/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home logo" width="80" height="80">
 
 # Lingshu-Home
 
@@ -10,13 +10,27 @@ Maintain your links, import browser bookmarks, and compose your homepage from da
 
 The jade folded-house logo is shared throughout the Web interface. [Brand assets, usage and provenance](docs/BRANDING.md) cover the scalable SVG, browser icons and touch icon.
 
+## New in 0.0.2
+
+Version 0.0.2 adds **batch bookmark organization** and **Undo/Redo** in both page editors. After importing bookmarks, select a page or all filtered results to move categories, add/remove tags and set favorites. Page drafts keep up to 60 history steps and are persisted with an explicit save. See the [user guide](docs/USER_GUIDE.md) and [batch API contract](docs/API.md#batch-bookmark-organization).
+
+See the [0.0.2 changelog](CHANGELOG.md#002---2026-10-24) for the full changes and upgrade requirements.
+
+### One-time setup language
+
+A new instance determines its language once. An explicit `--language en|zh-CN` or `LINGSHU_LANGUAGE` saves that choice before setup. With no language specified, the first page asks for English or Simplified Chinese; confirming saves it before opening the setup form. Setup, sign-in, Home, Admin and optional example bookmarks then use the same language. The example collection has a preview and no separate language selector.
+
+The saved language survives restarts. A conflicting valid startup value is logged and ignored; it does not switch the instance or stop the service. Existing initialized installations keep the language supplied when they first upgrade, or their previous `zh-CN` default when none is supplied, without reopening language selection. Back up the database and keys before applying the new **`007_instance_language.sql`** migration. See [language operation](docs/USER_GUIDE.md#choose-the-instance-language) and [storage](docs/STORAGE.md).
+
+Version 0.0.2 restores the spacing around shared form notices and explains the five built-in component data formats in the source editor. A data source uses an installed format; adding a new format requires application development.
+
 ## Quick start
 
-Version **[0.0.1](VERSION)** is the first application release. Get the Linux amd64 executable, Docker image archive, source and checksums from **[Release v0.0.1](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.1)**. The published executable and image target **Linux amd64 (x86-64)**. Choose one installation below; all use embedded SQLite by default and need no external database or other Home service.
+These instructions target **[0.0.2](VERSION)** and **Linux amd64 (x86-64)**. Use **[Release v0.0.2](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.2)** for the Linux executable, Docker image archive, source and checksums. Choose one installation below; all use embedded SQLite by default and need no external database or other Home service.
 
 ### Docker image
 
-Run the published image with Docker:
+Run the exact-version image with Docker:
 
 ```bash
 docker run -d --name lingshu-home \
@@ -27,18 +41,18 @@ docker run -d --name lingshu-home \
   -p 127.0.0.1:5180:8080 \
   -e LINGSHU_LANGUAGE=en \
   -v lingshu-home-data:/data \
-  ghcr.io/zhigege666/lingshu-home:0.0.1
+  ghcr.io/zhigege666/lingshu-home:0.0.2
 ```
 
 Open **http://127.0.0.1:5180** on the Docker host. The named volume `lingshu-home-data` retains the database, instance keys and saved assets when the container is replaced. The image runs as UID/GID `10001:10001`; a custom bind mount at `/data` must be writable by that identity. To check startup, run `docker logs --tail=100 lingshu-home`.
 
 ### Linux amd64 release
 
-Download `Lingshu-Home-0.0.1-linux-amd64.tar.gz` from the release, then extract and run it from its directory. Go and Node.js are not required:
+Download `Lingshu-Home-0.0.2-linux-amd64.tar.gz` from the release, then extract and run it from its directory. Go and Node.js are not required:
 
 ```bash
-tar -xzf Lingshu-Home-0.0.1-linux-amd64.tar.gz
-cd Lingshu-Home-0.0.1-linux-amd64
+tar -xzf Lingshu-Home-0.0.2-linux-amd64.tar.gz
+cd Lingshu-Home-0.0.2-linux-amd64
 ./lingshu-home --language en --data-dir "$HOME/.local/share/lingshu-home"
 ```
 
@@ -48,23 +62,25 @@ Both examples bind access to the host's loopback address. For another computer, 
 
 ### Unraid
 
-Use the [Unraid template and installation guide](docs/UNRAID.md) for Docker Manager or Community Applications. The template maps host port `5180` to container port `8080`, keeps data at `/mnt/user/appdata/lingshu-home`, and explicitly runs as `99:100` for that appdata directory. It uses the fixed `0.0.1` image tag; the guide covers first setup, Chinese/English selection, backups and explicit version upgrades. Manual template installation is available while the app is not listed in Apps.
+Use the [Unraid template and installation guide](docs/UNRAID.md) for Docker Manager or Community Applications. The template maps host port `5180` to container port `8080`, keeps data at `/mnt/user/appdata/lingshu-home`, and explicitly runs as `99:100` for that appdata directory. It uses the fixed `0.0.2` image tag; the guide covers one-time English/Chinese language configuration, setup, backups and explicit version upgrades. Manual template installation is available while the app is not listed in Apps.
 
 ### First-run setup
 
+The commands above explicitly choose English, so a new instance opens setup in English. If no language was supplied, first select English or 简体中文 on the bilingual language page and confirm. A successful confirmation saves the choice before the setup form opens; an existing saved choice skips this page.
+
 1. Enter a site name and choose an access mode. **Public browsing** (`public_read`) is the default: visitors can read published shared content, while maintenance requires an Owner. Personal spaces remain private.
 2. Create the Owner in modes requiring an account. Home has no default administrator username or password. Usernames use 3–40 ASCII letters, digits, `.`, `_` or `-`; passwords contain 10–128 characters. The display name is optional. **Open editing** can run without an account; enable **Also create an administrator (optional)** to create an Owner during the same setup.
-3. To start with examples, enable **Add example bookmarks**, select the **Chinese website collection** or **English website collection**, and expand **Preview the websites to add** if needed. Examples are off by default and are added only to the shared space.
+3. To start with examples, enable **Add example bookmarks** and expand **Preview the websites to add** if needed. The collection automatically matches the saved instance language; there is no separate language selector. Examples are off by default and are added only to the shared space.
 4. Select **Create my Home**. A newly created Owner is signed in automatically. Open editing and Public browsing start on the shared space, whether or not examples were selected.
 5. On an editable empty homepage, use **Add your first link** or **Import browser bookmarks** to open the corresponding admin workflow. **Admin** also provides link/category management, import/export and homepage settings.
 
-The startup language applies to setup, sign-in, the homepage and Admin. It defaults to `zh-CN`; the commands above explicitly choose `en`. The example content pack is independent of the interface language, and Home does not import personal browser data automatically. A selected, still-authorized space survives a full page refresh in the same browser tab; this preference is separate for signed-in and anonymous identities and is not synchronized across devices.
+Setup, sign-in, the homepage, Admin and the optional example bookmarks share the saved instance language. It remains fixed across restarts and cannot be switched in the UI. Home does not import personal browser data automatically. A selected, still-authorized space survives a full page refresh in the same browser tab; this preference is separate for signed-in and anonymous identities and is not synchronized across devices.
 
 ### Keep data and stop safely
 
 For the Docker command above, use `docker stop lingshu-home` and `docker start lingshu-home`; its stop timeout is 30 seconds. For the Linux foreground process, press `Ctrl+C` and wait for it to exit. Neither procedure requires deleting data.
 
-Before upgrading, stop Home and back up the database together with its matching instance keys. Retain the same named volume or `--data-dir` when starting the new version. The source Compose deployment below uses its own project-scoped `home-data` volume; switching installation methods does not move data automatically. PostgreSQL also needs the local keys. Follow the [backup and migration instructions](docs/STORAGE.md) before an upgrade or downgrade.
+Before upgrading to 0.0.2, stop Home and back up the database together with its matching `csrf.key` and `integrations.key`. Migration 007 adds the persisted language; rolling back to 0.0.1 requires that pre-upgrade database/key backup together with the old application. Retain the same named volume or `--data-dir` when starting the new version. The source Compose deployment below uses its own project-scoped `home-data` volume; switching installation methods does not move data automatically. PostgreSQL also needs the local keys. Follow the [backup and migration instructions](docs/STORAGE.md) before an upgrade or downgrade.
 
 For everyday operation, see the **[English user guide](docs/USER_GUIDE.md)** or **[中文使用手册](docs/USER_GUIDE.zh-CN.md)**. They cover accounts, link maintenance, bookmark and icon import, visual editing, themes, category linking, page content, language, integrations and recovery.
 
@@ -84,7 +100,7 @@ For everyday operation, see the **[English user guide](docs/USER_GUIDE.md)** or 
 | Page content | Visually select all six header/footer alignment slots; edit text, links and removable branding in the same page draft; one explicit save/cancel/restore flow |
 | Icons | 30 searchable offline Lucide icons, space-scoped libraries or image import, and default-on automatic website icons with a server cache and per-link manual override |
 | Branding | Shared jade folded-house SVG; SVG/PNG browser-tab icons and a 180 px touch icon |
-| Language | Instance-wide English or Simplified Chinese, selected at startup; default `zh-CN` |
+| Language | Instance-wide English or Simplified Chinese, selected once before setup and retained across restarts; example bookmarks match it |
 | Access | Four modes; Owner/Member accounts, optional registration, private personal spaces, and shared spaces |
 | Integrations | Typed external pushes and HTTP JSON polling; ICS calendar, Open-Meteo weather, metrics/status components, GitHub Traffic, scoped tokens and MCP |
 | Component import | Public URL or JSON template preview, compatible local-source binding and explicit draft save; installed built-in renderers only |
@@ -115,9 +131,11 @@ Earlier Classic, admin and preview captures remain available as historical examp
 The commands in this section require a source checkout, not the extracted Linux executable bundle. Get the release source with Git:
 
 ```bash
-git clone --branch v0.0.1 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
+git clone --branch v0.0.2 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
 cd Lingshu-Home
 ```
+
+That checkout pins **0.0.2**, including the language, batch organization and draft-history behavior described here.
 
 ### Build a Docker image from the checkout
 
@@ -139,6 +157,8 @@ LINGSHU_LANGUAGE=en docker compose -f compose.postgres.yaml up -d --build
 Use the PostgreSQL file on its own and retain its private database environment on later commands. It does not create a PostgreSQL server and still needs the data volume for instance keys. Selecting another provider does not migrate existing data. See [storage and backup instructions](docs/STORAGE.md).
 
 Imported icons and website caches live in the selected database; no separate upload volume is required. Migration **`005_auto_icons.sql`** stores automatic-icon settings, link intent and bounded pending work; **`006_network_routing.sql`** stores default-on browser route selection and server proxy configuration for both providers. Existing icons, ordinary additional links and earlier migration checksums are preserved. Returning to a binary that predates an applied migration requires its matching database/key backup, not just replacing the executable or image.
+
+Version 0.0.2 applies **`007_instance_language.sql`** to both providers, storing the fixed instance language. Its Compose files and development helper leave an omitted language unset, so a new instance can ask for it in the first-run page.
 
 Builds use pinned dependencies and base image digests. `NODE_IMAGE`, `GO_IMAGE`, `RUNTIME_IMAGE`, and `GOPROXY` build arguments can select a reachable mirror while retaining verified image digests.
 
@@ -164,6 +184,8 @@ The background helper is for Linux development and identifies the process it sta
 
 ### Runtime configuration and language
 
+These options apply to **0.0.2**. A new instance can choose its language once at startup or on the first-run page; a saved choice takes precedence.
+
 | Variable | Default / meaning |
 | --- | --- |
 | `LINGSHU_LISTEN` | Standalone server: `127.0.0.1:5180`; supplied image: `0.0.0.0:8080` |
@@ -172,12 +194,12 @@ The background helper is for Linux development and identifies the process it sta
 | `LINGSHU_DATABASE_URL` | PostgreSQL connection string; required for `postgres` |
 | `LINGSHU_WEB_DIR` | Built frontend directory; standalone `web/dist`, image `/app/wwwroot` |
 | `LINGSHU_VERSION_FILE` | Product `VERSION` file; `/app/VERSION` in the image |
-| `LINGSHU_LANGUAGE` | `zh-CN` (default) or `en`; one language for the running instance |
+| `LINGSHU_LANGUAGE` | `zh-CN` or `en` for an instance without a saved language; omitted/empty asks once during first setup; a saved language takes precedence |
 | `LINGSHU_SECURE_COOKIES` | Whether browser cookies require HTTPS; default `false` for local HTTP |
 
-The quick-start Docker command selects its language with `-e LINGSHU_LANGUAGE=en`. The release executable accepts `./lingshu-home --language en`; the source-built binary accepts `./dist/lingshu-home --language en`. Explicit flags take precedence over environment values. Use `zh-CN` for Simplified Chinese.
+The quick-start Docker command selects its language with `-e LINGSHU_LANGUAGE=en`. The release executable accepts `./lingshu-home --language en`; the source-built binary accepts `./dist/lingshu-home --language en`. For an instance without a saved language, explicit flags take precedence over environment values. The accepted nonempty values are `en` and `zh-CN`; omission or an empty value leaves a new instance's choice to the first-run page.
 
-Change language by stopping and restarting the executable, or recreating the container with the new environment and the same persistence. A plain Docker or Compose `restart` does not apply new environment variables. For Compose, retain `LINGSHU_LANGUAGE` in the deployment environment or a private `.env` file beside the Compose file, including on future `up` commands. There is no UI language selector or automatic browser-language selection. Existing site/space/page names, links, categories and custom text stay unchanged. Newly created default spaces/pages use the instance language; optional starter links use the content pack chosen during setup. [Language operation](docs/USER_GUIDE.md#choose-the-instance-language).
+Once saved, the language is fixed for that database. Changing a startup parameter or container environment does not replace it: Home logs a warning for a conflicting valid value and keeps running in the saved language. There is no later UI switch or automatic browser-language override. Existing names and custom text stay unchanged; new default spaces/pages and optional starter links follow the saved language. Before upgrading an initialized 0.0.1 instance, keep its original language in the startup configuration, especially `en` for an English instance. The first 0.0.2 start saves that value; without one it uses the old `zh-CN` default. [Language operation](docs/USER_GUIDE.md#choose-the-instance-language).
 
 ## Access modes
 
@@ -208,9 +230,9 @@ The admin retains an alternative form-based page editor, including exact placeme
 
 Link/category pagination limits mounted rows while retaining the current authorized snapshot in the browser; it is not server-side pagination. Homepage viewing controls remain temporary, while link stars and explicit page saves persist their corresponding data. [Persistence behavior](docs/USER_GUIDE.md#know-which-controls-save-data).
 
-The component/source iteration adds a [public template import and data contract](docs/COMPONENTS.md). A template can configure an installed renderer; it does not execute a webpage or install remote JavaScript. Calendar, weather, metric and status sources keep one bounded latest snapshot, and an empty polling schedule has no periodic wakeup. Chinese and English setup packs contain different curated links, chosen independently of the interface language.
+The component/source iteration adds a [public template import and data contract](docs/COMPONENTS.md). A template can configure an installed renderer; it does not execute a webpage or install remote JavaScript. Calendar, weather, metric and status sources keep one bounded latest snapshot, and an empty polling schedule has no periodic wakeup. Chinese and English setup packs contain different curated links; Setup chooses the matching collection automatically from the saved instance language.
 
-**Edit page → Add → Dashboard presets** provides Personal overview, Service operations and Data summary layouts. Choose compatible existing sources for the components you want, or explicitly skip a component. Applying a preset replaces the component layout in the unsaved draft while retaining the current theme, page content and valid navigation sources; **Save page** persists it. Presets do not start collectors or insert example values. [Preset layouts and integration guide](docs/DASHBOARDS.md) · [Versioned data examples](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/examples/dashboard-data/README.md).
+**Edit page → Add → Dashboard presets** provides Personal overview, Service operations and Data summary layouts. Choose compatible existing sources for the components you want, or explicitly skip a component. Applying a preset replaces the component layout in the unsaved draft while retaining the current theme, page content and valid navigation sources; **Save page** persists it. Presets do not start collectors or insert example values. [Preset layouts and integration guide](docs/DASHBOARDS.md) · [Versioned data examples](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/examples/dashboard-data/README.md).
 
 Two extension types are part of the contract: typed panel renderers and full-page themes. Installing arbitrary third-party theme packages, knowledge-base connectors, and general real-time adapters are future work. The admin and login pages remain host-owned interfaces.
 
@@ -250,17 +272,17 @@ cd server
 go test ./...
 ```
 
-The HTTP runner exercises fresh disposable instances and a real process restart. It refuses existing initialized databases and non-loopback targets. Go provider suites use five distinct fresh PostgreSQL databases through `LINGSHU_TEST_POSTGRES_URL`, `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`, `LINGSHU_TEST_ICONS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENTS_POSTGRES_URL` and `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL`; the last two cover component source lifecycles and upgrade preservation/rollback. HTTP acceptance uses its own databases. An unset PostgreSQL variable skips its suite and is not a passing provider check. See [test instructions and coverage](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md) and [provider isolation](docs/STORAGE.md#provider-validation).
+The HTTP runner exercises fresh disposable instances and a real process restart. It refuses existing initialized databases and non-loopback targets. Go provider suites use six distinct fresh PostgreSQL databases through `LINGSHU_TEST_POSTGRES_URL`, `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`, `LINGSHU_TEST_ICONS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENTS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL` and `LINGSHU_TEST_NAVIGATION_POSTGRES_URL`. The last three cover component lifecycles, component migration preservation/rollback and navigation batches; language and migration 007 cases use isolated schemas in the icon test database. HTTP acceptance uses its own databases. An unset PostgreSQL variable skips its suite and is not a passing provider check. See [test instructions and coverage](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/tests/README.md) and [provider isolation](docs/STORAGE.md#provider-validation).
 
 Every change set maintains the changelog and relevant public documentation. `VERSION` is the only manually maintained product version. Build outputs and release tags derive from it. Release descriptions come from the matching dated changelog entry, and release automation requires the application validation gates before publication. Creating or pushing a tag is a separate release action.
 
 Private design documents and visual explorations are excluded from Git, Docker contexts, frontend resources, and release artifacts. Public API and deployment documentation are maintained in `docs/`.
 
-Tailwind class discovery is explicitly limited to `web/src`. Build-output directories, public assets and private documents do not influence generated styles. Source-file counts, output identity checks and browser timings belong to the specific run recorded in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md) and [PERFORMANCE.md](docs/PERFORMANCE.md), rather than a standing performance promise.
+Tailwind class discovery is explicitly limited to `web/src`. Build-output directories, public assets and private documents do not influence generated styles. Source-file counts, output identity checks and browser timings belong to the specific run recorded in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/tests/README.md) and [PERFORMANCE.md](docs/PERFORMANCE.md), rather than a standing performance promise.
 
 ### Historical verification
 
-The following paragraph records the earlier visual-editor/icon development iteration. It does not establish the complete verification result for 0.0.1; use the release-specific verification record for that scope.
+The following paragraph records the earlier visual-editor/icon development iteration. It does not establish the complete verification result for 0.0.2; use the release-specific verification record for that scope.
 
 The earlier visual editor passed eight real browser workflows in each interface language, including a deliberate save, full reload and revision-checked restoration. Icon import, persistence, reference protection and invalid-pack rollback passed in both languages; website retrieval and a repeat cache hit were verified against the TypeScript website. GitHub lookup still timed out in the validation environment. SQLite, isolated PostgreSQL databases and the Docker runtime were also checked; see the [verification record](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md) for each result's scope. The [performance report](docs/PERFORMANCE.md) compares the development build with its predecessor using twelve fresh desktop browser contexts. Earlier interface checks are retained as historical evidence.
 
@@ -280,10 +302,10 @@ The earlier visual editor passed eight real browser workflows in each interface 
 | Sources, external pushes, MCP, GitHub Traffic | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) |
 | Components, calendar/weather, template import and data contracts | [docs/COMPONENTS.md](docs/COMPONENTS.md) |
 | Icon libraries, formats and website cache | [docs/ICONS.md](docs/ICONS.md) |
-| Test instructions | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md) |
+| Test instructions | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/tests/README.md) |
 | Changes | [CHANGELOG.md](CHANGELOG.md) |
-| Contribution rules | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/AGENTS.md) |
-| Bundled icon sources | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/assets/icons/manifest.json) |
+| Contribution rules | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/AGENTS.md) |
+| Bundled icon sources | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/assets/icons/manifest.json) |
 | Versioning and releases | [docs/RELEASING.md](docs/RELEASING.md) |
 | Third-party notices | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 

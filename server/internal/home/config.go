@@ -36,7 +36,7 @@ func ParseConfig(args []string) (Config, error) {
 	f.StringVar(&c.DatabaseURL, "database-url", envValue("LINGSHU_DATABASE_URL", ""), "PostgreSQL connection URL; prefer environment")
 	f.StringVar(&c.WebDir, "web-dir", envValue("LINGSHU_WEB_DIR", "web/dist"), "Built frontend directory")
 	f.StringVar(&c.VersionFile, "version-file", envValue("LINGSHU_VERSION_FILE", "VERSION"), "Product VERSION file")
-	f.StringVar(&c.Language, "language", envValue("LINGSHU_LANGUAGE", "zh-CN"), "Instance interface language: zh-CN or en")
+	f.StringVar(&c.Language, "language", envValue("LINGSHU_LANGUAGE", ""), "Initial instance language: zh-CN or en; omit to choose during setup")
 	secure, err := strconv.ParseBool(envValue("LINGSHU_SECURE_COOKIES", "false"))
 	if err != nil {
 		return c, errors.New("LINGSHU_SECURE_COOKIES must be true or false")
@@ -53,10 +53,7 @@ func ParseConfig(args []string) (Config, error) {
 
 func (c *Config) validate() error {
 	switch c.Language {
-	case "", "zh-CN":
-		c.Language = "zh-CN"
-	case "en":
-		c.Language = "en"
+	case "", "zh-CN", "en":
 	default:
 		return errors.New("unsupported language: choose zh-CN or en")
 	}

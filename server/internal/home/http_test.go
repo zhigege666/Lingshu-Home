@@ -100,7 +100,7 @@ func coreConfig(t *testing.T, postgres bool) Config {
 	if err := os.WriteFile(version, []byte("0.1.0-test"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	c := Config{DataDir: filepath.Join(dir, "data"), StorageProvider: "sqlite", VersionFile: version, WebDir: filepath.Join(dir, "web")}
+	c := Config{DataDir: filepath.Join(dir, "data"), StorageProvider: "sqlite", VersionFile: version, WebDir: filepath.Join(dir, "web"), Language: "zh-CN"}
 	if postgres {
 		c.DatabaseURL = os.Getenv("LINGSHU_TEST_POSTGRES_URL")
 		if c.DatabaseURL == "" {

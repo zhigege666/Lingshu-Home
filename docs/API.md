@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the Go implementation in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.2 Go implementation in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Requests, authentication and errors
 
@@ -18,7 +18,7 @@ Read bootstrap again after login, logout or a settings change affecting access. 
 
 External callers can use `Authorization: Bearer <personal-access-token>` on supported JSON endpoints. Valid Bearer requests do not require a browser CSRF token. An empty, malformed or repeated Authorization header is rejected; it never falls back to the browser's Cookie identity. PAT scope restrictions apply in addition to account and space permissions. PATs cannot change global security settings or manage accounts.
 
-Setup, login and registration share a limit of 20 attempts per remote IP per minute. HTTP 429 includes `Retry-After`. The service uses the direct connection address, not untrusted forwarded headers. A reverse proxy therefore shares the proxy's rate-limit bucket unless it provides distinct connections at the network layer.
+Setup (including first-run language confirmation), login and registration share a limit of 20 attempts per remote IP per minute. HTTP 429 includes `Retry-After`. The service uses the direct connection address, not untrusted forwarded headers. A reverse proxy therefore shares the proxy's rate-limit bucket unless it provides distinct connections at the network layer.
 
 ## Access modes and spaces
 
@@ -38,7 +38,9 @@ Changing the access mode or registration policy revokes all browser sessions and
 | Method and path | Input / behavior |
 | --- | --- |
 | `GET /health` | `{status:"ok",version}`; also available at `/health` outside the API prefix |
-| `GET /bootstrap` | Version, `language`, initialized state, site name, mode, `autoFetchIcons`, `autoSelectEndpoint`, current user, accessible spaces, default space, CSRF token and actual capabilities |
+| `GET /bootstrap` | Version, `language`, `languageSelectionRequired`, initialized state, site name, mode, `autoFetchIcons`, `autoSelectEndpoint`, current user, accessible spaces, default space, CSRF token and actual capabilities |
+| `POST /setup/language` | `{language:"en"\|"zh-CN"}`; confirm an instance's language once, returning bootstrap |
+| `GET /starter-packs` | The saved language's single starter pack, or `[]` before language confirmation |
 | `POST /setup` | `{siteName,mode,username?,displayName?,password?,seedDemo,starterPack?}`; once only |
 | `POST /auth/login` | `{username,password}` |
 | `POST /auth/logout` | `{}` |
@@ -52,7 +54,7 @@ Changing the access mode or registration policy revokes all browser sessions and
 | `POST /admin/users` | `{username,displayName,password}`; creates a Member with a personal space |
 | `PUT /admin/users/{id}` | `{displayName,isEnabled,password?}`; Owner cannot be disabled |
 
-The default state is uninitialized and contains no demo navigation. `open_edit` setup can omit an Owner. Other modes must create an Owner. If an Owner is created, setup signs that account in. `seedDemo:true` creates 12 static starter links in the shared space; personal spaces remain empty. `GET /starter-packs` lists the independent `zh-CN` and `en` packs. Optional `starterPack` selects content; omission follows the instance language. `seedDemo:false` remains blank. An invalid pack ID rejects setup before creating data.
+The default state is uninitialized and contains no demo navigation. `open_edit` setup can omit an Owner. Other modes must create an Owner. If an Owner is created, setup signs that account in. `seedDemo:true` creates 12 static starter links in the shared space; personal spaces remain empty. In 0.0.2, `GET /starter-packs` returns only the saved language's pack and returns `[]` while the language is unselected. Omit `starterPack` to use that language; sending the opposite supported pack returns `400 starter_language_mismatch`, even when `seedDemo` is false. Unknown pack IDs also reject setup before creating data. `seedDemo:false` remains blank. Published 0.0.1 exposed both packs and allowed independent content selection; the language-matching rules apply from 0.0.2.
 
 An ownerless instance supplies `owner:{username,displayName,password}` when switching to a login mode. That transition creates the account and changes the mode atomically. An existing Owner cannot be replaced through this input. Once an Owner exists, only that Owner can change the mode or registration policy. Ordinary site-name editing is available in open-edit mode.
 
@@ -66,9 +68,17 @@ Bootstrap capabilities distinguish the built-in theme package (`builtin`), its f
 
 ### Instance language
 
-`GET /bootstrap` includes `language:"zh-CN"` or `language:"en"`, including before setup. The Go-served HTML shell uses the same `lang` before JavaScript mounts the application and sends a matching `Content-Language` response header. Configure it at process startup using `--language en|zh-CN` or `LINGSHU_LANGUAGE`; the explicit flag overrides the environment, and the default is `zh-CN`. The accepted nonempty values are exactly `en` and `zh-CN`; aliases such as `zh` are rejected and prevent startup. An empty language configuration falls back to `zh-CN`.
+**Since 0.0.2:** the language is stored in `settings.language`, a column added by migration `007_instance_language.sql` for SQLite and PostgreSQL. For a database without a saved language, an explicit `--language en|zh-CN` overrides `LINGSHU_LANGUAGE` and saves the choice during startup. Omitted or empty startup values leave a new instance unselected. The only accepted nonempty values are `en` and `zh-CN`; other values fail configuration validation.
 
-This is process configuration, not a field accepted by `POST /setup` or `PUT /settings`. There is no per-user locale endpoint, in-page language switcher, or browser-language override. API field names, enum IDs and error codes remain stable across languages. Existing stored names and custom text are preserved; only newly created default spaces/pages and optional example records use the selected language. Frontend renderers use the host's runtime `t(...)` / locale context rather than maintaining separate browser preferences.
+`GET /bootstrap` always includes `language:"zh-CN"` or `language:"en"` and a boolean `languageSelectionRequired`. Before confirmation, the latter is true and `language:"zh-CN"` is only a display fallback; it does not mean Chinese has been selected. The client shows a bilingual first-run choice and must not open the account/setup form yet. `POST /setup` returns `409 language_required` until the choice is saved.
+
+Confirm with `POST /setup/language` and `{"language":"en"}` or `{"language":"zh-CN"}` using the usual browser cookie and CSRF token. This endpoint rejects bearer requests. Success returns HTTP 200 and the updated bootstrap, including `languageSelectionRequired:false`. The write is atomic; the running locale changes only after the transaction commits. Retrying the same confirmed language is idempotent, including after initialization. A different language returns `409 language_locked`; invalid language input returns 400. Concurrent tabs cannot overwrite the first successful choice. A response lost after confirmation can be recovered by reading bootstrap or retrying the same choice.
+
+Once saved, that database's language wins over later startup configuration. A conflicting valid startup value produces a warning and is ignored without stopping the service. An initialized pre-007 database saves its explicit upgrade-start language, or the previous `zh-CN` default if none is supplied, and does not reopen first-run selection. Preserve the intended configuration when upgrading an existing English instance.
+
+The Go-served HTML shell uses the effective `lang` before JavaScript mounts and sends a matching `Content-Language` header. Its HTML response does not use a static-file modification time as a locale validator. API field names, enum IDs and error codes remain stable. `POST /setup` and `PUT /settings` do not accept a language field; there is no per-user locale endpoint, later in-page switch, or browser-language override. Existing stored names and custom text remain unchanged. New default spaces/pages and optional starter records use the saved language.
+
+Published 0.0.1 reads language from each process startup, defaults to `zh-CN`, and does not provide `POST /setup/language`, `languageSelectionRequired` or migration 007.
 
 ## Navigation and export
 
@@ -81,6 +91,7 @@ This is process configuration, not a field accepted by `POST /setup` or `PUT /se
 | `PUT /spaces/{spaceId}/categories/{id}` | Replace a category's editable fields |
 | `DELETE /spaces/{spaceId}/categories/{id}` | Refuses deletion while links or child categories refer to it |
 | `POST /spaces/{spaceId}/links` | Create a bookmark |
+| `POST /spaces/{spaceId}/links/batch` | Atomically move, tag or favorite selected bookmarks (since 0.0.2; see below) |
 | `PUT /spaces/{spaceId}/links/{id}` | Replace a bookmark's editable fields |
 | `DELETE /spaces/{spaceId}/links/{id}` | Delete that bookmark |
 | `GET /spaces/{spaceId}/export?format=json\|html` | Download local authorized navigation |
@@ -158,6 +169,34 @@ For `local-navigation`, `receivedAt` and `lastSuccessAt` describe the current su
 
 External snapshots use `datasetId:"source:<sourceId>"`. Their navigation records include `externalId` and `sourceId`, and rendered IDs are namespaced as `source:<sourceId>:<externalId>`. Snapshot freshness can be `fresh`, `stale` or `disabled`. Optional `meta.lastError` is a safe `{code,message,at}` from the latest failed refresh while successful data remains unchanged. Optional `meta.attribution` is adapter-owned `{name,url,license,licenseUrl}`; generic pushed weather does not receive an Open-Meteo attribution. A source without a snapshot does not inject a fake empty dataset; its alias can be absent from a dashboard while local navigation remains available.
 
+## Batch bookmark organization
+
+Version 0.0.2 adds `POST /spaces/{spaceId}/links/batch`; this route is not available in 0.0.1. Use the navigation dataset revision returned by `GET /spaces/{spaceId}/navigation`, not the page revision:
+
+```json
+{
+  "expectedRevision": "12",
+  "linkIds": ["0123456789abcdef0123456789abcdef"],
+  "operation": "move",
+  "categoryId": null
+}
+```
+
+Choose exactly one operation:
+
+| Operation | Additional input | Behavior |
+| --- | --- | --- |
+| `move` | `categoryId: string \| null` | Move selected links into an existing category of this space, or into Uncategorized |
+| `add-tags` | `tags: string[]` | Trim/deduplicate the requested tags; append missing tags in input order |
+| `remove-tags` | `tags: string[]` | Remove the named tags, preserving the order of remaining tags |
+| `favorite` | `isFavorite: boolean` | Set a consistent favorite state on the selection |
+
+Each request requires 1–500 unique local link IDs and a nonempty `expectedRevision`. Tag operations require 1–32 tags, each at most 40 characters; matching is case-sensitive and the resulting list on every link must remain at most 32 tags. A category and all links must belong to the URL's space. Extra category/favorite fields, nonempty tags for an unrelated operation, and unknown fields are rejected.
+
+A successful response is `{"selectedCount":30,"updatedCount":24,"revision":"13"}`. The server validates all selected links and resulting tags before updating, then commits the entire operation in one transaction. Any validation or database failure rolls back the whole batch. Only the requested field and changed links' `updatedAt` are written; URLs, titles, descriptions, sort order, endpoints, icons and icon mode are preserved. This endpoint neither starts nor replaces automatic icon jobs. If at least one link changes, the space navigation revision advances once. If none change, both the revision and stored timestamps remain unchanged.
+
+A stale revision returns HTTP 409 with `code:"navigation_version_conflict"`. Reload and select again; never automatically retry against a new revision. Missing or foreign link IDs are indistinguishable (404 when the revision is current); invalid categories/inputs return 400. Existing space/account permissions, browser CSRF and PAT `navigation:write` scope all apply. This is a JSON API operation; the MCP tool catalog is unchanged.
+
 ## Pages, bindings and layouts
 
 `GET /spaces/{spaceId}/page` returns `{id,spaceId,name,revision,config}`. Replace the page with `PUT /spaces/{spaceId}/page` and:
@@ -173,6 +212,8 @@ The `config` placeholder must be replaced with a valid complete Schema 2 object.
 ```
 
 Preserve the user's draft when this happens. Reload the current page before merging or retrying. Applying an admin layout preset preserves the page ID, selected page theme, local navigation data and existing custom `chrome`, but intentionally replaces the draft's views, bindings and placements. Switching only the page theme preserves the rest of the configuration. External clients performing a full replacement must retain any existing fields they want to keep; a missing optional field uses its documented default.
+
+The development UI keeps up to 60 undoable draft steps in memory in each editor. History contains page content, never server revisions, and does not send API writes until Save page. A successful PUT establishes the returned content/revision as the new clean baseline and clears history even if the subsequent GET fails. A failed PUT preserves draft/history; switching page, space, identity or edit permission resets the editor. This adds no page schema or database migration.
 
 The configuration has these independent parts:
 

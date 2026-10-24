@@ -1,19 +1,19 @@
-import { getLocale, t } from '../core/i18n'
+import { t, type AppLanguage } from '../core/i18n'
 import { ProjectLogo } from './ProjectLogo'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowRight, RefreshCw } from 'lucide-react'
-import { ApiError, request, messageOf } from '../core/api'
+import { ArrowRight, Languages, LockKeyhole, RefreshCw } from 'lucide-react'
+import { ApiError, bootstrap as readBootstrap, request, messageOf, selectSetupLanguage } from '../core/api'
 import type { AuthMode, Bootstrap } from '../core/types'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Checkbox } from './ui/checkbox'
-import { StyledSelect } from './ui/select'
 import { authModes, BuiltinIcon, ErrorMessage, Field, handleFormInvalid } from './Shared'
 
 type Props = {
   bootstrap: Bootstrap
   onComplete: (preferShared?: boolean) => Promise<void>
   onRecheckSetup: () => Promise<boolean>
+  onLanguageReady: (value: Bootstrap) => Promise<void>
   onBrowse: () => void
 }
 type StarterPack = { id: string; version: string; name: string; groups: { name: string; links: { title: string; url: string }[] }[] }
@@ -35,14 +35,68 @@ function authError(cause: unknown, setup: boolean): string {
   return messageOf(cause)
 }
 
-export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onBrowse }: Props) {
+function LanguageSetup({ onReady }: { onReady: Props['onLanguageReady'] }) {
+  const [selected, setSelected] = useState<AppLanguage | null>(null)
+  const [busy, setBusy] = useState(false), [failed, setFailed] = useState(false)
+  const [error, setError] = useState(''), [note, setNote] = useState('')
+  const inFlight = useRef(false)
+  async function confirm(event: FormEvent) {
+    event.preventDefault()
+    if (!selected || failed || inFlight.current) return
+    inFlight.current = true; setBusy(true); setError(''); setNote('')
+    try { await onReady(await selectSetupLanguage(selected)) }
+    catch {
+      setFailed(true)
+      setError('暂时无法确认语言。请重新检查状态后继续。 / Could not confirm the language. Check its status before continuing.')
+    } finally { inFlight.current = false; setBusy(false) }
+  }
+  async function check() {
+    if (inFlight.current) return
+    inFlight.current = true; setBusy(true); setError(''); setNote('')
+    try {
+      const value = await readBootstrap()
+      if (value.languageSelectionRequired && !value.initialized) {
+        setFailed(false)
+        setNote('语言尚未确定，请选择后继续。 / No language has been confirmed. Choose one to continue.')
+      } else await onReady(value)
+    } catch { setError('暂时无法读取状态，请稍后重试。 / Could not read the current status. Please try again.') }
+    finally { inFlight.current = false; setBusy(false) }
+  }
+  return <section className="auth-card auth-language">
+    <span className="auth-language-mark" aria-hidden="true"><Languages size={25} /></span>
+    <h1><span lang="zh-CN">选择语言</span><span lang="en">Choose your language</span></h1>
+    <p className="auth-intro"><span lang="zh-CN">先为此 Home 确定一种语言，再完成初始化。</span><span lang="en">Choose the language for this Home before setting it up.</span></p>
+    <form onSubmit={confirm}>
+      <fieldset disabled={busy} className="admin-plain-fieldset">
+        <fieldset disabled={failed} className="admin-mode-options auth-language-options">
+          <legend className="auth-language-legend">语言 / Language</legend>
+          {([{ id: 'zh-CN', name: '简体中文', detail: '中文界面与示例导航' }, { id: 'en', name: 'English', detail: 'English interface and examples' }] as const).map(option => <label key={option.id} lang={option.id} className={'admin-mode-option' + (selected === option.id ? ' selected' : '')}>
+            <input type="radio" name="setup-language" value={option.id} checked={selected === option.id} onChange={() => setSelected(option.id)} required />
+            <span><strong>{option.name}</strong><small>{option.detail}</small></span>
+          </label>)}
+        </fieldset>
+        <div className="admin-info auth-language-notice"><LockKeyhole size={16} aria-hidden="true" /><div><p lang="zh-CN">确定后将用于所有页面和示例内容，后续不再切换。</p><p lang="en">Your choice applies to all pages and examples and cannot be changed later.</p></div></div>
+        <ErrorMessage error={error} />
+        {note && <p className="admin-info" role="status">{note}</p>}
+        {failed && <div className="auth-language-recovery"><Button type="button" variant="outline" disabled={busy} onClick={check}><RefreshCw size={15} />重新检查 / Check again</Button></div>}
+        <Button type="submit" className="admin-full" disabled={busy || failed || !selected}>
+          {busy ? '正在处理… / Processing…' : selected === 'en' ? 'Continue in English' : selected === 'zh-CN' ? '使用简体中文并继续' : '确认并继续 / Confirm and continue'}<ArrowRight size={16} />
+        </Button>
+      </fieldset>
+    </form>
+  </section>
+}
+
+export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onLanguageReady, onBrowse }: Props) {
   const setup = !bootstrap.initialized
+  const choosingLanguage = setup && bootstrap.languageSelectionRequired
   const [registering, setRegistering] = useState(false)
   const [siteName, setSiteName] = useState(bootstrap.siteName || 'Lingshu-Home')
   const [mode, setMode] = useState<AuthMode>('public_read')
   const [createOwner, setCreateOwner] = useState(false)
   const [username, setUsername] = useState(''), [displayName, setDisplayName] = useState(''), [password, setPassword] = useState('')
-  const [seedDemo, setSeedDemo] = useState(false), [starterPack, setStarterPack] = useState(getLocale())
+  const [seedDemo, setSeedDemo] = useState(false)
+  const starterPack = bootstrap.language
   const [busy, setBusy] = useState<'submit' | 'check' | null>(null), [error, setError] = useState('')
   const [setupFailed, setSetupFailed] = useState(false), [recoveryNote, setRecoveryNote] = useState('')
   const [packs, setPacks] = useState<StarterPack[]>([]), [packsError, setPacksError] = useState('')
@@ -52,13 +106,13 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onBr
   const publicMode = mode === 'open_edit' || mode === 'public_read'
 
   useEffect(() => {
-    if (!setup || !seedDemo) return
+    if (!setup || choosingLanguage || !seedDemo) return
     const pending = new AbortController()
     request<StarterPack[]>('/starter-packs', { signal: pending.signal })
       .then(value => { if (!pending.signal.aborted) { setPacks(value); setPacksError('') } })
       .catch(() => { if (!pending.signal.aborted) setPacksError(t('示例预览暂时无法加载，不影响创建。', 'The example preview is unavailable. You can still create your Home.')) })
     return () => pending.abort()
-  }, [setup, seedDemo])
+  }, [setup, choosingLanguage, seedDemo, starterPack])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -68,7 +122,7 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onBr
       const path = setup ? '/setup' : registering ? '/auth/register' : '/auth/login'
       const identity = { username: username.trim(), displayName: displayName.trim() || username.trim(), password }
       const body = setup
-        ? { siteName: siteName.trim(), mode, seedDemo, ...(seedDemo ? { starterPack } : {}), ...(needsAccount ? identity : {}) }
+        ? { siteName: siteName.trim(), mode, seedDemo, ...(needsAccount ? identity : {}) }
         : registering ? identity : { username: username.trim(), password }
       await request(path, { method: 'POST', body })
       setPassword('')
@@ -101,9 +155,9 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onBr
     <a href="#/" className="auth-brand" onClick={event => { event.preventDefault(); if (!setup && !disabled) onBrowse() }}>
       <span className="admin-brand-mark"><ProjectLogo size={39} /></span>Lingshu<span>/ Home</span>
     </a>
-    <section className={'auth-card' + (setup ? ' auth-setup' : '')}>
+    {choosingLanguage ? <LanguageSetup onReady={onLanguageReady} /> : <section className={'auth-card' + (setup ? ' auth-setup' : '')}>
       <h1>{setup ? t('初始化 Home', 'Set up Home') : registering ? t('创建账号', 'Create an account') : t('登录', 'Sign in')}</h1>
-      {setup && <p className="auth-intro">{t('界面语言：简体中文，由服务启动配置决定。示例内容可以另选语言。', 'Interface language: English, set by the service startup configuration. Example content can use a different language.')}</p>}
+      {setup && <p className="auth-intro">{t('语言已确定：简体中文，示例内容将自动匹配。', 'Language is set to English. Example content will match automatically.')}</p>}
       <form onSubmit={submit} onInvalidCapture={event => handleFormInvalid(event, setError)}>
         <fieldset disabled={disabled} className="admin-plain-fieldset">
           {setup && <>
@@ -146,14 +200,12 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onBr
               : t('不勾选将从空白导航开始。日程、天气等组件可稍后按需添加。', 'Leave this off to start with no bookmarks. Calendar, weather and other components can be added later.')}</p>
           </>}
           {setup && seedDemo && <div className="auth-starter-pack">
-            <Field label={t('示例内容包', 'Example content pack')} hint={t('只在初始化时填充，不会改变界面语言。', 'Applied only during setup; does not change the interface language.')}>
-              <StyledSelect value={starterPack} onValueChange={value => setStarterPack(value as 'zh-CN' | 'en')} disabled={disabled} options={[{ value: 'zh-CN', label: t('中文网站预置', 'Chinese website collection') }, { value: 'en', label: t('英文网站预置', 'English website collection') }]} />
-            </Field>
+            <div className="auth-starter-heading"><strong>{t('中文网站预置', 'English website collection')}</strong><span><LockKeyhole size={12} aria-hidden="true" />{t('跟随 Home 语言', 'Matches your Home language')}</span></div>
             {packsError ? <p className="admin-hint">{packsError}</p> : <details>
               <summary>{t('预览将添加的网站', 'Preview the websites to add')}</summary>
-              {packs.find(pack => pack.id === starterPack)?.groups.map(group => <section key={group.name}>
+              <div className="auth-starter-sites">{packs.find(pack => pack.id === starterPack)?.groups.map(group => <section key={group.name}>
                 <h4>{group.name}</h4><ul>{group.links.map(link => <li key={link.url}><span>{link.title}</span><small>{link.url}</small></li>)}</ul>
-              </section>) || <p className="admin-hint">{t('正在读取预置内容…', 'Loading the collection…')}</p>}
+              </section>) || <p className="admin-hint">{t('正在读取预置内容…', 'Loading the collection…')}</p>}</div>
             </details>}
           </div>}
           {setup && <p className="admin-info">{publicMode
@@ -176,13 +228,13 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onBr
           </Button>
         </fieldset>
       </form>
-      <div className="auth-links">
+      {!setup && <div className="auth-links">
         {!setup && bootstrap.mode === 'private_multi' && bootstrap.registrationEnabled && <Button variant="link" type="button" disabled={disabled} onClick={() => { setRegistering(!registering); setPassword(''); setError('') }}>
           {registering ? t('已有账号？返回登录', 'Already registered? Sign in') : t('创建个人空间', 'Create a personal space')}
         </Button>}
         {!setup && ['open_edit', 'public_read'].includes(bootstrap.mode) && <Button variant="link" type="button" disabled={disabled} onClick={onBrowse}>{t('返回公开导航', 'Back to public bookmarks')}</Button>}
-      </div>
-    </section>
+      </div>}
+    </section>}
     <footer className="auth-footer">{bootstrap.version}</footer>
   </main>
 }

@@ -4,7 +4,7 @@ export type User = { id: string; username: string; displayName: string; role: Ro
 export type AdminUser = User & { isEnabled: boolean; modeSuspended?: boolean; createdAt?: string }
 export type Space = { id: string; name: string; kind: 'shared' | 'personal'; published: boolean; canEdit: boolean }
 export type Bootstrap = {
-  version: string; language: 'zh-CN' | 'en'; initialized: boolean; siteName: string; mode: AuthMode; registrationEnabled: boolean; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean;
+  version: string; language: 'zh-CN' | 'en'; languageSelectionRequired: boolean; initialized: boolean; siteName: string; mode: AuthMode; registrationEnabled: boolean; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean;
   user: User | null; spaces: Space[]; defaultSpaceId: string | null; csrfToken: string;
   capabilities: { sourceKinds: string[]; deliveryModes: string[]; datasetSchemas: { id: string; version: number }[];
     pageSchemaVersions: number[]; themePackages: string[]; pageThemes: string[]; panelThemes: string[];

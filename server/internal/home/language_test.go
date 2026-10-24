@@ -22,8 +22,9 @@ func TestParseInstanceLanguage(t *testing.T) {
 		unset, invalid          bool
 		args                    []string
 	}{
-		{name: "default", unset: true, want: "zh-CN"},
-		{name: "empty environment", want: "zh-CN"},
+		{name: "default", unset: true, want: ""},
+		{name: "empty environment", want: ""},
+		{name: "empty flag", environment: "en", args: []string{"--language="}, want: ""},
 		{name: "English environment", environment: "en", want: "en"},
 		{name: "Chinese environment", environment: "zh-CN", want: "zh-CN"},
 		{name: "flag overrides environment", environment: "en", args: []string{"--language", "zh-CN"}, want: "zh-CN"},
@@ -54,8 +55,8 @@ func TestParseInstanceLanguage(t *testing.T) {
 		})
 	}
 	config := Config{DataDir: t.TempDir()}
-	if err := config.validate(); err != nil || config.Language != "zh-CN" {
-		t.Fatalf("zero-value Config must use the Chinese default: %q %v", config.Language, err)
+	if err := config.validate(); err != nil || config.Language != "" {
+		t.Fatalf("zero-value Config must leave first-run language undecided: %q %v", config.Language, err)
 	}
 }
 

@@ -4,15 +4,48 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-24
+
+### One-time instance language and setup
+
+- Persist one instance language with additive SQLite/PostgreSQL migration `007_instance_language.sql`. An explicit startup flag or environment value fixes a new instance's language; an omitted or empty value opens a bilingual language-confirmation step before account setup. The development helper and both Compose files preserve the unconfigured state instead of inserting Chinese.
+- Add `POST /api/v1/setup/language` and bootstrap `languageSelectionRequired`, with browser CSRF protection, atomic confirmation, same-language retry and rejection of a different choice. Setup cannot proceed before confirmation. Saved language survives restarts; conflicting valid startup configuration is logged and ignored without stopping the service.
+- Preserve an initialized legacy instance's explicit upgrade-start language, or the old `zh-CN` default when absent, without reopening setup. Migration 007 requires a pre-upgrade database/key backup to roll back to the published 0.0.1 program.
+- Match starter bookmarks to the saved instance language, remove the independent collection-language selector, and keep the website preview. The starter-pack API returns only that language's collection, or an empty list before selection; setup rejects a mismatched collection on the server.
+
+### Form spacing and source-format guidance
+
+- Restore the intended 14 px vertical spacing around shared information, warning and error blocks when paragraph resets previously overrode it. Keep existing scoped layout gaps and add 12 px between text and controls within feedback blocks, covering setup, sign-in and administration forms.
+- Explain that the source editor's five component data formats are built-in contracts, show expandable JSON data examples, and direct external publishers to the matching push template and component binding workflow. This does not add arbitrary schema registration or install new renderers.
+- Update English/Chinese setup, startup, Unraid and storage guidance for 0.0.2, including the first upgrade from 0.0.1 and the database/key backup required by migration 007.
+
+### Navigation organization and draft history
+
+- Add explicit current-page and filtered-result selection to Link management, with a 500-link batch limit, selected counts and separate move-category, add/remove-tag and favorite actions. Refreshing, filtering, switching spaces or changing identity clears the selection.
+- Add `POST /api/v1/spaces/{spaceId}/links/batch` with required navigation revision, same-space authorization and atomic updates. A batch preserves unrelated link fields and automatic icon intent; unchanged batches do not advance the navigation revision or timestamps.
+- Add bounded in-memory Undo/Redo to the visual homepage and admin layout editors. A drag/resize is one step; text edits coalesce within a focused field, and input controls retain their native shortcuts. Saving remains explicit and clears the draft history on success.
+- Prevent starting a new homepage draft while cancellation is still loading the current server page, so an immediate re-entry cannot reuse the previous revision.
+- Keep the saved page revision and a clean baseline when the subsequent refresh fails, including in the admin editor. Failed/conflicting writes retain the current draft for recovery.
+- Add SQLite/PostgreSQL batch regressions, draft-history tests and a bilingual browser workflow covering bookmark import, batch organization, page history, save/reload and four desktop viewports. Keep navigation provider tests in their own disposable PostgreSQL database.
+
 ### Unraid distribution
 
-- Add a Docker Manager / Community Applications template for the published Linux amd64 `0.0.1` image, with configurable WebUI port, persistent appdata, English/Chinese interface selection and HTTPS-cookie setting.
+- Add a Docker Manager / Community Applications template pinned to the Linux amd64 `0.0.2` image, with configurable WebUI port, persistent appdata, one-time English/Chinese language configuration and HTTPS-cookie setting.
 - Run the Unraid template as UID/GID `99:100` for dedicated appdata ownership, with no-new-privileges, dropped capabilities and a 30-second default stop timeout; document the Unraid global timeout override and Autostart setting.
 - Add repository profile metadata and English/Chinese installation, backup, ownership and explicit-version upgrade instructions. Catalog submission and approval remain separate from publishing the template.
+- Include the public Unraid template and `ca_profile.xml` in the release source-archive allowlist so a checkout containing those files can be packaged. Keep private configuration, runtime data and generated paths excluded.
 
 ### Documentation
 
 - Replace the Chinese visual-editor image embedded in the English README with the verified English Classic-theme capture, and label the available Chinese editor gallery explicitly. Preserve the historical capture dates and distinguish interface language from existing bookmark/category text.
+
+### Upgrade and release scope
+
+- Version 0.0.2 targets Linux amd64 (x86-64) for the application and Docker image, with matching source archives and checksums. Native Windows/macOS applications and other CPU architectures are outside this release scope.
+- Before the first 0.0.2 start, stop Home and back up the database together with its matching `csrf.key` and `integrations.key`. Retain the previous image/executable and continue using the same data directory or Docker volume. PostgreSQL also needs its matching local keys.
+- On the first upgrade of an initialized 0.0.1 instance, preserve the original explicit language configuration, especially `en` for an English instance. Without that value, the legacy fallback is `zh-CN`; the chosen language then stays fixed for the database.
+- After migration 007, rolling back to 0.0.1 requires restoring the complete matching pre-upgrade database/key backup with the old application. Replacing only the binary/image, deleting migration records or manually dropping the language column is not a supported downgrade.
+- See `tests/README.md` for the actual verification scope. The release workflow records artifact identity in `release-metadata.json` after its validation and packaging gates.
 
 ## [0.0.1] - 2026-10-20
 

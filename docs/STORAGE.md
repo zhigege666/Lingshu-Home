@@ -1,6 +1,8 @@
 # Storage, migration and recovery
 
-The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Docker/Linux is the primary runtime. Browser access from Windows or macOS does not imply a native desktop client has been delivered.
+The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Version 0.0.2 application and Docker artifacts target Linux amd64 (x86-64). Browser access from Windows or macOS does not imply a native desktop client has been delivered.
+
+**Version 0.0.2** adds persisted instance language and migration **007**. Version 0.0.1 includes migrations through 006 and reads language at each startup. Follow the upgrade and rollback rules below when moving an existing database to 0.0.2.
 
 ## Runtime configuration
 
@@ -12,10 +14,12 @@ The Go service supports SQLite and PostgreSQL through `database/sql`, using `mod
 | `LINGSHU_DATABASE_URL` | `--database-url` | Required PostgreSQL connection URL for that provider |
 | `LINGSHU_WEB_DIR` | `--web-dir` | `web/dist`, the built frontend directory |
 | `LINGSHU_VERSION_FILE` | `--version-file` | `VERSION`, required and nonempty |
-| `LINGSHU_LANGUAGE` | `--language` | `zh-CN`; use `en` for the instance-wide English interface |
+| `LINGSHU_LANGUAGE` | `--language` | `zh-CN` or `en` before a language is saved; omitted/empty means first-run selection for a new instance; saved language takes precedence |
 | `LINGSHU_SECURE_COOKIES` | `--secure-cookies` | `false`; enable behind an HTTPS reverse proxy |
 
 Use environment or a private environment file for a PostgreSQL connection URL instead of a shell command line containing a password. Unsupported providers and missing PostgreSQL connection URLs fail startup. The service never silently substitutes an in-memory database or falls back to SQLite after a PostgreSQL error.
+
+For a new database, a valid explicit language is saved at startup. Without one, the language-confirmation page saves it before setup. The chosen language belongs to the database rather than browser storage or container metadata. Restarting with a conflicting valid language logs a warning and retains the saved value. Existing initialized databases upgrading from 0.0.1 use the explicit language supplied on their first upgraded start, or the old default `zh-CN` when none is supplied; keep the original English startup configuration when upgrading an English instance. No post-setup language-change endpoint is provided.
 
 The supplied Docker image listens on `0.0.0.0:8080` inside the container. The README Docker command and both Compose files publish it only on the Docker host at `127.0.0.1:5180`. The standalone executable defaults to `127.0.0.1:5180`. Configure the published interface or reverse proxy for access from another computer; that computer's `127.0.0.1` refers to itself. The built frontend, API, icons and MCP endpoint share one origin. An HTTPS reverse proxy supplies TLS; `LINGSHU_SECURE_COOKIES=true` requires HTTPS cookies but does not enable a TLS listener in Home.
 
@@ -83,6 +87,7 @@ Migration files are embedded from `server/internal/home/migrations/sqlite/` and 
 | `004_component_sources.sql` | Additional source kinds and bounded push-receipt retention index/timestamp |
 | `005_auto_icons.sql` | Default-on automatic-icon setting, explicit local-link icon intent/origin and a bounded persistent origin job queue |
 | `006_network_routing.sql` | Default-on browser selection and a singleton, versioned outbound proxy configuration with encrypted credentials |
+| `007_instance_language.sql` (0.0.2) | `settings.language`, initially empty until the instance's first language is determined; allowed saved values `zh-CN` and `en` |
 
 Migration 003 is additive for SQLite and PostgreSQL. Image bytes use SQLite BLOB / PostgreSQL BYTEA; normalized hashes and pack entries are scoped to a space. It does not rewrite existing links, category ownership, pages or access modes. The new homepage themes and visual editor continue to use page Schema 2 and do not need a separate database migration.
 
@@ -92,13 +97,15 @@ Migration 005 is additive and leaves migration 001–004 checksums unchanged. `s
 
 Migration 006 adds `settings.auto_select_endpoint` (default true) and `network_proxy_config` (default direct, no credentials) without rewriting existing columns or endpoint JSON. Optional route/probe attributes remain in the existing link endpoint JSON. Proxy ciphertext uses `integrations.key`; browser observations are a bounded, disposable memory cache. No additional service, key file or background scan is introduced. See [NETWORK.md](NETWORK.md).
 
+Migration 007 is additive for both providers and leaves migration 001–006 checksums unchanged. It adds `settings.language` with an empty default and a constraint allowing only empty, `zh-CN` or `en`. Startup then saves a configured language or preserves an initialized legacy instance's previous default. New unconfigured databases keep the empty state until the first successful language confirmation. The migration and confirmation do not rename existing site, account, space, page, category or bookmark content, and need no new key or volume. A full database backup includes the chosen language. Navigation exports are not a language-setting backup or reset mechanism.
+
 Startup first verifies all known applied migration checksums and refuses unknown newer versions or out-of-order history. It then applies each pending file and its ledger entry in one transaction. A failed migration rolls back that file and prevents startup; it does not mark a partial migration complete.
 
 Never edit a migration that has reached a persistent database. Add a new numbered migration for a schema change. If a checksum mismatch occurs, first recover the matching application source or backup rather than replacing the checksum by hand. Older binaries refuse a database with unknown migrations; application downgrades can require a full matching database restore.
 
 Before an upgrade, retain the previous executable/image, its VERSION, and a recoverable backup of both the database and its matching keys. Database migrations and credential-key compatibility are part of the upgrade, not just the container image.
 
-**After migration 006, a binary that predates that migration cannot open the upgraded database.** To roll back, stop Home and restore the matching pre-upgrade database and key backup with the previous binary/image. Replacing only the application, removing ledger rows or dropping icon tables is not a supported downgrade. Keep the newer backup too if it contains changes made after the upgrade.
+**After migration 007, the published 0.0.1 binary cannot open the upgraded database.** The same rule applies to earlier migration boundaries. To roll back, stop Home and restore the matching pre-upgrade database and key backup with the previous binary/image. Replacing only the application, removing ledger rows or dropping columns is not a supported downgrade. Keep the newer backup too if it contains changes made after the upgrade.
 
 ## Backups
 
@@ -121,7 +128,7 @@ Use the PostgreSQL version's supported backup tooling and verify restore permiss
 
 ### Restore
 
-Restore into a stopped instance with a dedicated destination. Restore the database, both key files and the matching application version before starting it. Preserve private file ownership and permissions. Start one instance and verify health, initialization state, account access, expected spaces/navigation, source credential availability, saved page theme/layout and imported icon rendering. Test a restore periodically; the existence of backup files does not establish that they can be used successfully.
+Restore into a stopped instance with a dedicated destination. Restore the database, both key files and the matching application version before starting it. Preserve private file ownership and permissions. Start one instance and verify health, initialization state, saved instance language, account access, expected spaces/navigation, source credential availability, saved page theme/layout and imported icon rendering. Test a restore periodically; the existence of backup files does not establish that they can be used successfully.
 
 Keep backups private: exports can contain private links and configuration, and full backups contain password hashes, session/PAT hashes and encrypted source credentials. The corresponding integration key enables credential decryption.
 
@@ -139,18 +146,19 @@ Cookie sessions expire after 12 hours. Permission epochs and per-account version
 
 ## Provider validation
 
-Run `go test ./...` from `server/` for the local SQLite, integration, page-theme, icon and component suites. PostgreSQL execution is explicit and requires **five different fresh disposable databases**:
+Run `go test ./...` from `server/` for the local SQLite, integration, page-theme, icon and component suites. PostgreSQL execution is explicit and requires **six different fresh disposable databases**:
 
 - `LINGSHU_TEST_POSTGRES_URL` for the core provider test.
 - `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL` for the integration provider test.
-- `LINGSHU_TEST_ICONS_POSTGRES_URL` for icon storage, authorization, automatic acquisition and migration 005/006 plus network-setting tests.
+- `LINGSHU_TEST_ICONS_POSTGRES_URL` for icon storage, authorization, automatic acquisition, network settings and migrations 005/006; instance language and migration 007 tests use isolated schemas in the same test database.
 - `LINGSHU_TEST_COMPONENTS_POSTGRES_URL` for component source lifecycles, snapshots, encrypted credentials and reference-safe deletion.
 - `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL` for component source migration preservation and failure rollback.
+- `LINGSHU_TEST_NAVIGATION_POSTGRES_URL` for atomic navigation batches, unchanged operations, authorization, revision conflicts, rollback and persistence.
 
-Application suites fail rather than erase an initialized application schema. Do not point any variable at a user instance or reuse one database between the five configured provider groups. Core coverage includes permissions, optimistic page concurrency and failing closed after the advisory-lock connection disappears. Integration coverage exercises PAT/MCP authorization, snapshot writes and GitHub Traffic persistence with synthetic HTTP responses. Icon coverage exercises BYTEA persistence, pack import/deletion and rollback, same-space references, current mode/CSRF/PAT/MCP authorization, external snapshot references, private conditional image GETs and storage reopen. Automatic-icon lifecycle and migration 005 cases reuse the dedicated icon database through randomly named schemas. They require permission to create schemas, clean up only their own schema, and cover queue admission/rollback, origin deduplication, obsolete-result rejection, disable/restart behavior and migration preservation/rollback.
+Application suites fail rather than erase an initialized application schema. Do not point any variable at a user instance or reuse one database between the six configured provider groups. Core coverage includes permissions, optimistic page concurrency and failing closed after the advisory-lock connection disappears. Integration coverage exercises PAT/MCP authorization, snapshot writes and GitHub Traffic persistence with synthetic HTTP responses. Icon coverage exercises BYTEA persistence, pack import/deletion and rollback, same-space references, current mode/CSRF/PAT/MCP authorization, external snapshot references, private conditional image GETs and storage reopen. Automatic-icon lifecycle and migration 005 cases reuse the dedicated icon database through randomly named schemas. They require permission to create schemas, clean up only their own schema, and cover queue admission/rollback, origin deduplication, obsolete-result rejection, disable/restart behavior and migration preservation/rollback.
 
 Component coverage adds push/import receipt replay and retention, credential projection and origin-change protection, stale-job rejection and source/page reference boundaries. The component migration suite also requires permission to create schemas in its separate database; it creates and cleans up only its own randomly named schemas, comparing all original columns in the six integration tables after successful upgrades and injected failures. The SQLite migration cases also assert that foreign keys remain enabled without violations. Tests that skip an unset PostgreSQL variable do not establish PostgreSQL runtime verification.
 
 The separate HTTP acceptance runner in `tests/` supports disposable server instances and persistence checks across real process restarts. Record provider-specific results with the release; a source-level build alone does not verify a running deployment.
 
-The application CI configuration creates `lingshu_core`, `lingshu_integrations`, `lingshu_icons`, `lingshu_components` and `lingshu_component_migration` for the five Go provider suites, plus distinct `lingshu_http` / `lingshu_ownerless` databases for HTTP acceptance. The PostgreSQL test step requires all five Go variables and uses verbose, uncached execution so each provider subtest is visible. The existing race, HTTP restart and Docker gates remain. Updating or locally checking this workflow is not evidence that the revised workflow has run successfully on GitHub. Actual execution results belong in [tests/README.md](../tests/README.md).
+The application CI configuration creates `lingshu_core`, `lingshu_integrations`, `lingshu_icons`, `lingshu_components`, `lingshu_component_migration` and `lingshu_navigation` for the six Go provider suites, plus distinct `lingshu_http` / `lingshu_ownerless` databases for HTTP acceptance. The PostgreSQL test step requires all six Go variables and uses verbose, uncached execution so each provider subtest is visible. The existing race, HTTP restart and Docker gates remain. Updating or locally checking this workflow is not evidence that the revised workflow has run successfully on GitHub. Actual execution results belong in [tests/README.md](../tests/README.md).

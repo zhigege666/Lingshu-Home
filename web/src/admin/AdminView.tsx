@@ -17,6 +17,8 @@ import LayoutEditor from './LayoutEditor'
 import { ProjectLogo } from '../components/ProjectLogo'
 import IntegrationsPanel from './IntegrationsPanel'
 import NetworkSettings from './NetworkSettings'
+import { BulkLinkDialog, type BulkLinkAction, type BulkLinkResult } from './BulkLinkDialog'
+import './bulk-links.css'
 
 type Props = { bootstrap: Bootstrap; dashboard: Dashboard | null; onHome: () => void; onLogin: () => void; onLogout: () => Promise<void>; onRefresh: () => Promise<void>; onSwitchSpace: (id: string) => void; onSessionChanged: () => Promise<void>; onNotice: (message: string) => void }
 const standardMenu = () => [
@@ -57,10 +59,13 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   const [tab, setTab] = useState(initialTab), [query, setQuery] = useState(''), [page, setPage] = useState(1), [pageSize, setPageSize] = useState(25)
   const [contentIntent, setContentIntent] = useState(readContentIntent)
   const switchingIntent = useRef<string | null>(null)
-  const [localSnapshot, setLocalSnapshot] = useState<{ spaceId: string; dataset: Dataset<NavigationData> } | null>(null)
+  const identity = `${bootstrap.user?.id || 'visitor'}:${bootstrap.mode}`
+  const [localSnapshot, setLocalSnapshot] = useState<{ spaceId: string; identity: string; dataset: Dataset<NavigationData> } | null>(null)
+  const [linkSelection, setLinkSelection] = useState<{ snapshot: Dataset<NavigationData>; query: string; ids: Set<string> } | null>(null)
+  const [bulkAction, setBulkAction] = useState<BulkLinkAction | null>(null)
   const navigationRequest = useRef<AbortController | null>(null), tableScroll = useRef<HTMLDivElement | null>(null)
   const spaceId = dashboard?.space.id, currentSpaceId = useRef(spaceId); currentSpaceId.current = spaceId
-  const localData = localSnapshot && localSnapshot.spaceId === spaceId ? localSnapshot.dataset : null
+  const localData = localSnapshot && localSnapshot.spaceId === spaceId && localSnapshot.identity === identity ? localSnapshot.dataset : null
   const [loading, setLoading] = useState(false), [error, setError] = useState(''), [editor, setEditor] = useState<'link' | 'category' | 'import' | null>(null)
   const [editingLink, setEditingLink] = useState<NavLink | null>(null), [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [deleting, setDeleting] = useState<{ type: 'links' | 'categories'; id: string; title: string } | null>(null), [deleteError, setDeleteError] = useState(''), [busy, setBusy] = useState(false)
@@ -88,18 +93,31 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   const total = current.id === 'categories' ? filteredCategories.length : links.length
   const pageCount = Math.max(1, Math.ceil(total / pageSize)), currentPage = Math.min(page, pageCount), pageStart = (currentPage - 1) * pageSize
 
+  const selectedIds = canEditContent && !loading && current.id === 'links' && linkSelection?.snapshot === localData && linkSelection.query === normalizedQuery ? linkSelection.ids : new Set<string>()
+  const pageLinks = links.slice(pageStart, pageStart + pageSize)
+  const pageSelected = pageLinks.filter(link => selectedIds.has(link.id)).length
+  const selectedLinks = sortedLinks.filter(link => selectedIds.has(link.id))
+  function selectLinks(ids: string[], checked: boolean) {
+    if (!canEditContent || !localData || loading) return
+    const next = new Set(selectedIds)
+    for (const id of ids) { if (checked) next.add(id); else next.delete(id) }
+    if (next.size > 500) { setError(t('一次最多选择 500 个链接，请缩小筛选范围。', 'Select at most 500 links at a time. Narrow your search.')); return }
+    setLinkSelection({ snapshot: localData, query: normalizedQuery, ids: next })
+  }
+  function clearSelection() { setLinkSelection(null); setBulkAction(null) }
+
   const loadNavigation = useCallback(async () => {
     if (spaceId !== currentSpaceId.current) return
-    navigationRequest.current?.abort()
+    navigationRequest.current?.abort(); setLinkSelection(null); setBulkAction(null)
     if (!spaceId) { setLocalSnapshot(null); setLoading(false); return }
     const pending = new AbortController(); navigationRequest.current = pending; setLoading(true); setError('')
     try {
       const dataset = await request<Dataset<NavigationData>>(`/spaces/${spaceId}/navigation`, { signal: pending.signal })
-      if (!pending.signal.aborted && navigationRequest.current === pending && currentSpaceId.current === spaceId) setLocalSnapshot({ spaceId, dataset })
+      if (!pending.signal.aborted && navigationRequest.current === pending && currentSpaceId.current === spaceId) setLocalSnapshot({ spaceId, identity, dataset })
     } catch (cause) {
       if (!pending.signal.aborted && navigationRequest.current === pending && currentSpaceId.current === spaceId) { setLocalSnapshot(null); setError(messageOf(cause)) }
     } finally { if (!pending.signal.aborted && navigationRequest.current === pending && currentSpaceId.current === spaceId) setLoading(false) }
-  }, [spaceId])
+  }, [spaceId, identity])
   useEffect(() => {
     setLocalSnapshot(null); setEditor(null); setDeleting(null); setEditingLink(null); setEditingCategory(null); setDeleteError(''); setQuery(''); setPage(1)
     void loadNavigation(); return () => navigationRequest.current?.abort()
@@ -108,7 +126,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   useEffect(() => {
     // The app's router restores blocked hash changes before this listener runs.
     // Approved replaceState changes use the same route-committed event.
-    const changed = () => { setTab(initialTab()); setContentIntent(readContentIntent()); setQuery(''); setPage(1) }
+    const changed = () => { setLinkSelection(null); setBulkAction(null); setTab(initialTab()); setContentIntent(readContentIntent()); setQuery(''); setPage(1) }
     window.addEventListener('hashchange', changed); window.addEventListener(routeCommittedEvent, changed)
     return () => { window.removeEventListener('hashchange', changed); window.removeEventListener(routeCommittedEvent, changed) }
   }, [])
@@ -129,7 +147,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
     if (!contentIntent.valid || !target?.canEdit) {
       consume(); setError(t('此操作需要指定一个可维护的空间。没有打开编辑表单。', 'This action requires an accessible, editable space. No editor was opened.')); return
     }
-    if (editor || deleting) {
+    if (editor || deleting || bulkAction) {
       consume(); setError(t('请先完成或关闭当前表单，再添加或导入链接。当前输入已保留。', 'Finish or close the current form before adding or importing links. Your entries have been preserved.')); return
     }
     const destination = contentIntent.action === 'add-link' ? 'links' : 'bookmarks'
@@ -149,17 +167,27 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
       consume(destination); setError(t('本地导航尚未就绪。请刷新列表后重试。', 'Local bookmarks are unavailable. Refresh the list and try again.')); return
     }
     consume(destination); setEditingLink(null); setEditor(contentIntent.action === 'add-link' ? 'link' : 'import')
-  }, [contentIntent, bootstrap.spaces, dashboard, spaceId, localData, loading, error, editor, deleting, onSwitchSpace])
+  }, [contentIntent, bootstrap.spaces, dashboard, spaceId, localData, loading, error, editor, deleting, bulkAction, onSwitchSpace])
   useEffect(() => {
-    if (!dashboard?.space.canEdit || !bootstrap.spaces.some(space => space.id === spaceId && space.canEdit)) { setEditor(null); setDeleting(null) }
+    if (!dashboard?.space.canEdit || !bootstrap.spaces.some(space => space.id === spaceId && space.canEdit)) { setEditor(null); setDeleting(null); setLinkSelection(null); setBulkAction(null) }
   }, [dashboard?.space.canEdit, bootstrap.spaces, spaceId])
   useEffect(() => { if (page > pageCount) setPage(pageCount) }, [page, pageCount])
   useEffect(() => { if (tableScroll.current) tableScroll.current.scrollTop = 0 }, [current.id, currentPage, pageSize, normalizedQuery])
 
-  function selectTab(id: string) { if (id === tab) return; requestNavigation(() => { setTab(id); setQuery(''); setPage(1); window.history.replaceState(null, '', `#/admin?tab=${id}`); notifyRouteCommitted() }) }
-  function changeQuery(value: string) { setQuery(value); setPage(1) }
+  function selectTab(id: string) { if (id === tab) return; requestNavigation(() => { clearSelection(); setTab(id); setQuery(''); setPage(1); window.history.replaceState(null, '', `#/admin?tab=${id}`); notifyRouteCommitted() }) }
+  function changeQuery(value: string) { clearSelection(); setQuery(value); setPage(1) }
   function changePageSize(value: number) { setPageSize(value); setPage(1) }
-  async function saved(message: string) { setEditor(null); onNotice(message); await onRefresh(); await loadNavigation() }
+  async function bulkSaved(result: BulkLinkResult) {
+    clearSelection()
+    onNotice(t('已处理 {selected} 个链接，修改了 {updated} 个。', 'Processed {selected} links; updated {updated}.', { selected: result.selectedCount, updated: result.updatedCount }))
+    const results = await Promise.allSettled([onRefresh(), loadNavigation()])
+    if (results.some(result => result.status === 'rejected')) setError(t('批量修改已经保存，但页面刷新失败。请刷新列表查看结果。', 'The batch changes were saved, but refreshing failed. Reload the list to see the result.'))
+  }
+  async function saved(message: string) {
+    setEditor(null); onNotice(message)
+    const results = await Promise.allSettled([onRefresh(), loadNavigation()])
+    if (results.some(result => result.status === 'rejected')) setError(t('内容已经保存，但页面刷新失败。请刷新列表查看结果。', 'The content was saved, but refreshing failed. Reload the list to see the result.'))
+  }
   async function remove() {
     if (!dashboard || !deleting) return
     setBusy(true); setDeleteError('')
@@ -192,7 +220,20 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
         {contentTab && loading && !localDashboard ? <Loading text={t("正在读取本地导航…", "Loading local bookmarks…")}/> : contentTab && !localDashboard ? <Empty title={error ? t("无法读取当前空间内容", "Unable to load this space") : t("当前没有可访问的导航空间", "No accessible bookmark space")} detail={t("登录后可进入个人空间；管理员也可以维护共享内容。", "Sign in to access your personal space. Administrators can also manage shared content.")}><Button variant="outline" onClick={loadNavigation}>{t("重新读取", "Reload")}</Button>{!bootstrap.user && <Button onClick={onLogin}>{t("登录", "Sign in")}</Button>}</Empty> : current.id === 'links' && localDashboard ? <>
           <div className="admin-content-toolbar"><div className="admin-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={t("搜索链接、标签、网址…", "Search links, tags, URLs…")} aria-label={t("搜索链接列表", "Search links")}/></div><span className="admin-muted admin-count">{t("{count} 个链接", "{count} links", { count: links.length })}</span><span className="grow"/><Button variant="outline" disabled={loading} onClick={() => { void loadNavigation() }} aria-label={t('刷新列表', 'Refresh list')}><RefreshCw size={15} className={loading ? 'admin-spin' : undefined}/>{t('刷新列表', 'Refresh list')}</Button>{localDashboard.space.canEdit && <><Button variant="outline" onClick={importBookmarks}><Upload size={16}/>{t("导入", "Import")}</Button><Button onClick={newLink}><Plus size={16}/>{t("添加链接", "Add link")}</Button></>}</div>
           {!localDashboard.space.canEdit && <p className="admin-info">{t("当前共享空间只读。", "This shared space is read-only. ")}{bootstrap.user ? t("切换到个人空间可维护自己的导航。", "Switch to a personal space to manage your bookmarks.") : t("管理员登录后可以维护共享内容。", "Administrators can sign in to manage shared content.")}</p>}
-          {links.length ? <div className="admin-table-scroll" ref={tableScroll} tabIndex={0} role="region" aria-label={t("链接列表", "Links")}><Table className="admin-links-table"><TableHeader><TableRow><TableHead>{t("链接 / 主入口", "Link / Primary URL")}</TableHead><TableHead>{t("分类", "Categories")}</TableHead><TableHead>{t("其他入口", "Additional URLs")}</TableHead><TableHead>{t("排序", "Sort order")}</TableHead><TableHead className="admin-actions-cell">{t("操作", "Actions")}</TableHead></TableRow></TableHeader><TableBody>{links.slice(pageStart, pageStart + pageSize).map(link => <TableRow key={link.id}>
+          {canEditContent && links.length > 0 && <div className="admin-bulk-toolbar" aria-label={t('批量整理链接', 'Organize selected links')}>
+            <span className="admin-selection-count" role="status">{t('已选 {count} 个', '{count} selected', { count: selectedIds.size })}</span>
+            <Button variant="ghost" size="sm" disabled={loading || links.length > 500 || selectedIds.size === links.length} onClick={() => selectLinks(links.map(link => link.id), true)}>{t('选择全部筛选结果（{count}）', 'Select all results ({count})', { count: links.length })}</Button>
+            {links.length > 500 && <span className="admin-hint">{t('每批最多 500 个，请先筛选', 'Filter to 500 or fewer per batch')}</span>}
+            {selectedIds.size > 0 && <>
+              <span className="admin-bulk-divider"/>
+              <Button variant="outline" size="sm" onClick={() => setBulkAction('move')}><Folder size={15}/>{t('移动分类', 'Move category')}</Button>
+              <Button variant="outline" size="sm" onClick={() => setBulkAction('tags')}>{t('维护标签', 'Edit tags')}</Button>
+              <Button variant="outline" size="sm" onClick={() => setBulkAction('favorite')}><Star size={15}/>{t('设置收藏', 'Set favorites')}</Button>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>{t('清除选择', 'Clear selection')}</Button>
+            </>}
+          </div>}
+          {links.length ? <div className="admin-table-scroll" ref={tableScroll} tabIndex={0} role="region" aria-label={t("链接列表", "Links")}><Table className={'admin-links-table' + (canEditContent ? ' has-selection' : '')}><TableHeader><TableRow>{canEditContent && <TableHead className="admin-selection-cell"><Checkbox aria-label={t('选择本页链接', 'Select links on this page')} checked={pageSelected === pageLinks.length && pageLinks.length > 0 ? true : pageSelected ? 'indeterminate' : false} disabled={loading} onCheckedChange={checked => selectLinks(pageLinks.map(link => link.id), checked)}/></TableHead>}<TableHead>{t("链接 / 主入口", "Link / Primary URL")}</TableHead><TableHead>{t("分类", "Categories")}</TableHead><TableHead>{t("其他入口", "Additional URLs")}</TableHead><TableHead>{t("排序", "Sort order")}</TableHead><TableHead className="admin-actions-cell">{t("操作", "Actions")}</TableHead></TableRow></TableHeader><TableBody>{pageLinks.map(link => <TableRow key={link.id} data-selected={selectedIds.has(link.id) || undefined}>
+            {canEditContent && <TableCell className="admin-selection-cell"><Checkbox aria-label={t('选择 {name}', 'Select {name}', { name: link.title })} checked={selectedIds.has(link.id)} disabled={loading} onCheckedChange={checked => selectLinks([link.id], checked)}/></TableCell>}
             <TableCell><div className="admin-table-link"><span className="admin-link-icon"><BuiltinIcon name={link.icon}/></span><span><div className="admin-link-title"><a href={safeHref(link.url)} target="_blank" rel="noopener noreferrer"><strong title={link.title}>{link.title}</strong>{link.isFavorite && <Star size={12} className="admin-star"/>}</a>{!!link.tags?.length && <span className="admin-tags" title={link.tags.join(' · ')}>{link.tags.slice(0, 2).map(tag => <span key={tag}>{tag}</span>)}{link.tags.length > 2 && <span>+{link.tags.length - 2}</span>}</span>}</div><small title={link.url}>{link.url}</small></span></div></TableCell>
             <TableCell><span className="admin-category-name" title={link.categoryId ? categoryLabels.get(link.categoryId) : undefined}>{link.categoryId ? categoryById.get(link.categoryId)?.name || t("未分类", "Uncategorized") : t("未分类", "Uncategorized")}</span></TableCell>
             <TableCell><div className="admin-endpoint-links">{(link.endpoints || []).slice(0, 2).map((endpoint, index) => <a href={safeHref(endpoint.url)} key={index} target="_blank" rel="noopener noreferrer" title={endpoint.url}>{endpoint.label}<ArrowUpRight size={11}/></a>)}{(link.endpoints?.length || 0) > 2 && <span className="admin-endpoint-overflow" title={link.endpoints!.slice(2).map(endpoint => `${endpoint.label}: ${endpoint.url}`).join('\n')}>+{link.endpoints!.length - 2}</span>}{!link.endpoints?.length && <span className="admin-muted">—</span>}</div></TableCell>
@@ -207,12 +248,13 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
           </TableRow>)}</TableBody></Table></div> : <Empty title={query ? t("没有找到匹配的分类", "No matching categories") : t("暂无分类", "No categories yet")} detail={query ? t("试试其他关键词。", "Try different keywords.") : undefined}/>}
           <Pagination total={filteredCategories.length} page={currentPage} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} label={t("分类", "Categories")}/>
           <p className="admin-list-hint">{t("有链接或子分类的分类需先移出内容再删除；排序数字越小越靠前。", "Move a category's links and subcategories before deleting it. Lower sort values appear first.")}</p>
-        </> : current.id === 'appearance' && dashboard ? <div className="admin-card admin-layout-card"><LayoutEditor key={dashboard.page.id} bootstrap={bootstrap} dashboard={dashboard} onSaved={async message => { onNotice(message); await onRefresh() }}/></div> : current.id === 'bookmarks' && localDashboard ? <>
+        </> : current.id === 'appearance' && dashboard ? <div className="admin-card admin-layout-card"><LayoutEditor key={`${dashboard.page.id}:${identity}:${dashboard.space.canEdit && bootstrap.spaces.some(space => space.id === dashboard.space.id && space.canEdit)}`} bootstrap={bootstrap} dashboard={dashboard} onSaved={async message => { onNotice(message); await onRefresh() }}/></div> : current.id === 'bookmarks' && localDashboard ? <>
           <div className="admin-transfer-grid"><section className="admin-card admin-transfer-card"><span className="admin-feature-icon"><Upload size={24}/></span><h2>{t("导入浏览器书签", "Import browser bookmarks")}</h2><p>{t("导入前预览文件夹层级，选择是否跳过重复网址。", "Preview the folder hierarchy and choose whether to skip duplicate URLs before importing.")}</p><Button disabled={!localDashboard.space.canEdit} onClick={importBookmarks}>{t("选择书签文件", "Choose bookmark file")}</Button></section><section className="admin-card admin-transfer-card"><span className="admin-feature-icon"><Download size={24}/></span><h2>{t("导出当前空间", "Export current space")}</h2><p>{t("HTML 用于浏览器；JSON 包含本地导航和页面配置。完整备份按部署文档操作。", "HTML is for browsers; JSON includes local bookmarks and page configuration. Follow the deployment guide for a full backup.")}</p><div className="admin-button-row"><Button variant="outline" onClick={() => exportData('html')}>{t("导出 HTML", "Export HTML")}</Button><Button variant="outline" onClick={() => exportData('json')}>{t("导出 JSON", "Export JSON")}</Button></div></section></div>
           {localDashboard.space.canEdit && <SpaceSettings key={localDashboard.space.id} dashboard={localDashboard} bootstrap={bootstrap} onSaved={onSessionChanged} onNotice={onNotice}/>}
         </> : current.id === 'integrations' && dashboard ? <div className="admin-card"><IntegrationsPanel key={dashboard.space.id} bootstrap={bootstrap} dashboard={dashboard} onNotice={onNotice} onLogin={onLogin} onOpenAccounts={() => selectTab('access')} onRefresh={onRefresh}/></div> : current.id === 'network' && siteManager ? <NetworkSettings bootstrap={bootstrap} onSettingsSaved={onSessionChanged} onNotice={onNotice} onOpenAccounts={() => selectTab('access')}/> : current.id === 'access' && siteManager ? <div className="admin-card admin-narrow-card"><AccessSettings bootstrap={bootstrap} onLogin={onLogin} onSaved={async () => { onNotice(t("访问设置已保存", "Access settings saved")); await onSessionChanged() }}/></div> : current.id === 'members' && bootstrap.user?.role === 'Owner' && bootstrap.mode === 'private_multi' ? <div className="admin-card"><MembersPanel onNotice={onNotice}/></div> : current.id === 'about' ? <section className="admin-card admin-about"><span className="admin-brand-mark large"><ProjectLogo size={66}/></span><h2>Lingshu-Home</h2><dl><div><dt>{t("版本", "Version")}</dt><dd>{bootstrap.version}</dd></div><div><dt>{t("前端构建", "Frontend build")}</dt><dd>{__APP_VERSION__}</dd></div><div><dt>{t("管理组件", "Admin components")}</dt><dd>{t("REUI 公开组件 · MIT", "REUI public components · MIT")}</dd></div><div><dt>{t("项目许可证", "Project license")}</dt><dd>Apache-2.0</dd></div></dl><a href="https://github.com/zhigege666/Lingshu-Home" target="_blank" rel="noopener noreferrer" className="admin-project-link"><BookOpen size={16}/>{t("项目仓库", "Project repository")}<ArrowUpRight size={14}/></a></section> : <Empty title={t("当前没有可用的空间", "No space available")} detail={t("登录后进入自己的空间，再配置页面和数据源。", "Sign in to your space to configure its page and data sources.")}/>}
       </div>
     </main>
+    {bulkAction && canEditContent && localData && selectedLinks.length > 0 && dashboard && <BulkLinkDialog action={bulkAction} spaceId={dashboard.space.id} spaceName={dashboard.space.name} revision={localData.revision} links={selectedLinks} categories={categories} categoryLabels={categoryLabels} onClose={() => setBulkAction(null)} onReload={() => { clearSelection(); void loadNavigation() }} onSaved={bulkSaved}/>}
     {editor === 'link' && localDashboard && canEditContent && <LinkEditor dashboard={localDashboard} autoFetchIcons={bootstrap.autoFetchIcons !== false} autoSelectEndpoint={bootstrap.autoSelectEndpoint !== false} link={editingLink} onClose={() => setEditor(null)} onSaved={saved}/>}
     {editor === 'category' && localDashboard && canEditContent && <CategoryEditor dashboard={localDashboard} category={editingCategory} onClose={() => setEditor(null)} onSaved={saved}/>}
     {editor === 'import' && localDashboard && canEditContent && <BookmarkImporter dashboard={localDashboard} autoFetchIcons={bootstrap.autoFetchIcons !== false} onClose={() => setEditor(null)} onSaved={saved}/>}

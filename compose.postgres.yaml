@@ -7,7 +7,7 @@ services:
       - "127.0.0.1:5180:8080"
     environment:
       LINGSHU_STORAGE_PROVIDER: postgres
-      LINGSHU_LANGUAGE: "${LINGSHU_LANGUAGE:-zh-CN}"
+      LINGSHU_LANGUAGE: "${LINGSHU_LANGUAGE:-}"
       LINGSHU_DATABASE_URL: "${LINGSHU_DATABASE_URL:?Set the PostgreSQL connection string}"
       LINGSHU_SECURE_COOKIES: "${LINGSHU_SECURE_COOKIES:-false}"
     volumes:

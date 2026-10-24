@@ -144,8 +144,8 @@ func TestLegacyPageChromeAndLanguageRestartPreserveData(t *testing.T) {
 	}
 	owner.client.Transport = appTestTransport{app}
 	afterBootstrap := owner.bootstrap()
-	if afterBootstrap["language"] != "zh-CN" || afterBootstrap["user"] == nil || !reflect.DeepEqual(beforeBootstrap["spaces"], afterBootstrap["spaces"]) || beforeBootstrap["siteName"] != afterBootstrap["siteName"] {
-		t.Fatal("language restart changed persisted names, spaces or the existing session")
+	if afterBootstrap["language"] != "en" || afterBootstrap["languageSelectionRequired"] != false || afterBootstrap["user"] == nil || !reflect.DeepEqual(beforeBootstrap["spaces"], afterBootstrap["spaces"]) || beforeBootstrap["siteName"] != afterBootstrap["siteName"] {
+		t.Fatal("conflicting startup language changed the fixed language, persisted names, spaces or the existing session")
 	}
 	assertLegacy()
 	afterNavigation := owner.ok("GET", "/spaces/"+shared+"/navigation", nil)

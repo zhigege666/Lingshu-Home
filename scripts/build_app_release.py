@@ -36,7 +36,7 @@ SOURCE_ROOTS = {
     ".github", ".dockerignore", ".gitattributes", ".gitignore", "AGENTS.md",
     "README.md", "README.zh-CN.md", "VERSION", "LICENSE", "CHANGELOG.md",
     "THIRD_PARTY_NOTICES.md", "Dockerfile", "compose.yaml", "compose.postgres.yaml",
-    "assets", "docs", "examples", "scripts", "server", "tests", "web",
+    "assets", "ca_profile.xml", "docs", "examples", "scripts", "server", "templates", "tests", "web",
 }
 PRIVATE_PARTS = {"design", ".runtime", "data", "uploads", ".git", ".gitnexus", "node_modules", "__pycache__"}
 PRIVATE_SUFFIXES = (".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".key", ".pfx", ".p12", ".pyc")
@@ -171,7 +171,8 @@ def verify_linux_bundle(bundle: Path, version: str) -> None:
                                             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         env = {key: value for key, value in os.environ.items() if not key.startswith("LINGSHU_")}
         env.update({"LINGSHU_LISTEN": f"127.0.0.1:{port}", "LINGSHU_DATA_DIR": str(temporary / "data"),
-                    "LINGSHU_STORAGE_PROVIDER": "sqlite", "LINGSHU_SECURE_COOKIES": "false"})
+                    "LINGSHU_STORAGE_PROVIDER": "sqlite", "LINGSHU_SECURE_COOKIES": "false",
+                    "LINGSHU_LANGUAGE": "zh-CN"})
 
         def request(path: str, data: dict | None = None, csrf: str = "") -> bytes:
             headers = {"Accept": "application/json"}
@@ -201,6 +202,8 @@ def verify_linux_bundle(bundle: Path, version: str) -> None:
                     boot = json.loads(request("/api/v1/bootstrap"))
                     if boot.get("version") != version or boot.get("initialized") != (phase == "restart"):
                         raise ValidationError("Extracted Linux bundle version/setup persistence check failed.")
+                    if boot.get("language") != "zh-CN":
+                        raise ValidationError("Extracted Linux bundle did not retain its explicit fixture language.")
                     if phase == "setup":
                         request("/api/v1/setup", {"siteName": "Release bundle check", "mode": "open_edit", "seedDemo": False}, boot["csrfToken"])
                     elif boot.get("siteName") != "Release bundle check":
@@ -344,10 +347,13 @@ def build(root: Path, tag: str, output: Path, repository: str) -> dict:
         (bundle / "RUNNING.md").write_text(
             "# Run the Linux amd64 release\n\nRun `./lingshu-home` from this directory and open http://127.0.0.1:5180. "
             "No Go or Node toolchain is needed. Use `./lingshu-home -help` for server options. "
+            "On a new instance, choose its language before setup, or specify `--language en` / `--language zh-CN` at startup. "
+            "The selected language is saved for later starts; the interface and example content use that language without a UI switch. "
             "Data and encryption keys are created in `data/`; retain and back up that directory. "
             "The `web/dist` and `VERSION` paths are relative to this working directory. "
             "The repository README also covers building from source, whose development scripts are in the separate source archive.\n\n"
             "在本目录运行 `./lingshu-home`，访问 http://127.0.0.1:5180 完成初始化。无需安装 Go 或 Node。"
+            "新实例先选择语言，也可启动时指定 `--language zh-CN` 或 `--language en`；选择会保存，界面和示例内容统一使用该语言，之后不提供页面内切换。"
             "请保留并备份首次启动后生成的 `data/` 数据和密钥目录。\n", encoding="utf-8")
         verify_linux_bundle(bundle, version)
         archive_tree(bundle, artifacts / f"{prefix}-linux-amd64.tar.gz", prefix + "-linux-amd64/", timestamp)

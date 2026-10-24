@@ -18,8 +18,8 @@ type StarterPack struct {
 	Groups  []StarterGroup `json:"groups"`
 }
 
-// Content language is independent of interface language. These are static
-// examples, never a reason to start health checks, icon fetches or telemetry.
+// The fixed instance language determines the starter collection. These are
+// static examples, never a reason to start health checks, icon fetches or telemetry.
 func starterPack(id string) (StarterPack, error) {
 	pack := StarterPack{ID: id, Version: "1.0.0"}
 	switch id {
@@ -74,9 +74,14 @@ func starterPack(id string) (StarterPack, error) {
 }
 
 func (a *App) listStarterPacks(r *Request) (*Response, error) {
-	chinese, _ := starterPack("zh-CN")
-	english, _ := starterPack("en")
-	return ok([]StarterPack{chinese, english}), nil
+	if r.Settings.Language == "" {
+		return ok([]StarterPack{}), nil
+	}
+	pack, err := starterPack(r.Settings.Language)
+	if err != nil {
+		return nil, err
+	}
+	return ok([]StarterPack{pack}), nil
 }
 
 func (a *App) seedDemo(r *Request, spaceID string) error {
@@ -85,10 +90,13 @@ func (a *App) seedDemo(r *Request, spaceID string) error {
 
 func (a *App) seedStarterPack(r *Request, spaceID, packID string) error {
 	if packID == "" {
-		packID = a.config.Language
-		if packID == "" {
-			packID = "zh-CN"
-		}
+		packID = r.Settings.Language
+	}
+	if packID == "" {
+		return languageRequired()
+	}
+	if packID != r.Settings.Language {
+		return &APIError{Status: 400, Code: "starter_language_mismatch", Message: "Starter content must use the instance language."}
 	}
 	pack, err := starterPack(packID)
 	if err != nil {

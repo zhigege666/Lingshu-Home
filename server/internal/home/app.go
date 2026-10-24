@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -36,6 +37,7 @@ type App struct {
 	autoIconMu      sync.Mutex
 	autoIconCancel  context.CancelFunc
 	networkProxy    *networkProxyManager
+	language        atomic.Value
 }
 
 type Request struct {
@@ -57,6 +59,7 @@ type Request struct {
 	CancelAutoIcons    bool
 	BearerTokenHash    string
 	NetworkProxyUpdate *networkProxyRuntime
+	LanguageUpdate     string
 }
 
 type Response struct {
@@ -99,7 +102,10 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 		cancel()
 		return nil, err
 	}
-	a.secret, err = readOrCreateKey(filepath.Join(c.DataDir, "csrf.key"))
+	err = a.initializeLanguage(startup)
+	if err == nil {
+		a.secret, err = readOrCreateKey(filepath.Join(c.DataDir, "csrf.key"))
+	}
 	if err == nil {
 		a.dummyPassword = dummyPasswordHash
 		err = a.initializeIntegrations()
@@ -136,7 +142,7 @@ func (a *App) Close() error {
 func (a *App) ServeHTTP(w http.ResponseWriter, h *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "same-origin")
-	w.Header().Set("Content-Language", a.config.Language)
+	w.Header().Set("Content-Language", a.currentLanguage())
 	if strings.HasPrefix(h.URL.Path, "/api/") || h.URL.Path == "/mcp" || h.URL.Path == "/health" {
 		w.Header().Set("Cache-Control", "no-store")
 		if err := a.store.CheckLease(h.Context()); err != nil {
@@ -188,7 +194,7 @@ func writeError(w http.ResponseWriter, err error) {
 
 func (a *App) route(pattern string, write bool, handler handlerFunc) {
 	a.mux.HandleFunc(pattern, func(w http.ResponseWriter, h *http.Request) {
-		if h.URL.Path == "/api/v1/setup" || h.URL.Path == "/api/v1/auth/login" || h.URL.Path == "/api/v1/auth/register" {
+		if h.URL.Path == "/api/v1/setup" || h.URL.Path == "/api/v1/setup/language" || h.URL.Path == "/api/v1/auth/login" || h.URL.Path == "/api/v1/auth/register" {
 			allowed, retry := a.limits.allow(h.RemoteAddr)
 			if !allowed {
 				w.Header().Set("Retry-After", strconv.Itoa(retry))
@@ -225,6 +231,13 @@ func (a *App) route(pattern string, write bool, handler handlerFunc) {
 			writeError(w, err)
 			return
 		}
+		// Use the same transaction snapshot for both successful and failed
+		// responses while another request may be confirming the first language.
+		responseLanguage := r.Settings.Language
+		if responseLanguage == "" {
+			responseLanguage = "zh-CN"
+		}
+		w.Header().Set("Content-Language", responseLanguage)
 		values := h.Header.Values("Authorization")
 		if len(values) > 0 {
 			auth := h.Header.Get("Authorization")
@@ -250,6 +263,10 @@ func (a *App) route(pattern string, write bool, handler handlerFunc) {
 		if err = tx.Commit(); err != nil {
 			writeError(w, err)
 			return
+		}
+		if r.LanguageUpdate != "" {
+			a.language.Store(r.LanguageUpdate)
+			w.Header().Set("Content-Language", r.LanguageUpdate)
 		}
 		a.afterNetworkProxyCommit(r)
 		if r.WakeIntegrations {
@@ -289,6 +306,7 @@ func (a *App) registerRoutes() {
 	}
 	a.route("GET /api/v1/bootstrap", false, a.bootstrap)
 	a.route("POST /api/v1/setup", true, a.setup)
+	a.route("POST /api/v1/setup/language", true, a.selectSetupLanguage)
 	a.route("POST /api/v1/auth/login", true, a.login)
 	a.route("POST /api/v1/auth/logout", true, a.logout)
 	a.route("POST /api/v1/auth/register", true, a.register)
@@ -306,6 +324,7 @@ func (a *App) registerRoutes() {
 	a.route("PUT /api/v1/spaces/{spaceId}/categories/{id}", true, a.updateCategory)
 	a.route("DELETE /api/v1/spaces/{spaceId}/categories/{id}", true, a.deleteCategory)
 	a.route("POST /api/v1/spaces/{spaceId}/links", true, a.createLink)
+	a.route("POST /api/v1/spaces/{spaceId}/links/batch", true, a.batchUpdateLinks)
 	a.route("PUT /api/v1/spaces/{spaceId}/links/{id}", true, a.updateLink)
 	a.route("DELETE /api/v1/spaces/{spaceId}/links/{id}", true, a.deleteLink)
 	a.route("POST /api/v1/spaces/{spaceId}/bookmarks/preview", true, a.previewBookmarks)

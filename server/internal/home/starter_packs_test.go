@@ -33,7 +33,7 @@ func TestStarterPacksAreDistinctStaticContent(t *testing.T) {
 	}
 }
 
-func TestStarterPackChoiceDoesNotChangeInterfaceLanguage(t *testing.T) {
+func TestStarterPackAlwaysFollowsFixedInstanceLanguage(t *testing.T) {
 	for _, seed := range []bool{true, false} {
 		config := coreConfig(t, false)
 		config.Language = "en"
@@ -51,6 +51,13 @@ func TestStarterPackChoiceDoesNotChangeInterfaceLanguage(t *testing.T) {
 			t.Fatal("invalid pack partially initialized the instance")
 		}
 		input["starterPack"] = "zh-CN"
+		if status, data := browser.call("POST", "/setup", input); status != 400 || data["code"] != "starter_language_mismatch" {
+			t.Fatalf("different-language starter pack accepted: %d %v", status, data)
+		}
+		if browser.bootstrap()["initialized"] != false {
+			t.Fatal("different-language pack partially initialized the instance")
+		}
+		input["starterPack"] = "en"
 		browser.ok("POST", "/setup", input)
 		bootstrap := browser.bootstrap()
 		if bootstrap["language"] != "en" {
@@ -66,12 +73,12 @@ func TestStarterPackChoiceDoesNotChangeInterfaceLanguage(t *testing.T) {
 			found := false
 			for _, value := range links {
 				link := value.(map[string]any)
-				if link["title"] == "百度" && link["url"] == "https://www.baidu.com/" {
+				if link["title"] == "Google" && link["url"] == "https://www.google.com/" {
 					found = true
 				}
 			}
 			if !found {
-				t.Fatal("chosen Chinese content pack was not used")
+				t.Fatal("fixed English content pack was not used")
 			}
 		} else if len(links) != 0 {
 			t.Fatal("blank setup created starter content")

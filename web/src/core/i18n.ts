@@ -1,7 +1,7 @@
 export type AppLanguage = 'zh-CN' | 'en'
 
-// One language belongs to the running instance. No browser preference or UI
-// switch overrides the server's startup configuration.
+// The server owns the instance language: an explicit first startup setting or
+// the one-time setup choice. Browser preferences never override that choice.
 let language: AppLanguage = typeof document !== 'undefined' && document.documentElement.lang.toLowerCase().startsWith('en') ? 'en' : 'zh-CN'
 
 export function configureLanguage(value: string | undefined): void {

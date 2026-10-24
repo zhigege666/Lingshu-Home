@@ -2,7 +2,9 @@
 
 [English](UNRAID.md) | **简体中文**
 
-Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications 的 Docker 模板。模板使用已发布的 **Linux amd64（x86-64）** 镜像 `ghcr.io/zhigege666/lingshu-home:0.0.1`，默认使用内置 SQLite，无需另装数据库。
+Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications 的 Docker 模板。模板使用 **Linux amd64（x86-64）** 镜像 `ghcr.io/zhigege666/lingshu-home:0.0.2`，默认使用内置 SQLite，无需另装数据库。
+
+下方安装说明对应 **0.0.2**，语言只确定一次并保存到数据库。升级已有 0.0.1 实例前，请阅读下方语言规则和迁移 007 的备份要求。
 
 ## 安装
 
@@ -10,7 +12,7 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 ### 手动安装模板
 
-下载[原始模板文件](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/templates/lingshu-home.xml)，保存到 Unraid 启动盘的以下位置：
+下载[原始模板文件](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.2/templates/lingshu-home.xml)，保存到 Unraid 启动盘的以下位置：
 
 `/boot/config/plugins/dockerMan/templates-user/my-lingshu-home.xml`
 
@@ -22,11 +24,11 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| Repository（镜像） | `ghcr.io/zhigege666/lingshu-home:0.0.1` | 已发布的固定版本，升级方法见下文。 |
+| Repository（镜像） | `ghcr.io/zhigege666/lingshu-home:0.0.2` | 固定版本，升级方法见下文。 |
 | Network（网络） | `bridge` | 通过宿主机端口访问 Home。 |
 | WebUI port | 宿主机 `5180` → 容器 `8080/tcp` | 端口冲突时修改宿主机端口，容器端口保留 `8080`。 |
 | Appdata（数据目录） | `/mnt/user/appdata/lingshu-home` → `/data` | 保存数据库、图标和实例密钥，重建容器时保留此映射。 |
-| Interface language（界面语言） | `en` | 选择 `en` 或 `zh-CN`，在启动时决定整个实例的界面语言。 |
+| Interface language（界面语言） | `en` | 首次启动或首次从 0.0.1 升级前选择 `en` 或 `zh-CN`；以后启动以实例已保存语言为准。 |
 | HTTPS-only cookies | `false` | 高级选项，仅在通过 HTTPS 反向代理访问 Home 时改为 `true`。 |
 
 每个 Home 实例使用独立的数据目录。需要更换共享目录或存储池路径时，只修改 Appdata 的**宿主机路径**，容器路径保留 `/data`。不要让两个运行中的容器共用同一个数据目录。
@@ -47,7 +49,15 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 在可信网络中完成初始化向导：填写站点名称、选择访问方式，并在需要账号的模式中创建 Owner。Home 没有默认管理员账号或密码。默认的公开浏览模式要求 Owner 才能修改内容，个人空间保持私有；完全开放模式可以免账号使用。
 
-需要简体中文时，将 **Interface language** 设为 `zh-CN` 并应用容器配置。改变界面语言会保留已有书签、账号和文字，不会翻译自己录入的内容。
+新建简体中文实例时，应在首次启动前将 **Interface language** 设为 `zh-CN`。模板默认明确指定 `en`，因此直接进入英文初始化，不再显示浏览器语言选择页。语言保存后，再修改此字段不能切换语言。
+
+### 一次性语言与从 0.0.1 升级
+
+新实例已经明确配置容器语言时，会一次保存并直接进入初始化；未配置语言时，先选择简体中文或 English，再进入初始化表单。界面与可选示例导航使用同一种语言，不再出现独立示例语言下拉框，后续也没有页面内切换。
+
+已初始化的 0.0.1 实例会在首次升级启动时保存当时明确配置的语言，未指定则保留旧默认 `zh-CN`；首次启动 0.0.2 时应将 **Interface language** 保持为原值，英文实例尤其要保留 `en`。语言存入数据库后，更换容器只要继续使用原 Appdata 就会保留。后续冲突启动值会被忽略并记录警告，服务继续运行；再修改 Unraid 字段不会覆盖保存语言。
+
+0.0.2 为 SQLite 与 PostgreSQL 应用**迁移 007**。升级前正常停止并备份数据库和匹配密钥，退回 0.0.1 时需要恢复升级前备份，不能只替换旧镜像。详见[存储与恢复](STORAGE.md)。
 
 远程访问时，先配置 HTTPS 反向代理，再将 **HTTPS-only cookies** 改为 `true`。这个选项仅控制 Cookie 的传输要求，不会让 Home 自行启用 TLS。直接使用 HTTP WebUI 时保留 `false`，否则浏览器无法通过 HTTP 使用安全登录 Cookie。
 
@@ -57,13 +67,13 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 重建相同版本时，保留原 Appdata 宿主机路径、运行用户和其他配置。删除容器不需要删除 appdata。
 
-模板固定使用 `0.0.1`。发行流程只发布精确版本标签，没有发布 `latest` 或 `stable`。Unraid 针对现有 `0.0.1` 镜像引用的更新检查，不会自动选择将来的 `0.0.2` 标签；应用商店模板更新本身也不会直接升级已有安装。
+模板固定使用 `0.0.2`。发行流程使用精确版本标签，不提供 `latest` 或 `stable` 别名。仍指向 `0.0.1` 的已有容器不会自动选择 `0.0.2`，固定在 `0.0.2` 的容器也不会自动选择后续版本；应用商店模板更新本身不会直接升级已有安装。
 
 升级到新版本时：
 
 1. 阅读该版本的[发行说明](https://github.com/zhigege666/Lingshu-Home/releases)和迁移要求。
-2. 停止 Home，完整备份专用数据目录。
-3. 编辑容器的 **Repository**，改为实际已经发布的目标版本标签；保留 `/data`、原 Appdata 宿主机路径和 `--user=99:100`。
+2. 停止 Home，完整备份专用数据目录并保留旧镜像。首次从 0.0.1 升级时，保留原本使用的 **Interface language** 值。
+3. 确认目标标签已经出现在发行版后，编辑容器的 **Repository**，本版本使用 `ghcr.io/zhigege666/lingshu-home:0.0.2`。保留 `/data`、原 Appdata 宿主机路径和 `--user=99:100`。
 4. 应用配置，让 Docker Manager 拉取所选镜像并重建容器。
 5. 检查日志，打开 WebUI，登录并确认原来的链接和设置仍然存在。
 

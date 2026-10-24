@@ -1,8 +1,10 @@
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
-import { ArrowDown, ArrowUp, ChevronDown, Eye, EyeOff, Layers, LockKeyhole, Plus, Trash2 } from 'lucide-react'
+import { lazy, Suspense, useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { ArrowDown, ArrowUp, ChevronDown, Eye, EyeOff, Layers, LockKeyhole, Plus, Redo2, Trash2, Undo2 } from 'lucide-react'
 import { ApiError, messageOf, request } from '../core/api'
 import { t } from '../core/i18n'
 import { useUnsavedChanges } from '../core/useUnsavedChanges'
+import { createDraftHistory, inputHistoryGroup, recordDraft, redoDraft, undoDraft } from '../core/draft-history'
+import { useHistoryShortcuts } from '../core/useHistoryShortcuts'
 import { builtinPageThemes, switchPageTheme, type BuiltinPageThemeId } from '../core/themes'
 import { categoryPosition, panelTypes, presetConfig, readCategoryNavigationSettings, setCategoryPosition, viewId } from '../core/presentation'
 import type { Bootstrap, Dashboard, Page, PageConfig, Placement, Region, View } from '../core/types'
@@ -70,8 +72,9 @@ function neighbor(config: PageConfig, id: string, direction: number): string | n
 }
 
 export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootstrap: Bootstrap; dashboard: Dashboard; onSaved: (message: string) => Promise<void> }) {
-  const [name, setName] = useState(dashboard.page.name)
-  const [config, setConfig] = useState(() => clone(dashboard.page.config))
+  const [history, setHistory] = useState(() => createDraftHistory({ name: dashboard.page.name, config: dashboard.page.config }))
+  const { name, config } = history.present
+  const [baseline, setBaseline] = useState(() => clone(dashboard.page))
   const [revision, setRevision] = useState(dashboard.page.revision)
   const [sources, setSources] = useState<Source[]>([])
   const [sourceError, setSourceError] = useState('')
@@ -85,9 +88,10 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
   const [activeTab, setActiveTab] = useState('page')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [chromeIssue, setChromeIssue] = useState<ChromeValidationIssue | null>(null)
-  const form = useRef<HTMLFormElement>(null)
+  const form = useRef<HTMLFormElement>(null), saving = useRef(false), mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const previewId = useId()
-  const canEdit = dashboard.space.canEdit, disabled = !canEdit || busy
+  const canEdit = dashboard.space.canEdit && bootstrap.spaces.some(space => space.id === dashboard.space.id && space.canEdit), disabled = !canEdit || busy
   const regions = regionOptions()
   const categoryLocked = config.views.some(view => {
     const placement = config.layout.placements[view.id]?.base
@@ -100,9 +104,25 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
   const alias = selected && Object.values(selected.inputs)[0] || 'navigation'
   const datasetId = config.bindings[alias]?.datasetId || 'local-navigation'
   const categorySettings = readCategoryNavigationSettings(selected?.settings || {})
-  const originalConfig = useMemo(() => JSON.stringify(dashboard.page.config), [dashboard.page.config])
-  const dirty = name !== dashboard.page.name || JSON.stringify(config) !== originalConfig
-  const leaveGuard = useUnsavedChanges(dirty, busy, () => loadPage(dashboard.page))
+  const dirty = name !== baseline.name || JSON.stringify(config) !== JSON.stringify(baseline.config)
+  const leaveGuard = useUnsavedChanges(dirty, busy, () => loadPage(baseline))
+  const canUndo = history.past.length > 0, canRedo = history.future.length > 0
+  function historyAction(redo: boolean) {
+    if (disabled || saving.current) return
+    setHistory(redo ? redoDraft : undoDraft); setChromeIssue(null)
+    if (!conflict) setError('')
+  }
+  useHistoryShortcuts({ enabled: !disabled, undo: () => historyAction(false), redo: () => historyAction(true), canUndo, canRedo })
+  function setName(value: string) {
+    if (disabled || saving.current) return
+    const group = inputHistoryGroup()
+    setHistory(previous => recordDraft(previous, { ...previous.present, name: value }, group))
+  }
+  function setConfig(value: PageConfig | ((previous: PageConfig) => PageConfig)) {
+    if (disabled || saving.current) return
+    const group = inputHistoryGroup()
+    setHistory(previous => recordDraft(previous, { ...previous.present, config: typeof value === 'function' ? value(previous.present.config) : value }, group))
+  }
 
   useEffect(() => {
     const pending = new AbortController()
@@ -176,29 +196,32 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
   }
   async function save(event: FormEvent) {
     event.preventDefault()
-    if (disabled) return
+    if (disabled || saving.current || !dirty) return
     const issue = validatePageChrome(config.chrome)
     if (issue) { setChromeIssue(issue); setActiveTab('chrome'); setError(issue.message); return }
-    setBusy(true); setError(''); setConflict(false)
+    saving.current = true; setBusy(true); setError(''); setConflict(false)
     try {
       const saved = await request<Page>('/spaces/' + encodeURIComponent(dashboard.space.id) + '/page', {
         method: 'PUT', body: { name: name.trim(), config, expectedRevision: revision }
       })
-      setRevision(saved.revision); setName(saved.name); setConfig(clone(saved.config))
-      await onSaved(t('页面布局已保存', 'Page layout saved'))
+      if (!mounted.current) return
+      setRevision(saved.revision); setBaseline(clone(saved)); setHistory(createDraftHistory({ name: saved.name, config: saved.config }))
+      try { await onSaved(t('页面布局已保存', 'Page layout saved')) }
+      catch { if (mounted.current) setError(t('页面已经保存，但重新加载失败。已保存的内容仍然保留，可稍后刷新。', 'The page was saved, but reloading failed. Your saved content is still here; refresh later.')) }
     } catch (cause) {
+      if (!mounted.current) return
       setError(messageOf(cause))
       if (cause instanceof ApiError && cause.code === 'page_version_conflict') setConflict(true)
-    } finally { setBusy(false) }
+    } finally { saving.current = false; if (mounted.current) setBusy(false) }
   }
   async function inspectLatest() {
     setBusy(true)
-    try { const data = await request<Dashboard>('/dashboard?spaceId=' + encodeURIComponent(dashboard.space.id)); setLatest(data.page) }
-    catch (cause) { setError(messageOf(cause)) }
-    finally { setBusy(false) }
+    try { const data = await request<Dashboard>('/dashboard?spaceId=' + encodeURIComponent(dashboard.space.id)); if (mounted.current) setLatest(data.page) }
+    catch (cause) { if (mounted.current) setError(messageOf(cause)) }
+    finally { if (mounted.current) setBusy(false) }
   }
   function loadPage(page: Page) {
-    setName(page.name); setConfig(clone(page.config)); setRevision(page.revision)
+    setHistory(createDraftHistory({ name: page.name, config: page.config })); setBaseline(clone(page)); setRevision(page.revision)
     setSelectedId(page.config.views[0]?.id || ''); setLatest(null); setConflict(false); setError(''); setChromeIssue(null)
   }
   function downloadDraft() {
@@ -393,7 +416,7 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
           <Button type="button" variant="outline" onClick={downloadDraft}>{t('下载当前草稿', 'Download current draft')}</Button>
           <Button type="button" variant="outline" disabled={busy} onClick={inspectLatest}>{t('查看服务器版本', 'Inspect server version')}</Button>
         </div>
-        {latest && <div>
+        {latest && <div className="admin-conflict-comparison">
           <p>{t('服务器：{name} · {count} 个积木 · 版本 {revision}', 'Server: {name} · {count} panels · revision {revision}', { name: latest.name, count: latest.config.views.length, revision: latest.revision })}<br />
             {t('当前草稿：{name} · 基于版本 {revision}', 'Current draft: {name} · based on revision {revision}', { name, revision })}</p>
           <Button type="button" variant="secondary" onClick={() => loadPage(latest)}>{t('载入服务器版本，替换当前草稿', 'Load server version and replace current draft')}</Button>
@@ -402,8 +425,12 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
     </div>
     <div className="admin-form-footer admin-layout-savebar">
       <span className="admin-draft-status" role="status">{dirty ? t('有未保存的更改', 'Unsaved changes') : t('已保存', 'Saved')}</span>
-      <Button type="button" variant="outline" disabled={busy} onClick={() => leaveGuard.requestLeave(() => loadPage(dashboard.page))}>{t('取消更改', 'Cancel changes')}</Button>
-      <Button type="submit" disabled={disabled}>{busy ? t('正在保存…', 'Saving…') : t('保存页面', 'Save page')}</Button>
+      <div className="admin-layout-history" role="group" aria-label={t('编辑历史', 'Edit history')}>
+        <Button type="button" variant="outline" size="sm" aria-label={t('撤销', 'Undo')} title={t('撤销（Ctrl / ⌘ + Z）', 'Undo (Ctrl / ⌘ + Z)')} disabled={disabled || !canUndo} onClick={() => historyAction(false)}><Undo2 size={15}/>{t('撤销', 'Undo')}</Button>
+        <Button type="button" variant="outline" size="sm" aria-label={t('重做', 'Redo')} title={t('重做（Ctrl / ⌘ + Shift + Z）', 'Redo (Ctrl / ⌘ + Shift + Z)')} disabled={disabled || !canRedo} onClick={() => historyAction(true)}><Redo2 size={15}/>{t('重做', 'Redo')}</Button>
+      </div>
+      <Button type="button" variant="outline" disabled={busy || !dirty} onClick={() => leaveGuard.requestLeave(() => loadPage(baseline))}>{t('取消更改', 'Cancel changes')}</Button>
+      <Button type="submit" disabled={disabled || !dirty}>{busy ? t('正在保存…', 'Saving…') : t('保存页面', 'Save page')}</Button>
     </div>
     {preset && <Modal title={t('应用页面预设？', 'Apply page preset?')} onClose={() => setPreset(null)}>
       <p>{t('这会替换当前积木和布局配置。链接、分类、外部数据源及页眉页脚内容保留。', 'This replaces the current panels and layout. Links, categories, external sources, header and footer content are retained.')}</p>

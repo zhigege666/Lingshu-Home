@@ -4,7 +4,11 @@
 
 本文记录 HTTP、Go 集成、Docker、开发启动器与发布边界的不同验证范围。正式标签打包、GitHub 托管工作流和浏览器交互的状态单独说明；已经通过的服务测试不替代这些检查。
 
-**当前轮次为 0.0.1 初始化、首次引导、README 上手说明与发布验收。** 新增 `browser_initialization.cjs` 的运行方式、全新实例矩阵与覆盖边界见文末“当前轮次：0.0.1 初始化与发布验收”。本轮通过数、构建标识及正式发布状态按实际报告补记，不从命令、脚本断言或旧结果推算。网络、模板、预置、空闲与 PostgreSQL 取消/关机修正的已有结果保留在上一轮记录中，不代表当前初始化改动已完成全部发布门槛。2026-10-19 UTC 的自动图标验收、上一轮组件的 4,458 个 HTTP 断言与 380 项浏览器检查，以及更早的 **4,450 个旧 HTTP 断言、旧 Docker 镜像检查、146 个导航/书签/布局阶段断言和 63/155 个响应式/交互断言**，均属于各自历史阶段。组数与断言数使用不同口径，各轮结果不混作当前源码的一次全量验收。
+**当前发布版本为 0.0.2。** 一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史纳入该版本。下文保留开发期的实际源码、版本和运行结果；最终 0.0.2 镜像的部署验收单独记录于文末，不把开发候选冒充正式发行产物。
+
+**前一轮为导航批量整理与页面草稿撤销/重做的开发验收。** 其 SQLite、PostgreSQL 完整 Go 套件、纯历史核心检查和中英文浏览器工作流记录保留在“前一轮：导航批量整理与草稿历史”，不与本轮计数混合。
+
+**上一轮为 0.0.1 初始化、首次引导、README 上手说明与发布验收。** 新增 `browser_initialization.cjs` 的运行方式、全新实例矩阵与覆盖边界见下文“上一轮：0.0.1 初始化与发布验收”。本轮通过数、构建标识及正式发布状态按实际报告补记，不从命令、脚本断言或旧结果推算。网络、模板、预置、空闲与 PostgreSQL 取消/关机修正的已有结果保留在上一轮记录中，不代表当前初始化改动已完成全部发布门槛。2026-10-19 UTC 的自动图标验收、上一轮组件的 4,458 个 HTTP 断言与 380 项浏览器检查，以及更早的 **4,450 个旧 HTTP 断言、旧 Docker 镜像检查、146 个导航/书签/布局阶段断言和 63/155 个响应式/交互断言**，均属于各自历史阶段。组数与断言数使用不同口径，各轮结果不混作当前源码的一次全量验收。
 
 `http_smoke.py` 使用 Python 3.10+ 标准库向真实运行的服务发送 HTTP 请求，不导入后端实现。测试会创建随机账号、空间内容、书签和布局，并切换访问模式；**只能对空的、可丢弃的测试数据库执行**。不要使用演示实例或个人正在使用的数据目录。
 
@@ -28,7 +32,7 @@ PostgreSQL 验收使用两个不同的全新专用数据库。在私有环境中
 python3 scripts/validate_http.py --provider postgres
 ```
 
-这些变量与 Go 单元/集成测试使用的五个 PostgreSQL 变量是不同入口，完整对应关系见下文“Go 集成、Docker 与发布工具”。不要重复使用已完成其他套件的数据库，也不要指向个人实例。
+这些变量与 Go 单元/集成测试使用的六个 PostgreSQL 变量是不同入口，完整对应关系见下文“Go 集成、Docker 与发布工具”。不要重复使用已完成其他套件的数据库，也不要指向个人实例。
 
 ## 对已启动的独立测试实例执行
 
@@ -115,21 +119,22 @@ python3 tests/http_smoke.py \
 
 ## Go 集成、Docker 与发布工具
 
-从 `server/` 运行 `go test ./...` 可执行 Go 套件。PostgreSQL 分支需要以下 **五个不同的、全新且可丢弃的测试数据库**；每个变量只供对应套件使用，不能与 HTTP 验收、运行实例或其他套件共用数据库。未设置时对应测试明确跳过，不能把跳过报告为该提供方验证通过。
+从 `server/` 运行 `go test ./...` 可执行 Go 套件。PostgreSQL 分支需要以下 **六个不同的、全新且可丢弃的测试数据库**；每个变量只供对应套件使用，不能与 HTTP 验收、运行实例或其他套件共用数据库。未设置时对应测试明确跳过，不能把跳过报告为该提供方验证通过。
 
 | 环境变量 | 对应覆盖 | CI 专用数据库 |
 | --- | --- | --- |
 | `LINGSHU_TEST_POSTGRES_URL` | 核心权限、页面并发及存储提供方行为 | `lingshu_core` |
 | `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL` | PAT、MCP、外部推送及 GitHub Traffic 持久化 | `lingshu_integrations` |
-| `LINGSHU_TEST_ICONS_POSTGRES_URL` | 图标存储、授权、引用保护、自动任务生命周期、005 迁移，以及代理设置和 006 迁移回滚 | `lingshu_icons` |
+| `LINGSHU_TEST_ICONS_POSTGRES_URL` | 图标存储、授权、引用保护、自动任务生命周期、005 迁移，代理设置和 006 迁移，以及一次性语言和 007 迁移回滚 | `lingshu_icons` |
 | `LINGSHU_TEST_COMPONENTS_POSTGRES_URL` | 新组件数据源的 HTTP 生命周期、快照、凭据与删除保护 | `lingshu_components` |
 | `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL` | `004_component_sources.sql` 升级的数据保留与失败原子性 | `lingshu_component_migration` |
+| `LINGSHU_TEST_NAVIGATION_POSTGRES_URL` | 导航批量变更、无变化、权限、版本冲突、事务回滚及持久化 | `lingshu_navigation` |
 
 组件 HTTP 套件覆盖推送幂等回执、过期请求的版本保护、每源最多 256 条回执的保留、凭据加密与投影隐藏、跨源 URL 变更时禁止隐式转发旧 Bearer 凭据、一次性 ICS 导入重试、更新失败保留旧快照、禁用源后丢弃已开始任务的结果，以及活动组件引用和闲置页面绑定的删除边界。测试停止自己创建的后台 worker，并使用受控 HTTP 响应，不请求真实日历、天气服务或其他公网源。
 
 组件迁移套件分别对 SQLite 和 PostgreSQL 执行成功升级与注入失败两种场景，逐字段比较六张既有集成表的原始数据，检查新回执时间回填、扩展的源类型约束和失败回滚；SQLite 还检查外键始终启用且无违例。PostgreSQL 迁移套件会在其专用数据库内创建随机 schema，测试账号需要相应的 schema 创建权限；退出时只清理自己创建的 schema。不要因此将该变量指向已有业务库。
 
-自动图标生命周期及 `005_auto_icons.sql` 迁移套件复用图标专用数据库，在其中为每个 case 创建随机 schema，也要求创建 schema 的权限，退出时仅清理自己的 schema。它们不增加第六个 Go 测试库，不改变原图标存储套件需要空库的前提；网络使用应用启动前注入的受控传输。
+自动图标生命周期及 `005_auto_icons.sql` 迁移套件复用图标专用数据库，在其中为每个 case 创建随机 schema，也要求创建 schema 的权限，退出时仅清理自己的 schema。这些图标测试自身不增加独立的 Go 测试库，不改变原图标存储套件需要空库的前提；网络使用应用启动前注入的受控传输。
 
 服务端代理设置和 `006_network_routing.sql` 迁移沿用这一随机 schema 夹具，仍使用 `LINGSHU_TEST_ICONS_POSTGRES_URL`，不增加新的 Go 测试数据库变量。006 检查 001–005 旧记录保留、默认选路开启、默认直连且无代理凭据，以及注入失败后的原子回滚。代理传输测试使用受控拨号或自己创建的短时 loopback 服务，不访问真实代理或公网目标；真实 Owner 保存配置后，经默认应用客户端和本地 CONNECT 夹具写入图标缓存的链路由独立测试覆盖。
 
@@ -137,7 +142,7 @@ python3 tests/http_smoke.py \
 
 认证回归验证启动时复用的公开 dummy hash 是合法 Argon2id 编码，且工作参数与当前真实密码哈希一致；已知的 dummy 输入仍不能为不存在的账号或使用其他真实密码的账号登录，也不能创建会话，正确真实密码则可以正常登录。测试不使用脆弱的耗时比较，也不降低密码验证参数。HTTP 预检精确核对六种数据源、九种面板、六种数据 schema、两种页面主题，以及仅 push/poll 的交付能力、关闭的 WebSocket 和不可执行的声明式组件导入。
 
-为执行所有 PostgreSQL 分支，先在私有环境配置上述五个变量并准备五个空库，然后从 `server/` 运行。以下检查只验证变量已设置，不打印连接串：
+为执行所有 PostgreSQL 分支，先在私有环境配置上述六个变量并准备六个空库，然后从 `server/` 运行。以下检查只验证变量已设置，不打印连接串：
 
 ```bash
 : "${LINGSHU_TEST_POSTGRES_URL:?set a fresh core test database}"
@@ -145,10 +150,11 @@ python3 tests/http_smoke.py \
 : "${LINGSHU_TEST_ICONS_POSTGRES_URL:?set a fresh icons test database}"
 : "${LINGSHU_TEST_COMPONENTS_POSTGRES_URL:?set a fresh components test database}"
 : "${LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL:?set a fresh component migration test database}"
+: "${LINGSHU_TEST_NAVIGATION_POSTGRES_URL:?set a fresh navigation batch test database}"
 go test -count=1 -v ./...
 ```
 
-每次完整重跑应重新准备专用空库，不能用清除已有实例的方式满足测试前提。应用 CI 为五个 Go 套件分别建库并传入五个变量；HTTP 验收仍使用另外两个数据库。CI 定义覆盖这些入口，不表示修改后的工作流已经在 GitHub 托管环境执行通过。
+每次完整重跑应重新准备专用空库，不能用清除已有实例的方式满足测试前提。应用 CI 为六个 Go 套件分别建库并传入六个变量；HTTP 验收仍使用另外两个数据库。CI 定义覆盖这些入口，不表示修改后的工作流已经在 GitHub 托管环境执行通过。
 
 在具备 Docker 的 Linux 环境中，使用新的测试镜像和专用测试卷执行：
 
@@ -944,7 +950,7 @@ BASE_URL=http://127.0.0.1:5200 node tests/browser_lightweight_idle.cjs --guard-o
 
 正式交付还需按 [RELEASING.md](../docs/RELEASING.md) 对同一个经评审的公开源码版本完成 VERSION/dated CHANGELOG/匹配标签与干净 checkout，生成并验证同一镜像导出的 Linux amd64 包、源码包、镜像归档、原始依赖许可、发布元数据及完整 SHA-256 集合；独立 Linux 包应以默认相对路径运行并验证静态字节和真实重启持久化。权限允许的发布动作再统一执行，开发验收不隐含提交、推送或发布授权。Windows/macOS 原生客户端、更多架构、真实第三方账号和第二阶段的历史/实时协议仍在该首个 Linux/Docker 交付范围之外。
 
-## 当前轮次：0.0.1 初始化与发布验收
+## 上一轮：0.0.1 初始化与发布验收
 
 本轮对应 0.0.1 的首次初始化、可选 Owner、空白首页引导、界面语言与示例内容包、共享空间落点、同标签刷新恢复，以及中英文 README 的正式镜像/发行包启动说明。`tests/browser_initialization.cjs` 验证实际浏览器流程；README、Compose、正式镜像、Linux 发行包及发布状态需分别核验。本节先列方法和边界，文末单独记录本轮实际执行结果。
 
@@ -1036,3 +1042,173 @@ node tests/browser_initialization.cjs \
 随后由独立、按 PID/启动时刻/可执行文件身份保护的维护步骤，对上述 **19 个 SQLite 夹具逐一 SIGTERM 并以原数据目录重启**，全部通过。每个实例 20 张表的内容摘要、两个密钥文件及匿名 bootstrap 配置均与重启前一致，账号、模式、注册开关、空间、导航与页面未重建。该真实进程重启记录独立于浏览器脚本，不计入其断言数，也不冒称本轮重新跑了 PostgreSQL 全套或正式 Docker 下载。
 
 中英文 README 的 26 个 Bash 块已做语法检查，Compose 两份均验证 30 秒停止预算、回环映射和原持久卷；相对链接/锚点和公开历史资产存在性已复核。正式镜像匿名拉取、已发布 Linux 包的下载启动和 tagged Actions 必须另以实际发布产物验证，以上本地验收不代表它们已经完成。
+
+
+## 前一轮：导航批量整理与草稿历史
+
+本轮基于 0.0.1 已发布源码开发，属于 **Unreleased**；未修改 VERSION，未提交、推送或发布。2026-10-20 UTC（北京时间 2026-10-21）实际完成下表。历史阶段的 HTTP、Docker、平台安装包结果不计入本轮。
+
+| 检查 | 实际结果 | 覆盖与边界 |
+| --- | --- | --- |
+| TypeScript / Vite / Go 构建 | 通过 | 前端构建输出到本轮独立目录，未替换既有服务的静态资源 |
+| 草稿历史纯核心 | 5 项通过 | 完整快照、不可变性、无变化、输入合并与失焦、撤销重做分支、60 步上限与基线清空 |
+| 既有组件操作不变量 | 18 项通过 | 组件与页面操作的已有核心回归 |
+| SQLite 完整 Go 套件 | 通过 | 含新增批量导航 HTTP 集成及既有权限、图标、数据源等套件 |
+| PostgreSQL 完整 Go 套件 | 通过 | 六个独立空库实际执行；新增导航分支未跳过 |
+| 中文浏览器工作流 | 25 项检查通过 | 13 组流程 + 12 个视口几何检查，18 张实际截图 |
+| 英文浏览器工作流 | 25 项检查通过 | 13 组流程 + 12 个视口几何检查，18 张实际截图 |
+
+中英文合计 **50 项检查、36 张截图**。这里的检查数不是底层断言数，也不与旧轮次结果相加。最终浏览器运行时间为 2026-10-20 18:59:32–19:00:21 UTC，两个报告均为 `status: passed`、`pageErrors: []`。每种语言各出现 5 条预期的 HTTP 控制台错误，对应显式制造的 409 冲突和 503 故障；没有未预期控制台错误。不能将故障注入记录写成 `consoleErrors: []`。
+
+### 双数据库与纯核心入口
+
+新增 `server/internal/home/navigation_batch_test.go` 通过真实 HTTP handler 验证：
+
+- 移动分类/移至未分类、增加/移除标签、设为/取消收藏；只有变化的链接更新，整批仅推进一次导航版本，无变化请求保持版本和时间戳。
+- 空选择、超过 500 条、重复或非法 ID、缺失或跨空间链接、错误分类、字段组合、标签长度/控制字符/最终 32 个上限。
+- 先完整校验后写入；在第二次 UPDATE 注入数据库错误，确认前一条更新及触发器变更也回滚。SQLite 和 PostgreSQL 分别执行此断言。
+- 两个同版本并发写入只有一个成功；匿名、只读、跨空间 PAT、CSRF 等拒绝路径，以及合法写令牌和免账号编辑路径。
+- URL、图标意图、备用入口等无关字段保持；关闭并重新打开 Store/App 后读回已保存结果。
+
+本套件使用独立的 `LINGSHU_TEST_NAVIGATION_POSTGRES_URL`。运行完整 PostgreSQL 套件仍应按上文准备全部六个空库，不复用其他测试已初始化的库。
+
+从仓库根目录执行：
+
+```bash
+node tests/draft_history_core.test.mjs
+node tests/composer_operations.cjs
+```
+
+从 `server/` 执行 `go test -count=1 ./...`；若只定位新增功能，可执行 `go test -count=1 -run '^TestNavigationBatch' ./internal/home`。PostgreSQL 变量缺失时该分支会跳过，跳过不算通过。
+
+本机 `go test -race` 因缺少可用 C 编译器而未执行测试，不能计为通过。应用 CI 保留 Ubuntu 的 race 检查，并已加入纯历史入口及导航 PostgreSQL 专用库；修改后的 GitHub 托管工作流尚未运行。
+
+### 浏览器入口与隔离
+
+新增 `tests/browser_navigation_workflow.cjs` 要求 `--allow-fixture-write`，只接受脚本白名单内的测试主机和 5206/5207 端口。已初始化实例必须使用精确的 `Navigation workflow fixture zh-CN` 或 `Navigation workflow fixture en` 站点名；不符合条件会在业务写入前退出。每种语言使用独立数据目录。
+
+```bash
+BASE_URL=http://127.0.0.1:5206 \
+OUTPUT_DIR=/absolute/path/to/navigation-zh \
+LINGSHU_PLAYWRIGHT_MODULE=/absolute/path/to/playwright \
+CHROMIUM_EXECUTABLE=/absolute/path/to/chromium \
+node tests/browser_navigation_workflow.cjs --allow-fixture-write
+```
+
+首次初始化、合成分类准备、基线恢复及模拟另一窗口写入使用测试 API；导入、批量整理和编辑器操作通过真实 UI 完成。基线保存在指定输出目录，重跑时只在匹配 origin/space 的专用夹具中按当前版本恢复；每轮书签使用唯一前缀并保留在测试实例中。脚本会修改测试数据，不能指向个人使用的实例。
+
+导航流程覆盖 HTML 文件夹与重复 URL 的预览/导入、当前页及跨页选择、明确选择全部筛选结果、筛选变化清空、批量分类/标签/收藏，以及旧快照 409 后显式重新读取。每次操作读取服务端结果，核对实际影响范围与无关字段。
+
+草稿流程覆盖首页和后台撤销/重做、修改后清空重做分支、文本框原生撤销、草稿操作不写服务器、添加组件与真实鼠标缩放的一步撤回、预览限制、保存、整页刷新。故障流程额外验证：
+
+- 写入前返回 503 或另一个窗口推进页面版本时，保留未保存草稿及历史。
+- 取消后故意暂停 dashboard 回读，确认编辑入口禁用；回读完成才允许新建草稿，避免沿用旧版本。
+- PUT 成功而随后的 dashboard GET 返回 503 时，保留服务器返回的已保存配置与新 revision，清空历史并显示“已保存，但重新加载失败”；恢复读取后再次修改与保存成功。首页、后台分别执行。
+
+链接列表、首页编辑器、后台编辑器分别检查 **2560 × 1440、1920 × 1080、1600 × 900、2560 × 1080**。检查 document/body 横向溢出及可见操作按钮的视口可达性，并保存真实截图。这四个桌面视口不代表本轮完成移动端或原生桌面客户端验收。
+
+输出包含 `report.json`、基线文件和截图。浏览器请求限制在测试来源内；书签采用 `.invalid` 合成 URL，不访问目标网站。最终报告依据实际请求、DOM、几何信息和服务端回读判定；失败返回非零退出码。
+
+## 2026-10-24 开发验收：一次性语言与表单间距
+
+2026-10-24 UTC，基于保留前轮未提交工作的开发源码，在 nx11 独立候选目录构建并执行。该次开发验收时为 **Unreleased**，构建使用的 `VERSION` 仍为 `0.0.1`；这份历史记录不是已发布同版本镜像或安装包的更新，也不代表当时已经提交、推送或发布。随后 0.0.2 的最终构建和部署结果单独记在文末。
+
+| 检查 | 实际结果 | 本轮覆盖 |
+| --- | --- | --- |
+| TypeScript 类型检查、Vite 生产构建、Go 构建 | 通过 | 独立候选二进制和静态资源，未替换原运行服务 |
+| `go test ./... -count=1 -json` | 通过，0 失败、0 跳过 | SQLite 与六个全新 PostgreSQL 专用库；日志共 518 条测试/子测试 pass 记录，不等同于独立断言数 |
+| Python discovery | 17 项通过 | 启动器未指定/空语言保留、明确环境与参数优先级，以及既有发布边界 |
+| 中英文初始化浏览器矩阵 | 20/20 场景，2,554 项断言通过 | 每种语言九个既有场景与一个新首次语言选择场景，四个桌面尺寸 |
+| 语言确认网络故障 | 2/2 场景，116 项断言通过 | 请求未转发，以及真实提交成功后丢失浏览器响应 |
+| 后台间距与数据格式示例 | 208 项检查通过，21 张实际截图 | 四种桌面尺寸；源表单、数据源登录提示、访问设置与网络权限提示 |
+| 真实服务进程重启 | 3/3 实例通过 | 选后未初始化、选后已初始化与显式启动语言；20 张表和两个密钥逐例保持 |
+
+测试二进制 SHA-256 为 `c8ea1654bcfb0811a8af1266b29bec240d6ea3999ae9df48cda1ea83756008b3`，前端入口为 `index-ukYVJI9q.js`，浏览器为 Chromium `153.0.8010.12`。主初始化矩阵实际运行于 `2026-10-24T06:10:08.987Z` 至 `06:12:48.677Z`。当前文档只记实际执行结果；历史 Docker、Python 完整 HTTP 场景、Go race、GitHub Actions 和正式发布产物检查未在本轮重跑。
+
+### 语言、迁移与重启
+
+新增 `instance_language_test.go` 覆盖未配置语言、CSRF、非法语言、同值幂等、不同值锁定、与初始化竞争、事务失败不发布运行时语言、选择后跨 App 重开、启动配置冲突、预制包同语、旧实例升级与 007 迁移失败回滚。迁移及持久化关键分支在 SQLite 和 PostgreSQL 分别执行；PostgreSQL 使用现有图标测试变量下的随机 schema，不增加第七个 Go 测试数据库变量。
+
+数据库与导航字段按原始值严格比较。导航响应中的 `meta.receivedAt` 与 `lastSuccessAt` 本来就由每次读取生成，单独核对两者一致、合法 RFC3339Nano 且不倒退，其余信封字段、数据、revision 与源修改时间完整相等。重启还直接逐字段比较 settings、spaces、pages、categories 和 links，不能用忽略时间戳代替持久化检查。
+
+真实进程重启由维护步骤独立执行，发送 SIGTERM 前核对本轮 PID、启动时刻、可执行文件和完整命令。三个实例分别以不指定语言、与已保存值冲突的语言重启；bootstrap 语言与 Content-Language 保持一致，20 张表及 `csrf.key`、`integrations.key` 的摘要均不变。该记录不是 `page.reload()`，也不计入浏览器断言数。
+
+### 更新后的初始化浏览器入口
+
+`browser_initialization.cjs` 保留已有九类场景，并新增 `language_choice`。完整矩阵为中英文各十个独立空实例；非选择场景以明确 `--language` 启动，`language_choice` 必须同时省略参数和 `LINGSHU_LANGUAGE`。示例夹具条目如下，各条目需独立端口、数据库与数据目录：
+
+```json
+[
+  {"name":"zh-fixed-seed","url":"http://127.0.0.1:15320","language":"zh-CN","scenario":"seed"},
+  {"name":"en-first-choice","url":"http://127.0.0.1:15321","language":"en","scenario":"language_choice"}
+]
+```
+
+```bash
+node tests/browser_initialization.cjs \
+  --fixtures /absolute/path/to/fresh-fixtures.json \
+  --output-dir /absolute/path/to/new-initialization-report \
+  --allow-write --expected-version 0.0.1
+```
+
+显式语言实例不出现选择步骤；选择实例通过真实单选项与确认按钮产生恰好一次语言 POST，成功后自然刷新仍进入固定语言的初始化表单。所有实例预制内容默认不勾选，只有匹配语言的一个内容包且没有语言下拉框；预览条目与最后保存数据核对。原有账号、四种访问方式、共享/个人落点、冲突和初始化网络故障场景保留。
+
+初始化提示框与提交按钮的实际间距为 **14±1 px**，并检查水平对齐、按钮可达及文档无横向溢出。尺寸包括 **2560×1440、1920×1080、1600×900、2560×1080**；低高度下保留纵向滚动，并额外滚到操作区截图。根复核查看了实际语言页、多人模式提示、预制预览与底部操作截图，不由 DOM 计数替代视觉检查。
+
+### 语言确认失败后的恢复入口
+
+`browser_language_recovery.cjs` 使用另外两个未指定语言、尚未初始化的独立英语目标夹具：
+
+```json
+[
+  {"name":"language-uncommitted","url":"http://127.0.0.1:15340","language":"en","scenario":"uncommitted"},
+  {"name":"language-committed-loss","url":"http://127.0.0.1:15341","language":"en","scenario":"committed_response_lost"}
+]
+```
+
+```bash
+node tests/browser_language_recovery.cjs \
+  --fixtures /absolute/path/to/language-recovery-fixtures.json \
+  --output-dir /absolute/path/to/new-language-recovery-report \
+  --allow-write --expected-version 0.0.1
+```
+
+两种故障均验证禁用语言选项和提交、保留“重新检查”。未转发场景通过 GET 确认仍待选择后才恢复明确重试，总共两次语言 POST；提交成功但响应丢失时，先真实转发并核对 200，再丢弃浏览器响应，重新检查后直接进入英语初始化，总共一次语言 POST。最后自然刷新再次验证锁定；不执行站点 setup 或创建账号。
+
+所有浏览器检查只使用可丢弃夹具；批量只读预检、逐次 UI 写许可、真实 CSRF、保护端口、外部请求及 WebSocket 拦截仍保留。报告不写密码、Cookie、请求体、令牌或连接串。故障注入产生的预期错误明确分类，未将其伪装成没有控制台错误。
+
+### 后台间距与数据格式示例
+
+`browser_spacing_sources.cjs` 在一个显式 `zh-CN` 的新 loopback 实例运行。仅通过 UI 执行一次免账号 setup、一次保持 open_edit 的首个 Owner 创建；随后只打开来源表单，不保存来源、不配置代理、不生成令牌，不启动外部采集。
+
+```bash
+node tests/browser_spacing_sources.cjs \
+  --url http://127.0.0.1:15342 \
+  --output-dir /absolute/path/to/new-spacing-sources-report \
+  --allow-write --expected-version 0.0.1
+```
+
+实际核对外部推送五种内置格式、外部 JSON 四种格式（不包含 navigation.collection）、样例随格式更新、JSON 结构、展开控件键盘操作与代码区聚焦。在四个桌面尺寸下测量来源日程提示，以及独立匿名上下文中的数据源、访问与网络提示：上下 margin 为14px，提示内文字后操作区为12px，绿色背景与文字保持，没有文档或对话框水平溢出。
+
+本次执行为 **208 项检查、21 张实际截图**，报告 `spacing-sources-report.json` 为 passed；来源库存前后均为零。日程文件导入需要已保存来源，本轮没有为截图创建额外来源，因此其提示框只做公共样式与调用点代码审查，不声称逐项运行了日程导入、令牌源授权或预制对话框的完整交互。
+
+## 0.0.2 发布前部署验收
+
+2026-10-24，版本和文档整理为 **0.0.2** 后，在 nx11 重新构建实际 Docker 镜像，再从该镜像提取 Linux 程序和前端进行部署验收。公开 Unraid `templates/`、`ca_profile.xml` 已纳入源码归档白名单；私密路径、密钥、数据库、生成目录和符号链接仍拒绝进入产物。
+
+候选镜像为 `sha256:a2cb369dfaace9a607ba338bde1606cae1a104a5519bcc6fa9f2af1ca9c3df2c`，构建与容器/提取程序验证实际运行于 `2026-10-24T10:38:04.899827Z` 至 `10:41:45.687344Z`。Linux 程序 SHA-256 为 `c8ea1654bcfb0811a8af1266b29bec240d6ea3999ae9df48cda1ea83756008b3`；程序从 VERSION 读取产品版本，因此该二进制与开发候选相同不代表前端版本相同。新构建 `web/dist/index.html` 的 SHA-256 为 `51334909df6d9b147b75498023aec72e3a724d6a205a4b6fae515c5c980361ff`。
+
+| 检查 | 实际结果 | 范围 |
+| --- | --- | --- |
+| 实现源码对应 | 232 个文件一致，0 差异 | web/src、server、assets、Dockerfile、Vite/TypeScript 配置与依赖清单对应上节已通过的开发候选；VERSION 和发布文档单列 |
+| 0.0.2 Docker 构建 | 通过 | 使用 Dockerfile 固定摘要的相同 Node/Go/runtime 镜像；本机镜像代理只改变 registry 主机，不改变三个 SHA-256 摘要 |
+| 容器运行 | 通过 | 真实健康检查、初始化、静态资源及 gzip 字节/cache 契约、UID/GID 10001:10001、独立卷和容器重启 |
+| 提取的 Linux 程序 | 通过 | 默认相对路径、VERSION、实际前端字节、初始化、真实进程重启；程序与前端来自上面同一个镜像 |
+| Python discovery | 18 项通过 | 包含新增实际 Unraid XML 经提取/tar.gz/zip 后字节保持与私密子路径拒绝 |
+| 纯核心回归 | 全部通过 | composer 18 项、草稿历史 5 项、入口选路 22 项、仪表板预置 27 项、初始化空间选择 7 项 |
+| 最终版本 Docker 浏览器 | 4/4 场景、732 项断言通过 | 中文/英文分别验证显式语言 seed 与未指定语言的 language_choice，全部运行同一镜像 ID |
+| 前后端版本一致性 | 中英文均通过 | 使用真实“关于 Home”页核对“版本”和“前端构建”均为0.0.2，并保存实际页面截图 |
+
+四个浏览器场景使用四个全新卷和不同 loopback 端口，没有复用已初始化实例。实际运行时间为 `2026-10-24T10:43:28.860Z` 至 `10:44:18.289Z`，Chromium `153.0.8010.12`。同一次运行覆盖 2560×1440、1920×1080、1600×900、2560×1080，核对语言选择/跳过、同语预制、初始化后自然重载、共享/个人空间与身份边界，以及14±1px操作区间距。此前完整20场景、两种语言网络故障和后台208项结果保留其原始版本/构建身份，不伪称全部在0.0.2镜像上重跑。
+
+本节记录提交前的部署验证，不是正式 Release/GHCR 的发布成功声明。正式产物必须由同一授权标签的应用 CI、干净标签打包和发布任务完成，并核对实际下载文件、SHA256SUMS、发布提交及镜像身份；七个资产的最终身份以该次 `release-metadata.json` 和托管工作流结果为准。候选镜像不能替代正式版本镜像。
