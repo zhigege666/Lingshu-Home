@@ -4,6 +4,12 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+### Container distribution
+
+- Add a serialized, independently repairable `latest` promotion workflow that reuses the highest verified published stable image, checks release metadata and registry identities, and refuses ambiguous versions, unknown aliases or source changes. Stable releases call it after successful publication; promotion-maintenance changes and a manual Actions run can also synchronize the alias without rebuilding or modifying fixed tags.
+- Default the Unraid template and Docker quick starts to `latest`, retain exact version tags for pinning, and align the English/Chinese installation and upgrade guidance. Existing fixed-tag installations need a one-time Repository change; subsequent image updates still require pulling and recreating the container with the same appdata.
+- Link manual Unraid installation and its template ReadMe to the maintained instructions, including the existing database/key backup and first-upgrade language requirements for 0.0.2.
+
 ## [0.0.2] - 2026-10-24
 
 ### One-time instance language and setup

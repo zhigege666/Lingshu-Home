@@ -70,6 +70,8 @@ jobs:
       actions: read
       contents: write
       packages: write
+    outputs:
+      prerelease: ${{ steps.verified.outputs.prerelease }}
     steps:
       - name: Check out verification scripts at the same commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,7 +158,17 @@ jobs:
         if: always()
         run: docker logout ghcr.io
 
+  promote-latest:
+    name: Synchronize the stable image alias
+    needs: publish
+    if: needs.publish.outputs.prerelease == 'false'
+    uses: ./.github/workflows/promote-latest.yml
+    permissions:
+      contents: read
+      packages: write
+
 # Publishing between GitHub Releases and GHCR is not an atomic operation. If a
 # publish step fails, the workflow fails and an unpublished draft may remain.
 # Inspect that draft/registry tag before retrying; this workflow never deletes
-# an existing release or replaces its assets. GHCR uses exact version tags only.
+# an existing release or replaces its assets. Exact GHCR tags remain unchanged;
+# the separate serialized promotion job updates latest from a published stable image.

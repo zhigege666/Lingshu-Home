@@ -165,13 +165,23 @@ python3 scripts/check_container.py --image lingshu-home:ci
 
 容器检查创建并清理自己的随机命名容器和卷，默认占用回环端口 `5190`，可用 `--port` 选择空闲端口。它检查实际服务及重启后状态，不操作 Compose 中已有的应用卷，也不执行页面视觉或鼠标交互验收。
 
-Python 发布边界与 Linux 启动器统一入口为：
+Python 发布边界、`latest` 推广与 Linux 启动器统一入口为：
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-CI 使用这一入口纳入两类回归；完整应用 CI 另外包含 Go 许可证回退、双数据库和 Docker 检查。工作流中的这些步骤是已准备的自动化定义，当前未将 GitHub 托管执行记为通过。正式打包条件、平台范围与产物校验见 [版本和发布说明](../docs/RELEASING.md)。
+CI 使用这一入口纳入三类回归；完整应用 CI 另外包含 Go 许可证回退、双数据库和 Docker 检查。工作流定义与实际托管执行结果分别记录，不能仅凭配置宣称通过。正式打包条件、平台范围与产物校验见 [版本和发布说明](../docs/RELEASING.md)。
+
+## latest 镜像推广回归
+
+```bash
+python3 -m unittest discover -s tests -p 'test_promote_latest.py' -v
+```
+
+此套件使用离线发行数据与 registry fixture，不需要凭据，也不执行真实镜像写入。覆盖首次补发、幂等重试、只读检查、数字 SemVer 排序、预发布/草稿排除、build metadata 平级歧义、未知现有标签拒绝、metadata/镜像身份校验、404 与认证/服务器错误区分、跨域认证头移除、写前源变化以及写入失败和写后摘要复核。只有 `latest` 可以成为写入目标，固定版本与 Release 不会被测试或推广脚本修改。
+
+真实发布另行核对推广 Actions 的执行状态、GHCR 匿名 manifest/config 读取，以及匿名 Docker 拉取的摘要；离线测试不能代替这些可用性验证。推广既有 `0.0.2` 时复用其经过验证的镜像，不重新构建应用，也不将此轮发布脚本回归记作应用或数据库测试重跑。
 
 ## Linux 开发启动器回归
 

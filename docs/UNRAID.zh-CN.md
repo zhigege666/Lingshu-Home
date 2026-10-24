@@ -2,7 +2,7 @@
 
 [English](UNRAID.md) | **简体中文**
 
-Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications 的 Docker 模板。模板使用 **Linux amd64（x86-64）** 镜像 `ghcr.io/zhigege666/lingshu-home:0.0.2`，默认使用内置 SQLite，无需另装数据库。
+Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications 的 Docker 模板。模板使用 **Linux amd64（x86-64）** 镜像 `ghcr.io/zhigege666/lingshu-home:latest`，跟随已发布的正式稳定版，默认使用内置 SQLite，无需另装数据库。仍可使用 `0.0.2` 等精确标签固定版本。
 
 下方安装说明对应 **0.0.2**，语言只确定一次并保存到数据库。升级已有 0.0.1 实例前，请阅读下方语言规则和迁移 007 的备份要求。
 
@@ -12,7 +12,7 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 ### 手动安装模板
 
-下载[原始模板文件](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.2/templates/lingshu-home.xml)，保存到 Unraid 启动盘的以下位置：
+下载[当前原始模板文件](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/templates/lingshu-home.xml)，保存到 Unraid 启动盘的以下位置：
 
 `/boot/config/plugins/dockerMan/templates-user/my-lingshu-home.xml`
 
@@ -24,7 +24,7 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| Repository（镜像） | `ghcr.io/zhigege666/lingshu-home:0.0.2` | 固定版本，升级方法见下文。 |
+| Repository（镜像） | `ghcr.io/zhigege666/lingshu-home:latest` | 已发布的最高稳定版本；更新仍需拉取镜像并重建容器。 |
 | Network（网络） | `bridge` | 通过宿主机端口访问 Home。 |
 | WebUI port | 宿主机 `5180` → 容器 `8080/tcp` | 端口冲突时修改宿主机端口，容器端口保留 `8080`。 |
 | Appdata（数据目录） | `/mnt/user/appdata/lingshu-home` → `/data` | 保存数据库、图标和实例密钥，重建容器时保留此映射。 |
@@ -67,14 +67,14 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 重建相同版本时，保留原 Appdata 宿主机路径、运行用户和其他配置。删除容器不需要删除 appdata。
 
-模板固定使用 `0.0.2`。发行流程使用精确版本标签，不提供 `latest` 或 `stable` 别名。仍指向 `0.0.1` 的已有容器不会自动选择 `0.0.2`，固定在 `0.0.2` 的容器也不会自动选择后续版本；应用商店模板更新本身不会直接升级已有安装。
+模板使用 `latest`，跟随已经成功发布、SemVer 版本号最高的正式稳定版。草稿和预发布版不会成为 `latest`，`0.0.2` 等精确版本标签继续保留。已有安装如果固定在 `0.0.1` 或 `0.0.2`，需手动将 **Repository** 改为 `ghcr.io/zhigege666/lingshu-home:latest` 一次，之后才会跟随稳定版。商店模板更新不会修改已安装容器的 Repository，`latest` 标签更新也不会直接升级运行中的容器；阅读升级要求后，通过 Unraid 的更新操作或已配置的自动更新任务拉取镜像并重建容器。
 
 升级到新版本时：
 
 1. 阅读该版本的[发行说明](https://github.com/zhigege666/Lingshu-Home/releases)和迁移要求。
 2. 停止 Home，完整备份专用数据目录并保留旧镜像。首次从 0.0.1 升级时，保留原本使用的 **Interface language** 值。
-3. 确认目标标签已经出现在发行版后，编辑容器的 **Repository**，本版本使用 `ghcr.io/zhigege666/lingshu-home:0.0.2`。保留 `/data`、原 Appdata 宿主机路径和 `--user=99:100`。
-4. 应用配置，让 Docker Manager 拉取所选镜像并重建容器。
+3. **Repository** 使用 `ghcr.io/zhigege666/lingshu-home:latest` 跟随稳定版，或使用 `ghcr.io/zhigege666/lingshu-home:0.0.2` 等已发布的精确标签固定版本。保留 `/data`、原 Appdata 宿主机路径和 `--user=99:100`。
+4. 修改 Repository 后应用配置；已经使用 `latest` 时，通过 **Check for Updates → Update（检查更新 → 更新）**，让 Docker Manager 拉取镜像并重建容器。
 5. 检查日志，打开 WebUI，登录并确认原来的链接和设置仍然存在。
 
 新版本可能迁移数据库。如果没有明确支持的降级流程，不要用旧镜像直接打开迁移后的数据；保留升级前的完整备份。

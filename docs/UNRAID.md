@@ -2,7 +2,7 @@
 
 **English** | [简体中文](UNRAID.zh-CN.md)
 
-Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template selects the **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:0.0.2`, with embedded SQLite. No external database is required.
+Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template selects the **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:latest`, following published stable releases with embedded SQLite. No external database is required. Exact version tags such as `0.0.2` remain available.
 
 These instructions target **0.0.2**. Its language is chosen once and saved in the database. Before upgrading an existing 0.0.1 instance, read the language and migration-007 backup requirements below.
 
@@ -12,7 +12,7 @@ When Lingshu-Home is available in **Apps**, search for **Lingshu-Home**, check t
 
 ### Manual template installation
 
-Download [the raw template](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.2/templates/lingshu-home.xml) and save it on your Unraid boot device as:
+Download [the current raw template](https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/templates/lingshu-home.xml) and save it on your Unraid boot device as:
 
 `/boot/config/plugins/dockerMan/templates-user/my-lingshu-home.xml`
 
@@ -24,7 +24,7 @@ Open **Docker → Add Container**, select **Lingshu-Home** from the template lis
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Repository | `ghcr.io/zhigege666/lingshu-home:0.0.2` | Fixed version; see the upgrade procedure below. |
+| Repository | `ghcr.io/zhigege666/lingshu-home:latest` | Highest published stable version; updates still require pulling and recreating the container. |
 | Network | `bridge` | Publishes Home through a host port. |
 | WebUI port | Host `5180` → container `8080/tcp` | Change the host port if it is already used; keep the container port at `8080`. |
 | Appdata | `/mnt/user/appdata/lingshu-home` → `/data` | Database, saved icons and instance keys. Retain this mapping during container replacement. |
@@ -67,14 +67,14 @@ The `/data` directory contains `lingshu-home.db`, `csrf.key` and `integrations.k
 
 To recreate the same version, retain the same Appdata host path, user setting and other configuration. Removing a container does not require removing its appdata.
 
-This template pins `0.0.2`. The release workflow uses exact version tags, with no `latest` or `stable` alias. An installed container still pointing to `0.0.1` will not select `0.0.2` automatically, and a container pinned to `0.0.2` will not select a later version. Updating a catalog template also does not itself upgrade an existing installation.
+This template uses `latest`, which follows the highest successfully published stable SemVer release. Drafts and prereleases never become `latest`; fixed tags such as `0.0.2` remain available. An installation pinned to `0.0.1` or `0.0.2` needs a one-time **Repository** change to `ghcr.io/zhigege666/lingshu-home:latest` to follow stable releases. Updating a catalog template does not change an installed container's Repository, and moving `latest` does not itself update a running container. Use Unraid's update action, or your configured update automation, to pull and recreate it after reviewing the upgrade requirements.
 
 For a new release:
 
 1. Read its [release notes](https://github.com/zhigege666/Lingshu-Home/releases) and migration requirements.
 2. Stop Home and back up its complete data directory. Keep the previous image and, for a first upgrade from 0.0.1, retain the original **Interface language** value.
-3. Edit the container's **Repository** to the desired version tag after verifying it exists in the release, using `ghcr.io/zhigege666/lingshu-home:0.0.2` for this version; retain `/data`, the same Appdata host path and the `--user=99:100` setting.
-4. Apply the change so Docker Manager pulls the selected image and recreates the container.
+3. Use `ghcr.io/zhigege666/lingshu-home:latest` in **Repository** to follow stable releases, or a published exact tag such as `ghcr.io/zhigege666/lingshu-home:0.0.2` to pin a version. Retain `/data`, the same Appdata host path and the `--user=99:100` setting.
+4. Apply a Repository change, or use **Check for Updates → Update** for an existing `latest` installation, so Docker Manager pulls the image and recreates the container.
 5. Check the logs, open the WebUI, sign in and confirm your existing links and settings.
 
 A newer version may migrate the database. Do not switch to an older image against migrated data unless its documented downgrade procedure permits it. Keep the pre-upgrade backup.

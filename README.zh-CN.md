@@ -30,7 +30,7 @@ Web 界面统一使用玉绿色折带房屋 Logo。[品牌资产、用法与来�
 
 ### Docker 镜像
 
-使用 Docker 运行精确版本镜像：
+使用 Docker 运行最新正式稳定版镜像：
 
 ```bash
 docker run -d --name lingshu-home \
@@ -41,8 +41,10 @@ docker run -d --name lingshu-home \
   -p 127.0.0.1:5180:8080 \
   -e LINGSHU_LANGUAGE=zh-CN \
   -v lingshu-home-data:/data \
-  ghcr.io/zhigege666/lingshu-home:0.0.2
+  ghcr.io/zhigege666/lingshu-home:latest
 ```
+
+`latest` 跟随已经验证并发布的最高稳定版本，不包含预发布版。需要固定在本版本时，改用 `ghcr.io/zhigege666/lingshu-home:0.0.2`。标签更新不会直接升级运行中的容器：先阅读发行说明、备份数据，再拉取镜像并重建容器。
 
 在 Docker 宿主机打开 **http://127.0.0.1:5180**。数据库、实例密钥和已保存图片持久化在命名卷 `lingshu-home-data`，替换容器时继续使用这个卷。镜像以 UID/GID `10001:10001` 运行；自定义挂载到 `/data` 的目录需允许该身份写入。可以用 `docker logs --tail=100 lingshu-home` 查看启动日志。
 
@@ -62,7 +64,7 @@ cd Lingshu-Home-0.0.2-linux-amd64
 
 ### Unraid
 
-使用 [Unraid 模板和安装说明](docs/UNRAID.zh-CN.md)，通过 Docker Manager 或 Community Applications 安装。模板将宿主机 `5180` 映射到容器 `8080`，数据保存在 `/mnt/user/appdata/lingshu-home`，并明确以 `99:100` 访问该数据目录。模板固定使用 `0.0.2` 镜像，文档包含一次性语言配置、初始化、备份和指定版本升级方法；Apps 尚未收录时可手动安装模板。
+使用 [Unraid 模板和安装说明](docs/UNRAID.zh-CN.md)，通过 Docker Manager 或 Community Applications 安装。模板将宿主机 `5180` 映射到容器 `8080`，数据保存在 `/mnt/user/appdata/lingshu-home`，并明确以 `99:100` 访问该数据目录。模板使用 `latest` 跟随正式稳定版。已有安装如果固定在 `0.0.1` 或 `0.0.2`，需手动修改一次 Repository 才会跟随 `latest`；商店模板更新不会修改已安装容器。文档包含语言配置、初始化、备份、更新、固定版本和手动安装模板的方法。
 
 ### 首次初始化
 

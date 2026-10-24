@@ -30,7 +30,7 @@ These instructions target **[0.0.2](VERSION)** and **Linux amd64 (x86-64)**. Use
 
 ### Docker image
 
-Run the exact-version image with Docker:
+Run the latest published stable image with Docker:
 
 ```bash
 docker run -d --name lingshu-home \
@@ -41,8 +41,10 @@ docker run -d --name lingshu-home \
   -p 127.0.0.1:5180:8080 \
   -e LINGSHU_LANGUAGE=en \
   -v lingshu-home-data:/data \
-  ghcr.io/zhigege666/lingshu-home:0.0.2
+  ghcr.io/zhigege666/lingshu-home:latest
 ```
+
+`latest` follows the highest verified stable release; prereleases are excluded. To stay on this specific release, use `ghcr.io/zhigege666/lingshu-home:0.0.2` instead. A moving tag does not update a running container: review the release notes, back up data, then pull and recreate it to upgrade.
 
 Open **http://127.0.0.1:5180** on the Docker host. The named volume `lingshu-home-data` retains the database, instance keys and saved assets when the container is replaced. The image runs as UID/GID `10001:10001`; a custom bind mount at `/data` must be writable by that identity. To check startup, run `docker logs --tail=100 lingshu-home`.
 
@@ -62,7 +64,7 @@ Both examples bind access to the host's loopback address. For another computer, 
 
 ### Unraid
 
-Use the [Unraid template and installation guide](docs/UNRAID.md) for Docker Manager or Community Applications. The template maps host port `5180` to container port `8080`, keeps data at `/mnt/user/appdata/lingshu-home`, and explicitly runs as `99:100` for that appdata directory. It uses the fixed `0.0.2` image tag; the guide covers one-time English/Chinese language configuration, setup, backups and explicit version upgrades. Manual template installation is available while the app is not listed in Apps.
+Use the [Unraid template and installation guide](docs/UNRAID.md) for Docker Manager or Community Applications. The template maps host port `5180` to container port `8080`, keeps data at `/mnt/user/appdata/lingshu-home`, and explicitly runs as `99:100` for that appdata directory. It uses `latest` for stable releases. Existing installations pinned to `0.0.1` or `0.0.2` need a one-time Repository change to follow `latest`; a catalog template update does not change an installed container. The guide covers language, setup, backups, updates, version pinning and manual template installation.
 
 ### First-run setup
 

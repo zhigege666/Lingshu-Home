@@ -1,0 +1,56 @@
+name: Promote stable image to latest
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/promote-latest.yml
+      - scripts/promote_latest.py
+      - tests/test_promote_latest.py
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Verify and promote the highest published stable version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: lingshu-home-ghcr-latest
+      cancel-in-progress: false
+    steps:
+      - name: Check out promotion code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Test promotion failure and version-selection cases
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s tests -p 'test_promote_latest.py' -v
+      - name: Log in for the latest alias only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCKER_CONFIG: ${{ runner.temp }}/latest-docker-config
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx version
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Verify published artifacts and synchronize latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCKER_CONFIG: ${{ runner.temp }}/latest-docker-config
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 scripts/promote_latest.py --apply
+      - name: Clear registry login
+        if: always()
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/latest-docker-config
+        run: docker logout ghcr.io

@@ -6,7 +6,7 @@ Lingshu-Home uses `VERSION` as the only manually maintained product version. It 
 
 Each change set updates `CHANGELOG.md` under `Unreleased` and the relevant public README or `docs/` file. Keep the English and Chinese README aligned. Version bumps are not required for each edit; they happen when preparing a release.
 
-Pull requests and pushes to `main` run application CI. These events validate code; they do not create a release or publish an image.
+Pull requests and pushes to `main` run application CI. Ordinary application changes do not create a release or publish an image. Changes to the latest-promotion workflow, script or its tests also run the alias-maintenance workflow described below; that workflow reuses an already published stable image.
 
 ## Preparing an authorized release
 
@@ -44,7 +44,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 
 The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.2` uses `ghcr.io/zhigege666/lingshu-home:0.0.2`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
-Only exact version tags are pushed; there is no floating `latest` tag. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`. Release metadata retains the original SemVer.
+The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 
 Windows/macOS native clients and additional CPU architectures require their own actual build, install, upgrade and platform checks before being added to the release matrix. A browser interface or cross-compiled server alone is not a validated desktop client.
 
@@ -60,7 +60,23 @@ The publish job downloads the tested artifacts from the same workflow run. Befor
 
 Downloads are first uploaded to a draft GitHub Release. The workflow pushes the exact tested image and publishes the GitHub Release only after that succeeds. The remote tag's commit is checked again before final publication.
 
-GitHub Releases and GHCR are separate services, so publication across them cannot be atomic. A failure can leave an unpublished draft or an image already pushed. Inspect those recorded artifacts before retrying. Existing releases and drafts are not silently overwritten or deleted by the workflow.
+GitHub Releases and GHCR are separate services, so publication across them cannot be atomic. A failure can leave an unpublished draft or an image already pushed. Inspect those recorded artifacts before retrying. Existing releases and drafts are not silently overwritten or deleted by the workflow. If only latest promotion fails, the exact-version release remains available; repair the alias separately rather than rerunning the application publisher against that existing release.
+
+## Stable latest alias and repair
+
+`.github/workflows/promote-latest.yml` has three entry points: a reusable call after successful stable publication, **Actions → Promote stable image to latest → Run workflow** on `main`, and a `main` push limited to that workflow, `scripts/promote_latest.py`, or `tests/test_promote_latest.py`. The maintenance-push entry point bootstraps or repairs the alias when promotion code changes; it never builds development source or creates a Release.
+
+All entry points use the same fixed job concurrency group. Within that lock the job runs the promotion regressions, reads all published Releases and selects the highest numeric stable SemVer. An old release rerun therefore cannot choose an older version merely because it triggered the job. The script checks the published metadata checksum, tag commit, exact image coordinate, config digest, OCI source/version/revision labels and Linux amd64 platform. Registry reads use anonymous pull access. Only an explicit `latest` manifest 404 permits initial creation; authorization or server errors fail the job.
+
+The alias is copied from the verified manifest digest with `docker buildx imagetools create --prefer-index=false`, preserving the single-platform manifest. No image is rebuilt and no exact tag or Release asset is replaced. An existing `latest` must already match a recognized published stable image; an unknown image or changed source stops promotion. After writing, both `latest` and the exact source tag are read back and must still match the verified manifest and config digests. An already matching alias is a successful no-op.
+
+For an authenticated repair, use the manual workflow on `main`; its repository `GITHUB_TOKEN` receives `contents: read` and `packages: write`. No personal token needs to be added to repository secrets. A read-only public preflight is available locally:
+
+```bash
+python3 scripts/promote_latest.py --repository zhigege666/Lingshu-Home
+```
+
+That command makes no registry writes. `--apply` additionally requires Docker Buildx, a registry login and the shared workflow lock; use the workflow for publication. After a successful repair, verify an anonymous `docker pull ghcr.io/zhigege666/lingshu-home:latest` and compare its digest with the exact release tag. Changing this alias does not update installed containers. Existing Unraid installations on a fixed tag need a one-time Repository change, then normal pull/recreate updates; follow the [Unraid upgrade guide](UNRAID.md).
 
 ## Published-release availability check
 
@@ -79,7 +95,7 @@ python3 scripts/check_repository.py
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-The Python discovery command includes both the release packager and Linux development-launcher regressions. The launcher tests need Linux process inspection, a local `sleep` executable and permission to bind temporary loopback ports. They cover executable replacement, immediate restart after TCP TIME_WAIT and refusal of an active listening port; a skip on an unsupported platform is not Linux runtime verification.
+The Python discovery command includes the release packager, latest-promotion and Linux development-launcher regressions. Promotion tests use offline fixtures and never authenticate or write to a registry; an actual successful workflow and anonymous registry read-back remain separate publication evidence. The launcher tests need Linux process inspection, a local `sleep` executable and permission to bind temporary loopback ports. They cover executable replacement, immediate restart after TCP TIME_WAIT and refusal of an active listening port; a skip on an unsupported platform is not Linux runtime verification.
 
 Application packaging requires a native Linux amd64 host, Docker, Git and Python 3.10+. Go and Node builds run inside the pinned Docker build stages. Only after creating a clean, matching authorized tag, run from the repository root:
 
