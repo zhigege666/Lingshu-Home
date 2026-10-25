@@ -24,6 +24,7 @@ import (
 var integrationActions = map[string]bool{
 	"navigation:read": true, "navigation:write": true, "sources:read": true, "sources:write": true,
 	"datasets:write": true, "pages:read": true, "pages:write": true,
+	"documents:read": true, "documents:write": true,
 }
 var integrationTokenPattern = regexp.MustCompile(`^lhp_[A-Za-z0-9_-]{43}$`)
 var integrationExternalID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
@@ -379,6 +380,9 @@ func (a *App) createIntegrationToken(r *Request) (*Response, error) {
 			return nil, invalid("unknown or duplicate token action")
 		}
 		seen[action] = true
+	}
+	if seen["documents:write"] && !seen["documents:read"] {
+		return nil, invalid("documents:write also requires documents:read so a saved document can be returned safely")
 	}
 	if in.SourceID != nil {
 		if *in.SourceID == "" {

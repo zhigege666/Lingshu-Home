@@ -13,7 +13,7 @@ export type Bootstrap = {
 export type Category = { id: string; spaceId: string; name: string; icon: string; parentId: string | null; sortOrder: number }
 export type Endpoint = { label: string; url: string; route?: 'internal' | 'external'; probePath?: string }
 export type IconMode = 'auto' | 'manual'
-export type LinkInput = { categoryId: string | null; title: string; url: string; description: string; icon: string; iconMode?: IconMode; tags: string[]; isFavorite: boolean; sortOrder: number; endpoints: Endpoint[] }
+export type LinkInput = { categoryId: string | null; title: string; url: string; description: string; contextMarkdown?: string; icon: string; iconMode?: IconMode; tags: string[]; isFavorite: boolean; sortOrder: number; endpoints: Endpoint[] }
 export type NavLink = LinkInput & { id: string; spaceId: string; createdAt?: string; updatedAt: string }
 export type NavigationData = { categories: Category[]; links: NavLink[] }
 export type Dataset<T = NavigationData> = { datasetId: string; schemaId: string; schemaVersion: number; revision: string; data: T; meta: { sourceUpdatedAt: string | null; receivedAt: string | null; lastSuccessAt: string | null; freshness: string; [key: string]: unknown } }

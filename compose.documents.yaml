@@ -1,0 +1,19 @@
+# Source-build example. Apply with compose.yaml OR compose.postgres.yaml.
+# Set both host directories, or remove the mount you do not need.
+services:
+  home:
+    environment:
+      LINGSHU_DOCUMENT_ROOTS: '["/documents/notes","/documents/projects"]'
+    volumes:
+      - type: bind
+        source: "${LINGSHU_NOTES_DIR:?Set an existing absolute host directory for notes}"
+        target: /documents/notes
+        read_only: false
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${LINGSHU_PROJECT_DOCS_DIR:?Set an existing absolute host directory for project documents}"
+        target: /documents/projects
+        read_only: true
+        bind:
+          create_host_path: false

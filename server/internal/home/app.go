@@ -19,54 +19,58 @@ import (
 )
 
 type App struct {
-	store           *Store
-	config          Config
-	mux             *http.ServeMux
-	writeGate       chan struct{}
-	secret          []byte
-	version         string
-	limits          *authLimiter
-	dummyPassword   string
-	ctx             context.Context
-	cancel          context.CancelFunc
-	workers         sync.WaitGroup
-	iconHTTPClient  *http.Client
-	iconFetchGate   chan struct{}
-	integrationWake chan struct{}
-	autoIconWake    chan struct{}
-	autoIconMu      sync.Mutex
-	autoIconCancel  context.CancelFunc
-	networkProxy    *networkProxyManager
-	language        atomic.Value
+	store            *Store
+	config           Config
+	mux              *http.ServeMux
+	writeGate        chan struct{}
+	documentGate     chan struct{}
+	documentScanGate chan struct{}
+	secret           []byte
+	version          string
+	limits           *authLimiter
+	dummyPassword    string
+	ctx              context.Context
+	cancel           context.CancelFunc
+	workers          sync.WaitGroup
+	iconHTTPClient   *http.Client
+	iconFetchGate    chan struct{}
+	integrationWake  chan struct{}
+	autoIconWake     chan struct{}
+	autoIconMu       sync.Mutex
+	autoIconCancel   context.CancelFunc
+	networkProxy     *networkProxyManager
+	language         atomic.Value
 }
 
 type Request struct {
-	App                *App
-	HTTP               *http.Request
-	Writer             http.ResponseWriter
-	Q                  Queryer
-	Settings           Settings
-	User               *User
-	SessionToken       string
-	Input              json.RawMessage
-	Params             map[string]string
-	TokenSpaceID       string
-	TokenSourceID      string
-	AllowedActions     map[string]bool
-	Bearer             bool
-	WakeIntegrations   bool
-	WakeAutoIcons      bool
-	CancelAutoIcons    bool
-	BearerTokenHash    string
-	NetworkProxyUpdate *networkProxyRuntime
-	LanguageUpdate     string
+	App                 *App
+	HTTP                *http.Request
+	Writer              http.ResponseWriter
+	Q                   Queryer
+	Settings            Settings
+	User                *User
+	SessionToken        string
+	Input               json.RawMessage
+	Params              map[string]string
+	TokenSpaceID        string
+	TokenSourceID       string
+	AllowedActions      map[string]bool
+	Bearer              bool
+	WakeIntegrations    bool
+	WakeAutoIcons       bool
+	CancelAutoIcons     bool
+	BearerTokenHash     string
+	NetworkProxyUpdate  *networkProxyRuntime
+	LanguageUpdate      string
+	DocumentFileChanged bool
 }
 
 type Response struct {
-	Status      int
-	Data        any
-	Body        []byte
-	ContentType string
+	Status           int
+	Data             any
+	Body             []byte
+	ContentType      string
+	AfterTransaction func() (*Response, error)
 }
 
 type handlerFunc func(*Request) (*Response, error)
@@ -95,6 +99,8 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 	}
 	a := &App{config: c, mux: http.NewServeMux(), writeGate: make(chan struct{}, 1), version: strings.TrimSpace(string(version)), limits: &authLimiter{}, ctx: ctx, cancel: cancel, iconHTTPClient: iconClient, iconFetchGate: make(chan struct{}, 1), integrationWake: make(chan struct{}, 1)}
 	a.autoIconWake = make(chan struct{}, 1)
+	a.documentGate = make(chan struct{}, 1)
+	a.documentScanGate = make(chan struct{}, 1)
 	startup, done := context.WithTimeout(ctx, 30*time.Second)
 	defer done()
 	a.store, err = openStore(startup, c)
@@ -125,8 +131,10 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 	a.registerIconRoutes()
 	a.registerComponentTemplateRoutes()
 	a.registerNetworkProxyRoutes()
+	a.registerDocumentRoutes()
 	a.startIntegrationWorkers()
 	a.startAutoIconWorker()
+	a.startDocumentWorker()
 	return a, nil
 }
 
@@ -194,6 +202,17 @@ func writeError(w http.ResponseWriter, err error) {
 
 func (a *App) route(pattern string, write bool, handler handlerFunc) {
 	a.mux.HandleFunc(pattern, func(w http.ResponseWriter, h *http.Request) {
+		// Filesystem work is serialized separately from navigation/database work.
+		// Take this first: no request may hold the global gate while waiting for
+		// an ongoing file operation which will later need a short DB commit.
+		if write && (strings.Contains(h.URL.Path, "/documents") || strings.Contains(h.URL.Path, "/document-sources")) {
+			select {
+			case a.documentGate <- struct{}{}:
+				defer func() { <-a.documentGate }()
+			case <-h.Context().Done():
+				return
+			}
+		}
 		if h.URL.Path == "/api/v1/setup" || h.URL.Path == "/api/v1/setup/language" || h.URL.Path == "/api/v1/auth/login" || h.URL.Path == "/api/v1/auth/register" {
 			allowed, retry := a.limits.allow(h.RemoteAddr)
 			if !allowed {
@@ -202,10 +221,16 @@ func (a *App) route(pattern string, write bool, handler handlerFunc) {
 				return
 			}
 		}
+		globalLocked := false
+		defer func() {
+			if globalLocked {
+				<-a.writeGate
+			}
+		}()
 		if write {
 			select {
 			case a.writeGate <- struct{}{}:
-				defer func() { <-a.writeGate }()
+				globalLocked = true
 			case <-h.Context().Done():
 				return
 			}
@@ -273,6 +298,19 @@ func (a *App) route(pattern string, write bool, handler handlerFunc) {
 			a.wakeIntegrationWorker()
 		}
 		a.afterAutoIconCommit(r)
+		if response != nil && response.AfterTransaction != nil {
+			if globalLocked {
+				<-a.writeGate
+				globalLocked = false
+			}
+			for response != nil && response.AfterTransaction != nil {
+				response, err = response.AfterTransaction()
+				if err != nil {
+					writeError(w, documentOperationError(r, err))
+					return
+				}
+			}
+		}
 		if response == nil {
 			w.WriteHeader(204)
 			return

@@ -35,7 +35,7 @@ from check_repository import REPOSITORY_ROOT, SEMVER, ValidationError, git, reso
 SOURCE_ROOTS = {
     ".github", ".dockerignore", ".gitattributes", ".gitignore", "AGENTS.md",
     "README.md", "README.zh-CN.md", "VERSION", "LICENSE", "CHANGELOG.md",
-    "THIRD_PARTY_NOTICES.md", "Dockerfile", "compose.yaml", "compose.postgres.yaml",
+    "THIRD_PARTY_NOTICES.md", "Dockerfile", "compose.yaml", "compose.postgres.yaml", "compose.documents.yaml", "compose.tls.yaml",
     "assets", "ca_profile.xml", "docs", "examples", "scripts", "server", "templates", "tests", "web",
 }
 PRIVATE_PARTS = {"design", ".runtime", "data", "uploads", ".git", ".gitnexus", "node_modules", "__pycache__"}

@@ -34,7 +34,7 @@ PostgreSQL 验收使用两个不同的全新专用数据库。在私有环境中
 python3 scripts/validate_http.py --provider postgres
 ```
 
-这些变量与 Go 单元/集成测试使用的六个 PostgreSQL 变量是不同入口，完整对应关系见下文“Go 集成、Docker 与发布工具”。不要重复使用已完成其他套件的数据库，也不要指向个人实例。
+这些变量与 Go 单元/集成测试使用的八个 PostgreSQL 变量是不同入口，完整对应关系见下文“Go 集成、Docker 与发布工具”。不要重复使用已完成其他套件的数据库，也不要指向个人实例。
 
 ## 对已启动的独立测试实例执行
 
@@ -121,7 +121,7 @@ python3 tests/http_smoke.py \
 
 ## Go 集成、Docker 与发布工具
 
-从 `server/` 运行 `go test ./...` 可执行 Go 套件。PostgreSQL 分支需要以下 **六个不同的、全新且可丢弃的测试数据库**；每个变量只供对应套件使用，不能与 HTTP 验收、运行实例或其他套件共用数据库。未设置时对应测试明确跳过，不能把跳过报告为该提供方验证通过。
+从 `server/` 运行 `go test ./...` 可执行 Go 套件。PostgreSQL 分支需要以下 **八个不同的、全新且可丢弃的测试数据库**；每个变量只供对应套件使用，不能与 HTTP 验收、运行实例或其他套件共用数据库。未设置时对应测试明确跳过，不能把跳过报告为该提供方验证通过。
 
 | 环境变量 | 对应覆盖 | CI 专用数据库 |
 | --- | --- | --- |
@@ -131,6 +131,8 @@ python3 tests/http_smoke.py \
 | `LINGSHU_TEST_COMPONENTS_POSTGRES_URL` | 新组件数据源的 HTTP 生命周期、快照、凭据与删除保护 | `lingshu_components` |
 | `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL` | `004_component_sources.sql` 升级的数据保留与失败原子性 | `lingshu_component_migration` |
 | `LINGSHU_TEST_NAVIGATION_POSTGRES_URL` | 导航批量变更、无变化、权限、版本冲突、事务回滚及持久化 | `lingshu_navigation` |
+| `LINGSHU_TEST_DOCUMENT_POSTGRES_URL` | 原文件文档库生命周期、空间隔离、历史恢复，以及 008 迁移成功与失败回滚 | `lingshu_documents` |
+| `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` | 书签使用说明的兼容更新、并发冲突、文档令牌作用域和 MCP 文件 CRUD | `lingshu_bookmark_context` |
 
 组件 HTTP 套件覆盖推送幂等回执、过期请求的版本保护、每源最多 256 条回执的保留、凭据加密与投影隐藏、跨源 URL 变更时禁止隐式转发旧 Bearer 凭据、一次性 ICS 导入重试、更新失败保留旧快照、禁用源后丢弃已开始任务的结果，以及活动组件引用和闲置页面绑定的删除边界。测试停止自己创建的后台 worker，并使用受控 HTTP 响应，不请求真实日历、天气服务或其他公网源。
 
@@ -144,7 +146,7 @@ python3 tests/http_smoke.py \
 
 认证回归验证启动时复用的公开 dummy hash 是合法 Argon2id 编码，且工作参数与当前真实密码哈希一致；已知的 dummy 输入仍不能为不存在的账号或使用其他真实密码的账号登录，也不能创建会话，正确真实密码则可以正常登录。测试不使用脆弱的耗时比较，也不降低密码验证参数。HTTP 预检精确核对六种数据源、九种面板、六种数据 schema、两种页面主题，以及仅 push/poll 的交付能力、关闭的 WebSocket 和不可执行的声明式组件导入。
 
-为执行所有 PostgreSQL 分支，先在私有环境配置上述六个变量并准备六个空库，然后从 `server/` 运行。以下检查只验证变量已设置，不打印连接串：
+为执行所有 PostgreSQL 分支，先在私有环境配置上述八个变量并准备八个空库，然后从 `server/` 运行。以下检查只验证变量已设置，不打印连接串：
 
 ```bash
 : "${LINGSHU_TEST_POSTGRES_URL:?set a fresh core test database}"
@@ -153,10 +155,12 @@ python3 tests/http_smoke.py \
 : "${LINGSHU_TEST_COMPONENTS_POSTGRES_URL:?set a fresh components test database}"
 : "${LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL:?set a fresh component migration test database}"
 : "${LINGSHU_TEST_NAVIGATION_POSTGRES_URL:?set a fresh navigation batch test database}"
+: "${LINGSHU_TEST_DOCUMENT_POSTGRES_URL:?set a fresh document library test database}"
+: "${LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL:?set a fresh bookmark context test database}"
 go test -count=1 -v ./...
 ```
 
-每次完整重跑应重新准备专用空库，不能用清除已有实例的方式满足测试前提。应用 CI 为六个 Go 套件分别建库并传入六个变量；HTTP 验收仍使用另外两个数据库。CI 定义覆盖这些入口，不表示修改后的工作流已经在 GitHub 托管环境执行通过。
+每次完整重跑应重新准备专用空库，不能用清除已有实例的方式满足测试前提。应用 CI 为八个 Go 套件分别建库并传入八个变量；HTTP 验收仍使用另外两个数据库。CI 定义覆盖这些入口，不表示修改后的工作流已经在 GitHub 托管环境执行通过。
 
 在具备 Docker 的 Linux 环境中，使用新的测试镜像和专用测试卷执行：
 
@@ -196,6 +200,50 @@ python3 -m unittest discover -s tests -p 'test_dev_launcher.py' -v
 测试会有界等待子进程的可执行文件身份就绪。如果执行沙箱禁止读取自己子进程的 `/proc/PID/exe`，会明确报出权限限制；应在允许这项本机进程检查的 Linux 环境执行。此类限制不会被计为测试通过，也不会静默跳过身份断言。
 
 ## 浏览器交互与实际截图
+
+### 未发布的文件资料库与 HTTPS
+
+文档资料库的后端回归使用临时原文件目录与真实 HTTP/MCP 请求。`TestDocumentLibrarySQLite` 和 `TestDocumentLibraryPostgres` 分别覆盖多个来源聚合、同名文件隔离、读取原文件、外部修改冲突、外部修改后立即保存元数据、正文写回、历史、重命名、删除、恢复、离线保留和解绑。`TestDocumentMigrationPreservesAndRollsBack` 对两种数据库分别验证 001–007 数据保留、008 升级和注入失败后的完整回滚。
+
+专项测试还覆盖发布正文与附件快照隔离、路径穿越与符号链接、特殊文件不阻塞读取、缺少读取权限的令牌不能先写后报错、未明确确认的空挂载保留索引、外部重命名保留 ID 和标签、默认子目录规则、CommonMark 附件路径，以及文件操作等待时导航读写仍可用。通过注入数据库写入失败，验证 `document_index_pending`、原文件和历史保留，以及重新扫描后的索引恢复。书签/MCP 套件验证旧客户端省略使用说明时不会清空已有内容、独立的说明更新、令牌作用域、文档 CRUD 与默认目录创建。
+
+```bash
+# 从 server/ 运行；PostgreSQL 分支仍需前述独立空库。
+go test -count=1 -v ./internal/home -run 'TestDocument|TestBookmarkContext'
+go test -count=1 -v ./cmd/lingshu-home -run 'Test.*TLS'
+```
+
+TLS 回归使用临时证书和本机监听，验证 TLS 1.2/1.3 成功、旧协议被拒绝、错误证书不初始化业务数据库、不可信 CA/错误主机名拒绝，以及明文 HTTP 无法到达 TLS 应用 handler。启动器的 HTTPS 健康检查与失败清理另见 Python 回归；这些测试不代表某个生产域名、反向代理或 NAS 已配置加密。
+
+`browser_document_library.cjs` 只允许 `http://127.0.0.1:5188` 或相应 localhost 地址、固定专用 fixture 名称、显式 `--allow-fixture-write`，并核对根目录是仓库的 `.runtime/document-library/mounts`。脚本使用随机测试账号及合成 Markdown、附件和书签，不接入真实文档。输出报告和截图写入 `.runtime/document-library/browser-<随机标识>/`，测试凭据单独以 `0600` 保存，均不得提交到 Git 或打包。
+
+先为这一专用实例配置 `LINGSHU_DOCUMENT_ROOTS`，指向上述 mounts 的绝对路径；数据目录使用 `.runtime/document-library/data`，语言为 `zh-CN`。在 Playwright 和 Chromium 已安装的环境运行：
+
+```bash
+BASE_URL=http://127.0.0.1:5188 \
+LINGSHU_PLAYWRIGHT_MODULE=/absolute/path/to/playwright \
+CHROMIUM_EXECUTABLE=/absolute/path/to/chromium \
+node tests/browser_document_library.cjs --allow-fixture-write
+```
+
+该脚本操作真实目录表单、资料库列表和编辑器，检查写回磁盘、冲突草稿、元数据、书签说明、只读源元数据、发布隔离、历史恢复和解绑。几何检查与实际截图覆盖 2560×1440、1920×1080、1600×900、2560×1080 和 390px 窄屏；浏览器验证与下面历史导航改版的结果分别记录。
+
+如果执行环境会同步或快照工作区，原件与数据库应使用独立临时目录，避免干扰正在运行的服务。测试可设置 `LINGSHU_DOCUMENT_FIXTURE_MOUNTS=/tmp/lingshu-document-library-fixture-<8位小写十六进制>/mounts`；脚本严格校验该格式、真实路径不经过符号链接，并要求父目录存在内容恰为 `Document library fixture zh-CN` 加换行的 `fixture.guard`。服务的允许根必须包含同一个临时 mounts，数据目录放在其同级 `data`，不能把 mounts 本身当数据目录。站名、端口、显式写入开关和所有权限校验保持不变；报告仍写入 `.runtime`。测试服务与浏览器应由同一测试父进程管理，退出时停止该服务。
+
+2026-10-25，未发布实现的实际验证记录：
+
+| 验证 | 本次结果 |
+| --- | --- |
+| 完整 Go 套件，八个独立 PostgreSQL 数据库全部启用 | 955 个测试/子测试通过，0 失败，0 跳过；包含 SQLite 与 PostgreSQL 的 008 迁移成功/失败回滚 |
+| Go race，SQLite 与通用测试 | 880 个测试/子测试通过，无数据竞争；32 个需要 PostgreSQL 的分支在这次 race 运行中明确跳过，其普通执行结果见上一行 |
+| Python 工具与 TLS 启动器回归 | 59 项通过 |
+| 前端核心逻辑 | 6 个 Node 测试文件通过，包含 Markdown 路径与附件 URL |
+| 前端构建 | TypeScript 与 Vite 构建通过 |
+| 真实 Chromium 资料库回归 | 独立 `/tmp` fixture 完成 27 项流程/几何检查和 18 张截图；页面脚本错误 0；唯一控制台错误为刻意模拟的 409 冲突，匿名访问个人文档的 404 也明确列为预期拒绝 |
+| 文件生命周期持续性 | 恢复确认前原文件不存在；确认后恢复所选版本；重命名旧路径到整套测试结束仍不存在，新路径仍存在 |
+
+曾在工作区 fixture 中观察到测试文件重新出现，串行与请求诊断未发现重复浏览器写请求。同一产品代码改用独立 `/tmp` 原件和数据库后，加入持续性断言的完整测试通过；因此这里记录的是隔离临时目录下的结果，不以较早缺少持续性检查的绿灯报告代替最终验证。本次没有 Docker/NAS 实机或 nx11 部署验收，也没有正式镜像发布；GitHub CI 配置已覆盖新增数据库和逻辑测试，但本地通过不能代替托管运行结果。
+
 
 浏览器脚本使用新的独立 Chromium 上下文和专用演示实例，记录实际 UI 操作与截图。不同阶段的断言口径和运行状态分别列出，不与 Python HTTP 断言合并。下面两个小节中的计数和耗时均为历史执行记录；其命令、定位器及预检条件对应当时界面，重新执行前须确认与目标版本匹配。当前组件编辑器的已确认状态与专用入口见文末独立小节。
 
@@ -1319,3 +1367,16 @@ BASE_URL=http://127.0.0.1:5222 node tests/browser_integration_confirm.cjs --allo
 修正后使用固定 Go 1.26.8 官方镜像摘要的独立 Linux amd64 容器执行，开启 `CGO_ENABLED=1` 与 `-race`：`TestIconPrivateProxyTargetBoundary` 连续 **100 次通过**，随后 `go test -race -count=1 ./...` **完整通过**。完整套件用时 84.91 秒；目标用例首次执行含 race 工具链编译用时 91.90 秒，Go 报告测试阶段 1.161 秒。默认 SQLite 路径实际执行，可选 PostgreSQL 套件仍由新的标签 CI 单独验证。没有放宽断言、改动生产代理逻辑或忽略失败。
 
 0.0.4 在这次修正上同步 VERSION、双语 README、下载/镜像坐标和相关使用/API/发布文档；上一节 0.0.3 发布前的 55 项 Python、73 项核心测试与前端构建保留其真实运行身份。正式 0.0.4 的产物身份及发布结果以新标签的托管工作流和公开产物验证为准。
+
+
+## 0.0.5 Docker 升级与可选文档／HTTPS 验收
+
+本次发布准备保留上一轮文件资料库的实际浏览器、SQLite/PostgreSQL、TLS 和 race 记录；版本升级本身不把旧报告重标为正式镜像验收。正式镜像身份、产物校验和及运行结果以对应标签的 GitHub Actions 为准。
+
+`python3 scripts/check_container.py --image <候选镜像>` 在原有新实例、静态资产和重启检查后，继续调用 `scripts/check_document_container.py`。应用 CI 与正式发行打包均通过同一入口检查各自构建的实际镜像；正式打包随后保存该受验镜像并从中提取 Linux 程序与前端。
+
+新增验收使用公开 0.0.4 镜像生成独立的旧数据，再以候选镜像复用同一 `/data`，核对账号、导航、旧会话／PAT、实例密钥和 008 迁移。文档／HTTPS 场景挂载独立可写与只读目录、临时证书，正常验证证书链和名称，检查 Secure Cookie、原件读写／恢复历史、只读挂载和目录缺失保护。所有容器和数据均属于本次独立夹具；不连接日常实例或真实 NAS。
+
+容器回归需要 Docker、可拉取的公开 0.0.4 镜像和用于临时证书的 OpenSSL；语法检查、单元测试或仅阅读 workflow 都不构成这些实际容器步骤已通过的证明。完成后核对托管运行中具体的 Docker 步骤，再记录成功结果。Unraid 模板的 XML/default/打包检查与 Unraid WebUI 实际安装也分开记录。
+
+连续两组容器验收复用同一 loopback 端口。预检采用与 Go 监听器一致的地址复用设置，允许上一组已关闭连接的 TCP `TIME_WAIT`，仍拒绝真正监听的进程。`test_document_container.py` 用实际套接字覆盖空闲、活动监听器和 Linux `TIME_WAIT` 三种情形；不能用忽略端口错误替代检查。

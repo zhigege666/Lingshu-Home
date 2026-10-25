@@ -8,10 +8,12 @@ import os
 from pathlib import Path
 import signal
 import socket
+import ssl
 import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / ".runtime"
@@ -103,6 +105,41 @@ def load_state() -> dict | None:
     return data
 
 
+def health_connection(host: str, port: str, environment: dict[str, str]):
+    certificate = environment.get("LINGSHU_TLS_CERT_FILE", "")
+    key = environment.get("LINGSHU_TLS_KEY_FILE", "")
+    if bool(certificate) != bool(key):
+        raise ValueError("LINGSHU_TLS_CERT_FILE and LINGSHU_TLS_KEY_FILE must be configured together.")
+    scheme = "https" if certificate else "http"
+    # Keep certificate and hostname verification enabled. The standard trust
+    # configuration also supports SSL_CERT_FILE for an explicitly trusted CA.
+    context = ssl.create_default_context() if certificate else None
+    client = urllib.request.build_opener(urllib.request.ProxyHandler({}),
+                                        urllib.request.HTTPSHandler(context=context))
+    url_host = {"0.0.0.0": "127.0.0.1", "::": "::1"}.get(host, host)
+    url = f"{scheme}://{'[' + url_host + ']' if ':' in url_host else url_host}:{port}"
+    return url, client
+
+
+def cleanup_failed_start(process: subprocess.Popen, record: dict | None) -> None:
+    # This is only the Popen child created by this invocation, never a PID
+    # loaded from disk. Give Home's 15-second graceful shutdown time to drain.
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=18)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+    if record is not None and STATE.exists():
+        try:
+            current = json.loads(STATE.read_text())
+        except (OSError, ValueError):
+            return
+        if all(current.get(key) == record.get(key) for key in ("pid", "exe", "startTicks", "exeDevice", "exeInode")):
+            STATE.unlink(missing_ok=True)
+
+
 def start(args: argparse.Namespace) -> None:
     if not sys.platform.startswith("linux"):
         raise ValueError("Use 'run' in the foreground on this operating system.")
@@ -123,37 +160,56 @@ def start(args: argparse.Namespace) -> None:
         probe.close()
     if not BINARY.is_file() or not (ROOT / "web/dist/index.html").is_file():
         raise ValueError("Build the application first: python3 scripts/dev.py build")
-    with LOG.open("a") as log:
-        LOG.chmod(0o600)
-        process = subprocess.Popen([str(BINARY)], cwd=ROOT, env=app_environment(args),
-                                   stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-    identity = None
-    for _ in range(30):
-        identity = process_identity(process.pid)
-        if identity and identity["exe"] == str(BINARY.resolve()):
-            break
-        if process.poll() is not None:
-            raise ValueError(f"Service exited. Inspect {LOG}")
-        time.sleep(0.05)
-    if not identity or identity["exe"] != str(BINARY.resolve()):
-        raise ValueError("Could not verify the started process identity.")
-    url_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
-    url = f"http://{'[' + url_host + ']' if ':' in url_host else url_host}:{port}"
-    data = {**identity, "url": url, "dataDir": str(Path(args.data_dir).resolve()), "provider": args.provider, "language": args.language}
-    STATE.write_text(json.dumps(data, indent=2) + "\n")
-    STATE.chmod(0o600)
-    for _ in range(100):
-        if process.poll() is not None:
-            raise ValueError(f"Service exited. Inspect {LOG}")
-        try:
-            with urllib.request.urlopen(url + "/health", timeout=1) as response:
-                if response.status == 200:
-                    print(f"Started PID {process.pid}: {url}")
-                    return
-        except OSError:
-            pass
-        time.sleep(0.1)
-    raise ValueError(f"Service did not become healthy. Inspect {LOG}; recorded process may still be running.")
+    environment = app_environment(args)
+    url, client = health_connection(host, port, environment)
+    process, data = None, None
+    try:
+        with LOG.open("a") as log:
+            LOG.chmod(0o600)
+            process = subprocess.Popen([str(BINARY)], cwd=ROOT, env=environment,
+                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        identity = None
+        for _ in range(30):
+            identity = process_identity(process.pid)
+            if identity and identity["exe"] == str(BINARY.resolve()):
+                break
+            if process.poll() is not None:
+                raise ValueError(f"Service exited. Inspect {LOG}")
+            time.sleep(0.05)
+        if not identity or identity["exe"] != str(BINARY.resolve()):
+            raise ValueError("Could not verify the started process identity.")
+        data = {**identity, "url": url, "dataDir": str(Path(args.data_dir).resolve()), "provider": args.provider, "language": args.language}
+        STATE.write_text(json.dumps(data, indent=2) + "\n")
+        STATE.chmod(0o600)
+        last_error = "No successful health response."
+        for _ in range(100):
+            if process.poll() is not None:
+                raise ValueError(f"Service exited. Inspect {LOG}")
+            try:
+                with client.open(url + "/health", timeout=1) as response:
+                    if response.status == 200:
+                        print(f"Started PID {process.pid}: {url}")
+                        return
+                    last_error = f"Health endpoint returned HTTP {response.status}."
+            except urllib.error.URLError as exc:
+                if isinstance(exc.reason, ssl.SSLCertVerificationError):
+                    raise ValueError(f"HTTPS health check certificate verification failed for {url}: {exc.reason}. "
+                                     "Trust the issuing CA and use a listening hostname/IP covered by the certificate.") from exc
+                last_error = str(exc)
+            except ssl.SSLCertVerificationError as exc:
+                raise ValueError(f"HTTPS health check certificate verification failed for {url}: {exc}") from exc
+            except OSError as exc:
+                last_error = str(exc)
+            time.sleep(0.1)
+        raise ValueError(f"Service did not become healthy: {last_error} Inspect {LOG}.")
+    except BaseException as exc:
+        if process is not None:
+            try:
+                cleanup_failed_start(process, data)
+            except (OSError, subprocess.TimeoutExpired) as cleanup_error:
+                raise ValueError(f"Startup failed ({exc}); could not confirm cleanup of the newly started PID "
+                                 f"{process.pid}. Inspect {LOG} before starting again.") from cleanup_error
+        raise
 
 
 def stop() -> None:

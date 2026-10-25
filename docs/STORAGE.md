@@ -146,7 +146,7 @@ Cookie sessions expire after 12 hours. Permission epochs and per-account version
 
 ## Provider validation
 
-Run `go test ./...` from `server/` for the local SQLite, integration, page-theme, icon and component suites. PostgreSQL execution is explicit and requires **six different fresh disposable databases**:
+Run `go test ./...` from `server/` for the local SQLite, integration, page-theme, icon and component suites. PostgreSQL execution is explicit and requires **eight different fresh disposable databases**:
 
 - `LINGSHU_TEST_POSTGRES_URL` for the core provider test.
 - `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL` for the integration provider test.
@@ -154,11 +154,36 @@ Run `go test ./...` from `server/` for the local SQLite, integration, page-theme
 - `LINGSHU_TEST_COMPONENTS_POSTGRES_URL` for component source lifecycles, snapshots, encrypted credentials and reference-safe deletion.
 - `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL` for component source migration preservation and failure rollback.
 - `LINGSHU_TEST_NAVIGATION_POSTGRES_URL` for atomic navigation batches, unchanged operations, authorization, revision conflicts, rollback and persistence.
+- `LINGSHU_TEST_DOCUMENT_POSTGRES_URL` for document directories, original-file operations, authorization, publication and migration 008 preservation/failure rollback.
+- `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` for optional bookmark usage notes, backward-compatible updates and optimistic concurrency.
 
-Application suites fail rather than erase an initialized application schema. Do not point any variable at a user instance or reuse one database between the six configured provider groups. Core coverage includes permissions, optimistic page concurrency and failing closed after the advisory-lock connection disappears. Integration coverage exercises PAT/MCP authorization, snapshot writes and GitHub Traffic persistence with synthetic HTTP responses. Icon coverage exercises BYTEA persistence, pack import/deletion and rollback, same-space references, current mode/CSRF/PAT/MCP authorization, external snapshot references, private conditional image GETs and storage reopen. Automatic-icon lifecycle and migration 005 cases reuse the dedicated icon database through randomly named schemas. They require permission to create schemas, clean up only their own schema, and cover queue admission/rollback, origin deduplication, obsolete-result rejection, disable/restart behavior and migration preservation/rollback.
+Application suites fail rather than erase an initialized application schema. Do not point any variable at a user instance or reuse one database between the eight configured provider groups. Core coverage includes permissions, optimistic page concurrency and failing closed after the advisory-lock connection disappears. Integration coverage exercises PAT/MCP authorization, snapshot writes and GitHub Traffic persistence with synthetic HTTP responses. Icon coverage exercises BYTEA persistence, pack import/deletion and rollback, same-space references, current mode/CSRF/PAT/MCP authorization, external snapshot references, private conditional image GETs and storage reopen. Automatic-icon lifecycle and migration 005 cases reuse the dedicated icon database through randomly named schemas. They require permission to create schemas, clean up only their own schema, and cover queue admission/rollback, origin deduplication, obsolete-result rejection, disable/restart behavior and migration preservation/rollback.
 
 Component coverage adds push/import receipt replay and retention, credential projection and origin-change protection, stale-job rejection and source/page reference boundaries. The component migration suite also requires permission to create schemas in its separate database; it creates and cleans up only its own randomly named schemas, comparing all original columns in the six integration tables after successful upgrades and injected failures. The SQLite migration cases also assert that foreign keys remain enabled without violations. Tests that skip an unset PostgreSQL variable do not establish PostgreSQL runtime verification.
 
 The separate HTTP acceptance runner in `tests/` supports disposable server instances and persistence checks across real process restarts. Record provider-specific results with the release; a source-level build alone does not verify a running deployment.
 
-The application CI configuration creates `lingshu_core`, `lingshu_integrations`, `lingshu_icons`, `lingshu_components`, `lingshu_component_migration` and `lingshu_navigation` for the six Go provider suites, plus distinct `lingshu_http` / `lingshu_ownerless` databases for HTTP acceptance. The PostgreSQL test step requires all six Go variables and uses verbose, uncached execution so each provider subtest is visible. The existing race, HTTP restart and Docker gates remain. Updating or locally checking this workflow is not evidence that the revised workflow has run successfully on GitHub. Actual execution results belong in [tests/README.md](../tests/README.md).
+The application CI configuration creates `lingshu_core`, `lingshu_integrations`, `lingshu_icons`, `lingshu_components`, `lingshu_component_migration`, `lingshu_navigation`, `lingshu_documents` and `lingshu_bookmark_context` for the eight Go provider suites, plus distinct `lingshu_http` / `lingshu_ownerless` databases for HTTP acceptance. The PostgreSQL test step requires all eight Go variables and uses verbose, uncached execution so each provider subtest is visible. The existing race, HTTP restart and Docker gates remain. Updating or locally checking this workflow is not evidence that the revised workflow has run successfully on GitHub. Actual execution results belong in [tests/README.md](../tests/README.md).
+
+
+## Document-library storage
+
+Version **0.0.5** adds separately maintained migration **008** to SQLite and PostgreSQL. Version 0.0.4 ends at migration 007; the new application applies 008 on first startup while preserving existing data. With the old environment unchanged, document roots remain disabled and direct TLS remains off.
+
+Migration 008 adds optional bookmark usage notes (`links.context_markdown`, empty for old rows), directory registrations, durable document records, tags/relationships, searchable body caches and explicit publication/attachment snapshots. It does not rewrite existing links, categories, ownership or document files. Working document bodies remain authoritative in their mounted source directories. The database still contains irreplaceable manual metadata and public snapshots; it is not a disposable cache.
+
+| Location | Contents / backup requirement |
+| --- | --- |
+| One or more separately mounted source directories | Original `.md` / `.markdown` and attachments; back up the originals, filenames and folder structure |
+| Home database | Source/space bindings, stable IDs, tags, bookmark relationships, publication state/body/attachment snapshots and rebuildable search text |
+| `<data-dir>/document-history/` | Up to 20 distinct prior body revisions per document, created before Home overwrites/deletes; private permissions, not a complete external-edit or attachment history |
+| Existing data directory and keys | Retain the original `/data`, `csrf.key` and `integrations.key` for both database providers |
+| Deployment configuration | Host/container mount mappings, allowed root list, readonly flags, TLS certificate configuration and ownership |
+
+`LINGSHU_DOCUMENT_ROOTS` / `--document-roots` is a JSON array of absolute allowed document paths, default `[]`. It never replaces `LINGSHU_DATA_DIR`. Root paths cannot expose application data/web assets or configured TLS keys, including their resolved paths. Register multiple non-overlapping roots under one space in Admin; disconnecting a registration does not delete either original files or their metadata/history.
+
+Before upgrading, stop Home and back up the database, instance keys/history, mounted originals and deployment configuration together. To revert to 0.0.4, restore its matching pre-upgrade database/data backup and executable/image. Restoring the database alone cannot undo edits made to original Markdown files; recover those from the corresponding original-file backup. Do not modify applied migration checksums, delete migration ledger entries or let an older binary operate on the new schema.
+
+File operations and database transactions are coordinated but are not one cross-filesystem transaction. An index-finalization failure after writing a file is reported as `document_index_pending`; recovery copies remain and a later scan can repair derived content records. Metadata is retained on missing mounts, partial scan failures and unexpectedly empty scans. File/version behavior and exact limits are documented in [the library guide](DOCUMENT_LIBRARY.md).
+
+Direct HTTPS adds `LINGSHU_TLS_CERT_FILE` / `--tls-cert-file` and `LINGSHU_TLS_KEY_FILE` / `--tls-key-file`. Both must be present; certificate-load errors fail before opening business storage and never cause HTTP fallback. The private key is mounted separately from document roots. `LINGSHU_SECURE_COOKIES` still does not enable a TLS listener by itself. HTTPS does not encrypt document/history/database files at rest or a host-to-NAS mount; see [transport encryption](TRANSPORT_SECURITY.md).

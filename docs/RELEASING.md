@@ -42,7 +42,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.4` uses `ghcr.io/zhigege666/lingshu-home:0.0.4`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.5` uses `ghcr.io/zhigege666/lingshu-home:0.0.5`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 
@@ -139,3 +139,16 @@ The `0.1.0-dev.1` development implementation was checked on 2026-10-18. SQLite a
 Independent Chromium runs at 2560 × 1440 passed the CRUD, bookmark-import and layout phases, totaling **146 phase assertions excluding repeated preflight checks**. A separate six-viewport run passed 63 assertions including its preflight, and a separate search/favorite/mouse interaction run passed 155 including its preflight. The latter verified actual resize, drag, save, reload and restoration of the original complete grid configuration, as well as the corrected admin Tabs geometry. These browser counts have different preflight boundaries and are recorded separately from the 4,450 Python HTTP assertions.
 
 These are historical development verification results. The 2026-10-19 working-tree checks did not execute a complete clean-tag application release build or publish a GitHub Release or registry image. Release `0.0.1` is assessed separately through its tagged Actions run, downloaded artifacts and public availability checks. Provider counts, browser phase results, execution boundaries and runnable test commands are maintained in [the test guide](../tests/README.md); they do not establish Windows/macOS client verification or a real GitHub Traffic baseline.
+
+
+## Version 0.0.5 upgrade and evidence
+
+Version 0.0.5 includes the file-backed Markdown library, bookmark usage context, scoped document HTTP/MCP tools and optional direct HTTPS. SQLite and PostgreSQL each apply additive migration 008 on startup. Preserve the existing data directory, database, instance keys, language, ports and access mode; absent new settings, document roots remain `[]` and direct TLS remains disabled. An existing reverse proxy can keep terminating HTTPS.
+
+The Unraid catalog template keeps `latest`, its original appdata mapping and HTTP WebUI as defaults. Advanced document-root and certificate/key variables are opt-in. Installed containers retain saved templates; enabling the library requires explicit document Path mappings plus the allowlist and an Owner's space binding. Enabling direct TLS additionally requires a separate read-only certificate mount, both TLS variables and an HTTPS WebUI URL. Do not automatically add empty document/certificate Paths or expose broad filesystem roots.
+
+Back up the complete appdata/database and matching keys before upgrading. Once document roots are used, include recovery history and original document/attachment directories. Returning to 0.0.4 requires its pre-upgrade database/data backup and old image; changing only the image tag does not roll back schema 008 or external file edits.
+
+The release must retain the application CI, both database providers, HTTP restart acceptance and exact-image packaging gates. The container checks additionally exercise an isolated 0.0.4-to-candidate upgrade and the candidate's mounted Markdown/direct-TLS behavior. Read the actual hosted run and its tested image identity before describing those checks as passed. NAS-specific encryption, kernel I/O behavior and the user's existing deployment remain separate deployment verification.
+
+The consecutive container suites reuse their loopback port. The preflight permits TCP `TIME_WAIT` from the stopped preceding container while still rejecting a live listener, with socket regressions for both boundaries. An actual port conflict remains a test failure; do not bypass it or connect to the process already using that port.

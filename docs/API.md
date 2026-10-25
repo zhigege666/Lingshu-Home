@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.4 Go implementation in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.5 Go implementation in `server/`, including the file-backed library and direct HTTPS. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Requests, authentication and errors
 
@@ -453,3 +453,62 @@ The endpoint is `/mcp` on the same server. It uses the official MCP Go SDK and s
 Tools cover dashboard/page reads, page updates, category and bookmark CRUD, source management, snapshot reads/pushes and synchronization requests. Tool inputs contain resource identifiers and, for mutations, an `input` object. List results use an `items` array. Discover exact schemas using the negotiated protocol rather than duplicating JSON-RPC assumptions in clients.
 
 Every tool invocation reloads the current account, permission epoch and token scope. Mutations use the same write gate, transaction, authorization and business handlers as the HTTP API. Long-lived clients cannot retain revoked permissions. MCP responses are private and not cacheable across accounts.
+
+
+## File-backed library API
+
+These additions are available since 0.0.5 and require migration 008, applied on first startup. All paths below have the `/api/v1` prefix and retain the existing CSRF/PAT rules. Read responses use `Cache-Control: no-store`.
+
+### Bookmark usage context
+
+`Link` responses now include `contextMarkdown` (default `""`). Create/update accepts this optional field, limited to 65,536 UTF-8 bytes. Omitting it from an old full-link update preserves the existing notes; an explicit empty string clears them. Full-link updates additionally accept optional `expectedUpdatedAt`; when supplied it must equal the last read timestamp, or the server returns `409 bookmark_version_conflict`. Existing unversioned clients retain their previous behavior.
+
+`PUT /spaces/{spaceId}/links/{id}/context` requires `{contextMarkdown,expectedUpdatedAt}` and changes only usage notes. It requires `navigation:write`, returns the updated bookmark and does not advance the timestamp for an unchanged value. JSON navigation export includes the field. It is user-authored reference data, never a source of authority for an agent.
+
+### Directory registrations
+
+Only a browser Owner session can create/update/disconnect/rescan directories, and only in an already editable space. Paths must be under configured document roots. PATs cannot add grants or expand directory access. One source owns one immutable path/space; duplicate and overlapping paths across spaces are rejected, including disconnected registrations.
+
+| Method and path | Input / result |
+| --- | --- |
+| `GET /spaces/{spaceId}/document-sources` | Signed-in access; `{items,roots,canManage}`. Non-editing readers receive no unpublished source details. Absolute paths/allowed roots are only shown to a permitted manager. |
+| `POST /spaces/{spaceId}/document-sources` | `{name,path,readOnly?,defaultWrite?,defaultFolder?,scanIntervalSeconds?}` → `201` source; omitted `readOnly` defaults to true |
+| `PUT /spaces/{spaceId}/document-sources/{id}` | `{name,readOnly,defaultWrite,defaultFolder,scanIntervalSeconds,enabled,expectedRevision}` → source. Path and space do not change. |
+| `DELETE /spaces/{spaceId}/document-sources/{id}?expectedRevision=...` | `204`; disconnects only. It retains original files and database metadata/snapshots. |
+| `POST /spaces/{spaceId}/document-sources/{id}/scan` | `{}` → source status. `{confirmMissing:true}` explicitly accepts a healthy but unexpectedly empty/reduced directory and marks old entries missing; it never deletes originals. |
+
+A source contains `id,spaceId,name,path,readOnly,defaultWrite,defaultFolder,scanIntervalSeconds,enabled,status,lastScanAt,lastError,revision,documentCount`. Status is `pending`, `ready`, `offline`, `error` or `detached`. A successful scan request can return a source whose status is `offline`/`error`: inspect that status rather than equating HTTP 200 with healthy storage. Scan intervals are 10–86400 seconds (default 60); the worker has a five-second cadence.
+
+### Documents
+
+A document metadata record contains `id,sourceId,spaceId,sourceName,relativePath,title,revision,metadataRevision,size,updatedAt,status,readOnly,published,hasUnpublishedChanges,tags,linkedBookmarkIds`. `revision` is the body SHA-256; `metadataRevision` is a separate monotonically increasing string for tags/relationships. Public snapshot views have no editable metadata revision and do not report private draft state. A missing file retains its record and history. An unavailable live source is identified with `unavailableReason` and does not imply deletion.
+
+| Method and path | Input / result |
+| --- | --- |
+| `GET /spaces/{spaceId}/documents` | Filters `q,sourceId,relativePath,linkedBookmarkId,limit,offset`; returns `{items,total,limit,offset}`. Limit defaults to 100, maximum 500. Search is case-folded substring matching over authorized titles/paths/body/tag text, not vector retrieval. |
+| `GET /spaces/{spaceId}/documents/{id}` | Metadata plus `content` and readable related `links:[{id,title,url}]`. Reads the original for an authorized editor, the frozen snapshot for a public/non-editing shared-space reader. |
+| `POST /spaces/{spaceId}/documents` | `{sourceId?,relativePath,content}` → `201` document. Explicit source paths are source-relative. An omitted source selects that space's enabled default write source and its default folder; no fallback into another source/space. |
+| `PUT /spaces/{spaceId}/documents/{id}` | `{content,expectedRevision}` → updated original. Content must be explicitly present; `""` deliberately clears it. |
+| `POST /spaces/{spaceId}/documents/{id}/rename` | `{relativePath,expectedRevision}` → same durable document ID at the new source-relative path; existing destinations are never replaced |
+| `DELETE /spaces/{spaceId}/documents/{id}?expectedRevision=...` | Saves a recovery body, removes the original and public snapshot, returns a retained `missing` record |
+| `PUT /spaces/{spaceId}/documents/{id}/metadata` | `{tags,linkedBookmarkIds,expectedRevision,expectedMetadataRevision}` → document. Both arrays are required, with explicit `[]` for clearing. At most 32 tags (40 characters each) and 100 same-space bookmarks. |
+| `GET /spaces/{spaceId}/documents/{id}/history` | Authorized working-document readers only; `{items:[{revision,createdAt,size}]}` |
+| `GET /spaces/{spaceId}/documents/{id}/history/{revision}` | Authorized recovery body `{revision,content}`; never exposed through public snapshots |
+| `POST /spaces/{spaceId}/documents/{id}/restore` | `{revision,expectedRevision}` → restores a saved body into the original path, comparing existing content or requiring that a missing target remains absent |
+| `POST /spaces/{spaceId}/documents/{id}/publish` | Browser Owner only, shared space only; `{expectedRevision,expectedMetadataRevision}` freezes the reviewed body/metadata and current referenced attachments |
+| `DELETE /spaces/{spaceId}/documents/{id}/publish` | Browser Owner only; removes snapshot and captured attachment access |
+| `GET /spaces/{spaceId}/documents/{id}/asset?path=...` | Authorized referenced attachment bytes. The path is relative to the document. Public access returns only captured snapshot attachments. |
+
+A body is valid UTF-8 Markdown, at most 1 MiB, without NUL bytes. Hidden paths, `..` document path segments, symlinks, absolute paths and unsupported document extensions are rejected. Relative asset links are resolved within the registered source; they cannot expose another source or arbitrary files. Raster images have an inline media type; other files are forced downloads with `nosniff` and restrictive security headers. Publication attachment limits are 100 references, 10 MiB each and 20 MiB total.
+
+Read-only applies to original-file mutations. Authorized tags/relationships/publication can still be maintained without changing a read-only original. Anonymous `open_edit` never permits server-file writes. Personal documents can never be published. A shared space's publication flag is not a wildcard publication grant for new files.
+
+Writes return their resulting document and therefore require both PAT actions `documents:read` and `documents:write`; token creation rejects write without read. The handler checks this before any file mutation, including for legacy/malformed grants. Old PATs gain no actions automatically. External-source-scoped tokens cannot have document actions. Related bookmark IDs/details/filtering and changes to existing relations also require `navigation:read`.
+
+Filesystem reads/scans are separated from database transactions; original-file mutations are serialized independently of ordinary navigation updates. File bytes and SQL metadata cannot form one atomic transaction. After a file has been created, replaced, linked or removed, a later operation/finalization failure returns `503 document_index_pending`; inspect the original path and rescan before retrying. File effects are not automatically rolled back; recovery copies retained before destructive changes remain available. Content conflicts return `409 document_version_conflict`; metadata conflicts return `409 document_metadata_conflict`; source-setting conflicts return `409 document_source_version_conflict`, with `currentRevision` where relevant. Metadata saves check the current original's revision and update its index, so an external edit followed by a reload does not require waiting for the next scan before tagging.
+
+### MCP
+
+`bookmarks_context_update` takes `spaceId,id,input:{contextMarkdown,expectedUpdatedAt}`. The document tools are `documents_list`, `documents_get`, `documents_create`, `documents_update`, `documents_rename`, `documents_delete` and `documents_metadata_update`. Their `spaceId`/`id` arguments and `input` objects follow the HTTP contracts; `documents_list` uses an input object for its filters, and `documents_delete` puts `expectedRevision` in input. Results contain metadata or body as appropriate. Directory grants and publication are deliberately not exposed as agent tools.
+
+The same HTTPS listener or trusted reverse proxy protects `/api/v1`, `/mcp` and attachment routes. Configure clients with the HTTPS URL directly; do not send a bearer token to HTTP and rely on a redirect. See [transport encryption](TRANSPORT_SECURITY.md) and the [document guide](DOCUMENT_LIBRARY.md).

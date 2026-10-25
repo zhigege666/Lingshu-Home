@@ -262,7 +262,7 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 				t.Fatal("MCP discovery protocol/cache contract differs")
 			}
 			tools, _ := anonymous.mcp(full, "tools/list", map[string]any{}, 200)
-			if len(integrationObject(t, tools["result"])["tools"].([]any)) != 20 {
+			if len(integrationObject(t, tools["result"])["tools"].([]any)) != 28 {
 				t.Fatal("MCP tools were not registered")
 			}
 			legacyHeaders := http.Header{"Accept": []string{"application/json, text/event-stream"}, "Mcp-Protocol-Version": []string{"2025-11-25"}}
