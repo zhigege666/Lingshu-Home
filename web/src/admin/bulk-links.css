@@ -11,6 +11,8 @@
 .admin-bulk-form .admin-field+.admin-field{margin-top:16px}
 .admin-bulk-summary{margin:0 0 6px;line-height:1.6}
 .admin-bulk-examples{overflow-wrap:anywhere;margin:0 0 20px}
+.admin-bulk-delete-warning{margin:0 0 18px;padding:12px 14px;border:1px solid #efc8c3;border-radius:8px;background:#fff4f2;color:#912b22;line-height:1.6;overflow-wrap:anywhere}
+.admin-bulk-delete-warning strong{display:block;margin-bottom:3px}
 @media(max-width:700px){.admin-bulk-toolbar{gap:6px;padding:8px}.admin-bulk-divider{display:none}}
 
 .admin-layout-history{display:flex;align-items:center;gap:6px}

@@ -98,13 +98,13 @@ func TestComponentTemplateNetworkBoundsAndRedirects(t *testing.T) {
 		response.Header.Set("Location", "http://169.254.169.254/latest/meta-data/")
 		return response, nil
 	}), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	for _, target := range []string{"http://127.0.0.1/", "http://10.0.0.1/", "file:///etc/passwd", "http://localhost/", "https://example.org:8443/"} {
+	for _, target := range []string{"http://127.0.0.1/", "http://169.254.169.254/", "file:///etc/passwd", "http://localhost/", "https://example.org:65536/"} {
 		if _, err := fetchComponentTemplate(context.Background(), client, target); err == nil {
 			t.Fatalf("unsafe target accepted: %s", target)
 		}
 	}
 	if count != 0 {
-		t.Fatal("private targets reached the transport")
+		t.Fatal("reserved or invalid targets reached the transport")
 	}
 	if _, err := fetchComponentTemplate(context.Background(), client, "https://widgets.example.org/redirect"); err == nil || count != 1 {
 		t.Fatal("unsafe redirect was followed")

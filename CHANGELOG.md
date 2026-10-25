@@ -4,11 +4,48 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-25
+
 ### Container distribution
 
 - Add a serialized, independently repairable `latest` promotion workflow that reuses the highest verified published stable image, checks release metadata and registry identities, and refuses ambiguous versions, unknown aliases or source changes. Stable releases call it after successful publication; promotion-maintenance changes and a manual Actions run can also synchronize the alias without rebuilding or modifying fixed tags.
 - Default the Unraid template and Docker quick starts to `latest`, retain exact version tags for pinning, and align the English/Chinese installation and upgrade guidance. Existing fixed-tag installations need a one-time Repository change; subsequent image updates still require pulling and recreating the container with the same appdata.
 - Link manual Unraid installation and its template ReadMe to the maintained instructions, including the existing database/key backup and first-upgrade language requirements for 0.0.2.
+
+### Website category icons
+
+- Expand the offline Lucide collection from 30 to 120 SVGs, covering AI, development, servers and networks, work and learning, media and design, everyday services, and communities. Keep every existing icon ID and SVG unchanged, and retain the same pinned upstream commit, original license and per-file checksums.
+- Add eight browsing groups, bilingual names and search aliases, visible icon labels, result counts, and a clear-search action to the shared link/category picker. Searching covers all built-in groups and accepts case, width and word-separator variants; selecting a group clears the search. Built-in results show 24 icons per page in a bounded grid.
+- Extend server-side icon validation together with the frontend catalog and add a manifest/allowlist/asset integrity regression. Existing saved icons remain valid; there is no database migration or automatic replacement of category or bookmark icons.
+
+### Batch deletion and confirmation
+
+- Add revision-checked batch link deletion for 1–500 selected links. Validate every ID before deleting, roll back the complete batch on failure, preserve unselected content, and clean only automatic-icon jobs whose origins are no longer referenced.
+- Confirm link, category, batch, data-source and access-token deletion beside the initiating button with a keyboard-accessible popover. Keep the object/count, cancel action and request errors visible; prevent duplicate submission and distinguish a completed delete from a subsequent refresh failure.
+
+### Internal website icons and templates
+
+- Allow the editor-selected hostname to use RFC1918/ULA addresses, LAN hostnames and valid HTTP/HTTPS ports 1–65535 for automatic/manual website icons and component-template discovery/preview. Preserve custom ports in origin/cache keys.
+- Keep the original hostname scope across redirects and HTML declarations. Other hosts must resolve entirely to public addresses; validate every DNS answer and dial only the validated literal IP. Continue blocking loopback, link-local, metadata, CGNAT, reserved and transition destinations.
+- Preserve origin-only icon requests, image validation, request budgets and explicit proxy behavior. HTTP JSON/ICS sources retain their existing per-source private-network option; weather/GitHub keep their fixed providers. No database migration is required.
+
+### Dialog layout and startup space
+
+- Keep dialog headers and close controls outside the content scrollbar, preserve the clipped rounded frame and keep form actions visible while scrolling. Expand wide forms to 1240 px and arrange link basics and icon selection in two columns on suitable desktop widths; retain a single column on narrow screens.
+- Remember the last successfully loaded space in browser storage per account and site origin. Add **Default opening space** beside the space selector, with **Remember last space** or a fixed accessible default. A successful manual choice in the current tab takes priority; signing out clears that tab override and retains the account's local preference. Validate preferences against current access, isolate anonymous/account choices and recover from unavailable browser storage. Failed reads never replace the last successful space. Preferences do not sync across devices or change server permissions or the API default-space contract.
+
+### Navigation and favorites content
+
+- Add the same **Component content** controls to the homepage inspector and admin layout editor for navigation and favorites: maximum links per row, URL display, description lines, tags, additional URLs, group titles, link counts and content density.
+- Keep automatic columns as the default (`maxColumns:0`), with optional upper limits of 1–8 links per row and fewer columns when available width requires it. Directory mode stays single-column and hides the column-limit control; switching back to cards restores any saved limit.
+- Preserve compatible defaults for older pages: one description line, URL fallback when no description is displayed, tags following the existing style, visible additional URLs/group headings/counts, and page-inherited density. Following the tag style omits `showTags`; explicit per-component choices leave source records and other components unchanged.
+- Apply changes immediately to the page draft and canvas/preview, include them in Undo/Redo, and persist only through explicit **Save page**. Retain page Schema 2, expected-revision checks and the existing database schema.
+
+### Release documentation and upgrade
+
+- Require every release to update both English and Chinese READMEs and the matching dated CHANGELOG entry. Keep current version, release/download links, fixed-image examples, feature scope and upgrade guidance aligned; release notes are generated from that entry. Enforce this in the repository release checks and document it in AGENTS.md and the release guide.
+- Include the navigation-content core regressions in application CI alongside the existing routing, page-preset and startup-space checks.
+- This version adds no database migration and retains page Schema 2. Upgrading from 0.0.2 keeps the same database and instance-key paths. Back up before upgrading; if a page saves new component settings, restoring a pre-upgrade database/key backup is the supported way to return to 0.0.2 because its older page validator does not accept these new fields or added built-in icon IDs. Upgrading directly from 0.0.1 still requires migration 007 and retaining the original language on the first upgraded start.
 
 ## [0.0.2] - 2026-10-24
 

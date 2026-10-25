@@ -84,7 +84,7 @@ func validateComponentTemplateReference(raw any) error {
 			return invalid("Invalid component template source URL.")
 		}
 		if _, err := iconRemoteURL(value); err != nil {
-			return invalid("A component template source must be a public HTTP or HTTPS URL.")
+			return invalid("A component template source must use a permitted HTTP or HTTPS URL.")
 		}
 	}
 	return nil
@@ -167,6 +167,10 @@ func componentTemplateDigest(raw []byte) string {
 
 // Discovery is opt-in. No HTML, scripts, styles or assets are ever rendered.
 func componentTemplateLink(body []byte, page *url.URL) (*url.URL, error) {
+	return scopedComponentTemplateLink(iconNetworkContext(context.Background(), page), body, page)
+}
+
+func scopedComponentTemplateLink(ctx context.Context, body []byte, page *url.URL) (*url.URL, error) {
 	tokens := html.NewTokenizer(bytes.NewReader(body))
 	for count := 0; count < 4096; count++ {
 		kind := tokens.Next()
@@ -203,9 +207,9 @@ func componentTemplateLink(body []byte, page *url.URL) (*url.URL, error) {
 		if err != nil {
 			return nil, invalid("Invalid component template discovery link.")
 		}
-		target, err := iconRemoteURL(page.ResolveReference(reference).String())
+		target, err := iconScopedRemoteURL(ctx, page.ResolveReference(reference).String())
 		if err != nil {
-			return nil, invalid("A component template discovery link must use a public HTTP or HTTPS URL.")
+			return nil, invalid("A component template discovery link must stay within the permitted network scope.")
 		}
 		return target, nil
 	}
@@ -216,8 +220,9 @@ func fetchComponentTemplate(ctx context.Context, client *http.Client, rawURL str
 	var result componentTemplatePreview
 	target, err := iconRemoteURL(rawURL)
 	if err != nil {
-		return result, invalid("Use a public HTTP or HTTPS component template URL on a standard port.")
+		return result, invalid("Use a permitted HTTP or HTTPS component template URL.")
 	}
+	ctx = iconNetworkContext(ctx, target)
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	requests := 0
@@ -228,7 +233,7 @@ func fetchComponentTemplate(ctx context.Context, client *http.Client, rawURL str
 		}
 		target = final
 		if isHTML {
-			target, err = componentTemplateLink(body, target)
+			target, err = scopedComponentTemplateLink(ctx, body, target)
 			if err != nil {
 				return result, err
 			}

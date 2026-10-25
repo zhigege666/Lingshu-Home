@@ -170,7 +170,7 @@ func TestIconPublicAddressAndPinnedConnection(t *testing.T) {
 			t.Errorf("public address rejected: %s", raw)
 		}
 	}
-	for _, raw := range []string{"http://127.0.0.1/a", "http://localhost/a", "http://machine.local/a", "http://[::1]/", "https://user:secret@example.org/", "ftp://example.org/", "https://example.org:8443/", "http://example.org:443/", "https://example.org/%0a", "https://example.org\\@evil.example.org/", "https://bad_host.example.org/"} {
+	for _, raw := range []string{"http://127.0.0.1/a", "http://localhost/a", "http://[::1]/", "https://user:secret@example.org/", "ftp://example.org/", "https://example.org/%0a", "https://example.org\\@evil.example.org/", "https://bad_host.example.org/"} {
 		// Escaped path bytes are legal navigation URLs, but are stripped before a
 		// website-origin request. All direct unsafe targets must be rejected.
 		if strings.Contains(raw, "%0a") {

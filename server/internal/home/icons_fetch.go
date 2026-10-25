@@ -16,11 +16,11 @@ import (
 	"net/netip"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/net/html"
-	"golang.org/x/net/idna"
 )
 
 const (
@@ -67,48 +67,56 @@ func iconRemoteURL(raw string) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
-	u, err := url.Parse(canonical)
+	// Reuse the source fetcher's bounded RFC1918/ULA policy and hostname
+	// validation. Canonicalizing first keeps bookmark fragments ignorable;
+	// iconWebsiteOrigin separately strips bookmark paths and queries.
+	u, err := integrationRemoteURL(canonical, true)
 	if err != nil {
-		return nil, invalid("Invalid website URL.")
+		return nil, invalid("Website address is blocked or invalid.")
 	}
-	port := u.Port()
-	if port != "" && !(u.Scheme == "http" && port == "80") && !(u.Scheme == "https" && port == "443") {
-		return nil, invalid("Website icons are fetched only from standard public HTTP or HTTPS ports.")
-	}
-	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
-	if ip, err := netip.ParseAddr(host); err == nil {
-		if !iconPublicIP(ip) {
-			return nil, invalid("Website icons require a public Internet address.")
-		}
-		host = ip.String()
-	} else {
-		host, err = idna.Lookup.ToASCII(host)
-		if err != nil || len(host) > 253 || !strings.Contains(host, ".") {
-			return nil, invalid("Website icons require a public Internet hostname.")
-		}
-		for _, suffix := range []string{".localhost", ".local", ".internal", ".lan", ".home", ".test", ".invalid", ".example", ".onion"} {
-			if strings.HasSuffix(host, suffix) {
-				return nil, invalid("Local and reserved website hostnames are not fetched.")
-			}
-		}
-		for _, label := range strings.Split(host, ".") {
-			if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
-				return nil, invalid("Invalid website hostname.")
-			}
-			for _, c := range label {
-				if c != '-' && (c < 'a' || c > 'z') && (c < '0' || c > '9') {
-					return nil, invalid("Invalid website hostname.")
-				}
-			}
-		}
-	}
-	if strings.Contains(host, ":") {
-		u.Host = "[" + host + "]"
-	} else {
-		u.Host = host
-	}
-	u.Fragment, u.RawFragment = "", ""
 	return u, nil
+}
+
+type iconInitialHostKey struct{}
+
+func iconScopeHost(host string) string {
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return ip.Unmap().String()
+	}
+	return host
+}
+
+// Only the hostname initially selected by the editor may resolve to private
+// addresses. Redirects, HTML candidates and nested template discovery retain
+// this scope; changing scheme or port on that same host is allowed.
+func iconNetworkContext(ctx context.Context, initial *url.URL) context.Context {
+	if _, exists := ctx.Value(iconInitialHostKey{}).(string); exists {
+		return ctx
+	}
+	return context.WithValue(ctx, iconInitialHostKey{}, iconScopeHost(initial.Hostname()))
+}
+
+func iconPrivateTarget(ctx context.Context, host string) bool {
+	initial, _ := ctx.Value(iconInitialHostKey{}).(string)
+	return initial != "" && initial == iconScopeHost(host)
+}
+
+func iconScopedRemoteURL(ctx context.Context, raw string) (*url.URL, error) {
+	target, err := iconRemoteURL(raw)
+	if err != nil {
+		return nil, err
+	}
+	if iconPrivateTarget(ctx, target.Hostname()) {
+		return target, nil
+	}
+	// Literal addresses and local names are rejected here as well as in Dial,
+	// so a transport that does not dial cannot bypass the URL-level boundary.
+	target, err = integrationRemoteURL(target.String(), false)
+	if err != nil {
+		return nil, invalid("Only the original website hostname may use a private network address.")
+	}
+	return target, nil
 }
 
 // The user supplies a bookmark URL; only its canonical origin is requested.
@@ -133,40 +141,13 @@ func iconPinnedDial(resolver iconIPResolver, dial iconDialContext) iconDialConte
 			return nil, errors.New("unsupported icon network")
 		}
 		host, port, err := net.SplitHostPort(address)
-		if err != nil || port != "80" && port != "443" {
+		number, portErr := strconv.Atoi(port)
+		if err != nil || portErr != nil || number < 1 || number > 65535 {
 			return nil, errors.New("unsupported icon port")
 		}
-		var ips []netip.Addr
-		if ip, err := netip.ParseAddr(host); err == nil {
-			ips = []netip.Addr{ip}
-		} else {
-			ips, err = resolver.LookupNetIP(ctx, "ip", host)
-			if err != nil {
-				return nil, errors.New("website address lookup failed")
-			}
-		}
-		if len(ips) == 0 || len(ips) > 16 {
-			return nil, errors.New("website address lookup is empty or excessive")
-		}
-		for _, ip := range ips {
-			if !iconPublicIP(ip) {
-				return nil, errors.New("website resolves to a non-public address")
-			}
-		}
-		var last error
-		for _, ip := range ips {
-			// Dial an already validated literal. There is no second DNS lookup;
-			// net/http still verifies TLS and sends the original Host/SNI.
-			conn, err := dial(ctx, "tcp", net.JoinHostPort(ip.Unmap().String(), port))
-			if err == nil {
-				return conn, nil
-			}
-			last = err
-			if ctx.Err() != nil {
-				break
-			}
-		}
-		return nil, last
+		// Every DNS result is checked before any socket is opened, then the
+		// existing direct/proxy adapter receives only a validated IP literal.
+		return integrationPinnedDial(resolver, dial, iconPrivateTarget(ctx, host))(ctx, network, address)
 	}
 }
 
@@ -232,7 +213,7 @@ func fetchIconResponse(ctx context.Context, client *http.Client, target *url.URL
 	}
 	current := target
 	for redirects := 0; redirects <= 3; redirects++ {
-		checked, err := iconRemoteURL(current.String())
+		checked, err := iconScopedRemoteURL(ctx, current.String())
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -303,6 +284,10 @@ func fetchIconResponse(ctx context.Context, client *http.Client, target *url.URL
 }
 
 func iconHTMLCandidates(body []byte, page *url.URL) []*url.URL {
+	return scopedIconHTMLCandidates(iconNetworkContext(context.Background(), page), body, page)
+}
+
+func scopedIconHTMLCandidates(ctx context.Context, body []byte, page *url.URL) []*url.URL {
 	result := []*url.URL{}
 	seen := map[string]bool{}
 	z := html.NewTokenizer(bytes.NewReader(body))
@@ -349,7 +334,7 @@ func iconHTMLCandidates(body []byte, page *url.URL) []*url.URL {
 		if err != nil {
 			continue
 		}
-		u, err = iconRemoteURL(page.ResolveReference(u).String())
+		u, err = iconScopedRemoteURL(ctx, page.ResolveReference(u).String())
 		if err != nil || seen[u.String()] {
 			continue
 		}
@@ -360,6 +345,7 @@ func iconHTMLCandidates(body []byte, page *url.URL) []*url.URL {
 }
 
 func fetchWebsiteIcon(ctx context.Context, client *http.Client, origin *url.URL) (normalizedIcon, string, error) {
+	ctx = iconNetworkContext(ctx, origin)
 	ctx, cancel := context.WithTimeout(ctx, iconFetchTimeout)
 	defer cancel()
 	budget := &iconFetchBudget{}
@@ -374,7 +360,7 @@ func fetchWebsiteIcon(ctx context.Context, client *http.Client, origin *url.URL)
 				return icon, page.String(), nil
 			}
 		} else if mediaType == "text/html" || mediaType == "application/xhtml+xml" {
-			candidates = iconHTMLCandidates(body, page)
+			candidates = scopedIconHTMLCandidates(ctx, body, page)
 		}
 	}
 	if page == nil {
@@ -411,7 +397,7 @@ func fetchWebsiteIcon(ctx context.Context, client *http.Client, origin *url.URL)
 			}
 		}
 	}
-	return normalizedIcon{}, "", &APIError{Status: 422, Code: "favicon_unavailable", Message: "No supported public website icon was found. Choose a built-in icon or import an image."}
+	return normalizedIcon{}, "", &APIError{Status: 422, Code: "favicon_unavailable", Message: "No supported website icon was found. Choose a built-in icon or import an image."}
 }
 
 func normalizeFetchedIcon(body []byte, mediaType string) (normalizedIcon, error) {

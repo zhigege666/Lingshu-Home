@@ -354,6 +354,9 @@ func validatePageConfig(config map[string]any) error {
 		if panelID == "builtin/favorites" {
 			allowed = append(allowed, "variant", "linkAppearance")
 		}
+		if panelID == "builtin/navigation" || panelID == "builtin/favorites" {
+			allowed = append(allowed, "maxColumns", "urlDisplay", "descriptionLines", "showTags", "showEndpoints", "showGroupTitles", "showCounts", "density")
+		}
 		if panelID == "builtin/category-navigation" {
 			allowed = append(allowed, "displayMode", "hierarchyMode", "collapsible", "defaultCollapsed", "showCounts")
 		}
@@ -391,6 +394,29 @@ func validatePageConfig(config map[string]any) error {
 		if appearance, exists := settings["linkAppearance"]; exists && !oneOf(appearance, "icon-text", "minimal", "app-icons") {
 			return invalid("Unknown link appearance.")
 		}
+		if columns, exists := settings["maxColumns"]; exists {
+			if _, ok := integer(columns, 0, 8); !ok {
+				return invalid("maxColumns must be an integer between 0 and 8.")
+			}
+		}
+		if lines, exists := settings["descriptionLines"]; exists {
+			if _, ok := integer(lines, 0, 3); !ok {
+				return invalid("descriptionLines must be an integer between 0 and 3.")
+			}
+		}
+		if display, exists := settings["urlDisplay"]; exists && !oneOf(display, "fallback", "always", "hidden") {
+			return invalid("urlDisplay must be fallback, always or hidden.")
+		}
+		if density, exists := settings["density"]; exists && !oneOf(density, "inherit", "comfortable", "compact") {
+			return invalid("Panel density must be inherit, comfortable or compact.")
+		}
+		for _, name := range []string{"showTags", "showEndpoints", "showGroupTitles"} {
+			if value, exists := settings[name]; exists {
+				if _, ok := value.(bool); !ok {
+					return invalid(name + " must be a boolean.")
+				}
+			}
+		}
 		if group, exists := settings["groupBy"]; exists && group != "category" {
 			return invalid("Only category grouping is supported.")
 		}
@@ -403,7 +429,11 @@ func validatePageConfig(config map[string]any) error {
 		for _, name := range []string{"collapsible", "defaultCollapsed", "showCounts"} {
 			if value, exists := settings[name]; exists {
 				if _, ok := value.(bool); !ok {
-					return invalid("Category navigation " + name + " must be a boolean.")
+					prefix := "Category navigation "
+					if panelID != "builtin/category-navigation" {
+						prefix = "Panel "
+					}
+					return invalid(prefix + name + " must be a boolean.")
 				}
 			}
 		}

@@ -103,11 +103,12 @@ jobs:
         run: node tests/composer_operations.cjs
       - name: Draft undo and redo invariants
         run: node tests/draft_history_core.test.mjs
-      - name: Browser routing, dashboard presets and initialization space selection
+      - name: Browser routing, dashboard presets, startup space and navigation appearance
         run: |
           node tests/endpoint_routing_core.test.mjs
           node tests/dashboard_presets_core.test.mjs
           node tests/space_selection_core.test.mjs
+          node tests/navigation_appearance_core.test.mjs
       - name: Original Go license and verified fallback regressions
         working-directory: server
         run: go test ../scripts/collect_go_licenses.go ../scripts/collect_go_licenses_test.go

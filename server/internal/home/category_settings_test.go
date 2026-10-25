@@ -33,7 +33,7 @@ func TestCategoryNavigationSettings(t *testing.T) {
 		{"number default", "defaultCollapsed", 1, 0},
 		{"null counts", "showCounts", nil, 0},
 		{"search rejects category setting", "displayMode", "icons", 1},
-		{"favorites rejects category setting", "showCounts", true, 2},
+		{"favorites rejects category setting", "collapsible", true, 2},
 		{"navigation rejects category setting", "hierarchyMode", "flat", 3},
 		{"unknown key", "collapsed", true, 0},
 	} {

@@ -9,6 +9,20 @@ Home has two separate network controls. Both are available in **Admin → Networ
 
 Saving either control does not change access mode, registration, automatic-icon intent, or the authentication epoch. A server proxy does not configure the visitor's browser/system proxy or tunnel bookmark navigation.
 
+## Destination policies
+
+The current development source removes the public-only/standard-port restriction from website icons and component templates. This changes no database schema or access permission.
+
+| Feature | Private-network access | Ports and remaining requirements |
+| --- | --- | --- |
+| Manual and automatic website icons | RFC1918/ULA or a resolvable LAN name on the hostname initially supplied by the editor | HTTP/HTTPS 1–65535; request only the bookmark origin, never its private path/query/fragment; port remains part of the cache key |
+| Component template discovery and preview | The same initial-host scope as icons, retained across discovery, redirects and nested preview | HTTP/HTTPS 1–65535; bounded declarative JSON/HTML only; no browser credentials or remote code |
+| HTTP JSON and ICS sources | Existing explicit per-source `allowPrivateNetwork` option | Custom HTTP/HTTPS ports already supported; source credentials retain their original origin rules |
+| Browser internal/external route selection | Browser must be able to reach the explicitly configured route | Custom HTTP/HTTPS ports; browser CORS/private-network/certificate policies still apply |
+| Weather and GitHub Traffic | Fixed public providers | These adapters do not accept arbitrary private upstream providers |
+
+For icons/templates, every DNS result is validated before opening a connection; the dial receives a validated IP literal. Only the initially chosen hostname may use eligible private IPs. Redirects and HTML candidates on other hosts must remain public. Changing the port/scheme on the original host does not reset or broaden that scope. Loopback, link-local, metadata, CGNAT, reserved and IPv6 transition destinations are still rejected. HTTPS certificate verification remains enabled. LAN names and IPs are interpreted from the Home server/container, including when a proxy is configured.
+
 ## Configure bookmark alternatives
 
 Keep a primary URL as the final fallback. In the link editor, add explicitly marked **Internal** and **External** network routes. Ordinary additional links, including documentation and admin pages, remain direct manual links and do not participate in automatic selection. Existing additional links are never classified from their labels or IP addresses.
@@ -59,7 +73,7 @@ The response is `{"autoSelectEndpoint":true}`. This narrow endpoint rejects omit
 
 The default is direct connections. An Owner can select an explicit `http://host:port`, `https://host:port` or `socks5://host:port` proxy. Environment proxy variables are not inherited. Proxy addresses are interpreted from the Home server (or its container); `127.0.0.1` does not refer to the visitor's computer. Proxy endpoints can be explicitly selected on loopback/private networks or the public Internet, while metadata, link-local and reserved destinations remain blocked. A proxy failure does not silently retry directly.
 
-Home resolves the target hostname locally, validates its addresses against the fetcher's existing policy, and pins the target IP before tunnelling. Public-only icon/template/weather/GitHub restrictions stay in force. Explicitly authorized private HTTP/ICS sources keep their existing per-source policy. HTTP and HTTPS proxies receive `CONNECT <validated-IP>:<port>`; SOCKS5 receives an IPv4/IPv6 literal, not a hostname for remote DNS resolution. HTTPS target certificates are checked against the original target hostname, and an HTTPS proxy's own certificate is checked separately using system trust.
+Home resolves the target hostname locally, validates its addresses against the fetcher's existing policy, and pins the target IP before tunnelling. Icons and templates use the initial-host private-network scope above; weather and GitHub retain fixed public providers. Explicitly authorized private HTTP/ICS sources keep their existing per-source policy. HTTP and HTTPS proxies receive `CONNECT <validated-IP>:<port>`; SOCKS5 receives an IPv4/IPv6 literal, not a hostname for remote DNS resolution. HTTPS target certificates are checked against the original target hostname, and an HTTPS proxy's own certificate is checked separately using system trust.
 
 HTTP proxies must permit CONNECT for the target port, including port 80 when fetching an HTTP source. A proxy that only supports ordinary HTTP absolute-form forwarding will reject that traffic. DNS resolution remains on the Home server. This prevents proxy-side target resolution from bypassing Home's address policy, and should be considered when diagnosing name-resolution failures.
 

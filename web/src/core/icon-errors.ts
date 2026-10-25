@@ -27,10 +27,8 @@ const validationMessages: Record<string, string> = {
   'Icon label is required and exceeds no more than 80 characters.': '请填写图标名称，最多 80 个字符。',
   'Icon label must not contain control characters.': '图标名称不能包含换行、制表符等控制字符。',
   'Invalid website URL.': '网站网址无效。',
-  'Website icons are fetched only from standard public HTTP or HTTPS ports.': '获取网站图标仅支持公网 HTTP 或 HTTPS 的标准端口。',
-  'Website icons require a public Internet address.': '获取网站图标需要公网地址。',
-  'Website icons require a public Internet hostname.': '获取网站图标需要公网主机名。',
-  'Local and reserved website hostnames are not fetched.': '无法从本地或保留的主机名获取网站图标。',
+  'Website address is blocked or invalid.': '网站地址无效，或属于禁止访问的地址。',
+  'Only the original website hostname may use a private network address.': '仅最初指定的网站主机允许使用内网地址。',
   'Invalid website hostname.': '网站主机名无效。',
   'URL must be valid UTF-8 and at most 4096 bytes.': '网址须使用有效的 UTF-8 编码，且不超过 4096 字节。',
   'URL must not contain whitespace, control characters or backslashes.': '网址不能包含空白、控制字符或反斜杠。',
@@ -41,7 +39,7 @@ const validationMessages: Record<string, string> = {
 }
 
 const operationMessages = [
-  { status: 422, code: 'favicon_unavailable', message: 'No supported public website icon was found. Choose a built-in icon or import an image.', chinese: '未找到支持的公网网站图标，请选择内置图标或导入图片。' },
+  { status: 422, code: 'favicon_unavailable', message: 'No supported website icon was found. Choose a built-in icon or import an image.', chinese: '未找到支持的网站图标，请选择内置图标或导入图片。' },
   { status: 422, code: 'favicon_unavailable', message: 'No supported website icon was found recently. Retry after the cache expires or import an image.', chinese: '最近未找到支持的网站图标，请在缓存过期后重试，或直接导入图片。' },
   { status: 429, code: 'icon_fetch_busy', message: 'A website icon is being fetched. Try again shortly.', chinese: '已有网站图标正在获取，请稍后重试。' },
   { status: 409, code: 'conflict', message: 'Replace icons used by links, categories, pages or source snapshots before deleting this pack.', chinese: '图标库仍被链接、分类、页面或数据源使用。请先替换引用，再删除图标库。', english: 'This library is still used by links, categories, pages or sources. Replace those references before deleting it.' },

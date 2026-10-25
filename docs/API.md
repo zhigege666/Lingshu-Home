@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.2 Go implementation in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.3 Go implementation in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Requests, authentication and errors
 
@@ -30,6 +30,8 @@ Setup (including first-run language confirmation), login and registration share 
 | `private_multi` | No navigation access | Owner and enabled Members; registration is a separate switch |
 
 Each instance has one shared space and each account has one personal space. Personal spaces cannot be published. An Owner cannot read another account's personal space. Members can read shared content and maintain their own personal content; they cannot edit shared navigation or administer the instance. Anonymous access is limited to explicitly published shared content.
+
+The built-in browser's **Default opening space** preference is local to the site origin and current account; the anonymous identity has a separate remembered choice. It adds no server setting or API endpoint and does not change `GET /bootstrap`'s `defaultSpaceId` or accessible `spaces`. The browser chooses a valid current-tab manual selection first, then a fixed default, the last successfully loaded space, the API default and the first accessible space. The initial setup's shared-space landing remains a separate explicit choice. Choosing **Remember last space** clears the fixed default. Last-space persistence occurs only after a matching dashboard response succeeds; invalid preferences are cleared, and unavailable browser storage never blocks navigation. Signing out clears the tab override while retaining the account's local preference for a later sign-in.
 
 Changing the access mode or registration policy revokes all browser sessions and invalidates existing PATs through the permission epoch. Changing an account password or enabled state invalidates that account's sessions and PATs. Mode changes preserve manually disabled Member state and do not automatically publish spaces. A source synchronization started before a relevant permission change cannot publish its result afterward.
 
@@ -91,7 +93,7 @@ Published 0.0.1 reads language from each process startup, defaults to `zh-CN`, a
 | `PUT /spaces/{spaceId}/categories/{id}` | Replace a category's editable fields |
 | `DELETE /spaces/{spaceId}/categories/{id}` | Refuses deletion while links or child categories refer to it |
 | `POST /spaces/{spaceId}/links` | Create a bookmark |
-| `POST /spaces/{spaceId}/links/batch` | Atomically move, tag or favorite selected bookmarks (since 0.0.2; see below) |
+| `POST /spaces/{spaceId}/links/batch` | Atomically move, tag or favorite selected bookmarks (since 0.0.2), or delete them (since 0.0.3; see below) |
 | `PUT /spaces/{spaceId}/links/{id}` | Replace a bookmark's editable fields |
 | `DELETE /spaces/{spaceId}/links/{id}` | Delete that bookmark |
 | `GET /spaces/{spaceId}/export?format=json\|html` | Download local authorized navigation |
@@ -121,7 +123,7 @@ Returned local links also have `id`, `spaceId`, `updatedAt` and `iconMode:"auto"
 
 New local link `updatedAt` and navigation `sourceUpdatedAt` values use UTC with microsecond precision on both database providers. A successful link write returns the committed fields including the modification timestamp. Automatic icon acquisition runs afterward and, if it changes an eligible link's icon, updates that link's timestamp and navigation revision. The write does not wait for the website. Restarting without pending automatic work does not regenerate timestamps or advance the navigation revision.
 
-URLs must be absolute HTTP/HTTPS addresses, at most 4,096 bytes, without embedded credentials, whitespace, control characters or backslashes. Ports must be within 1–65535. Icons accept the 30 bundled `lucide:*` IDs in `assets/icons/manifest.json` or an existing same-space `asset:<spaceId>:<sha256>` reference. Arbitrary remote image URLs and inline image data are not accepted in navigation. An authorized automatic-mode save/import or explicit website-icon operation can populate the local asset cache; ordinary browsing never fetches a remote favicon. [Icon library and cache contract](ICONS.md).
+URLs must be absolute HTTP/HTTPS addresses, at most 4,096 bytes, without embedded credentials, whitespace, control characters or backslashes. Ports must be within 1–65535. Icons accept the 120 bundled `lucide:*` IDs in `assets/icons/manifest.json` (expanded from 30 in 0.0.2) or an existing same-space `asset:<spaceId>:<sha256>` reference. Arbitrary remote image URLs and inline image data are not accepted in navigation. An authorized automatic-mode save/import or explicit website-icon operation can populate the local asset cache; ordinary browsing never fetches a remote favicon. [Icon library and cache contract](ICONS.md).
 
 The admin interface must use `/navigation` for local maintenance. A page can rename, remove or retarget its own `navigation` alias; that must never make external snapshot IDs into local CRUD IDs.
 
@@ -141,7 +143,7 @@ Mutations use the existing space edit policy, including anonymous maintenance in
 
 A returned pack has `{id,spaceId,name,sourceUrl,license,createdAt,icons:[{key,label,ref,url,mediaType,width,height,sha256,sourceSha256}]}`. Imports support up to 64 PNG/JPEG/static-geometry SVG icons, 256 KiB per image, 512 px dimensions, and 4 MiB decoded images per pack. A space permits 32 packs, 1,024 distinct custom images and 32 MiB of canonical bytes. The full [icon contract](ICONS.md#import-a-pack) includes the SVG allowlist, provenance and atomic failure behavior.
 
-Website lookup returns `{ref,url,sha256,mediaType,width,height,cached,stale,sourceUrl}`. It strips the supplied bookmark path/query/fragment, discovers public HTML icon/touch-icon links and `/favicon.ico`, validates destinations at every connection/redirect and caches validated image bytes. Public standard HTTP/HTTPS ports only; no internal targets, ambient proxies, visitor requests or third-party favicon services. Success is cached for 24 hours, failures for 30 minutes; failed refresh retains an available good image with `stale:true`. Initial failure returns `422 favicon_unavailable`; a concurrent active lookup returns `429 icon_fetch_busy`. The lookup releases SQL/navigation write locks during network work and rechecks authorization before persistence.
+Website lookup returns `{ref,url,sha256,mediaType,width,height,cached,stale,sourceUrl}`. It strips the supplied bookmark path/query/fragment, discovers HTML icon/touch-icon links and `/favicon.ico`, validates destinations at every connection/redirect and caches validated image bytes. Version 0.0.3 accepts public destinations plus RFC1918/ULA and LAN names on the initially supplied hostname, with valid HTTP/HTTPS ports 1–65535. Redirects/candidates on other hosts must remain public; every resolved address is checked and the connection is pinned. Loopback/link-local/metadata/CGNAT/reserved destinations remain blocked. Custom ports are retained in cache keys. There are no ambient proxies, visitor-triggered requests or third-party favicon services. Success is cached for 24 hours, failures for 30 minutes; failed refresh retains an available good image with `stale:true`. Initial failure returns `422 favicon_unavailable`; a concurrent active lookup returns `429 icon_fetch_busy`. The lookup releases SQL/navigation write locks during network work and rechecks authorization before persistence.
 
 Both database providers use `003_icons.sql` for images and add `005_auto_icons.sql` for the instance switch, link intent/origin and bounded persistent automatic work. Existing icon references and page values are preserved. Database backups include custom image bytes, cache metadata, the switch and pending jobs. Navigation exports contain refs, not an image-library backup. The automatic-worker contract, limits and disable/restart behavior are documented in [ICONS.md](ICONS.md#automatic-website-icons).
 
@@ -190,10 +192,13 @@ Choose exactly one operation:
 | `add-tags` | `tags: string[]` | Trim/deduplicate the requested tags; append missing tags in input order |
 | `remove-tags` | `tags: string[]` | Remove the named tags, preserving the order of remaining tags |
 | `favorite` | `isFavorite: boolean` | Set a consistent favorite state on the selection |
+| `delete` (since 0.0.3) | None | Delete the entire selected set and its additional URLs from this space |
 
 Each request requires 1–500 unique local link IDs and a nonempty `expectedRevision`. Tag operations require 1–32 tags, each at most 40 characters; matching is case-sensitive and the resulting list on every link must remain at most 32 tags. A category and all links must belong to the URL's space. Extra category/favorite fields, nonempty tags for an unrelated operation, and unknown fields are rejected.
 
-A successful response is `{"selectedCount":30,"updatedCount":24,"revision":"13"}`. The server validates all selected links and resulting tags before updating, then commits the entire operation in one transaction. Any validation or database failure rolls back the whole batch. Only the requested field and changed links' `updatedAt` are written; URLs, titles, descriptions, sort order, endpoints, icons and icon mode are preserved. This endpoint neither starts nor replaces automatic icon jobs. If at least one link changes, the space navigation revision advances once. If none change, both the revision and stored timestamps remain unchanged.
+A successful response is `{"selectedCount":30,"updatedCount":24,"revision":"13"}`. The server validates all selected links and resulting tags before updating, then commits the entire operation in one transaction. Any validation or database failure rolls back the whole batch. Only the requested field and changed links' `updatedAt` are written; URLs, titles, descriptions, sort order, endpoints, icons and icon mode are preserved. Field-update operations neither start nor replace automatic icon jobs. If at least one link changes, the space navigation revision advances once. If none change, both the revision and stored timestamps remain unchanged.
+
+For `delete`, send only `operation`, `linkIds` and `expectedRevision`; `categoryId`, `tags` and `isFavorite` are rejected even when explicitly null or empty. All selected IDs must exist in this space before any row is removed. Success returns `{"selectedCount":30,"updatedCount":0,"deletedCount":30,"revision":"13"}`. The transaction removes the selected links, prunes current-space automatic-icon jobs only for origins no longer referenced, and advances navigation once. Categories, unselected links, shared-origin jobs and other spaces are preserved. A failure in deletion, queue cleanup or revision update rolls back the whole operation. Deletion is immediate and has no undo/recycle bin.
 
 A stale revision returns HTTP 409 with `code:"navigation_version_conflict"`. Reload and select again; never automatically retry against a new revision. Missing or foreign link IDs are indistinguishable (404 when the revision is current); invalid categories/inputs return 400. Existing space/account permissions, browser CSRF and PAT `navigation:write` scope all apply. This is a JSON API operation; the MCP tool catalog is unchanged.
 
@@ -251,6 +256,27 @@ The theme-switch operation replaces only `config.pageTheme.id`. It retains compo
 
 This key is independent of `settings.variant:"cards"\|"directory"`. Explicit values survive a theme switch. **Theme default / Follow theme** removes the optional key instead of storing `null`, `"theme"` or `"default"`. Unknown values, wrong types, and this setting on other panel types are rejected. Existing pages may omit it; reading or saving does not force a default value into old configurations. Theme/link-appearance changes do not require a page schema-version increment or a database migration. The separate icon-asset feature adds database migration 003.
 
+### Navigation and favorites content settings
+
+Each `builtin/navigation` or `builtin/favorites` view accepts the following optional keys in `config.views[].settings`. These control the content inside that component; component placement and dimensions remain in `layout.placements`.
+
+| Setting | Accepted values | Default when omitted | Rendering contract |
+| --- | --- | --- | --- |
+| `maxColumns` | Integer `0`–`8` | `0` | `0` uses automatic responsive columns; `1`–`8` caps links per row. Available width can reduce the actual count. |
+| `urlDisplay` | `"fallback"`, `"always"`, `"hidden"` | `"fallback"` | Show the main URL's host when no description is displayed, always, or never. The host label includes a non-default port; its tooltip contains the full URL. |
+| `descriptionLines` | Integer `0`–`3` | `1` | `0` hides the description; `1`–`3` limits displayed lines without changing the saved text. With `urlDisplay:"fallback"`, hiding the description permits the URL label to appear. |
+| `showTags` | Boolean, or omit the key | Omitted: follow style | Omission preserves theme/density/variant behavior. `true` displays up to the first three saved tags, including in directory mode; `false` hides them. |
+| `showEndpoints` | Boolean | `true` | Show network entrances and other additional URLs. Hiding them does not disable automatic route selection; recovery URLs can remain available after a failed attempt to open a new page. |
+| `showGroupTitles` | Boolean | `true` | Show category-group or favorites-group headings. Hiding them does not merge groups or remove a separately configured navigation component title. |
+| `showCounts` | Boolean | `true` | Show counts in visible component/group headings. A hidden group heading has no visible count. |
+| `density` | `"inherit"`, `"comfortable"`, `"compact"` | `"inherit"` | Follow `config.appearance.density`, or override only this component's content spacing and sizing. |
+
+`settings.variant:"directory"` remains single-column. Both editors hide the column-limit control in directory mode; an existing `maxColumns` value remains valid and applies again when the view uses cards. The **Follow style** tags option deletes `showTags`; `null` and strings such as `"inherit"` are not valid values for that boolean setting. All optional fields may remain absent in existing configurations: validation does not inject their defaults. Out-of-range or fractional integers, invalid enum values and incorrectly typed booleans are rejected.
+
+This content-setting group is available only for navigation and favorites. Category navigation retains its separate `showCounts` setting described below; the other content keys are not accepted on that panel, search or unrelated panels. The current page Schema 2 and database schema remain unchanged.
+
+The homepage path is **Edit page → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
+
 ### Panels and bindings
 
 Built-in panels are category navigation, search, favorites, navigation, GitHub Traffic, calendar, weather, metrics and service status. Navigation/category/favorites require `collection`; Traffic uses `traffic`, calendar uses `events`, weather uses `weather`, metrics uses `metrics`, and status uses `status`; search has no dataset input. Renderer/schema mappings, component settings, template preview and source limits are specified in [COMPONENTS.md](COMPONENTS.md). Every alias must exist and expose the panel's supported dataset schema. The same authorized dataset can feed multiple instances. `interactionScope` connects frontend filtering interactions and grants no additional data access. When provided, it is a nonempty string of at most 80 characters. An omitted scope is independent and falls back to that view’s ID.
@@ -269,7 +295,7 @@ A name is part of the persisted scope; no separate group registry or hidden name
 
 Navigation bindings accept only `categoryIds`, `tags`, `favoritesOnly`, `search`, `sort` and `limit`. Category ID and tag lists contain at most 100 unique entries; IDs are at most 256 characters and tags at most 40. Search is at most 160 characters. Sort is `sortOrder`, `title` or `updatedAt`; limit is 1–10,000. All non-navigation bindings require an empty query. Bindings cannot select another space.
 
-All panels accept an optional title of at most 80 characters. Navigation and favorites independently select `cards` or `directory` and the link appearance above; navigation supports `groupBy:"category"`. Actual width, height, order, coordinates and visibility never belong in panel settings.
+All panels accept an optional title of at most 80 characters. Navigation and favorites independently select `cards` or `directory`, link appearance and the content settings above; navigation supports `groupBy:"category"`. Actual component width, height, order, coordinates and visibility never belong in panel settings; `maxColumns` controls only the component's internal link arrangement.
 
 Category navigation accepts the following optional presentation settings. Existing pages without these keys remain valid and use the defaults; no database migration is needed.
 
@@ -281,7 +307,7 @@ Category navigation accepts the following optional presentation settings. Existi
 | `defaultCollapsed` | Boolean: initial sidebar state for a new browser tab | `false` |
 | `showCounts` | Boolean: show navigation counts | `true` |
 
-These keys are accepted only by `builtin/category-navigation`; unknown keys, invalid enum values, and string/number substitutes for booleans are rejected. The pure icon mode does not show a redundant whole-sidebar collapse toggle. Tree branch disclosure remains available. A selected descendant keeps its ancestors visible.
+These category-navigation settings are checked for `builtin/category-navigation`; its `showCounts` is independent of the navigation/favorites count setting above. The category-specific keys are not accepted on other panels. Unknown keys, invalid enum values, and string/number substitutes for booleans are rejected. The pure icon mode does not show a redundant whole-sidebar collapse toggle. Tree branch disclosure remains available. A selected descendant keeps its ancestors visible.
 
 In ordinary browsing, category selection and temporary whole-sidebar/branch disclosure do not write to the page API. Disclosure preferences live in browser `sessionStorage`, isolated by page and view; a reload in the same tab retains them. The configured defaults apply when that tab has no preference. In explicit homepage editing, whole-panel disclosure updates the draft `defaultCollapsed` and persists only on the page save. Branches and search remain temporary. Admin preview uses isolated in-memory state and never writes those session preferences. Top, bottom, and narrow-screen category lists use a single horizontal scroll region. Their placement still belongs exclusively to `layout.placements`.
 
@@ -387,7 +413,7 @@ Token management requires a signed-in browser account; it cannot be delegated to
 | --- | --- |
 | `GET /integrations/tokens` | List the current account's token metadata, never raw secrets |
 | `POST /integrations/tokens` | `{name,spaceId,sourceId?,actions,expiresAt}`; secret returned once |
-| `DELETE /integrations/tokens/{id}` | Revoke the current account's token |
+| `DELETE /integrations/tokens/{id}` | Revoke the current account's token; returns HTTP 200 with `{ "success": true }`, and retains a revoked entry in the token list |
 | `GET /spaces/{spaceId}/sources` | List permitted source metadata |
 | `POST /spaces/{spaceId}/sources` | Create a supported source |
 | `GET /sources/{id}` | Read safe connection and status metadata |

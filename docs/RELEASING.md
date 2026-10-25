@@ -11,7 +11,7 @@ Pull requests and pushes to `main` run application CI. Ordinary application chan
 ## Preparing an authorized release
 
 1. Complete implementation, review, application tests and documentation, including any migration/recovery instructions.
-2. Set the intended SemVer in `VERSION`. Add a non-empty dated changelog section in the form `## [VERSION] - YYYY-MM-DD`; keep `Unreleased` first.
+2. Set the intended SemVer in `VERSION`. Update **both `README.md` and `README.zh-CN.md` in every release**, keeping the current version, download/source links, exact-image example, feature scope and upgrade/recovery instructions aligned. Add a non-empty dated changelog section in the form `## [VERSION] - YYYY-MM-DD`; keep `Unreleased` first. The GitHub Release notes are generated from that same section.
 3. Review and commit the intended public files. Private design material, credentials, runtime databases and generated application output are excluded.
 4. Once release publication is authorized, create and push `v<VERSION>` pointing at that reviewed commit.
 
@@ -21,7 +21,7 @@ Creating or pushing a tag is a publishing decision. It is not part of an ordinar
 
 The release workflow calls the same CI used for the application:
 
-- Repository/version/changelog checks, Python release/launcher tests, and script syntax.
+- Repository/version/changelog checks, including both READMEs containing the current version and both READMEs plus CHANGELOG changing since the preceding ancestor release tag; Python release/launcher tests and script syntax.
 - Frontend and Go builds with original dependency notices.
 - SQLite and PostgreSQL permission, navigation, data-source, push and MCP tests.
 - Complete HTTP acceptance against fresh databases, plus actual process-restart persistence checks.
@@ -42,7 +42,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.2` uses `ghcr.io/zhigege666/lingshu-home:0.0.2`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.3` uses `ghcr.io/zhigege666/lingshu-home:0.0.3`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 
@@ -107,6 +107,14 @@ sha256sum --check SHA256SUMS
 ```
 
 The packaging command builds and validates files locally; it does not authenticate to a registry, push an image or create a GitHub Release. Online publication is a separate workflow stage.
+
+## Version 0.0.3 upgrade and evidence
+
+Version 0.0.3 includes 120 category icons, atomic batch deletion, button-side confirmations, scoped LAN/custom-port icon and template fetching, bounded modal scrolling, account-local startup-space preferences and eight navigation/favorites content settings. It retains the stable `latest` promotion already merged into `main` and adds mandatory bilingual README/release-note checks.
+
+There is no new database migration or page schema bump from 0.0.2. Retain the database, provider configuration and instance keys, and back up before upgrading. Older validators do not accept the new component fields or icon IDs; after using them, roll back with the pre-upgrade database/key backup rather than assuming an old executable can preserve them. A direct upgrade from 0.0.1 still follows migration 007 and its original-language requirements below.
+
+The bilingual development browser evidence is retained in the test guide with its actual 0.0.2 working-tree build identity. The release adds repository/documentation checks and uses the tagged hosted CI, same-image packaging and public-download/registry read-back described above. Development tests are not relabeled as checks of a published 0.0.3 artifact.
 
 ## Version 0.0.2 upgrade and evidence
 

@@ -2,9 +2,9 @@
 
 **English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
 
-This guide covers **Lingshu-Home 0.0.2**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/tests/README.md).
+This guide covers **Lingshu-Home 0.0.3**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.3/tests/README.md).
 
-The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.2/tests/README.md).
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.3/tests/README.md).
 
 ## 1. Start and initialize an instance
 
@@ -79,7 +79,9 @@ External source configuration, Home access tokens and MCP always require an acco
 
 Open **Admin** from the homepage, or append `/#/admin` to your instance address. Where multiple spaces are available, use **Current space** in the admin heading or the space selector on the homepage. Check it before adding content or importing bookmarks.
 
-The selected space survives a full refresh in the same browser tab. It is recorded separately for each signed-in or anonymous identity and checked against current access permissions. An inaccessible space is discarded; a new tab, cleared browser session or another device need not retain the choice. Examples belong to the shared space, so an empty personal space does not mean they were lost. An editable empty homepage also offers **Add your first link** and **Import browser bookmarks** directly.
+Version 0.0.3 remembers the last successfully loaded space separately for each account and the anonymous identity in this browser and site origin. It survives reloads, independent new tabs and browser restarts while browser data is retained. When signed in, use **Default opening space** beside the space selector to choose **Remember last space** or a fixed accessible space. Choosing **Remember last space** clears the fixed default without changing the currently displayed space.
+
+A successful manual selection in the current tab takes priority, including after a reload. Otherwise Home chooses the fixed default, then the last successfully loaded space, then the server default or first accessible space. Signing out clears the tab's manual override while retaining that account's browser preference for a later sign-in. Deleted or inaccessible preferences are discarded; a failed request never records its destination as the last successful space. If browser storage is unavailable, sign-in and space switching still work. These preferences belong to the current account in this browser, do not sync to another device and do not change account permissions. Examples belong to the shared space; an editable empty homepage offers **Add your first link** and **Import browser bookmarks** directly.
 
 | Menu | Typical task |
 | --- | --- |
@@ -125,7 +127,7 @@ A category containing links or child categories cannot be deleted. Move its link
 
 The table keeps long content compact. It shows the main URL, up to two tag chips and two additional entrances, plus a count for remaining items. Hover the count for its summary or open the editor for all values. No stored tags or URLs are discarded by the compact table.
 
-Use the pencil to edit; use the trash action and confirmation to delete the link and its additional entrances from the current space. Links only accept HTTP/HTTPS; executable bookmarklets, browser-internal addresses and file URLs are not supported.
+Use the pencil to edit; the trash action opens a compact confirmation beside its button before deleting the link and its additional entrances from the current space. Link/category confirmations keep keyboard focus on the cancel action initially and can close with Escape. Long edit forms use a fixed header/close control, a scrolling body and visible footer actions; link basics and icon selection share two columns on wide screens. Links only accept HTTP/HTTPS; executable bookmarklets, browser-internal addresses and file URLs are not supported.
 
 On an editable homepage, the star button also updates a local link's favorite status immediately. External snapshot links are maintained by their source, so their favorite data cannot be changed through the local-link star action. A favorite appearing in both the favorites panel and the full navigation is one stored link shown twice.
 
@@ -141,11 +143,11 @@ After importing, open **Link management** and search for the links to organize:
 
 Each link supports at most 32 tags of at most 40 characters each. Separate tags with commas; whitespace is trimmed and matching is case-sensitive. If another window, import or automatic icon completion changes the navigation revision, the dialog explains that this request made no changes and offers **Refresh and select again**. A batch either commits completely or rolls back completely.
 
-These actions write navigation records immediately and are outside page draft history. Only the selected category, tag or favorite field changes; URLs, additional URLs, icons and automatic/manual icon mode are preserved. This workflow does not offer batch deletion.
+These actions write navigation records immediately and are outside page draft history. For field-update actions, only the selected category, tag or favorite field changes; URLs, additional URLs, icons and automatic/manual icon mode are preserved. Version 0.0.3 also offers **Delete selected**. Its button-side confirmation shows the space and selected count; **Delete N links** permanently removes those links and their additional URLs. Cancel/Escape/outside-click closes the confirmation before submission. A busy request cannot be submitted twice. If deletion succeeds but list refresh fails, the interface reports the completed deletion and asks for a reload; it does not offer the same deletion again.
 
 ### Choose or import icons
 
-Link and category forms use the same icon picker. **Built-in** provides 30 offline Lucide outline icons, with search by name or keyword and a preview of the selected icon. **Use default** returns the form to the normal link/category fallback. Selecting an icon changes the form draft; use **Save link** or the category's save action to apply it.
+Link and category forms use the same icon picker. In 0.0.3, **Built-in** provides 120 offline Lucide outline icons in eight groups, expanded from the 30 in 0.0.2. Choose **Icon group** to browse, or search Chinese/English names, IDs and aliases such as NAS, Docker, AI and video. A search covers all groups; choosing a group clears the search. The grid displays names, 24 icons per page and a preview of the selected icon. **Clear icon search** restores the complete collection. **Use default** returns the form to the normal link/category fallback. Selecting an icon changes the form draft; use **Save link** or the category's save action to apply it.
 
 To use your own image or collection:
 
@@ -161,15 +163,15 @@ Under **Libraries**, choose a library, search its entries, inspect **Source and 
 
 ### Fetch a website icon
 
-**Access and accounts → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported public website icons in the background. Choose **Refresh list** in link management or **Refresh content** on a navigation-only homepage to display completed results. There is no automatic navigation polling loop.
+**Access and accounts → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported website icons in the background. Choose **Refresh list** in link management or **Refresh content** on a navigation-only homepage to display completed results. There is no automatic navigation polling loop.
 
 The link form distinguishes automatic and manual modes. Selecting a built-in/library image, **Use default**, or an explicit fetched image makes the link manual, so background work cannot replace your choice. Choose automatic mode and save to opt a link in again. Existing links and the offline starter collection retain their original images after upgrade.
 
 Turning the instance switch off clears queued work, cancels/discards in-flight automatic results and keeps saved images. Explicit lookup still works. Turning it back on affects subsequent saves/imports; it does not scan old links. Once the instance has an Owner, that account controls this setting. An ownerless Open editing instance can configure it without creating an account. Changing only the icon switch keeps current sessions signed in.
 
-In a link form, enter a complete primary URL and select **Fetch website icon**. Home requests the website's public origin page, checks its declared icon candidates and `/favicon.ico`, validates the image, and returns a local selection. It does not forward your bookmark's path, query or fragment. Save the link to apply that selection.
+In a link form, enter a complete primary URL and select **Fetch website icon**. Home requests the website's origin page, checks its declared icon candidates and `/favicon.ico`, validates the image, and returns a local selection. It does not forward your bookmark's path, query or fragment. Save the link to apply that selection.
 
-Homepage visitors only load Home's authorized local images; there is no visitor-triggered missing-icon lookup or Google/other favicon proxy. Automatic and explicit lookup accept public HTTP/HTTPS origins on standard ports. For internal, login-only or unsupported websites, use a local import or bundled icon. PNG, JPEG, the supported static SVG subset and bounded common ICO encodings are handled; not every site's icon format is supported. Failure or a full queue leaves the bookmark usable with its saved/fallback image.
+Homepage visitors only load Home's authorized local images; there is no visitor-triggered missing-icon lookup or Google/other favicon proxy. Version 0.0.3 accepts automatic and explicit lookup from public or reachable LAN HTTP/HTTPS origins, including custom ports. The initial hostname may use RFC1918/ULA addresses or a resolvable LAN name; cross-host redirects/candidates must remain public. Home must be able to resolve/reach the server, and HTTPS must pass system certificate verification. For login-only or unsupported websites, use a local import or bundled icon. PNG, JPEG, the supported static SVG subset and bounded common ICO encodings are handled; not every site's icon format is supported. Failure or a full queue leaves the bookmark usable with its saved/fallback image.
 
 Successful results are cached for 24 hours. Initial failures are cached for 30 minutes; a failed refresh preserves a previous good image. A later eligible save or explicit request after expiry can refresh it; expiry alone does not start work. Only one remote icon lookup runs at a time per instance, so retry after the current request finishes if the manual picker reports a busy service.
 
@@ -294,6 +296,25 @@ Card columns use available width. Adjacent small categories can share a row whil
 An explicit icon presentation remains selected after a theme switch. To let that component adopt each theme's default again, choose **Theme default**; in admin this option is labeled **Follow theme**. Changing presentation does not clear the icons saved on the links.
 
 For exact X/Y, grid dimensions, region order or sticky behavior, the admin's **Layout and theme → Panels and data → Advanced settings** remains available. That editor expands one selected component at a time and uses the same page API and validation.
+
+### Adjust navigation and favorites content
+
+On the homepage, choose **Edit page**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
+
+| Control | Choices and default | Effect |
+| --- | --- | --- |
+| **Maximum links per row** | **Automatic** (default), or **1–8 links** | Automatic uses the existing responsive layout. A number is an upper limit inside the component; narrow widths can show fewer links. It does not resize the component. |
+| **URL display** | **When no description** (default), **Always**, **Hidden** | Shows the main URL's host when no description is displayed, always alongside any description, or never. Hiding the description also activates the default URL fallback. |
+| **Description lines** | **1 line** (default), **2 lines**, **3 lines**, **Hidden** | Limits the displayed description to the chosen number of lines. Hidden corresponds to zero lines; the saved description is retained. |
+| **Tags** | **Follow style** (default), **Show**, **Hide** | Follow style uses the existing theme, density and Cards/Directory behavior. Show explicitly displays up to the first three tags, including in a directory. |
+| **Show additional URLs** | On by default | Shows the bookmark's internal/external network entrances and other additional URLs. Hiding them does not disable automatic route selection; manual recovery URLs can still appear if opening a new page fails. |
+| **Show group titles** | On by default | Shows category-group headings or the favorites-group heading. Hiding headings retains the groups and their links; a separate custom navigation component title remains visible. |
+| **Show link counts** | On by default | Shows link counts in visible component/group headings. A hidden group heading also hides its count. |
+| **Content density** | **Follow page** (default), **Comfortable**, **Compact** | Inherits the page density or overrides spacing and sizing for this component's content. |
+
+**Directory** stays a single column and does not show **Maximum links per row**. A previously chosen limit is retained and applies again when switching back to **Cards**. **Follow style** for tags is saved by omitting `showTags`; it is not a separate stored string or a `null` value. The URL label shows the host, including a non-default port when present; its tooltip retains the full URL.
+
+Changes update the current draft and canvas/preview immediately, participate in **Undo/Redo**, and take effect for normal visits only after **Save page**. Cancel or Restore follows the same draft rules as other page settings. Existing pages that omit these options keep their compatible defaults; changing these controls does not modify bookmark records.
 
 ### Link search and category filters
 
@@ -538,7 +559,7 @@ The Linux development helper permits an immediate restart while closed connectio
 | A hidden header/footer item prevents saving | Disabled regions retain and validate their items. Follow the error to fill or remove the invalid item, then save again. |
 | Cannot delete a category | Move its direct links and child categories first. |
 | Cannot delete an icon library | Replace saved references to images owned only by that library; links, categories, page configuration and external snapshots are checked. |
-| Website icon is unavailable | Check the instance switch and link mode, then refresh the list after background work finishes. Lookup is limited to public standard HTTP/HTTPS ports and supported image formats. Failures have a 30-minute cache; for internal/login-only sites or complex artwork, import a PNG or use a bundled icon. |
+| Website icon is unavailable | Check the instance switch and link mode, then refresh the list after background work finishes. Lookup supports reachable public/LAN HTTP/HTTPS hosts and custom ports since 0.0.3; check server DNS/reachability, HTTPS trust and supported image formats. Failures have a 30-minute cache; for login-only sites or complex artwork, import a PNG or use a bundled icon. |
 | Canceling a link form did not remove its imported icons | Library imports/deletions and website caching save immediately; cancel only discards the form's selected icon. |
 | Bookmark import shows only 200 rows | This is the preview display limit. Its totals still cover the full file. |
 | Import rejects a URL or file | Use browser-exported UTF-8 HTML within 2 MiB / 10,000 links; only HTTP/HTTPS links are accepted. Check the combined destination folder depth. |
@@ -563,7 +584,7 @@ Open **Admin → Integrations** and add a data source before binding a calendar,
 
 For weather, choose a city shortcut or enter coordinates and an IANA timezone, then select the free non-commercial provider or the commercial provider with its API key as appropriate. Saving an enabled polling source queues collection; **Sync** queues another attempt. Its success/error status reports the actual result. The homepage's **Refresh data** reads stored data and does not force an upstream request. Disabling a source stops collection while preserving its last successful snapshot. Hiding a component only changes the page.
 
-In **Edit page → Add**, add the compatible component, or choose **Import template** and paste a public component URL / JSON. Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
+In **Edit page → Add**, add the compatible component, or choose **Import template** and paste an HTTP/HTTPS component URL / JSON (reachable LAN hosts and custom ports are supported since 0.0.3). Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
 
 The complete data schemas, provider limits, replay/storage policy, supported template format and currently deferred connectors are in [COMPONENTS.md](COMPONENTS.md). Setup previews the website pack matching the saved instance language; leaving examples off starts with no bookmarks.
 

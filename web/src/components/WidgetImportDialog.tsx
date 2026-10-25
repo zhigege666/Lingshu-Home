@@ -248,7 +248,7 @@ export default function WidgetImportDialog({ spaceId, space, canCreateSource = f
           <Field label={t('示例组件类型', 'Example component type')}><StyledSelect disabled={busy} value={exampleRenderer} onValueChange={setExampleRenderer} options={templateRenderers()}/></Field>
           <p className="widget-import-note">{t('示例只包含显示配置，不含数据来源地址、凭据或页面绑定。填入后仍需检查并选择自己的来源。', 'Examples contain display settings only, with no source URLs, credentials or page bindings. Review the example and select your own source before adding it.')}</p>
           <div className="widget-import-source-actions"><Button variant="outline" type="button" disabled={busy} onClick={useExample}><FileJson size={15}/>{t('填入示例', 'Use example')}</Button><Button variant="outline" type="button" disabled={busy} onClick={downloadExample}><Download size={15}/>{t('下载示例 JSON', 'Download example JSON')}</Button></div>
-          <p className="widget-import-note">{t('在公开网页的 head 中加入以下声明，将地址改为你发布的 JSON。一个页面可声明多个模板。', 'Add this declaration to the head of a public page and replace the URL with your published JSON. A page can declare multiple templates.')}</p>
+          <p className="widget-import-note">{t('在网页的 head 中加入以下声明，将地址改为你发布的 JSON。一个页面可声明多个模板。', 'Add this declaration to the head of a page and replace the URL with your published JSON. A page can declare multiple templates.')}</p>
           <pre><code>{'<link rel="lingshu-home-component" href="https://example.org/component.json" title="My component">'}</code></pre>
         </div>
       </details>

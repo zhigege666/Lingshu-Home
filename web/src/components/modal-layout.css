@@ -1,0 +1,91 @@
+/* The dialog frame stays still; only the content owns the scrollbar. */
+.admin-ui.cn-dialog-content.admin-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100vw - 48px));
+  max-width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
+  overflow: hidden;
+  padding: 0;
+}
+.admin-ui.cn-dialog-content.admin-dialog-wide {
+  width: min(1240px, calc(100vw - 64px));
+  max-width: min(1240px, calc(100vw - 64px));
+}
+.admin-ui.admin-dialog > .cn-dialog-header {
+  flex: none;
+  min-width: 0;
+  padding: 23px 72px 21px 28px;
+}
+.admin-ui.admin-dialog .cn-dialog-title,
+.admin-ui.admin-dialog .cn-dialog-description {
+  overflow-wrap: anywhere;
+}
+.admin-ui.admin-dialog > .cn-dialog-close {
+  top: 18px;
+  right: 20px;
+}
+.admin-ui.admin-dialog > .admin-dialog-body {
+  --dialog-pad-x: 28px;
+  --dialog-pad-y: 24px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #b5c4b6 transparent;
+  padding: var(--dialog-pad-y) var(--dialog-pad-x);
+  scroll-padding: 20px 16px 108px;
+}
+.admin-dialog-body::-webkit-scrollbar { width: 8px; }
+.admin-dialog-body::-webkit-scrollbar-track { background: transparent; }
+.admin-dialog-body::-webkit-scrollbar-thumb { background: #b5c4b6; border: 2px solid #fff; border-radius: 8px; }
+.admin-ui.admin-dialog .admin-form-footer,
+.admin-ui.admin-dialog .widget-import-actions,
+.admin-ui.admin-dialog .dashboard-preset-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--dialog-pad-y));
+  z-index: 4;
+  margin: 22px calc(-1 * var(--dialog-pad-x)) calc(-1 * var(--dialog-pad-y));
+  padding: 16px var(--dialog-pad-x);
+  background: #fff;
+  border-top: 1px solid #e4e9e2;
+  box-shadow: 0 -6px 18px -16px #22352b;
+}
+.admin-ui.admin-dialog .admin-form-footer > .admin-error { flex-basis: 100%; margin: 0; }
+.admin-link-details { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.admin-link-basics, .admin-link-icon-panel { min-width: 0; }
+.admin-link-basics > .admin-field:last-child { margin-bottom: 0; }
+.admin-link-dialog .admin-link-icon-panel .lh-icon-picker { margin: 0; padding: 18px; background: #fafcf9; }
+.admin-link-dialog .link-endpoints-editor { margin-top: 26px; }
+.admin-link-dialog .admin-form-row > *,
+.admin-link-dialog .admin-content-toolbar > *,
+.admin-link-dialog .link-additional-row > * { min-width: 0; }
+.admin-link-dialog .admin-content-toolbar { flex-wrap: wrap; }
+.admin-link-dialog .admin-hint { overflow-wrap: anywhere; }
+@media (min-width: 1100px) {
+  .admin-link-details { grid-template-columns: minmax(0, 1.08fr) minmax(420px, 1fr); align-items: start; gap: 28px; }
+}
+@media (max-width: 650px) {
+  .admin-ui.cn-dialog-content.admin-dialog,
+  .admin-ui.cn-dialog-content.admin-dialog-wide {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .admin-ui.admin-dialog > .cn-dialog-header { padding: 18px 58px 16px 18px; }
+  .admin-ui.admin-dialog > .cn-dialog-close { top: 13px; right: 12px; }
+  .admin-ui.admin-dialog > .admin-dialog-body { --dialog-pad-x: 18px; --dialog-pad-y: 18px; }
+  .admin-ui.admin-dialog .admin-form-footer,
+  .admin-ui.admin-dialog .widget-import-actions,
+  .admin-ui.admin-dialog .dashboard-preset-actions { gap: 8px; padding-top: 13px; padding-bottom: 13px; }
+  .admin-link-details { gap: 18px; }
+  .admin-link-dialog .admin-link-icon-panel .lh-icon-picker { padding: 12px; }
+  .admin-link-dialog .admin-form-row.equal { grid-template-columns: minmax(0, 1fr); }
+  .admin-link-dialog .link-endpoints-editor .admin-button-row { flex-wrap: wrap; }
+}

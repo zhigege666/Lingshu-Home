@@ -40,6 +40,7 @@ REQUIRED_FILES = (
     ".github/workflows/ci.yml", ".github/workflows/release.yml",
     "scripts/check_repository.py", "scripts/build_source_release.py",
 )
+RELEASE_DOCUMENTATION = ("README.md", "README.zh-CN.md", "CHANGELOG.md")
 
 
 class ValidationError(ValueError):
@@ -117,6 +118,7 @@ def validate_repository(root: Path, tag: str | None = None) -> tuple[str, dict[s
         # A heading-only version section is not a release description.
         if not any(line.strip() and not line.startswith("#") for line in body.splitlines()):
             raise ValidationError(f"CHANGELOG section {version} has no release description.")
+        validate_release_documentation(root, version)
     return version, sections
 
 
@@ -142,6 +144,89 @@ def changed_paths(root: Path, base: str, head: str, diff_mode: str) -> tuple[set
     return changed, maintained
 
 
+def semver_precedence(version: str) -> tuple:
+    """Compare valid SemVer values numerically, ignoring build metadata."""
+    match = SEMVER.fullmatch(version)
+    if match is None:
+        raise ValidationError(f"Invalid release version: {version}.")
+    major, minor, patch, prerelease, _ = match.groups()
+    identifiers = tuple((0, int(part)) if part.isdigit() else (1, part)
+                        for part in prerelease.split(".")) if prerelease else ()
+    return int(major), int(minor), int(patch), (0, identifiers) if prerelease else (1, ())
+
+
+def previous_release(root: Path, head: str, version: str) -> tuple[str, str] | None:
+    """Find the highest prior, self-consistent release in HEAD's ancestry."""
+    target = semver_precedence(version)
+    candidates = []
+    for tag in git(root, "tag", "--merged", head, "--list", "v*").splitlines():
+        candidate = tag[1:]
+        if tag == f"v{version}" or not SEMVER.fullmatch(candidate):
+            continue
+        precedence = semver_precedence(candidate)
+        if precedence > target:
+            continue
+        commit = resolve_commit(root, f"refs/tags/{tag}")
+        if commit == head:
+            continue
+        # A work/checkpoint tag is not a release merely because its name parses.
+        try:
+            recorded_version = git(root, "show", f"{commit}:VERSION")
+            changelog = git(root, "show", f"{commit}:CHANGELOG.md")
+        except ValidationError:
+            continue
+        if recorded_version != candidate + "\n":
+            continue
+        if not any(item.group(1) == candidate and item.group(2)
+                   for item in CHANGELOG_HEADING.finditer(changelog)):
+            continue
+        distance = int(git(root, "rev-list", "--count", f"{commit}..{head}").strip())
+        candidates.append((precedence, -distance, tag, commit))
+    if not candidates:
+        return None
+    _, _, tag, commit = max(candidates)
+    return tag, commit
+
+
+def validate_release_documentation(root: Path, version: str) -> None:
+    """Require current bilingual release guidance and committed release changes."""
+    # Match a whole version, including an optional v prefix; 1.2.30 and
+    # 1.2.3-rc.1 do not satisfy a release of 1.2.3.
+    version_pattern = re.compile(r"(?<![0-9A-Za-z.+\-])v?" + re.escape(version) +
+                                 r"(?![0-9A-Za-z+\-]|\.[0-9A-Za-z])")
+    for name in RELEASE_DOCUMENTATION[:2]:
+        path = root / name
+        if not path.is_file() or not version_pattern.search(path.read_text(encoding="utf-8")):
+            raise ValidationError(f"Release {version} requires {name} to describe the exact current version.")
+
+    # git archive deliberately omits .git. Inspect only this root's marker, not
+    # a parent repository discovered by git -C, so extracted nested archives
+    # retain content checks without being mistaken for the publishing checkout.
+    if not (root / ".git").exists():
+        return
+    if git(root, "rev-parse", "--is-shallow-repository").strip() == "true":
+        raise ValidationError("Release documentation checks require full Git history and release tags (fetch-depth: 0).")
+    head = resolve_commit(root, "HEAD")
+    for name in ("VERSION", *RELEASE_DOCUMENTATION):
+        committed = git(root, "show", f"{head}:{name}")
+        if committed != (root / name).read_text(encoding="utf-8"):
+            raise ValidationError(f"Release documentation must be committed before validation: {name} differs from HEAD.")
+
+    previous = previous_release(root, head, version)
+    if previous is None:
+        # The show calls above also prove that all three files exist in the
+        # first release commit, without assuming an initial commit has HEAD^.
+        print("First release documentation is committed; no earlier ancestor release tag exists.")
+        return
+    previous_tag, previous_commit = previous
+    _, maintained = changed_paths(root, previous_commit, head, "direct")
+    missing = [name for name in RELEASE_DOCUMENTATION if name not in maintained]
+    if missing:
+        raise ValidationError(f"Every release must update README.md, README.zh-CN.md and CHANGELOG.md since {previous_tag}; "
+                              "unchanged or removed: " + ", ".join(missing))
+    print(f"Release documentation updated since {previous_tag}; semantic accuracy still requires review.")
+
+
 def validate_documentation_changes(root: Path, base: str, head: str, diff_mode: str) -> None:
     changed, maintained = changed_paths(root, base, head, diff_mode)
     if not changed:
@@ -157,7 +242,7 @@ def validate_documentation_changes(root: Path, base: str, head: str, diff_mode: 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", type=Path, default=REPOSITORY_ROOT)
-    parser.add_argument("--tag", help="Require tag == v<VERSION> and matching dated release notes.")
+    parser.add_argument("--tag", help="Require matching VERSION/dated notes and updated bilingual release README files.")
     parser.add_argument("--base", help="Base revision; use GitHub's all-zero before SHA for an initial push.")
     parser.add_argument("--head", default="HEAD", help="Head revision for the changed-path check.")
     parser.add_argument("--diff-mode", choices=("merge-base", "direct"), default="merge-base")

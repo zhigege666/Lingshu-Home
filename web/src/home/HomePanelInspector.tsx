@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, Eye, EyeOff, LockKeyhole, Plus, Trash2, UnlockKeyhole, X } from 'lucide-react'
 import { Input } from '../components/ui/input'
+import { NavigationContentFields } from '../components/NavigationContentFields'
 import { t } from '../core/i18n'
 import { readCategoryNavigationSettings, viewId } from '../core/presentation'
 import type { PageConfig, Slot, View } from '../core/types'
@@ -114,6 +115,11 @@ export function HomePanelInspector({ config, view, sources, disabled, onChange, 
         onChange={value => editView(next => { if (!value) delete next.settings.linkAppearance; else next.settings.linkAppearance = value })}
         options={[{ value: '', label: t('跟随主题', 'Theme default') }, { value: 'icon-text', label: t('图标与文字', 'Icon + text') }, { value: 'minimal', label: t('简约文字', 'Minimal text') }, { value: 'app-icons', label: t('应用图标', 'App icons') }]} />
     </div>}
+    {links && <section className="lh-composer-inspector-section" data-navigation-content-settings>
+      <h3>{t('组件内容', 'Component content')}</h3>
+      <NavigationContentFields settings={view.settings} disabled={disabled} SelectControl={ComposerSelect} CheckControl={ComposerCheck}
+        onChange={(key, value) => editView(next => { if (value === undefined) delete next.settings[key]; else next.settings[key] = value })}/>
+    </section>}
     {view.panel.id === 'builtin/calendar' && <div className="lh-composer-inspector-section"><ComposerSelect label={t('默认日程视图', 'Default calendar view')} value={view.settings.viewMode === 'day' ? 'day' : 'week'} disabled={disabled} onChange={value => settings({ viewMode: value })} options={[{ value: 'day', label: t('日', 'Day') }, { value: 'week', label: t('周', 'Week') }]} /><p className="lh-composer-hint">{t('按来源时区展示全天和跨天日程。', 'Displays all-day and multi-day events in the source time zone.')}</p></div>}
     {view.panel.id === 'builtin/weather' && <div className="lh-composer-inspector-section"><ComposerSelect label={t('显示预报天数', 'Forecast days to show')} value={String(view.settings.forecastDays || 5)} disabled={disabled} onChange={value => settings({ forecastDays: Number(value) })} options={[3, 5, 7].map(value => ({ value: String(value), label: t('{value} 天', '{value} days', { value }) }))} /><p className="lh-composer-hint">{t('地点与采集范围在数据来源中配置。', 'Configure the location and collected range in the data source.')}</p></div>}
     {view.panel.id === 'builtin/metrics' && <div className="lh-composer-inspector-section"><ComposerCheck label={t('显示已定义量程的进度条', 'Show bars for defined metric ranges')} checked={view.settings.showBars !== false} disabled={disabled} onChange={value => settings({ showBars: value })} /></div>}

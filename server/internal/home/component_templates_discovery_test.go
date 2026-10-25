@@ -45,7 +45,7 @@ func TestComponentTemplateDiscoveryBoundsAndAuthorization(t *testing.T) {
 	if err != nil || len(result.Templates) != 8 || !result.Truncated {
 		t.Fatalf("candidate bound failed: %#v %v", result, err)
 	}
-	for _, unsafe := range []string{"http://127.0.0.1/secret.json", "http://169.254.169.254/latest/", "javascript:alert(1)", "https://example.org:8443/template"} {
+	for _, unsafe := range []string{"http://127.0.0.1/secret.json", "http://169.254.169.254/latest/", "javascript:alert(1)", "https://example.org:65536/template", "http://192.168.1.20:8080/template"} {
 		body = `<head><link rel="lingshu-home-component" href="` + unsafe + `"></head>`
 		if _, err := discoverComponentTemplates(context.Background(), client, "https://widgets.example.org/"); err == nil {
 			t.Fatalf("unsafe declaration accepted: %s", unsafe)

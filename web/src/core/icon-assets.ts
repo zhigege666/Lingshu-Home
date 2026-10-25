@@ -10,19 +10,28 @@ export type WebsiteIcon = IconAssetRecord & { cached: boolean; stale?: boolean; 
 const assetPattern = /^asset:([0-9a-f]{32}):([0-9a-f]{64})$/
 const builtinIds = new Set(manifest.icons.map(icon => icon.id))
 const iconMediaTypes = new Set(['image/png', 'image/jpeg', 'image/svg+xml'])
-const englishLabels: Record<string, string> = {
-  'lucide:house': 'Home', 'lucide:compass': 'Navigation', 'lucide:search': 'Search', 'lucide:bookmark': 'Bookmarks',
-  'lucide:star': 'Favorites', 'lucide:folder': 'Categories', 'lucide:tags': 'Tags', 'lucide:layout-grid': 'Cards',
-  'lucide:list': 'List', 'lucide:panel-left': 'Sidebar', 'lucide:settings': 'Settings', 'lucide:sliders-horizontal': 'Configure',
-  'lucide:plus': 'Add', 'lucide:pencil': 'Edit', 'lucide:trash': 'Delete', 'lucide:upload': 'Import',
-  'lucide:download': 'Export', 'lucide:external-link': 'External link', 'lucide:link': 'Link', 'lucide:globe': 'Network',
-  'lucide:server': 'Server', 'lucide:database': 'Database', 'lucide:shield': 'Security', 'lucide:activity': 'Monitoring',
-  'lucide:book-open': 'Knowledge base', 'lucide:code-xml': 'Development', 'lucide:clapperboard': 'Media',
-  'lucide:puzzle': 'Modules', 'lucide:sun': 'Light', 'lucide:moon': 'Dark',
+export function builtinIconChoices() {
+  return manifest.icons.map(icon => ({ id: icon.id, group: icon.group, label: t(icon.label, icon.labelEn), keywords: [icon.label, icon.labelEn, icon.id, ...icon.keywords] }))
 }
 
-export function builtinIconChoices() {
-  return manifest.icons.map(icon => ({ id: icon.id, label: t(icon.label, englishLabels[icon.id] || icon.id), keywords: icon.keywords }))
+export function builtinIconGroups() {
+  return manifest.groups.map(group => ({ id: group.id, label: t(group.label, group.labelEn), count: manifest.icons.filter(icon => icon.group === group.id).length }))
+}
+
+/** Match either language and technical IDs regardless of case or word separators. */
+export function matchesIconSearch(text: string, query: string): boolean {
+  const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s:_-]+/gu, '')
+  const normalized = text.normalize('NFKC').toLowerCase()
+  const words: string[] = normalized.match(/[a-z0-9]+/g) || []
+  const keys = normalized.split(/\s+/u).flatMap(word => [normalize(word), normalize(word.replace(/^lucide[:/]/, ''))])
+  const haystack = normalize(text)
+  return query.normalize('NFKC').trim().split(/\s+/u).every(word => {
+    const term = normalize(word)
+    // English prefixes match words/IDs: “art” must not match “cart” or “heart”.
+    // Short abbreviations such as AI require a whole word, avoiding “mail”.
+    if (/^[a-z0-9]+$/.test(term)) return term.length <= 2 ? words.includes(term) : [...words, ...keys].some(key => key.startsWith(term))
+    return haystack.includes(term)
+  })
 }
 
 export function parseIconAssetReference(value: string | undefined): { spaceId: string; sha256: string; src: string } | null {

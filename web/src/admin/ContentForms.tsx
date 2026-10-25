@@ -28,7 +28,42 @@ export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons =
     setBusy(true)
     try { await request(`/spaces/${dashboard.space.id}/links${link ? '/'+link.id : ''}`,{method:link?'PUT':'POST',body:{...form,iconMode:form.iconMode === 'auto' ? 'auto' : 'manual',title:form.title.trim(),url:form.url.trim(),tags:[...new Set(tags.split(/[,，]/).map(t=>t.trim()).filter(Boolean))]}}); await onSaved(form.iconMode === 'auto' && autoFetchIcons ? t('链接已保存；图标在后台获取，刷新后显示。', 'Link saved. Its icon is fetched in the background; refresh to see it.') : link?t("链接已更新", "Link updated"):t("链接已添加", "Link added")) } catch (cause) { setError(messageOf(cause)) } finally { setBusy(false) }
   }
-  return <Modal title={link?t("编辑链接", "Edit link"):t("添加链接", "Add link")} description={t("保存到 {name}", "Save to {name}", { name: dashboard.space.name })} busy={busy || iconBusy} wide onClose={onClose}><form onSubmit={save} onInvalidCapture={event=>handleFormInvalid(event,setError)}><fieldset disabled={busy || iconBusy || !dashboard.space.canEdit} className="admin-plain-fieldset"><div className="admin-form-row equal"><Field label={t("链接名称", "Link name")}><Input autoFocus required maxLength={160} value={form.title} onChange={e=>field('title',e.target.value)}/></Field><Field label={t("分类", "Category")}><StyledSelect name="categoryId" value={form.categoryId||''} onValueChange={value=>field('categoryId',value||null)} disabled={busy} options={[{value:'',label:t("未分类", "Uncategorized")},...categoryOptions(categories)]}/></Field></div><Field label={t("主入口 URL", "Primary URL")} hint={t("关闭自动选路或没有网络入口时使用", "Used when routing is off or no network route is configured")}><Input type="url" required maxLength={2048} placeholder="https://" value={form.url} onChange={e=>field('url',e.target.value)}/></Field><Field label={t("描述", "Description")} hint={t("选填", "Optional")}><Textarea maxLength={2000} value={form.description} onChange={e=>field('description',e.target.value)}/></Field><div className="admin-form-row equal"><Field label={t("标签", "Tags")} hint={t("使用逗号分隔", "Separate with commas")}><Input value={tags} onChange={e=>setTags(e.target.value)} maxLength={1300}/></Field><Field label={t("排序", "Sort order")}><Input type="number" value={form.sortOrder} onChange={e=>field('sortOrder',Number(e.target.value))}/></Field></div><label className="admin-check-line"><Checkbox checked={form.isFavorite} onCheckedChange={value=>field('isFavorite',value)} disabled={busy}/>{t("加入常用收藏", "Add to favorites")}</label><IconPicker value={form.icon} onChange={icon=>setForm(previous=>({...previous,icon,iconMode:'manual'}))} iconMode={form.iconMode || 'manual'} onModeChange={mode=>field('iconMode',mode)} autoFetchIcons={autoFetchIcons} spaceId={dashboard.space.id} canEdit={dashboard.space.canEdit} disabled={busy} url={form.url} onBusyChange={setIconBusy}/><LinkEndpointsEditor value={form.endpoints} onChange={endpoints=>field('endpoints',endpoints)} disabled={busy || iconBusy || !dashboard.space.canEdit} autoSelectEndpoint={autoSelectEndpoint}/><ErrorMessage error={error}/><div className="admin-form-footer"><Button type="button" variant="outline" onClick={onClose}>{t("取消", "Cancel")}</Button><Button type="submit">{busy?t("正在保存…", "Saving…"):t("保存链接", "Save link")}</Button></div></fieldset></form></Modal>
+  return <Modal title={link ? t('编辑链接', 'Edit link') : t('添加链接', 'Add link')}
+    description={t('保存到 {name}', 'Save to {name}', { name: dashboard.space.name })}
+    busy={busy || iconBusy} wide className="admin-link-dialog" onClose={onClose}>
+    <form onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}>
+      <fieldset disabled={busy || iconBusy || !dashboard.space.canEdit} className="admin-plain-fieldset">
+        <div className="admin-link-details">
+          <div className="admin-link-basics">
+            <div className="admin-form-row equal">
+              <Field label={t('链接名称', 'Link name')}><Input autoFocus required maxLength={160} value={form.title} onChange={e => field('title', e.target.value)}/></Field>
+              <Field label={t('分类', 'Category')}><StyledSelect name="categoryId" value={form.categoryId || ''} onValueChange={value => field('categoryId', value || null)} disabled={busy} options={[{ value: '', label: t('未分类', 'Uncategorized') }, ...categoryOptions(categories)]}/></Field>
+            </div>
+            <Field label={t('主入口 URL', 'Primary URL')} hint={t('关闭自动选路或没有网络入口时使用', 'Used when routing is off or no network route is configured')}>
+              <Input type="url" required maxLength={2048} placeholder="https://" value={form.url} onChange={e => field('url', e.target.value)}/>
+            </Field>
+            <Field label={t('描述', 'Description')} hint={t('选填', 'Optional')}><Textarea maxLength={2000} value={form.description} onChange={e => field('description', e.target.value)}/></Field>
+            <div className="admin-form-row equal">
+              <Field label={t('标签', 'Tags')} hint={t('使用逗号分隔', 'Separate with commas')}><Input value={tags} onChange={e => setTags(e.target.value)} maxLength={1300}/></Field>
+              <Field label={t('排序', 'Sort order')}><Input type="number" value={form.sortOrder} onChange={e => field('sortOrder', Number(e.target.value))}/></Field>
+            </div>
+            <label className="admin-check-line"><Checkbox checked={form.isFavorite} onCheckedChange={value => field('isFavorite', value)} disabled={busy}/>{t('加入常用收藏', 'Add to favorites')}</label>
+          </div>
+          <div className="admin-link-icon-panel">
+            <IconPicker value={form.icon} onChange={icon => setForm(previous => ({ ...previous, icon, iconMode: 'manual' }))}
+              iconMode={form.iconMode || 'manual'} onModeChange={mode => field('iconMode', mode)} autoFetchIcons={autoFetchIcons}
+              spaceId={dashboard.space.id} canEdit={dashboard.space.canEdit} disabled={busy} url={form.url} onBusyChange={setIconBusy}/>
+          </div>
+        </div>
+        <LinkEndpointsEditor value={form.endpoints} onChange={endpoints => field('endpoints', endpoints)} disabled={busy || iconBusy || !dashboard.space.canEdit} autoSelectEndpoint={autoSelectEndpoint}/>
+        <div className="admin-form-footer">
+          <ErrorMessage error={error}/>
+          <Button type="button" variant="outline" onClick={onClose}>{t('取消', 'Cancel')}</Button>
+          <Button type="submit">{busy ? t('正在保存…', 'Saving…') : t('保存链接', 'Save link')}</Button>
+        </div>
+      </fieldset>
+    </form>
+  </Modal>
 }
 export function CategoryEditor({ dashboard, category, onClose, onSaved }: Common & { category: Category | null }) {
   const categories = navigationData(dashboard.datasets.navigation)?.categories || []

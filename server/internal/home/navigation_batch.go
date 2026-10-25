@@ -15,8 +15,8 @@ type batchLinksInput struct {
 	ExpectedRevision string          `json:"expectedRevision"`
 	Operation        string          `json:"operation"`
 	CategoryID       json.RawMessage `json:"categoryId"`
-	Tags             []string        `json:"tags"`
-	IsFavorite       *bool           `json:"isFavorite"`
+	Tags             json.RawMessage `json:"tags"`
+	IsFavorite       json.RawMessage `json:"isFavorite"`
 }
 
 type batchLinkState struct {
@@ -27,8 +27,9 @@ type batchLinkState struct {
 }
 
 // The route's write gate, current authorization and transaction cover the whole
-// batch. Never call updateLink here: these edits must preserve URLs, icon intent,
-// icon jobs, endpoints and every other unrelated field.
+// batch. Never call updateLink here: field edits must preserve URLs, icon intent,
+// icon jobs, endpoints and every other unrelated field. Deletion validates the
+// complete selection before removing any rows and uses the single-delete cleanup.
 func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 	space, err := r.navigationSpace(r.param("spaceId"), true)
 	if err != nil {
@@ -37,6 +38,16 @@ func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 	var in batchLinksInput
 	if err = r.decode(&in); err != nil {
 		return nil, err
+	}
+	// Raw fields preserve presence for delete, including explicit null/empty
+	// update fields. Parse their original types before the normal validations.
+	var inputTags []string
+	var isFavorite *bool
+	if len(in.Tags) != 0 && json.Unmarshal(in.Tags, &inputTags) != nil {
+		return nil, invalid("tags must be an array of strings.")
+	}
+	if len(in.IsFavorite) != 0 && json.Unmarshal(in.IsFavorite, &isFavorite) != nil {
+		return nil, invalid("isFavorite must be a boolean or null.")
 	}
 	if len(in.LinkIDs) == 0 || len(in.LinkIDs) > maxBatchLinks {
 		return nil, invalid("Select between 1 and 500 bookmarks.")
@@ -58,7 +69,7 @@ func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 	tags := []string{}
 	switch in.Operation {
 	case "move":
-		if len(in.CategoryID) == 0 || len(in.Tags) != 0 || in.IsFavorite != nil {
+		if len(in.CategoryID) == 0 || len(inputTags) != 0 || isFavorite != nil {
 			return nil, invalid("Moving bookmarks requires only categoryId, which may be null.")
 		}
 		if err = json.Unmarshal(in.CategoryID, &categoryID); err != nil || categoryID != nil && !validID(*categoryID) {
@@ -74,11 +85,11 @@ func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 			}
 		}
 	case "add-tags", "remove-tags":
-		if len(in.Tags) == 0 || len(in.Tags) > 32 || len(in.CategoryID) != 0 || in.IsFavorite != nil {
+		if len(inputTags) == 0 || len(inputTags) > 32 || len(in.CategoryID) != 0 || isFavorite != nil {
 			return nil, invalid("Choose between 1 and 32 tags for this operation.")
 		}
 		seen := map[string]bool{}
-		for _, raw := range in.Tags {
+		for _, raw := range inputTags {
 			tag, err := required(raw, "tag", 40)
 			if err != nil {
 				return nil, err
@@ -89,8 +100,12 @@ func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 			}
 		}
 	case "favorite":
-		if in.IsFavorite == nil || len(in.CategoryID) != 0 || len(in.Tags) != 0 {
+		if isFavorite == nil || len(in.CategoryID) != 0 || len(inputTags) != 0 {
 			return nil, invalid("A favorite operation requires only isFavorite.")
+		}
+	case "delete":
+		if len(in.CategoryID) != 0 || len(in.Tags) != 0 || len(in.IsFavorite) != 0 {
+			return nil, invalid("Deleting bookmarks accepts only linkIds, expectedRevision and operation.")
 		}
 	default:
 		return nil, invalid("Unknown bookmark batch operation.")
@@ -134,6 +149,26 @@ func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 		// A foreign ID and a deleted ID are deliberately indistinguishable.
 		return nil, missing()
 	}
+	if in.Operation == "delete" {
+		result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("DELETE FROM links WHERE space_id=? AND id IN ("+placeholders+")"), args...)
+		if err != nil {
+			return nil, err
+		}
+		deleted, err := result.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
+		if deleted != int64(len(in.LinkIDs)) {
+			return nil, conflict("The bookmark list changed. Reload it before retrying.")
+		}
+		if err = a.cleanAutomaticIconJobs(r, space.ID); err != nil {
+			return nil, err
+		}
+		if err = a.touchNavigation(r, space.ID); err != nil {
+			return nil, err
+		}
+		return ok(map[string]any{"selectedCount": len(in.LinkIDs), "updatedCount": 0, "deletedCount": deleted, "revision": strconv.FormatInt(space.DataRevision+1, 10)}), nil
+	}
 	changes := []batchLinkState{}
 	for _, before := range current {
 		after := before
@@ -161,7 +196,7 @@ func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 				}
 			}
 		case "favorite":
-			after.favorite = *in.IsFavorite
+			after.favorite = *isFavorite
 		}
 		if before.category != after.category || before.favorite != after.favorite || !slices.Equal(before.tags, after.tags) {
 			changes = append(changes, after)

@@ -7,6 +7,7 @@ import { iconPath } from '../core/presentation'
 import { parseIconAssetReference } from '../core/icon-assets'
 import { IconAsset } from './IconAsset'
 import './form-controls.css'
+import './modal-layout.css'
 export { authModes } from '../core/presentation'
 export function BuiltinIcon({ name = 'lucide:link', className = '' }: { name?: string; className?: string }) {
   if (parseIconAssetReference(name)) return <IconAsset name={name} size={20} className={`admin-image-icon ${className}`} />
@@ -74,11 +75,11 @@ export function FilePicker({ id, accept, filename, onFileChange, disabled = fals
 export function ErrorMessage({ error }: { error?: string | null }) { return error ? <div role="alert" className="admin-error">{error}</div> : null }
 export function Loading({ text = t("正在读取…", "Loading…") }: { text?: string }) { return <div className="admin-loading" role="status"><LoaderCircle className="admin-spin" size={21} />{text}</div> }
 export function Empty({ title, detail, children }: { title: string; detail?: string; children?: ReactNode }) { return <div className="admin-empty"><BuiltinIcon name="lucide:bookmark" /><h3>{title}</h3>{detail && <p>{detail}</p>}{children}</div> }
-export function Modal({ title, description, busy = false, wide = false, onClose, children }: { title: string; description?: string; busy?: boolean; wide?: boolean; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, description, busy = false, wide = false, className = '', onClose, children }: { title: string; description?: string; busy?: boolean; wide?: boolean; className?: string; onClose: () => void; children: ReactNode }) {
   const returnFocus = useRef<HTMLElement | null>(typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null)
-  return <Dialog open onOpenChange={value => { if (!value && !busy) onClose() }}><DialogContent className={`admin-ui admin-dialog ${wide ? 'admin-dialog-wide' : ''}`} showCloseButton={false} onCloseAutoFocus={event => {
+  return <Dialog open onOpenChange={value => { if (!value && !busy) onClose() }}><DialogContent className={`admin-ui admin-dialog ${wide ? 'admin-dialog-wide' : ''} ${className}`} showCloseButton={false} onCloseAutoFocus={event => {
     event.preventDefault()
     if (returnFocus.current?.isConnected && returnFocus.current !== document.body) returnFocus.current.focus({ preventScroll: true })
     else { const main = document.getElementById('main-content'); if (main) { main.tabIndex = -1; main.focus({ preventScroll: true }) } }
-  }} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }} {...(description ? {} : { 'aria-describedby': undefined })}><DialogHeader><DialogTitle>{title}</DialogTitle>{description && <DialogDescription>{description}</DialogDescription>}</DialogHeader>{!busy && <DialogClose asChild><Button type="button" variant="ghost" className="cn-dialog-close" size="icon-sm" aria-label={t('关闭', 'Close')}><X aria-hidden="true"/></Button></DialogClose>}<div className="admin-dialog-body">{children}</div></DialogContent></Dialog>
+  }} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }} {...(description ? {} : { 'aria-describedby': undefined })}><DialogHeader><DialogTitle>{title}</DialogTitle>{description && <DialogDescription>{description}</DialogDescription>}</DialogHeader><DialogClose asChild><Button type="button" variant="ghost" className="cn-dialog-close" size="icon-sm" disabled={busy} aria-label={t('关闭', 'Close')}><X aria-hidden="true"/></Button></DialogClose><div className="admin-dialog-body">{children}</div></DialogContent></Dialog>
 }

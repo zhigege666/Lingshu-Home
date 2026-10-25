@@ -55,7 +55,7 @@ func (a *App) prepareAutomaticLinkIcon(r *Request, link *Link) (string, error) {
 	}
 	origin := automaticIconOrigin(link.URL)
 	if origin == "" {
-		return "", nil // Private and nonstandard origins remain valid bookmarks.
+		return "", nil // Blocked fetch destinations remain valid navigation links.
 	}
 	var digest sql.NullString
 	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT digest FROM icon_favicon_cache WHERE space_id=? AND origin=?"), link.SpaceID, origin).Scan(&digest)

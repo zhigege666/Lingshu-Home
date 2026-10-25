@@ -1,18 +1,39 @@
 # Icon libraries and cached website icons
 
-This document describes the icon data and HTTP contract in `0.1.0-dev.1`. Homepage display choices, including minimal links and app-style icon cards, belong to the page/theme settings. Changing a display style preserves the link's saved icon reference.
+This document describes the current icon data and HTTP contract. Version 0.0.3 expands the built-in collection from 30 to 120 icons and adds the grouped picker. Homepage display choices, including minimal links and app-style icon cards, belong to the page/theme settings. Changing a display style preserves the link's saved icon reference.
 
 ## Sources and references
 
 | Source | Saved `icon` value | Rendering and ownership |
 | --- | --- | --- |
-| Built-in outline collection | `lucide:house`, `lucide:link`, etc. | 30 local Lucide SVGs with fixed upstream commit, original licenses and checksums in [the manifest](../assets/icons/manifest.json) |
+| Built-in outline collection | `lucide:house`, `lucide:link`, etc. | 120 local Lucide SVGs with fixed upstream commit, original licenses and checksums in [the manifest](../assets/icons/manifest.json) |
 | Imported pack | `asset:<spaceId>:<sha256>` | Canonical image bytes stored in that space's database records; pack metadata retains the supplied source/license and original/canonical checksums |
 | Website lookup | `asset:<spaceId>:<sha256>` | Home stores a validated image in the space, either after an authorized automatic-mode bookmark save/import or an explicit picker lookup |
 
 Link and category writes accept only known bundled IDs or existing asset references from the same space. External navigation snapshots and existing MCP bookmark/category tools use the same image-reference validation. An arbitrary image URL, data URL, cross-space asset, missing hash or inline SVG cannot be saved into `icon`. Local bookmarks additionally record `iconMode:"auto"|"manual"`; the automatic mode uses `lucide:link` until an eligible image is available. Categories retain their `lucide:folder` fallback and have no automatic website lookup.
 
 The same-origin image URL is `/api/v1/spaces/<spaceId>/icons/<sha256>`. Use it as an ordinary decorative `<img>`; do not inject SVG content into HTML. A theme may apply its monochrome treatment to the bundled Lucide collection. Imported/fetched color images should preserve their original colors.
+
+## Built-in category catalog
+
+The built-in collection is available in **Administration → Category management → Add/Edit category → Icon → Built-in**, and in the link editor. All 120 SVGs ship locally. The 90 added files total 37,726 bytes before compression and use the same Lucide outline style and pinned source revision as the original collection. Opening the picker does not download an external icon library.
+
+| Group | Icons | Examples |
+| --- | ---: | --- |
+| General and Interface / 常用与界面 | 22 | Home, bookmarks, favorites, folders, search |
+| AI and Automation / AI 与自动化 | 10 | Assistant, models, workflows, translation, text recognition, AI images |
+| Development / 开发与编程 | 14 | Terminal, repositories, APIs, packages, debugging, releases |
+| Servers and Networks / 服务器与网络 | 18 | Servers, NAS, containers, cloud, routers, backups, credentials |
+| Work and Learning / 工作与学习 | 15 | Notes, knowledge, courses, tasks, calendars, email, documents |
+| Media and Design / 影音与设计 | 17 | Video, movies, music, podcasts, games, photos, design |
+| Life and Services / 生活与服务 | 16 | Shopping, budgeting, maps, travel, food, health, smart home |
+| News and Community / 资讯与社区 | 8 | News, forums, feeds, blogs, live streams, contacts |
+
+Choose a group to browse, or type a Chinese/English name, technical ID or alias such as `NAS`, `Docker`, `AI`, `知识库` or `video`. Typing a search switches to **All icons**, including when another group was selected; choosing a group clears the previous search. Search normalizes letter case, full-width characters and separators, and short abbreviations such as `AI` do not match the middle of unrelated English words. **Clear icon search** restores all results and returns keyboard focus to the search field.
+
+Built-in results show 24 icons per page with visible names, full accessible labels, selected-state buttons, a selected-icon preview and a bounded scrolling area. Imported libraries retain their 32-item pagination and existing import limits. Changing an icon updates only the form draft until **Save category** or **Save link** succeeds.
+
+The manifest records `label`, `labelEn` and `group` for each icon and a bilingual `groups` list. These are catalog metadata, not new navigation categories. Product-name search aliases refer to generic category illustrations and are not official product logos. All original IDs, SVG bytes, fallback mappings and saved references are preserved. The frontend manifest and backend allowlist are checked together by `TestBuiltinIconManifestContract`; no database migration is required.
 
 ## Access and persistence
 
@@ -34,7 +55,7 @@ The Web link/category picker exposes a searchable built-in collection, space lib
 
 | Operation | Result |
 | --- | --- |
-| Save a new Web bookmark with the default **Automatic** mode | Commit the bookmark first, then let the background worker acquire its public-origin icon |
+| Save a new Web bookmark with the default **Automatic** mode | Commit the bookmark first, then let the background worker acquire its website-origin icon |
 | Import browser bookmarks | Imported links use automatic mode; preview alone performs no website lookup |
 | Pick a built-in/library image, use the default icon, or explicitly fetch and select an image | The link uses manual mode and is protected from automatic replacement |
 | Change an automatic link's website origin | Stop using the former website's fetched image; any late result for the former origin cannot overwrite the new link |
@@ -139,7 +160,9 @@ Successful results are cached per space and canonical website origin for 24 hour
 
 ### Outbound request policy
 
-The implementation only fetches public Internet destinations on standard HTTP port 80 or HTTPS port 443. It rejects private, loopback, link-local, shared/CGNAT, reserved, documentation and IPv6 transition address ranges, plus local/reserved hostname suffixes. A hostname with any non-public resolved address is rejected. Internal services remain valid navigation links; import their icons locally.
+The current source accepts HTTP/HTTPS ports 1–65535, including reachable LAN services. The initially supplied hostname may use public, RFC1918 or ULA addresses and resolvable LAN names; only that hostname retains private-network permission through the entire lookup. A same-host redirect may change scheme or port. An HTML candidate or redirect on another hostname must resolve entirely to public addresses, even after an intermediate public CDN hop. Loopback, link-local, cloud metadata, shared/CGNAT, reserved, documentation and IPv6 transition destinations remain blocked.
+
+Origin normalization retains a nondefault port, so two services on the same NAS have independent cache/queue entries. The Home server/container must be able to resolve and reach the service; the visitor's network access alone is insufficient. HTTPS still uses system certificate trust. No browser login cookies or site credentials are supplied. Existing saved links are not scanned on upgrade; fetch an icon explicitly, or save an eligible automatic link to queue it.
 
 DNS resolution occurs at connection time, and the connection is pinned to a validated literal address while HTTP Host and TLS SNI/certificate verification retain the original hostname. Every redirect target and fallback connection goes through the same destination policy. The client has no ambient proxy, cookie jar, credentials or forwarded Authorization/Referer. It does not call Google, DuckDuckGo or another favicon proxy.
 
@@ -155,7 +178,8 @@ PostgreSQL tests use a dedicated disposable database selected by `LINGSHU_TEST_I
 
 ## 中文使用要点
 
-- 预制图标是本地的简约 Lucide 线性图标。简约链接、图文卡片和应用图标样式由主题/组件控制，切换样式不会改写链接保存的图标。
+- 当前源码提供 120 个本地 Lucide 线性图标，按 8 组浏览；此扩充尚未包含在已发布的 0.0.2 中。分类与链接编辑器共用选择器，支持中文、英文、技术名称和常用别名搜索，每页 24 个内置图标。搜索会覆盖全部分组，选择分组会清空搜索；旧图标与已保存分类保持原样。
+- 简约链接、图文卡片和应用图标样式由主题/组件控制，切换样式不会改写链接保存的图标。
 - 选择器可以导入上面的 JSON 图标库，也可导入单张 PNG、JPEG 或受限静态 SVG。每库最多 64 张，填写真实来源和许可说明；复杂 SVG 可先转成 PNG。接口不接收 ZIP、图标字体、CSS 包或可执行内容。
 - 导入、确认删除及网站缓存立即写入当前空间，所选引用随链接/分类表单保存；取消表单只放弃选择，不撤销已完成的图标库或缓存操作。
 - 导入和网站图标获取遵守当前空间的维护权限。选择完全开放模式后，免登录维护仍然可用，同时保留 CSRF 校验；个人空间图标不会跨用户公开。

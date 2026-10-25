@@ -266,6 +266,8 @@ class ReleasePackagingTests(unittest.TestCase):
             self.write(name, b"required public fixture\n")
         self.write("LICENSE", (check_repository.REPOSITORY_ROOT / "LICENSE").read_bytes())
         self.write("VERSION", b"1.2.3\n")
+        self.write("README.md", b"# Project 1.2.3\n")
+        self.write("README.zh-CN.md", "# 项目 1.2.3\n".encode("utf-8"))
         self.write("CHANGELOG.md", b"# Changes\n\n## [Unreleased]\n\n## [1.2.3] - 2026-10-18\n\n- A described change.\n")
 
     def test_dirty_or_mismatched_tag_is_rejected_before_build_side_effects(self):

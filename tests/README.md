@@ -4,7 +4,9 @@
 
 本文记录 HTTP、Go 集成、Docker、开发启动器与发布边界的不同验证范围。正式标签打包、GitHub 托管工作流和浏览器交互的状态单独说明；已经通过的服务测试不替代这些检查。
 
-**当前发布版本为 0.0.2。** 一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史纳入该版本。下文保留开发期的实际源码、版本和运行结果；最终 0.0.2 镜像的部署验收单独记录于文末，不把开发候选冒充正式发行产物。
+**当前源码版本为 0.0.3。** 导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
+
+**当前开发轮次为分类图标、链接删除、内网获取、弹窗、空间偏好和组件内容设置。** 这些变更已整理到 0.0.3 的日期版本记录；开发时的源码与独立浏览器结果见文末“2026-10-24 开发验收：导航内容与管理交互”，不计入 0.0.2 的既有发布记录。
 
 **前一轮为导航批量整理与页面草稿撤销/重做的开发验收。** 其 SQLite、PostgreSQL 完整 Go 套件、纯历史核心检查和中英文浏览器工作流记录保留在“前一轮：导航批量整理与草稿历史”，不与本轮计数混合。
 
@@ -1222,3 +1224,87 @@ node tests/browser_spacing_sources.cjs \
 四个浏览器场景使用四个全新卷和不同 loopback 端口，没有复用已初始化实例。实际运行时间为 `2026-10-24T10:43:28.860Z` 至 `10:44:18.289Z`，Chromium `153.0.8010.12`。同一次运行覆盖 2560×1440、1920×1080、1600×900、2560×1080，核对语言选择/跳过、同语预制、初始化后自然重载、共享/个人空间与身份边界，以及14±1px操作区间距。此前完整20场景、两种语言网络故障和后台208项结果保留其原始版本/构建身份，不伪称全部在0.0.2镜像上重跑。
 
 本节记录提交前的部署验证，不是正式 Release/GHCR 的发布成功声明。正式产物必须由同一授权标签的应用 CI、干净标签打包和发布任务完成，并核对实际下载文件、SHA256SUMS、发布提交及镜像身份；七个资产的最终身份以该次 `release-metadata.json` 和托管工作流结果为准。候选镜像不能替代正式版本镜像。
+
+## 2026-10-24 开发验收：导航内容与管理交互
+
+本轮基于 0.0.2 源码，在独立数据目录和端口构建、验证，`VERSION` 保持 `0.0.2`，行为变更列入 `Unreleased`。没有重新发布镜像、安装包或版本标签，也没有将测试夹具部署到日常实例。以下均为实际执行结果；脚本中的断言数量与浏览器场景组数分别报告，不和历史轮次累加。
+
+### 后端、核心与构建
+
+| 检查 | 实际结果 | 覆盖范围 |
+| --- | --- | --- |
+| `go test ./... -count=1` | 通过 | 当前全部 Go 包；默认 SQLite 回归，新增页面内容设置的类型/边界/所属组件、保存读取与重启保留；本命令未配置的 PostgreSQL 套件不算通过 |
+| 导航批量 SQLite | 通过 | 1–500 条删除、重复/缺失/跨空间 ID、严格字段、revision、授权、事务回滚、自动图标任务清理及持久化 |
+| 导航批量 PostgreSQL | 独立专用数据库通过 | 同一批量行为及失败回滚；未借用日常数据或其他测试数据库 |
+| 图标与模板网络回归 | 通过 | 初始主机的 RFC1918/ULA、DNS/重定向/候选/代理固定目的地、自定义端口、禁止地址与格式限制 |
+| 真实内网 HTTP | 通过 | 两个独立自定义端口、去除书签路径/查询、缓存命中与端口隔离；另对用户给定的内网自定义端口目标实际取回 256×256 PNG，私有地址不写入公开记录 |
+| `node --test tests/*core.test.mjs` | 73 项通过，0 失败、0 跳过 | 包含空间选择 16 项与组件内容解析 3 项，以及该命令匹配的既有纯核心回归 |
+| TypeScript + Vite | 通过 | `tsc --noEmit` 与完整生产前端构建；构建仍会报告入口 chunk 超过 500 kB 的体积提示，不把该提示当作失败或隐藏它 |
+| Go 可执行文件 | 构建通过 | 测试服务使用实际编译的程序，未替换日常实例程序 |
+
+完整 Go 首次复跑指出一条旧测试将收藏组件的 `showCounts` 视为非法；该键现已是明确支持的内容属性。测试改用仍为分类专属的 `collapsible` 验证跨组件拒绝，新增测试继续覆盖 `showCounts` 的合法布尔值与非法类型；随后完整命令通过。图标来源清单、服务端允许列表及前端资产保持一致，原有 30 个 ID 和 SVG 不变。
+
+### 中英文实际浏览器结果
+
+使用 Chromium `153.0.8010.12`、全新上下文与独立夹具，保留真实截图、请求、几何和清理结果。中文与英文分别运行，下面的数量是每种语言的场景组数。
+
+| 入口 | 中文 / 英文 | 主要证据 |
+| --- | --- | --- |
+| `browser_category_icons.cjs` | 14 / 14 组通过 | 120 个内置资源可解码、中英文及技术别名搜索、分组/翻页、旧图标保留、链接与分类实际保存并整页刷新；已保存图标按真实 CSS mask 验证 |
+| `browser_bulk_delete.cjs` | 12 / 12 组通过 | 本页 25 条与全部筛选剩余 26 条真实删除、取消/外点/Escape、单请求锁、真实 revision 冲突整批拒绝、成功后模拟 503 刷新失败；通过界面 Reload 恢复，未再次删除 |
+| `browser_modal_layout.cjs --layout-only` | 13 / 13 组通过 | 链接与分类在六种窗口尺寸下的标题/X/按钮、滚动两端、圆角裁剪、无横向溢出；长标题、长描述、长 URL、12 个入口，以及忙时保留可见但禁用的 X |
+| `browser_modal_layout.cjs --popover-only` | 5 / 5 组通过 | 单条链接/分类删除的按钮锚定、四角避让、安全初始焦点、取消和忙状态、真实删除及完成后的工具栏焦点 |
+| `browser_space_preference.cjs` | 9 / 9 组通过 | 真实 Owner/Member 登录退出、独立新页记忆、固定默认和手选优先、503 不污染偏好、受控 403/404 回退、权限库存校验、旧 session 迁移、拒绝存储与窄屏浮层 |
+| `browser_navigation_appearance.cjs` | 7 / 7 组通过 | 首页与后台 8 项内容属性、即时草稿零写入、撤销/重做、显式保存/刷新；列数 1/3/8、稀疏分类总行上限、目录单列、标签和密度的主题覆盖；原布局、绑定和导航保留 |
+| `browser_integration_confirm.cjs` | 5 / 5 组通过 | 来源删除与令牌撤销的锚定浮层、取消/忙状态/单请求/回焦；被保存组件使用的来源真实返回 409；来源删除 204，令牌撤销 200 且 `{success:true}`，再读取已撤销状态 |
+
+弹窗的六种尺寸为 **2560×1440、1920×1080、1600×900、2560×1080、1280×720、390×844**。组件矩阵覆盖前四个桌面尺寸和 390×844，分别运行 Classic/iOS 与卡片/目录的四种配置；另以 550px 检查 560px 断点。iOS 应用图标场景实际测量“页面紧凑、组件宽松”时的卡片 padding/min-height、62px 图标容器与 31px 图像，并确认显式标签显示生效。空间浮层另检查 3440×1440。
+
+实跑曾发现单条删除在 `inert` 解除前回焦，以及浮层关闭恢复晚到后覆盖工具栏焦点；修复为 React 提交解除忙状态后回焦，并让关闭恢复使用同一有效目标，随后对应双语场景通过。来源和令牌采用相同处理。测试定位器的修正单独记录：同 hash URL 导航必须实际刷新 API 创建后的夹具；内置图标使用 CSS mask；刷新失败页面的焦点目标是主内容区，且提供真实 Reload；令牌撤销成功状态按既有接口的 200 校验。
+
+### 可复现入口与隔离
+
+| 测试脚本 | 中文 / 英文端口 | 初始化约束 |
+| --- | --- | --- |
+| `browser_category_icons.cjs` | 5210 / 5211 | 独立 ownerless `open_edit`，精确站点名 `Category icon fixture zh-CN/en` |
+| `browser_bulk_delete.cjs` | 5212 / 5213 | 独立 ownerless `open_edit`，精确站点名 `Bulk delete fixture zh-CN/en` |
+| `browser_modal_layout.cjs` | 5214 / 5215 | 独立 ownerless `open_edit`，精确站点名 `Modal layout fixture zh-CN/en` |
+| `browser_space_preference.cjs` | 5216 / 5217 | 必须未初始化的全新目录；测试创建自己的 `private_multi` Owner/Member |
+| `browser_navigation_appearance.cjs` | 5218 / 5219 | 独立 ownerless `open_edit`，精确站点名 `Navigation content fixture zh-CN/en` |
+| `browser_integration_confirm.cjs` | 5222 / 5223 | 必须未初始化的全新目录；测试创建自己的 `private_single` Owner、来源与 PAT |
+
+各服务以明确的 `-language zh-CN` 或 `-language en` 启动。脚本拒绝约定外的地址/端口及不符的已有站点，必须显式提供 `--allow-fixture-write`。不要为了重跑将已有实例清空；空间和集成脚本每轮使用新的数据目录。夹具导航与页面会按本轮 ID 和已知最新 revision 清理或恢复，已有内容逐字段保留；报告不会写出密码或 PAT 原文。
+
+配置现有 Playwright 与 Chromium 的绝对路径后执行，例如：
+
+```bash
+export LINGSHU_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.js
+export CHROMIUM_EXECUTABLE=/absolute/path/to/chrome
+BASE_URL=http://127.0.0.1:5210 node tests/browser_category_icons.cjs --allow-fixture-write
+BASE_URL=http://127.0.0.1:5212 node tests/browser_bulk_delete.cjs --allow-fixture-write
+BASE_URL=http://127.0.0.1:5214 node tests/browser_modal_layout.cjs --allow-fixture-write
+BASE_URL=http://127.0.0.1:5216 node tests/browser_space_preference.cjs --allow-fixture-write
+BASE_URL=http://127.0.0.1:5218 node tests/browser_navigation_appearance.cjs --allow-fixture-write
+BASE_URL=http://127.0.0.1:5222 node tests/browser_integration_confirm.cjs --allow-fixture-write
+```
+
+`OUTPUT_DIR` 可以指定独立的绝对报告目录。精简容器如果没有系统字体，需通过 `FONTCONFIG_FILE`/`FONTCONFIG_PATH` 指向包含中英文字体的有效字体配置，再运行可读性和几何检查；不能使用零宽文本的截图作为界面通过证据。本次已配置字体，并目视检查 2K 编辑器、手机属性抽屉、长表单底部和图标选择器的实际截图。
+
+本轮报告与构建保留于独立 `.runtime/category-icons-20261024-f7y5t8rz/`。故障响应中，空间的 403/404/503 和删除后导航刷新 503 为受控模拟；成功的登录、保存、删除、冲突及持久化均使用真实后端。本轮未执行 Firefox/Safari、不同设备像素比或所有浏览器缩放比例的矩阵，也未重新执行 Docker 打包或公开发布；所列尺寸与场景不代表所有可能的边界条件。
+
+
+## 0.0.3 发布前复核（2026-10-25）
+
+本次发布候选基于远端主线已合并的稳定 `latest` 修复，保留上一节的导航内容与管理交互实现。已核对 132 个本轮发生变更的 server、web/src 与 assets 文件：与上述实际浏览器验收时的源码逐字节一致，0 差异。版本、发布文档、文档校验器和 CI 入口单列为本次发布准备变更；不将旧构建版本号重新记为 0.0.3 浏览器结果。
+
+| 检查 | 实际结果 | 范围 |
+| --- | --- | --- |
+| Python discovery | 55 项通过 | 发布归档/排除、Linux 启动器、latest 推广，以及 17 项新增发布文档约束；没有通过认证或 fixture 进行真实 registry 写入 |
+| Node core tests | 73 项通过，0 失败、0 跳过 | 路由、页面预设、草稿历史、空间选择和组件内容 |
+| Go `go test ./... -count=1` | 通过 | 默认 SQLite 完整套件；未把未启用的 PostgreSQL 可选测试记作通过 |
+| TypeScript + Vite | 通过 | 0.0.3 前端构建；主入口约 501 kB 的体积提示仍存在，不隐藏该提示 |
+| 发布文档 | 双语 README、CHANGELOG、VERSION、API/图标/组件/用户/Unraid/发布说明同步 | 保留 0.0.2 的历史迁移说明，新增 0.0.3 无新迁移及旧校验器的回退边界 |
+
+发布文档门禁运行 `python3 scripts/check_repository.py --tag v0.0.3`。每次发布要求中英文 README 都含精确当前版本，并与 CHANGELOG 一起在上一祖先发行标签之后更新、提交；普通开发仍允许更新相关 docs。回归使用真实的临时 Git 仓库，覆盖缺失或未更新文档、首发、预发布、数值 SemVer、build metadata、无关/未合并 tag、浅克隆、脏文档、linked worktree 及无 .git 的源码归档。源码归档复查正文一致性，原始 Git checkout 负责提交与历史门禁。
+
+上述记录是发布提交前的实际复核。正式 GitHub Actions、全套 PostgreSQL/race、同镜像打包、公开下载校验、匿名镜像拉取与 `latest` 读回属于后续标签发布证据，最终身份以对应成功工作流、发布提交和 `release-metadata.json` 为准。

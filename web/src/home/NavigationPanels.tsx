@@ -8,6 +8,8 @@ import { defaultCategoryNavigationSettings, type CategoryNavigationSettings } fr
 import { getLocale, t } from '../core/i18n';
 import { useHomeEnvironment } from './HomeEnvironment';
 import { useBookmarkEndpointRouting } from './useEndpointRouting';
+import { readNavigationAppearanceSettings, type NavigationAppearanceSettings } from '../core/navigation-appearance';
+import './navigation-appearance.css';
 
 export type NavigationCategory = Category;
 export type NavigationLink = NavLink;
@@ -189,7 +191,7 @@ export function SearchPanel({ filter, onChange, title = t('搜索链接、描述
     {filter.search ? <button aria-label={t('清除搜索', 'Clear search')} onClick={() => onChange({ ...filter, search: '' })} type="button"><X size={14} /></button> : <kbd>/</kbd>}</label>;
 }
 
-const BookmarkItem = memo(function BookmarkItem({ link, directory, canEdit, onFavorite, pending }: { link: NavigationLink; directory: boolean; canEdit: boolean; onFavorite: (link: NavigationLink) => void; pending?: string }) {
+const BookmarkItem = memo(function BookmarkItem({ link, directory, presentation, canEdit, onFavorite, pending }: { link: NavigationLink; directory: boolean; presentation: NavigationAppearanceSettings; canEdit: boolean; onFavorite: (link: NavigationLink) => void; pending?: string }) {
   const { preview } = useHomeEnvironment();
   const routing = useBookmarkEndpointRouting(link);
   const href = routing.href;
@@ -204,28 +206,34 @@ const BookmarkItem = memo(function BookmarkItem({ link, directory, canEdit, onFa
       {endpoint.route && <span className="lh-endpoint-role">{role}</span>}<span className="lh-endpoint-name">{endpoint.label}</span><ArrowUpRight size={10} />
     </a>;
   };
-  let host = ''; try { host = new URL(link.url).hostname.replace(/^www\./, ''); } catch { host = link.url; }
+  let host = ''; try { host = new URL(link.url).host.replace(/^www\./, ''); } catch { host = link.url; }
+  const description = presentation.descriptionLines > 0 && !!link.description;
+  const showURL = presentation.urlDisplay === 'always' || presentation.urlDisplay === 'fallback' && !description;
+  // Keep a manual recovery route available when the browser blocked opening a tab.
+  const showEndpoints = presentation.showEndpoints || routing.state !== 'idle' && routing.state !== 'pending';
   return <article className={`lh-bookmark ${directory ? 'is-directory' : ''}`} data-link-id={link.id} data-routing={routing.state}>
     <div className="lh-bookmark-icon"><NavigationIcon name={link.icon} size={directory ? 18 : 21} /></div>
     <div className="lh-bookmark-body">
       {href ? <a className="lh-bookmark-title" href={preview ? undefined : href} role={preview ? 'link' : undefined} aria-disabled={preview || undefined} aria-busy={routing.state === 'pending' || undefined} tabIndex={preview ? 0 : undefined} target={preview ? undefined : '_blank'} rel={preview ? undefined : 'noopener noreferrer'} title={link.title} onClick={routing.onClick} onPointerDown={routing.refreshNativeHref} onKeyDown={routing.refreshNativeHref} onAuxClick={routing.refreshNativeHref}><span>{link.title}</span><ArrowUpRight size={13} /></a> : <span className="lh-bookmark-title" title={t('链接地址不可用', 'Link URL unavailable')}>{link.title}</span>}
-      <p title={link.description || link.url}>{link.description || host}</p>
-      {!!routes.length && <div className="lh-endpoints lh-network-endpoints" aria-label={t('手动选择网络入口', 'Choose a network route manually')}>{routes.map(endpointLink)}</div>}
-      {!!additional.length && <div className="lh-endpoints lh-additional-endpoints">{additional.map(endpointLink)}</div>}
+      {description && <p className="lh-bookmark-description" title={link.description}>{link.description}</p>}
+      {showURL && <p className="lh-bookmark-url" title={link.url}>{host}</p>}
+      {showEndpoints && !!routes.length && <div className="lh-endpoints lh-network-endpoints" aria-label={t('手动选择网络入口', 'Choose a network route manually')}>{routes.map(endpointLink)}</div>}
+      {showEndpoints && !!additional.length && <div className="lh-endpoints lh-additional-endpoints">{additional.map(endpointLink)}</div>}
       {routing.state !== 'idle' && <p className="lh-routing-status" role="status">{routing.state === 'pending' ? t('正在选择入口…', 'Choosing a route…') : t('未能打开新页面，请直接选择入口重试。', 'The new page could not be opened. Choose a route directly to retry.')}</p>}
-      {!directory && !!link.tags.length && <div className="lh-bookmark-tags">{link.tags.slice(0, 3).map(tag => <span key={tag}>{tag}</span>)}</div>}
+      {(presentation.showTags === true || presentation.showTags === null && !directory) && !!link.tags.length && <div className="lh-bookmark-tags">{link.tags.slice(0, 3).map(tag => <span key={tag}>{tag}</span>)}</div>}
     </div>
     {canEdit && !preview ? <button className={`lh-favorite-button ${link.isFavorite ? 'is-active' : ''}`} title={link.isFavorite ? t('取消收藏', 'Remove favorite') : t('收藏链接', 'Favorite link')} aria-label={link.isFavorite ? t('取消收藏 {name}', 'Remove {name} from favorites', { name: link.title }) : t('收藏 {name}', 'Favorite {name}', { name: link.title })} aria-pressed={link.isFavorite} disabled={pending === link.id} onClick={() => onFavorite(link)}><Star size={14} /></button>
       : link.isFavorite && <Star className="lh-favorite-indicator" size={13} aria-label={t('已收藏', 'Favorited')} />}
   </article>;
 });
 
-export function NavigationPanel({ data, filter, title, variant = 'cards', linkAppearance = 'icon-text', favorites = false, canEdit = false, onFavorite, pending, onClear, emptyActions }: {
+export function NavigationPanel({ data, filter, title, variant = 'cards', linkAppearance = 'icon-text', settings, favorites = false, canEdit = false, onFavorite, pending, onClear, emptyActions }: {
   data: NavigationCollection; filter: NavigationFilter; title?: string; variant?: 'cards' | 'directory'; linkAppearance?: LinkAppearance; favorites?: boolean;
-  canEdit?: boolean; onFavorite: (link: NavigationLink) => void; pending?: string; onClear?: () => void;
+  settings?: Record<string, unknown>; canEdit?: boolean; onFavorite: (link: NavigationLink) => void; pending?: string; onClear?: () => void;
   emptyActions?: { scope: string; onAdd: () => void; onImport: () => void };
 }) {
   const locale = getLocale();
+  const presentation = useMemo(() => readNavigationAppearanceSettings(settings), [settings]);
   const links = useMemo(() => filteredLinks(data, filter, favorites), [data, filter, favorites, locale]);
   const groups = useMemo(() => {
     if (favorites) return [{ id: 'favorites', name: title || t('常用收藏', 'Favorites'), icon: 'star', links }];
@@ -246,12 +254,16 @@ export function NavigationPanel({ data, filter, title, variant = 'cards', linkAp
       {onClear && filtered && <button className="lh-text-button" type="button" onClick={onClear}>{t('清除筛选', 'Clear filters')}<ChevronRight size={14} /></button>}
     </section>;
   }
-  return <div className={`lh-navigation-panel ${variant === 'directory' ? 'lh-directory-groups' : 'lh-card-groups'}`} data-link-appearance={linkAppearance}>
-    {title && !favorites && <div className="lh-panel-heading lh-custom-panel-title"><h2>{title}</h2><span>{t('{count} 个链接', '{count} links', { count: links.length.toLocaleString(locale) })}</span></div>}
+  return <div className={`lh-navigation-panel ${variant === 'directory' ? 'lh-directory-groups' : 'lh-card-groups'}`} data-link-appearance={linkAppearance}
+    data-max-columns={presentation.maxColumns || undefined} data-content-density={presentation.density}
+    data-show-tags={presentation.showTags === null ? undefined : String(presentation.showTags)}
+    data-description-lines={presentation.descriptionLines}
+    style={{ '--lh-max-columns': presentation.maxColumns || undefined, '--lh-description-lines': presentation.descriptionLines || 1 } as CSSProperties}>
+    {title && !favorites && <div className="lh-panel-heading lh-custom-panel-title"><h2>{title}</h2>{presentation.showCounts && <span>{t('{count} 个链接', '{count} links', { count: links.length.toLocaleString(locale) })}</span>}</div>}
     {groups.map(group => <section className={`lh-link-group ${favorites ? 'lh-favorites-group' : ''}${group.links.length <= 3 && variant !== 'directory' ? ' is-sparse' : ''}`} key={group.id} aria-label={group.name}
       style={{ '--lh-link-count': group.links.length } as CSSProperties}>
-      <div className="lh-group-heading"><span className="lh-group-icon"><NavigationIcon name={group.icon} size={17} /></span><h2>{group.name}</h2><span className="lh-count">{group.links.length.toLocaleString(locale)}</span></div>
-      <div className={`lh-links ${variant === 'directory' ? 'is-directory' : ''}`}>{group.links.map(link => <BookmarkItem key={link.id} link={link} directory={variant === 'directory'} canEdit={canEdit} onFavorite={onFavorite} pending={pending} />)}</div>
+      {presentation.showGroupTitles && <div className="lh-group-heading"><span className="lh-group-icon"><NavigationIcon name={group.icon} size={17} /></span><h2>{group.name}</h2>{presentation.showCounts && <span className="lh-count">{group.links.length.toLocaleString(locale)}</span>}</div>}
+      <div className={`lh-links ${variant === 'directory' ? 'is-directory' : ''}`}>{group.links.map(link => <BookmarkItem key={link.id} link={link} directory={variant === 'directory'} presentation={presentation} canEdit={canEdit} onFavorite={onFavorite} pending={pending} />)}</div>
     </section>)}
   </div>;
 }

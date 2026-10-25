@@ -51,7 +51,15 @@ func sortOrder(value int) error {
 var builtinIcons = map[string]bool{}
 
 func init() {
-	for _, name := range strings.Fields("house compass search bookmark star folder tags layout-grid list panel-left settings sliders-horizontal plus pencil trash upload download external-link link globe server database shield activity book-open code-xml clapperboard puzzle sun moon") {
+	// Keep this allowlist in sync with assets/icons/manifest.json; the contract test checks both directions.
+	for _, name := range strings.Fields(`house compass search bookmark star folder tags layout-grid list panel-left settings sliders-horizontal plus pencil trash upload download external-link link globe sun moon
+bot brain-circuit workflow message-square-text scan-text languages audio-lines wand-sparkles cpu image-plus
+code-xml puzzle terminal git-branch git-pull-request braces bug package file-code webhook regex test-tube blocks rocket
+server database shield activity hard-drive container network cloud router wifi archive monitor lock-keyhole key-round gauge cable refresh-cw server-cog
+book-open briefcase notebook-pen library graduation-cap list-checks calendar-days mail users file-text presentation sheet clipboard-list alarm-clock calculator
+clapperboard video film disc-3 headphones audio-waveform gamepad-2 image images palette camera brush pen-tool scissors mic tv captions
+shopping-cart wallet credit-card chart-no-axes-combined map map-pin plane train-front car utensils heart-pulse dumbbell house-plug cloud-sun coffee gift
+newspaper message-circle messages-square rss pen-line radio contact megaphone`) {
 		builtinIcons["lucide:"+name] = true
 	}
 }

@@ -2,9 +2,9 @@
 
 **English** | [简体中文](UNRAID.zh-CN.md)
 
-Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template selects the **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:latest`, following published stable releases with embedded SQLite. No external database is required. Exact version tags such as `0.0.2` remain available.
+Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template selects the **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:latest`, following published stable releases with embedded SQLite. No external database is required. Exact version tags such as `0.0.3` remain available.
 
-These instructions target **0.0.2**. Its language is chosen once and saved in the database. Before upgrading an existing 0.0.1 instance, read the language and migration-007 backup requirements below.
+These instructions target **0.0.3**. Its language is chosen once and saved in the database. Before upgrading an existing 0.0.1 instance, read the language and migration-007 backup requirements below.
 
 ## Install
 
@@ -63,17 +63,19 @@ For remote access, configure an HTTPS reverse proxy, then set **HTTPS-only cooki
 
 ## Back up, recreate and upgrade
 
+Upgrading from 0.0.2 to 0.0.3 adds no database migration; retain Appdata and the keys. New icon IDs and component settings are not recognized by older validators; after using them, restore the pre-upgrade backup when rolling back.
+
 The `/data` directory contains `lingshu-home.db`, `csrf.key` and `integrations.key`, along with SQLite runtime files and the instance lock. Saved website and custom icon bytes are stored in the database. Back up the **complete dedicated data directory** after stopping Home so the database and its matching keys stay together. A database-only export does not replace this backup.
 
 To recreate the same version, retain the same Appdata host path, user setting and other configuration. Removing a container does not require removing its appdata.
 
-This template uses `latest`, which follows the highest successfully published stable SemVer release. Drafts and prereleases never become `latest`; fixed tags such as `0.0.2` remain available. An installation pinned to `0.0.1` or `0.0.2` needs a one-time **Repository** change to `ghcr.io/zhigege666/lingshu-home:latest` to follow stable releases. Updating a catalog template does not change an installed container's Repository, and moving `latest` does not itself update a running container. Use Unraid's update action, or your configured update automation, to pull and recreate it after reviewing the upgrade requirements.
+This template uses `latest`, which follows the highest successfully published stable SemVer release. Drafts and prereleases never become `latest`; fixed tags such as `0.0.3` remain available. An installation pinned to `0.0.1` or `0.0.2` needs a one-time **Repository** change to `ghcr.io/zhigege666/lingshu-home:latest` to follow stable releases. Updating a catalog template does not change an installed container's Repository, and moving `latest` does not itself update a running container. Use Unraid's update action, or your configured update automation, to pull and recreate it after reviewing the upgrade requirements.
 
 For a new release:
 
 1. Read its [release notes](https://github.com/zhigege666/Lingshu-Home/releases) and migration requirements.
 2. Stop Home and back up its complete data directory. Keep the previous image and, for a first upgrade from 0.0.1, retain the original **Interface language** value.
-3. Use `ghcr.io/zhigege666/lingshu-home:latest` in **Repository** to follow stable releases, or a published exact tag such as `ghcr.io/zhigege666/lingshu-home:0.0.2` to pin a version. Retain `/data`, the same Appdata host path and the `--user=99:100` setting.
+3. Use `ghcr.io/zhigege666/lingshu-home:latest` in **Repository** to follow stable releases, or a published exact tag such as `ghcr.io/zhigege666/lingshu-home:0.0.3` to pin a version. Retain `/data`, the same Appdata host path and the `--user=99:100` setting.
 4. Apply a Repository change, or use **Check for Updates → Update** for an existing `latest` installation, so Docker Manager pulls the image and recreates the container.
 5. Check the logs, open the WebUI, sign in and confirm your existing links and settings.
 

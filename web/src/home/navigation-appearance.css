@@ -1,0 +1,45 @@
+/* A cap is an upper limit; min(100%, ...) lets narrow panels fall back safely. */
+.lh-home .lh-navigation-panel[data-link-appearance][data-max-columns] .lh-link-group { flex-basis: 100%; max-width: 100%; grid-column: 1 / -1; }
+.lh-home .lh-navigation-panel[data-link-appearance][data-max-columns] .lh-links:not(.is-directory) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--lh-card-min), calc((100% - (var(--lh-max-columns) - 1) * var(--lh-card-gap)) / var(--lh-max-columns)))), 1fr));
+}
+.lh-home .lh-navigation-panel[data-link-appearance][data-max-columns] .lh-favorites-group.is-sparse .lh-links { max-width: none; }
+.lh-home .lh-navigation-panel[data-link-appearance][data-description-lines="2"] .lh-bookmark-description,
+.lh-home .lh-navigation-panel[data-link-appearance][data-description-lines="3"] .lh-bookmark-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lh-description-lines);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.lh-home .lh-navigation-panel[data-link-appearance][data-show-tags="true"] .lh-bookmark .lh-bookmark-body .lh-bookmark-tags { display: flex; }
+.lh-home .lh-navigation-panel[data-link-appearance][data-show-tags="false"] .lh-bookmark .lh-bookmark-body .lh-bookmark-tags { display: none; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="comfortable"] { --lh-card-min: 228px; --lh-card-gap: 11px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="compact"] { --lh-card-min: 200px; --lh-card-gap: 9px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="comfortable"] .lh-bookmark:not(.is-directory) { min-height: 87px; padding: 16px 28px 14px 15px; gap: 12px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="compact"] .lh-bookmark:not(.is-directory) { min-height: 70px; padding: 12px 27px 11px 12px; gap: 10px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="comfortable"] .lh-bookmark-icon { width: 36px; height: 36px; flex-basis: 36px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="compact"] .lh-bookmark-icon { width: 29px; height: 29px; flex-basis: 29px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="comfortable"] .lh-bookmark.is-directory { min-height: 61px; padding-top: 12px; padding-bottom: 12px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="compact"] .lh-bookmark.is-directory { min-height: 52px; padding-top: 9px; padding-bottom: 9px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="comfortable"] .lh-bookmark.is-directory .lh-bookmark-icon { width: 28px; height: 28px; flex-basis: 28px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density="compact"]:not([data-show-tags]) .lh-bookmark-tags { display: none; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="icon-text"][data-content-density="comfortable"]:not([data-show-tags]) .lh-bookmark-tags { display: flex; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="comfortable"] { --lh-card-min: 106px; --lh-card-gap: 14px; --lh-app-tile: 62px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="compact"] { --lh-card-min: 96px; --lh-card-gap: 10px; --lh-app-tile: 50px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="comfortable"] .lh-bookmark:not(.is-directory) { min-height: 124px; padding: 14px 10px 12px; gap: 10px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="compact"] .lh-bookmark:not(.is-directory) { min-height: 112px; padding: 11px 8px 9px; gap: 8px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="comfortable"] .lh-bookmark:not(.is-directory) .lh-bookmark-icon,
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="compact"] .lh-bookmark:not(.is-directory) .lh-bookmark-icon { width: var(--lh-app-tile); height: var(--lh-app-tile); flex-basis: var(--lh-app-tile); }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="comfortable"] .lh-bookmark:not(.is-directory) .lh-bookmark-icon > :is(img,svg) { width: 31px; height: 31px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density="compact"] .lh-bookmark:not(.is-directory) .lh-bookmark-icon > :is(img,svg) { width: 27px; height: 27px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density]:not([data-content-density="inherit"]) .lh-bookmark.is-directory .lh-bookmark-icon { width: 36px; height: 36px; flex-basis: 36px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="app-icons"][data-content-density]:not([data-content-density="inherit"]) .lh-bookmark.is-directory .lh-bookmark-icon > :is(img,svg) { width: 21px; height: 21px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="minimal"][data-content-density="comfortable"] .lh-bookmark:not(.is-directory) { min-height: 65px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="minimal"][data-content-density="compact"] .lh-bookmark:not(.is-directory) { min-height: 55px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="minimal"][data-content-density="comfortable"] .lh-bookmark.is-directory { min-height: 49px; }
+.lh-home[data-density] .lh-navigation-panel[data-link-appearance="minimal"][data-content-density="compact"] .lh-bookmark.is-directory { min-height: 43px; }
+@media (max-width: 560px) {
+  .lh-home[data-density] .lh-navigation-panel[data-link-appearance][data-content-density]:not([data-link-appearance="app-icons"]) .lh-links:not(.is-directory) { grid-template-columns: minmax(0,1fr); }
+}

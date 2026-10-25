@@ -1,0 +1,33 @@
+.admin-ui .admin-space-picker { display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: center; gap: 4px; }
+.admin-space-picker > .admin-field-label { grid-column: 1 / -1; }
+.lh-space-controls { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
+.lh-space-controls > .lh-space-control { flex: 1; min-width: 0; }
+.lh-home .lh-space-holder.has-preference { width: 188px; flex-basis: 188px; }
+.lh-space-preference-trigger { display: inline-flex; flex: 0 0 32px; align-items: center; justify-content: center; width: 32px; height: 36px; padding: 0; border: 1px solid var(--lh-line, #dce4dd); border-radius: 7px; color: var(--lh-muted, #52675a); background: var(--lh-surface, #fff); cursor: pointer; }
+.lh-home .lh-space-preference-trigger { border: 1px solid var(--lh-line); color: var(--lh-muted); }
+.lh-space-preference-trigger:hover, .lh-space-preference-trigger[data-state="open"] { color: var(--lh-accent, #36785c); background: var(--lh-soft, #f0f3ef); }
+.lh-space-preference-trigger:disabled { cursor: not-allowed; opacity: .5; }
+.lh-space-preference-trigger:focus-visible { outline: 2px solid var(--lh-accent, #36785c); outline-offset: 3px; }
+.lh-space-preference-menu { --preference-surface: #fff; --preference-ink: #26372f; --preference-muted: #5c6c61; --preference-line: #dce4dd; --preference-soft: #f0f5ef; --preference-accent: #36785c; --preference-error: #a32929; box-sizing: border-box; z-index: 220; display: flex; flex-direction: column; gap: 10px; width: 328px; max-width: calc(100vw - 24px); max-height: min(480px, calc(100dvh - 24px), var(--radix-popover-content-available-height, 480px)); padding: 14px; border: 1px solid var(--preference-line); border-radius: 12px; background: var(--preference-surface); color: var(--preference-ink); box-shadow: 0 10px 34px #172e2526; overflow: hidden; font: 13px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color-scheme: light; }
+.lh-space-preference-menu[data-theme="dark"] { --preference-surface: #202723; --preference-ink: #e2e9e2; --preference-muted: #acb9af; --preference-line: #435348; --preference-soft: #293e32; --preference-accent: #97cbae; --preference-error: #ffadad; color-scheme: dark; }
+.lh-space-preference-menu *, .lh-space-preference-menu *::before, .lh-space-preference-menu *::after { box-sizing: border-box; }
+.lh-space-preference-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
+.lh-space-preference-heading h2 { margin: 0; font-size: 14px; line-height: 1.5; font-weight: 650; overflow-wrap: anywhere; }
+.lh-space-preference-close { display: inline-grid; flex: 0 0 28px; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--preference-muted); cursor: pointer; }
+.lh-space-preference-close:hover { background: var(--preference-soft); color: var(--preference-ink); }
+.lh-space-preference-menu :focus-visible { outline: 2px solid var(--preference-accent); outline-offset: 3px; }
+.lh-space-preference-description { flex-shrink: 0; margin: 0; color: var(--preference-muted); font-size: 12px; line-height: 1.6; }
+.lh-space-preference-options { display: flex; flex-direction: column; gap: 5px; flex: 1 1 auto; min-height: 0; min-width: 0; margin: 0; padding: 3px; border: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.lh-space-preference-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.lh-space-preference-option { display: flex; align-items: flex-start; flex-shrink: 0; gap: 9px; min-width: 0; padding: 9px; border: 1px solid transparent; border-radius: 7px; cursor: pointer; }
+.lh-space-preference-option:hover { background: var(--preference-soft); }
+.lh-space-preference-option[data-selected] { border-color: var(--preference-line); background: var(--preference-soft); }
+.lh-space-preference-option input { flex: 0 0 16px; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--preference-accent); cursor: pointer; }
+.lh-space-preference-option > span { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.lh-space-preference-option strong { font-size: 13px; font-weight: 550; }
+.lh-space-preference-option small { font-size: 11px; color: var(--preference-muted); }
+.lh-space-preference-status, .lh-space-preference-error { flex-shrink: 0; margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.lh-space-preference-status { color: var(--preference-accent); }
+.lh-space-preference-error { color: var(--preference-error); }
+@media (max-width: 1280px) { .lh-home .lh-space-holder.has-preference { width: 153px; flex-basis: 153px; } }
+@media (max-width: 560px) { .lh-home .lh-space-holder.has-preference { width: 126px; flex-basis: 126px; } }

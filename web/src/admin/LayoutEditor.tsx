@@ -15,6 +15,7 @@ import { StyledSelect } from '../components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Empty, ErrorMessage, Field, handleFormInvalid, Modal } from '../components/Shared'
 import { InteractionScopeEditor } from './InteractionScopeEditor'
+import { NavigationContentFields, type NavigationSelectProps, type NavigationCheckProps } from '../components/NavigationContentFields'
 import { PageChromeEditor, validatePageChrome, type ChromeValidationIssue } from './PageChromeEditor'
 import { PagePreview } from './PagePreview'
 import { addPagePanel, bindPagePanel, panelContracts, panelTitle } from '../home/composition'
@@ -69,6 +70,13 @@ function neighbor(config: PageConfig, id: string, direction: number): string | n
   const target = siblings[siblings.findIndex(view => view.id === id) + direction]
   const targetPosition = target && config.layout.placements[target.id]?.base
   return target && targetPosition && targetPosition.kind !== 'hidden' && !targetPosition.locked ? target.id : null
+}
+
+function NavigationSelectControl({ label, value, disabled, hint, options, onChange }: NavigationSelectProps) {
+  return <Field label={label} hint={hint}><StyledSelect aria-label={label} value={value} disabled={disabled} options={options} onValueChange={onChange}/></Field>
+}
+function NavigationCheckControl({ label, checked, disabled, onChange }: NavigationCheckProps) {
+  return <label className="admin-check-line"><Checkbox aria-label={label} checked={checked} disabled={disabled} onCheckedChange={value => onChange(value === true)}/>{label}</label>
 }
 
 export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootstrap: Bootstrap; dashboard: Dashboard; onSaved: (message: string) => Promise<void> }) {
@@ -347,6 +355,11 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
                   {['builtin/navigation', 'builtin/favorites'].includes(selected.panel.id) && <Field label={t('链接外观', 'Link appearance')}><StyledSelect aria-label={t('链接外观', 'Link appearance')} disabled={disabled}
                     value={String(selected.settings.linkAppearance || 'theme')} onValueChange={value => edit(next => { const settings = next.views.find(view => view.id === selected.id)!.settings; if (value === 'theme') delete settings.linkAppearance; else settings.linkAppearance = value })}
                     options={[{ value: 'theme', label: t('跟随主题', 'Follow theme') }, { value: 'icon-text', label: t('图标 + 文字', 'Icon + text') }, { value: 'minimal', label: t('简约文字', 'Minimal text') }, { value: 'app-icons', label: t('应用图标', 'App icons') }]} /></Field>}
+                  {['builtin/navigation', 'builtin/favorites'].includes(selected.panel.id) && <section className="admin-inspector-section" data-navigation-content-settings>
+                    <h4>{t('组件内容', 'Component content')}</h4>
+                    <NavigationContentFields settings={selected.settings} disabled={disabled} SelectControl={NavigationSelectControl} CheckControl={NavigationCheckControl}
+                      onChange={(key, value) => edit(next => { const settings = next.views.find(view => view.id === selected.id)!.settings; if (value === undefined) delete settings[key]; else settings[key] = value })}/>
+                  </section>}
                   {selected.panel.id === 'builtin/calendar' && <Field label={t('默认日程视图', 'Default calendar view')}><StyledSelect value={selected.settings.viewMode === 'day' ? 'day' : 'week'} disabled={disabled} onValueChange={value => updateSettings(selected.id, { viewMode: value })} options={[{ value: 'day', label: t('日', 'Day') }, { value: 'week', label: t('周', 'Week') }]} /></Field>}
                   {selected.panel.id === 'builtin/weather' && <Field label={t('显示预报天数', 'Forecast days to show')}><StyledSelect value={String(selected.settings.forecastDays || 5)} disabled={disabled} onValueChange={value => updateSettings(selected.id, { forecastDays: Number(value) })} options={[3, 5, 7].map(value => ({ value: String(value), label: t('{value} 天', '{value} days', { value }) }))} /></Field>}
                   {selected.panel.id === 'builtin/metrics' && <label className="admin-check-line"><Checkbox checked={selected.settings.showBars !== false} disabled={disabled} onCheckedChange={value => updateSettings(selected.id, { showBars: value })} />{t('显示已定义量程的进度条', 'Show bars for defined metric ranges')}</label>}

@@ -6,11 +6,11 @@ The Apache-2.0 license at the repository root applies to original Lingshu-Home w
 
 - Upstream: https://github.com/lucide-icons/lucide
 - Pinned revision: `1ef60af944de207e0d5176905a0759ba12e6ee8d`
-- Files: 30 unmodified SVGs under `assets/icons/lucide/`, enumerated in `assets/icons/manifest.json`.
+- Files: 120 unmodified SVGs under `assets/icons/lucide/`, enumerated in `assets/icons/manifest.json`. The category expansion adds 90 files from the same pinned revision and preserves the original 30 files byte-for-byte.
 - Original license: [assets/icons/licenses/lucide-LICENSE](assets/icons/licenses/lucide-LICENSE).
 - The complete upstream license file contains Lucide's ISC notice and the MIT notice for icons derived from Feather. Keep the full file with redistributed copies; this project does not relabel the icons as Apache-2.0 or as an optional choice of licenses.
 - Original license source: https://raw.githubusercontent.com/lucide-icons/lucide/1ef60af944de207e0d5176905a0759ba12e6ee8d/LICENSE
-- Modifications: none. Localized display names, search keywords and fallback mappings in the manifest are Lingshu-Home metadata.
+- Modifications: none. Localized display names, browsing groups, search keywords and fallback mappings in the manifest are Lingshu-Home metadata.
 
 ## Brand icons and design concepts
 

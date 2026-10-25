@@ -28,6 +28,10 @@ type componentTemplateDiscovery struct {
 // Discovery returns declarations for a user to select. It does not fetch every
 // advertised template, execute scripts, or contact data sources.
 func componentTemplateCandidates(body []byte, page *url.URL) ([]componentTemplateCandidate, bool, error) {
+	return scopedComponentTemplateCandidates(iconNetworkContext(context.Background(), page), body, page)
+}
+
+func scopedComponentTemplateCandidates(ctx context.Context, body []byte, page *url.URL) ([]componentTemplateCandidate, bool, error) {
 	result := []componentTemplateCandidate{}
 	seen := map[string]bool{}
 	tokens := html.NewTokenizer(bytes.NewReader(body))
@@ -76,9 +80,9 @@ func componentTemplateCandidates(body []byte, page *url.URL) ([]componentTemplat
 		if err != nil {
 			return nil, false, invalid("Invalid component template discovery link.")
 		}
-		target, err := iconRemoteURL(page.ResolveReference(reference).String())
+		target, err := iconScopedRemoteURL(ctx, page.ResolveReference(reference).String())
 		if err != nil {
-			return nil, false, invalid("A component template discovery link must use a public HTTP or HTTPS URL.")
+			return nil, false, invalid("A component template discovery link must stay within the permitted network scope.")
 		}
 		canonical := target.String()
 		if seen[canonical] {
@@ -105,6 +109,11 @@ func componentTemplateCandidates(body []byte, page *url.URL) ([]componentTemplat
 // bounded request/redirect implementation and outbound network policy.
 func readComponentTemplateDocument(ctx context.Context, client *http.Client, target *url.URL, requests *int, allowHTML bool) ([]byte, *url.URL, bool, error) {
 	for {
+		checked, err := iconScopedRemoteURL(ctx, target.String())
+		if err != nil {
+			return nil, target, false, err
+		}
+		target = checked
 		if *requests >= 5 {
 			return nil, target, false, invalid("The component template request or redirect limit was reached.")
 		}
@@ -126,9 +135,9 @@ func readComponentTemplateDocument(ctx context.Context, client *http.Client, tar
 			if err != nil || location == "" {
 				return nil, target, false, invalid("Invalid component template redirect.")
 			}
-			target, err = iconRemoteURL(target.ResolveReference(next).String())
+			target, err = iconScopedRemoteURL(ctx, target.ResolveReference(next).String())
 			if err != nil {
-				return nil, target, false, invalid("A component template redirect cannot target a private or reserved address.")
+				return nil, target, false, invalid("A component template redirect must stay within the permitted network scope.")
 			}
 			continue
 		}
@@ -164,8 +173,9 @@ func discoverComponentTemplates(ctx context.Context, client *http.Client, rawURL
 	result := componentTemplateDiscovery{Templates: []componentTemplateCandidate{}}
 	target, err := iconRemoteURL(rawURL)
 	if err != nil {
-		return result, invalid("Use a public HTTP or HTTPS component template URL on a standard port.")
+		return result, invalid("Use a permitted HTTP or HTTPS component template URL.")
 	}
+	ctx = iconNetworkContext(ctx, target)
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	requests := 0
@@ -175,7 +185,7 @@ func discoverComponentTemplates(ctx context.Context, client *http.Client, rawURL
 	}
 	result.SourceURL = target.String()
 	if isHTML {
-		result.Templates, result.Truncated, err = componentTemplateCandidates(body, target)
+		result.Templates, result.Truncated, err = scopedComponentTemplateCandidates(ctx, body, target)
 		return result, err
 	}
 	manifest, err := parseComponentTemplate(body)
