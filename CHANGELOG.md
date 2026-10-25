@@ -28,6 +28,7 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 - Extend the Unraid template with optional advanced document-root and TLS certificate/key variables, retain `latest` and the existing HTTP WebUI defaults, and explain multiple document Path mappings and the HTTPS WebUI change. Existing installed containers retain their saved settings; add new mappings/variables explicitly when enabling these features.
 - Keep original document mounts and certificates separate from `/data`. Docker/Unraid updates pull and recreate the container with the original storage, ports and settings; a restart alone does not load a new image or mount configuration.
 - Extend the actual container gate with a public 0.0.4-to-candidate upgrade using the same data volume, old-data/key comparisons and existing session/PAT checks. Exercise writable/read-only Markdown mounts and verified direct HTTPS on the candidate image, including missing-mount retention and reconnect behavior.
+- Let consecutive container checks reuse a just-closed loopback port without treating TCP `TIME_WAIT` connections as an active service; retain rejection of real listeners and cover both cases with socket regressions.
 
 ## [0.0.4] - 2026-10-25
 

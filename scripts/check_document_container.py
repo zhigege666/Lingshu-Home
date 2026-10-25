@@ -207,9 +207,17 @@ def verify_tls_boundary(base, port, certificate):
         require(exc.code == 400, "Unexpected plaintext response on TLS listener")
 
 
-def run(image, port):
+def check_available_port(port):
     with socket.socket() as probe:
+        # The preceding container suite has just closed this port. Match Go's
+        # listener reuse policy so its TIME_WAIT connections do not look like
+        # an active listener; a process still listening must continue to fail.
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind(("127.0.0.1", port))
+
+
+def run(image, port):
+    check_available_port(port)
     expected_version = (ROOT / "VERSION").read_text().strip()
     containers = Containers(os.environ.get("LINGSHU_DOCKER", "docker"),
                             "lingshu-upgrade-test-" + uuid.uuid4().hex[:10], port)

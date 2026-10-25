@@ -1378,3 +1378,5 @@ BASE_URL=http://127.0.0.1:5222 node tests/browser_integration_confirm.cjs --allo
 新增验收使用公开 0.0.4 镜像生成独立的旧数据，再以候选镜像复用同一 `/data`，核对账号、导航、旧会话／PAT、实例密钥和 008 迁移。文档／HTTPS 场景挂载独立可写与只读目录、临时证书，正常验证证书链和名称，检查 Secure Cookie、原件读写／恢复历史、只读挂载和目录缺失保护。所有容器和数据均属于本次独立夹具；不连接日常实例或真实 NAS。
 
 容器回归需要 Docker、可拉取的公开 0.0.4 镜像和用于临时证书的 OpenSSL；语法检查、单元测试或仅阅读 workflow 都不构成这些实际容器步骤已通过的证明。完成后核对托管运行中具体的 Docker 步骤，再记录成功结果。Unraid 模板的 XML/default/打包检查与 Unraid WebUI 实际安装也分开记录。
+
+连续两组容器验收复用同一 loopback 端口。预检采用与 Go 监听器一致的地址复用设置，允许上一组已关闭连接的 TCP `TIME_WAIT`，仍拒绝真正监听的进程。`test_document_container.py` 用实际套接字覆盖空闲、活动监听器和 Linux `TIME_WAIT` 三种情形；不能用忽略端口错误替代检查。

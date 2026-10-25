@@ -1,8 +1,10 @@
 """Regression checks for the destructive-upgrade assertions used by image CI."""
 from __future__ import annotations
 
+import errno
 from pathlib import Path
 import shutil
+import socket
 import sqlite3
 import sys
 import tempfile
@@ -10,6 +12,46 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import check_document_container as check
+
+
+class ContainerPortTests(unittest.TestCase):
+    def test_unused_port_is_available(self):
+        with socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            port = reservation.getsockname()[1]
+        check.check_available_port(port)
+
+    def test_active_listener_is_rejected_even_with_address_reuse(self):
+        with socket.socket() as listener:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            with self.assertRaises(OSError) as raised:
+                check.check_available_port(listener.getsockname()[1])
+            self.assertEqual(raised.exception.errno, errno.EADDRINUSE)
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux container port-reuse regression")
+    def test_closed_listener_time_wait_does_not_block_next_container(self):
+        with socket.socket() as listener:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            port = listener.getsockname()[1]
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as client:
+                connection, _ = listener.accept()
+                with connection:
+                    connection.settimeout(2)
+                    # Close the server side first to leave its local port in
+                    # TIME_WAIT, as the preceding HTTP container can do.
+                    connection.shutdown(socket.SHUT_WR)
+                    self.assertEqual(client.recv(1), b"")
+                    client.shutdown(socket.SHUT_WR)
+                    self.assertEqual(connection.recv(1), b"")
+        with socket.socket() as old_probe:
+            with self.assertRaises(OSError) as raised:
+                old_probe.bind(("127.0.0.1", port))
+            self.assertEqual(raised.exception.errno, errno.EADDRINUSE)
+        check.check_available_port(port)
 
 
 class UpgradeEvidenceTests(unittest.TestCase):
