@@ -27,6 +27,12 @@ The release workflow calls the same CI used for the application:
 - Complete HTTP acceptance against fresh databases, plus actual process-restart persistence checks.
 - A Docker image build and a disposable runtime/volume/restart check.
 
+The release-documentation regressions create disposable local Git repositories and shallow clones. Their Git helper sets `maintenance.auto=false`, `gc.auto=0`, `maintenance.autoDetach=false` and `gc.autoDetach=false` on each command, so automatic maintenance cannot outlive a fixture. Command-level settings also cover clone operations without relying on the source repository's local configuration. They do not alter the host's Git configuration. Temporary-directory cleanup remains strict: an unsuccessful cleanup still fails the test. These settings follow Git's [command-level configuration](https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt) and [maintenance/garbage-collection configuration](https://git-scm.com/docs/git-config).
+
+Main CI run [40200304828](https://github.com/zhigege666/Lingshu-Home/actions/runs/40200304828) reported `Directory not empty: 'objects'` while cleaning a release-documentation fixture after its test body, while the application and Docker gates passed. The log did not identify the concurrent writer; this fixture isolation addresses automatic detached Git maintenance as a plausible source without claiming that the original background process was proven. A successful local repeat does not replace the hosted release gates.
+
+After this isolation change, the 17 release-documentation tests passed 20 consecutive local runs (340 test executions), and all 68 Python regressions passed once on Git 2.51.1 and Python 3.12.14. The failing hosted run used Git 2.55.0; hosted validation of the corrected commit remains a separate requirement.
+
 Packaging then requires a clean checkout, an existing matching local tag, and a matching dated changelog entry. It uses `git archive` of that exact commit to prepare an isolated build. Untracked files from a developer's working directory are never selected.
 
 One Linux amd64 Docker image is built and exercised. The Linux program, built frontend and license directory are extracted from the same image. The standalone bundle is then run with its default relative paths; the check verifies version, exact served frontend bytes, initialization and data after a real restart.

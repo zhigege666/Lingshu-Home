@@ -30,6 +30,10 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 - Extend the actual container gate with a public 0.0.4-to-candidate upgrade using the same data volume, old-data/key comparisons and existing session/PAT checks. Exercise writable/read-only Markdown mounts and verified direct HTTPS on the candidate image, including missing-mount retention and reconnect behavior.
 - Let consecutive container checks reuse a just-closed loopback port without treating TCP `TIME_WAIT` connections as an active service; retain rejection of real listeners and cover both cases with socket regressions.
 
+### Release verification
+
+- Keep disposable release-documentation Git fixtures, including shallow clones, free of automatic background maintenance through command-local Git settings. Retain strict temporary-directory cleanup and all release assertions; host Git settings and production release validation are unchanged.
+
 ## [0.0.4] - 2026-10-25
 
 ### Container distribution

@@ -29,8 +29,13 @@ class ReleaseDocumentationTests(unittest.TestCase):
         self.git("config", "user.email", "release-fixture@example.invalid")
 
     def git(self, *args, cwd=None):
-        return subprocess.check_output(["git", "-C", str(cwd or self.root), *args],
-                                       text=True, stderr=subprocess.PIPE).strip()
+        # A detached Git writer can race TemporaryDirectory cleanup. Apply the
+        # policy to every command, including clone, without changing host Git
+        # configuration or relying on a clone inheriting its source's config.
+        command = ["git", "-c", "maintenance.auto=false", "-c", "gc.auto=0",
+                   "-c", "maintenance.autoDetach=false", "-c", "gc.autoDetach=false",
+                   "-C", str(cwd or self.root), *args]
+        return subprocess.check_output(command, text=True, stderr=subprocess.PIPE).strip()
 
     def write(self, name, content):
         path = self.root / name
