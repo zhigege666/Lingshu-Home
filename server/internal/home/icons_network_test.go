@@ -291,7 +291,12 @@ func TestIconPrivateProxyTargetBoundary(t *testing.T) {
 				}
 			}
 			connect <- head.String()
-			_, _ = io.WriteString(server, "HTTP/1.1 200 Connection Established\r\n\r\n")
+			if _, err := io.WriteString(server, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+				return
+			}
+			// Keep the established tunnel alive until its client closes it. Closing
+			// the pipe after CONNECT races the client's handshake deadline reset.
+			_, _ = io.Copy(io.Discard, reader)
 		}()
 		return client, nil
 	}}

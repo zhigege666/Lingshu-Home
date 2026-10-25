@@ -10,7 +10,7 @@
   <Overview>A self-hosted personal dashboard for links, browser bookmarks, nested categories and modular widgets. Customize your homepage with a visual editor and Classic or iOS-inspired themes. Choose English or Simplified Chinese before the first start; the saved language also determines example bookmarks and cannot be switched later. SQLite is included; no external database is required. Open the WebUI to complete first-run setup. There is no default administrator password. Keep the /data mapping to preserve your database, saved icons and instance encryption keys. This template follows the latest published stable Linux amd64 image and runs as Unraid's appdata user (99:100). Back up appdata and read the upgrade guide before applying an update. Exact version tags remain available for version pinning.</Overview>
   <Category>Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
-  <Icon>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.3/web/src/assets/apple-touch-icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.4/web/src/assets/apple-touch-icon.png</Icon>
   <TemplateURL>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/templates/lingshu-home.xml</TemplateURL>
   <ReadMe>https://raw.githubusercontent.com/zhigege666/Lingshu-Home/main/docs/UNRAID.md</ReadMe>
   <License>Apache-2.0</License>

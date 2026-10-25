@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.3 Go implementation in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.4 Go implementation in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Requests, authentication and errors
 
@@ -93,7 +93,7 @@ Published 0.0.1 reads language from each process startup, defaults to `zh-CN`, a
 | `PUT /spaces/{spaceId}/categories/{id}` | Replace a category's editable fields |
 | `DELETE /spaces/{spaceId}/categories/{id}` | Refuses deletion while links or child categories refer to it |
 | `POST /spaces/{spaceId}/links` | Create a bookmark |
-| `POST /spaces/{spaceId}/links/batch` | Atomically move, tag or favorite selected bookmarks (since 0.0.2), or delete them (since 0.0.3; see below) |
+| `POST /spaces/{spaceId}/links/batch` | Atomically move, tag or favorite selected bookmarks (since 0.0.2), or delete them (since 0.0.4; see below) |
 | `PUT /spaces/{spaceId}/links/{id}` | Replace a bookmark's editable fields |
 | `DELETE /spaces/{spaceId}/links/{id}` | Delete that bookmark |
 | `GET /spaces/{spaceId}/export?format=json\|html` | Download local authorized navigation |
@@ -143,7 +143,7 @@ Mutations use the existing space edit policy, including anonymous maintenance in
 
 A returned pack has `{id,spaceId,name,sourceUrl,license,createdAt,icons:[{key,label,ref,url,mediaType,width,height,sha256,sourceSha256}]}`. Imports support up to 64 PNG/JPEG/static-geometry SVG icons, 256 KiB per image, 512 px dimensions, and 4 MiB decoded images per pack. A space permits 32 packs, 1,024 distinct custom images and 32 MiB of canonical bytes. The full [icon contract](ICONS.md#import-a-pack) includes the SVG allowlist, provenance and atomic failure behavior.
 
-Website lookup returns `{ref,url,sha256,mediaType,width,height,cached,stale,sourceUrl}`. It strips the supplied bookmark path/query/fragment, discovers HTML icon/touch-icon links and `/favicon.ico`, validates destinations at every connection/redirect and caches validated image bytes. Version 0.0.3 accepts public destinations plus RFC1918/ULA and LAN names on the initially supplied hostname, with valid HTTP/HTTPS ports 1–65535. Redirects/candidates on other hosts must remain public; every resolved address is checked and the connection is pinned. Loopback/link-local/metadata/CGNAT/reserved destinations remain blocked. Custom ports are retained in cache keys. There are no ambient proxies, visitor-triggered requests or third-party favicon services. Success is cached for 24 hours, failures for 30 minutes; failed refresh retains an available good image with `stale:true`. Initial failure returns `422 favicon_unavailable`; a concurrent active lookup returns `429 icon_fetch_busy`. The lookup releases SQL/navigation write locks during network work and rechecks authorization before persistence.
+Website lookup returns `{ref,url,sha256,mediaType,width,height,cached,stale,sourceUrl}`. It strips the supplied bookmark path/query/fragment, discovers HTML icon/touch-icon links and `/favicon.ico`, validates destinations at every connection/redirect and caches validated image bytes. Version 0.0.4 accepts public destinations plus RFC1918/ULA and LAN names on the initially supplied hostname, with valid HTTP/HTTPS ports 1–65535. Redirects/candidates on other hosts must remain public; every resolved address is checked and the connection is pinned. Loopback/link-local/metadata/CGNAT/reserved destinations remain blocked. Custom ports are retained in cache keys. There are no ambient proxies, visitor-triggered requests or third-party favicon services. Success is cached for 24 hours, failures for 30 minutes; failed refresh retains an available good image with `stale:true`. Initial failure returns `422 favicon_unavailable`; a concurrent active lookup returns `429 icon_fetch_busy`. The lookup releases SQL/navigation write locks during network work and rechecks authorization before persistence.
 
 Both database providers use `003_icons.sql` for images and add `005_auto_icons.sql` for the instance switch, link intent/origin and bounded persistent automatic work. Existing icon references and page values are preserved. Database backups include custom image bytes, cache metadata, the switch and pending jobs. Navigation exports contain refs, not an image-library backup. The automatic-worker contract, limits and disable/restart behavior are documented in [ICONS.md](ICONS.md#automatic-website-icons).
 
@@ -192,7 +192,7 @@ Choose exactly one operation:
 | `add-tags` | `tags: string[]` | Trim/deduplicate the requested tags; append missing tags in input order |
 | `remove-tags` | `tags: string[]` | Remove the named tags, preserving the order of remaining tags |
 | `favorite` | `isFavorite: boolean` | Set a consistent favorite state on the selection |
-| `delete` (since 0.0.3) | None | Delete the entire selected set and its additional URLs from this space |
+| `delete` (since 0.0.4) | None | Delete the entire selected set and its additional URLs from this space |
 
 Each request requires 1–500 unique local link IDs and a nonempty `expectedRevision`. Tag operations require 1–32 tags, each at most 40 characters; matching is case-sensitive and the resulting list on every link must remain at most 32 tags. A category and all links must belong to the URL's space. Extra category/favorite fields, nonempty tags for an unrelated operation, and unknown fields are rejected.
 

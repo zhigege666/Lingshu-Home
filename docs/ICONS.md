@@ -1,6 +1,6 @@
 # Icon libraries and cached website icons
 
-This document describes the current icon data and HTTP contract. Version 0.0.3 expands the built-in collection from 30 to 120 icons and adds the grouped picker. Homepage display choices, including minimal links and app-style icon cards, belong to the page/theme settings. Changing a display style preserves the link's saved icon reference.
+This document describes the current icon data and HTTP contract. Version 0.0.4 expands the built-in collection from 30 to 120 icons and adds the grouped picker. Homepage display choices, including minimal links and app-style icon cards, belong to the page/theme settings. Changing a display style preserves the link's saved icon reference.
 
 ## Sources and references
 

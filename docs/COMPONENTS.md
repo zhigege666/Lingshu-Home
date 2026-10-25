@@ -166,7 +166,7 @@ WebSocket, server-sent events and MQTT are considered transport adapters, not co
 
 ## Import a component from a web page
 
-The supported import unit is a declarative template for an installed built-in renderer. It can arrive as a JSON file/paste, an HTTP/HTTPS JSON URL, or a page that advertises its template in the HTML head (including reachable LAN hosts and custom ports since 0.0.3):
+The supported import unit is a declarative template for an installed built-in renderer. It can arrive as a JSON file/paste, an HTTP/HTTPS JSON URL, or a page that advertises its template in the HTML head (including reachable LAN hosts and custom ports since 0.0.4):
 
 ```html
 <link rel="lingshu-home-component" href="/home/calendar.component.json">

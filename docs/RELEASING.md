@@ -42,7 +42,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.3` uses `ghcr.io/zhigege666/lingshu-home:0.0.3`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.4` uses `ghcr.io/zhigege666/lingshu-home:0.0.4`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 
@@ -108,13 +108,15 @@ sha256sum --check SHA256SUMS
 
 The packaging command builds and validates files locally; it does not authenticate to a registry, push an image or create a GitHub Release. Online publication is a separate workflow stage.
 
-## Version 0.0.3 upgrade and evidence
+## Version 0.0.4 upgrade and evidence
 
-Version 0.0.3 includes 120 category icons, atomic batch deletion, button-side confirmations, scoped LAN/custom-port icon and template fetching, bounded modal scrolling, account-local startup-space preferences and eight navigation/favorites content settings. It retains the stable `latest` promotion already merged into `main` and adds mandatory bilingual README/release-note checks.
+The `v0.0.3` attempt failed its Go race-detector fixture check before packaging or publication. Its tag and failed run remain unchanged. Version 0.0.4 corrects the fixture lifetime and publishes the complete feature set under a new tag; no 0.0.3 Release or registry image is claimed.
+
+Version 0.0.4 includes 120 category icons, atomic batch deletion, button-side confirmations, scoped LAN/custom-port icon and template fetching, bounded modal scrolling, account-local startup-space preferences and eight navigation/favorites content settings. It retains the stable `latest` promotion already merged into `main` and adds mandatory bilingual README/release-note checks.
 
 There is no new database migration or page schema bump from 0.0.2. Retain the database, provider configuration and instance keys, and back up before upgrading. Older validators do not accept the new component fields or icon IDs; after using them, roll back with the pre-upgrade database/key backup rather than assuming an old executable can preserve them. A direct upgrade from 0.0.1 still follows migration 007 and its original-language requirements below.
 
-The bilingual development browser evidence is retained in the test guide with its actual 0.0.2 working-tree build identity. The release adds repository/documentation checks and uses the tagged hosted CI, same-image packaging and public-download/registry read-back described above. Development tests are not relabeled as checks of a published 0.0.3 artifact.
+The bilingual development browser evidence is retained in the test guide with its actual 0.0.2 working-tree build identity. The release adds repository/documentation checks and uses the tagged hosted CI, same-image packaging and public-download/registry read-back described above. Development tests are not relabeled as checks of a published 0.0.4 artifact.
 
 ## Version 0.0.2 upgrade and evidence
 

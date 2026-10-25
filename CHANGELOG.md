@@ -4,7 +4,7 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
-## [0.0.3] - 2026-10-25
+## [0.0.4] - 2026-10-25
 
 ### Container distribution
 
@@ -43,9 +43,18 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ### Release documentation and upgrade
 
+- Keep the simulated proxy tunnel open until its client closes it. This removes a test-fixture lifetime race between a successful CONNECT and deadline reset under `go test -race`, without changing production routing or destination rules.
+- Publish these changes as 0.0.4. The earlier v0.0.3 tag failed this verification gate before packaging; preserve that tag and its failed run, and do not publish a 0.0.3 image or GitHub Release.
 - Require every release to update both English and Chinese READMEs and the matching dated CHANGELOG entry. Keep current version, release/download links, fixed-image examples, feature scope and upgrade guidance aligned; release notes are generated from that entry. Enforce this in the repository release checks and document it in AGENTS.md and the release guide.
 - Include the navigation-content core regressions in application CI alongside the existing routing, page-preset and startup-space checks.
 - This version adds no database migration and retains page Schema 2. Upgrading from 0.0.2 keeps the same database and instance-key paths. Back up before upgrading; if a page saves new component settings, restoring a pre-upgrade database/key backup is the supported way to return to 0.0.2 because its older page validator does not accept these new fields or added built-in icon IDs. Upgrading directly from 0.0.1 still requires migration 007 and retaining the original language on the first upgraded start.
+
+## [0.0.3] - 2026-10-25
+
+### Publication stopped by verification
+
+- The tagged application CI failed the new proxy-boundary fixture under the Go race detector. Packaging, the registry push and GitHub Release publication did not run. The tag and failed workflow remain available for traceability.
+- The intended navigation, icon, space and component changes are first released together in 0.0.4 after the fixture correction and complete release verification.
 
 ## [0.0.2] - 2026-10-24
 
