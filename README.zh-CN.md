@@ -97,6 +97,16 @@ cd Lingshu-Home-0.0.4-linux-amd64
 
 ## 功能
 
+### 未发布源码：文档资料库与 HTTPS
+
+更新后的源码在 Home 旁增加了**资料库**：统一查看书签和原始 Markdown 文件，支持书签“使用说明”、目录/文件夹筛选、全文搜索、阅读与原件编辑、标签、关联书签、冲突检查和历史恢复。**管理 → 文档目录**可以把多个目录绑定到同一个空间；一个目录只有一个管理空间。接入默认只读，新文件不会自动公开。
+
+通过 `LINGSHU_DOCUMENT_ROOTS='["/documents/notes","/documents/projects"]'` 配置允许接入的容器目录，已有宿主机目录分别挂载，原有 `/data` 卷继续保留。[compose.documents.yaml](compose.documents.yaml) 提供了两个外挂目录的示例，并在路径不存在时拒绝创建空目录。Docker/Unraid 接入、文件权限、API/MCP、备份和迁移 **008** 见[文档资料库指南](docs/DOCUMENT_LIBRARY.md)。这些功能需要从更新后的源码构建；已发布的 **0.0.4** 镜像不会因增加几个环境变量而获得新功能。
+
+原生 HTTPS 可通过 `LINGSHU_TLS_CERT_FILE` 与 `LINGSHU_TLS_KEY_FILE` 启用，两项必须同时配置。证书错误会阻止启动，不会退回明文 HTTP。[compose.tls.yaml](compose.tls.yaml) 和[传输加密说明](docs/TRANSPORT_SECURITY.md) 分别说明了原生 TLS 与反向代理部署。`LINGSHU_SECURE_COOKIES` 仍只控制 Cookie 的传输要求，本身不会开启 HTTPS。NAS 网络挂载需要单独配置加密链路；原始 Markdown 继续保持现有编辑器可用的文件格式。
+
+下面保留的是已发布 0.0.4 的功能列表。
+
 | 模块 | 能力 |
 | --- | --- |
 | 前端 | React + TypeScript + Vite；管理界面采用 REUI 公开的 MIT 组件 |

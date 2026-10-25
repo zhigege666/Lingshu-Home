@@ -67,21 +67,22 @@ type Endpoint struct {
 }
 
 type Link struct {
-	ID          string     `json:"id"`
-	SpaceID     string     `json:"spaceId"`
-	CategoryID  *string    `json:"categoryId"`
-	Title       string     `json:"title"`
-	URL         string     `json:"url"`
-	Description string     `json:"description"`
-	Icon        string     `json:"icon"`
-	IconMode    string     `json:"iconMode"`
-	Tags        []string   `json:"tags"`
-	IsFavorite  bool       `json:"isFavorite"`
-	SortOrder   int        `json:"sortOrder"`
-	Endpoints   []Endpoint `json:"endpoints"`
-	UpdatedAt   string     `json:"updatedAt"`
-	ExternalID  string     `json:"externalId,omitempty"`
-	SourceID    string     `json:"sourceId,omitempty"`
+	ID              string     `json:"id"`
+	SpaceID         string     `json:"spaceId"`
+	CategoryID      *string    `json:"categoryId"`
+	Title           string     `json:"title"`
+	URL             string     `json:"url"`
+	Description     string     `json:"description"`
+	ContextMarkdown string     `json:"contextMarkdown"`
+	Icon            string     `json:"icon"`
+	IconMode        string     `json:"iconMode"`
+	Tags            []string   `json:"tags"`
+	IsFavorite      bool       `json:"isFavorite"`
+	SortOrder       int        `json:"sortOrder"`
+	Endpoints       []Endpoint `json:"endpoints"`
+	UpdatedAt       string     `json:"updatedAt"`
+	ExternalID      string     `json:"externalId,omitempty"`
+	SourceID        string     `json:"sourceId,omitempty"`
 }
 
 type NavigationData struct {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
@@ -26,6 +27,13 @@ func run(args []string) (exitCode int) {
 		log.Print(err)
 		return 2
 	}
+	// Validate and load both files before opening the business store. A bad
+	// HTTPS configuration must neither initialize data nor fall back to HTTP.
+	tlsConfig, err := loadServerTLS(c)
+	if err != nil {
+		log.Printf("TLS startup failed: %v", err)
+		return 1
+	}
 	app, err := home.Open(c)
 	if err != nil {
 		log.Printf("startup failed: %v", err)
@@ -37,15 +45,34 @@ func run(args []string) (exitCode int) {
 			exitCode = 1
 		}
 	}()
-	server := &http.Server{Addr: c.Listen, Handler: app, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 64 * 1024}
+	server := &http.Server{Addr: c.Listen, Handler: app, TLSConfig: tlsConfig, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 64 * 1024}
+	protocol, serve := "HTTP", server.ListenAndServe
+	if tlsConfig != nil {
+		protocol = "HTTPS"
+		serve = func() error { return server.ListenAndServeTLS("", "") }
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	log.Printf("Lingshu-Home listening on %s (%s)", c.Listen, c.StorageProvider)
-	if err = serveHTTP(ctx, server, server.ListenAndServe, 15*time.Second); err != nil {
-		log.Printf("HTTP server failed: %v", err)
+	log.Printf("Lingshu-Home %s listening on %s (%s)", protocol, c.Listen, c.StorageProvider)
+	if err = serveHTTP(ctx, server, serve, 15*time.Second); err != nil {
+		log.Printf("%s server failed: %v", protocol, err)
 		return 1
 	}
 	return 0
+}
+
+func loadServerTLS(c home.Config) (*tls.Config, error) {
+	if c.TLSCertFile == "" && c.TLSKeyFile == "" {
+		return nil, nil
+	}
+	if c.TLSCertFile == "" || c.TLSKeyFile == "" {
+		return nil, errors.New("TLS certificate and key must be configured together")
+	}
+	certificate, err := tls.LoadX509KeyPair(c.TLSCertFile, c.TLSKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load certificate and private key: %w", err)
+	}
+	return &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}}, nil
 }
 
 // serveHTTP owns the join between the serving loop and graceful shutdown.

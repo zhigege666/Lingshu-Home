@@ -16,16 +16,19 @@ type categoryInput struct {
 }
 
 type linkInput struct {
-	CategoryID  *string       `json:"categoryId"`
-	Title       string        `json:"title"`
-	URL         string        `json:"url"`
-	Description string        `json:"description"`
-	Icon        string        `json:"icon"`
-	IconMode    iconModeInput `json:"iconMode"`
-	Tags        []string      `json:"tags"`
-	IsFavorite  bool          `json:"isFavorite"`
-	SortOrder   int           `json:"sortOrder"`
-	Endpoints   []Endpoint    `json:"endpoints"`
+	CategoryID  *string `json:"categoryId"`
+	Title       string  `json:"title"`
+	URL         string  `json:"url"`
+	Description string  `json:"description"`
+	// Nil preserves the existing notes on a legacy PUT; an explicit empty string clears them.
+	ContextMarkdown   *string       `json:"contextMarkdown"`
+	ExpectedUpdatedAt string        `json:"expectedUpdatedAt"`
+	Icon              string        `json:"icon"`
+	IconMode          iconModeInput `json:"iconMode"`
+	Tags              []string      `json:"tags"`
+	IsFavorite        bool          `json:"isFavorite"`
+	SortOrder         int           `json:"sortOrder"`
+	Endpoints         []Endpoint    `json:"endpoints"`
 }
 
 func (a *App) insertSpace(r *Request, name, kind, ownerID string, published bool) (*Space, error) {
@@ -75,7 +78,7 @@ func (a *App) readNavigation(r *Request, spaceID string) (NavigationData, error)
 		return NavigationData{}, err
 	}
 	data := NavigationData{Categories: categories, Links: []Link{}}
-	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT id,space_id,category_id,title,url,description,icon,icon_mode,tags,is_favorite,sort_order,endpoints,updated_at FROM links WHERE space_id=? ORDER BY sort_order,title,id"), spaceID)
+	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT id,space_id,category_id,title,url,description,context_markdown,icon,icon_mode,tags,is_favorite,sort_order,endpoints,updated_at FROM links WHERE space_id=? ORDER BY sort_order,title,id"), spaceID)
 	if err != nil {
 		return data, err
 	}
@@ -85,7 +88,7 @@ func (a *App) readNavigation(r *Request, spaceID string) (NavigationData, error)
 		var category sql.NullString
 		var tags, endpoints []byte
 		var updated databaseTime
-		if err = rows.Scan(&link.ID, &link.SpaceID, &category, &link.Title, &link.URL, &link.Description, &link.Icon, &link.IconMode, &tags, &link.IsFavorite, &link.SortOrder, &endpoints, &updated); err != nil {
+		if err = rows.Scan(&link.ID, &link.SpaceID, &category, &link.Title, &link.URL, &link.Description, &link.ContextMarkdown, &link.Icon, &link.IconMode, &tags, &link.IsFavorite, &link.SortOrder, &endpoints, &updated); err != nil {
 			return data, err
 		}
 		if category.Valid {
@@ -380,6 +383,14 @@ func (a *App) validateLink(r *Request, spaceID string, in *linkInput) (string, e
 	if err = bounded(in.Description, "description", 2000); err != nil {
 		return "", err
 	}
+	if in.ContextMarkdown != nil {
+		if len(*in.ContextMarkdown) > 64*1024 {
+			return "", invalid("contextMarkdown must be at most 64 KiB of UTF-8 text.")
+		}
+		if err = bounded(*in.ContextMarkdown, "contextMarkdown", 64*1024); err != nil {
+			return "", err
+		}
+	}
 	in.Icon, err = a.validSpaceIcon(r, spaceID, in.Icon, "lucide:link")
 	if err != nil {
 		return "", err
@@ -449,11 +460,14 @@ func (a *App) insertLink(r *Request, spaceID string, in linkInput) (Link, error)
 		return Link{}, err
 	}
 	link := Link{ID: newID(), SpaceID: spaceID, CategoryID: in.CategoryID, Title: in.Title, URL: in.URL, Description: in.Description, Icon: in.Icon, IconMode: string(in.IconMode), Tags: in.Tags, IsFavorite: in.IsFavorite, SortOrder: in.SortOrder, Endpoints: in.Endpoints, UpdatedAt: nowUTC()}
+	if in.ContextMarkdown != nil {
+		link.ContextMarkdown = *in.ContextMarkdown
+	}
 	origin, err := a.prepareAutomaticLinkIcon(r, &link)
 	if err != nil {
 		return Link{}, err
 	}
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO links(id,space_id,category_id,title,url,canonical_url,description,icon,icon_mode,icon_origin,tags,is_favorite,sort_order,endpoints,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"), link.ID, spaceID, nullableID(link.CategoryID), link.Title, link.URL, canonical, link.Description, link.Icon, link.IconMode, origin, jsonString(link.Tags), link.IsFavorite, link.SortOrder, jsonString(link.Endpoints), link.UpdatedAt)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO links(id,space_id,category_id,title,url,canonical_url,description,context_markdown,icon,icon_mode,icon_origin,tags,is_favorite,sort_order,endpoints,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"), link.ID, spaceID, nullableID(link.CategoryID), link.Title, link.URL, canonical, link.Description, link.ContextMarkdown, link.Icon, link.IconMode, origin, jsonString(link.Tags), link.IsFavorite, link.SortOrder, jsonString(link.Endpoints), link.UpdatedAt)
 	if err == nil {
 		err = a.queueAutomaticIcon(r, spaceID, origin)
 	}
@@ -488,13 +502,17 @@ func (a *App) updateLink(r *Request) (*Response, error) {
 	if err = r.decode(&in); err != nil {
 		return nil, err
 	}
-	var oldIcon, oldMode, oldOrigin string
-	err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT icon,icon_mode,icon_origin FROM links WHERE id=? AND space_id=?"), r.param("id"), space.ID).Scan(&oldIcon, &oldMode, &oldOrigin)
+	var oldIcon, oldMode, oldOrigin, oldContext string
+	var oldUpdated databaseTime
+	err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT icon,icon_mode,icon_origin,context_markdown,updated_at FROM links WHERE id=? AND space_id=?"), r.param("id"), space.ID).Scan(&oldIcon, &oldMode, &oldOrigin, &oldContext, &oldUpdated)
 	if err == sql.ErrNoRows {
 		return nil, missing()
 	}
 	if err != nil {
 		return nil, err
+	}
+	if in.ExpectedUpdatedAt != "" && in.ExpectedUpdatedAt != oldUpdated.String() {
+		return nil, &APIError{Status: 409, Code: "bookmark_version_conflict", Message: "The bookmark changed. Reload it before saving.", CurrentRevision: oldUpdated.String()}
 	}
 	if in.IconMode == "" {
 		in.IconMode = iconModeInput(oldMode)
@@ -505,11 +523,15 @@ func (a *App) updateLink(r *Request) (*Response, error) {
 	if in.Icon == "" {
 		in.Icon = oldIcon
 	}
+	if in.ContextMarkdown == nil {
+		in.ContextMarkdown = &oldContext
+	}
 	canonical, err := a.validateLink(r, space.ID, &in)
 	if err != nil {
 		return nil, err
 	}
 	link := Link{ID: r.param("id"), SpaceID: space.ID, CategoryID: in.CategoryID, Title: in.Title, URL: in.URL, Description: in.Description, Icon: in.Icon, IconMode: string(in.IconMode), Tags: in.Tags, IsFavorite: in.IsFavorite, SortOrder: in.SortOrder, Endpoints: in.Endpoints, UpdatedAt: nowUTC()}
+	link.ContextMarkdown = *in.ContextMarkdown
 	if link.IconMode == "auto" && oldMode == "auto" && automaticIconOrigin(link.URL) != oldOrigin {
 		link.Icon = "lucide:link"
 	}
@@ -517,7 +539,7 @@ func (a *App) updateLink(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE links SET category_id=?,title=?,url=?,canonical_url=?,description=?,icon=?,icon_mode=?,icon_origin=?,tags=?,is_favorite=?,sort_order=?,endpoints=?,updated_at=? WHERE id=? AND space_id=?"), nullableID(link.CategoryID), link.Title, link.URL, canonical, link.Description, link.Icon, link.IconMode, origin, jsonString(link.Tags), link.IsFavorite, link.SortOrder, jsonString(link.Endpoints), link.UpdatedAt, link.ID, space.ID)
+	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE links SET category_id=?,title=?,url=?,canonical_url=?,description=?,context_markdown=?,icon=?,icon_mode=?,icon_origin=?,tags=?,is_favorite=?,sort_order=?,endpoints=?,updated_at=? WHERE id=? AND space_id=?"), nullableID(link.CategoryID), link.Title, link.URL, canonical, link.Description, link.ContextMarkdown, link.Icon, link.IconMode, origin, jsonString(link.Tags), link.IsFavorite, link.SortOrder, jsonString(link.Endpoints), link.UpdatedAt, link.ID, space.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -538,6 +560,66 @@ func (a *App) updateLink(r *Request) (*Response, error) {
 		return nil, err
 	}
 	return ok(link), nil
+}
+
+// updateLinkContext edits only usage notes, preserving navigation and icon fields.
+// Content is reference data for people and agents; it never changes authorization.
+func (a *App) updateLinkContext(r *Request) (*Response, error) {
+	space, err := r.navigationSpace(r.param("spaceId"), true)
+	if err != nil {
+		return nil, err
+	}
+	var in struct {
+		ContextMarkdown   *string `json:"contextMarkdown"`
+		ExpectedUpdatedAt string  `json:"expectedUpdatedAt"`
+	}
+	if err = r.decode(&in); err != nil {
+		return nil, err
+	}
+	if in.ContextMarkdown == nil || in.ExpectedUpdatedAt == "" {
+		return nil, invalid("contextMarkdown and expectedUpdatedAt are required.")
+	}
+	if len(*in.ContextMarkdown) > 64*1024 {
+		return nil, invalid("contextMarkdown must be at most 64 KiB of UTF-8 text.")
+	}
+	if err = bounded(*in.ContextMarkdown, "contextMarkdown", 64*1024); err != nil {
+		return nil, err
+	}
+	var updated databaseTime
+	var oldContext string
+	err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT context_markdown,updated_at FROM links WHERE id=? AND space_id=?"), r.param("id"), space.ID).Scan(&oldContext, &updated)
+	if err == sql.ErrNoRows {
+		return nil, missing()
+	}
+	if err != nil {
+		return nil, err
+	}
+	if in.ExpectedUpdatedAt != updated.String() {
+		return nil, &APIError{Status: 409, Code: "bookmark_version_conflict", Message: "The bookmark changed. Reload it before saving usage notes.", CurrentRevision: updated.String()}
+	}
+	if oldContext != *in.ContextMarkdown {
+		next := time.Now().UTC().Truncate(time.Microsecond)
+		if !next.After(updated.Time) {
+			next = updated.Time.Add(time.Microsecond)
+		}
+		_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE links SET context_markdown=?,updated_at=? WHERE id=? AND space_id=?"), *in.ContextMarkdown, next.Format(time.RFC3339Nano), r.param("id"), space.ID)
+		if err != nil {
+			return nil, err
+		}
+		if err = a.touchNavigation(r, space.ID); err != nil {
+			return nil, err
+		}
+	}
+	data, err := a.readNavigation(r, space.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, link := range data.Links {
+		if link.ID == r.param("id") {
+			return ok(link), nil
+		}
+	}
+	return nil, missing()
 }
 
 func (a *App) deleteLink(r *Request) (*Response, error) {

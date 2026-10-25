@@ -196,7 +196,7 @@ def run(base):
     discovered = anon.mcp(full, "server/discover")["result"]
     require(set(discovered["supportedVersions"]) == {"2026-07-28", "2025-11-25"}, "MCP supported versions differ from the contract.")
     require(discovered["cacheScope"] == "private" and discovered["ttlMs"] == 0, "MCP discovery must be private and uncached.")
-    require(len(anon.mcp(full, "tools/list")["result"]["tools"]) == 20, "The expected MCP tool surface is incomplete.")
+    require(len(anon.mcp(full, "tools/list")["result"]["tools"]) == 28, "The expected MCP tool surface is incomplete.")
     anon.tool(readonly, "dashboard_get", {"spaceId": shared}, error="forbidden")
     category = anon.tool(full, "categories_create", {"spaceId": shared, "input": {"name": "Local fixture", "icon": "lucide:folder"}})
     link_input = {"categoryId": category["id"], "title": "Local fixture", "url": "https://example.com/local", "icon": "lucide:link", "tags": [], "endpoints": []}

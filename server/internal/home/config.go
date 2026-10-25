@@ -1,6 +1,7 @@
 package home
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"os"
@@ -17,7 +18,10 @@ type Config struct {
 	WebDir          string
 	VersionFile     string
 	SecureCookies   bool
+	TLSCertFile     string
+	TLSKeyFile      string
 	Language        string
+	DocumentRoots   []string
 }
 
 func envValue(name, fallback string) string {
@@ -29,8 +33,9 @@ func envValue(name, fallback string) string {
 
 func ParseConfig(args []string) (Config, error) {
 	var c Config
+	var documentRoots string
 	f := flag.NewFlagSet("lingshu-home", flag.ContinueOnError)
-	f.StringVar(&c.Listen, "listen", envValue("LINGSHU_LISTEN", "127.0.0.1:5180"), "HTTP listening address")
+	f.StringVar(&c.Listen, "listen", envValue("LINGSHU_LISTEN", "127.0.0.1:5180"), "HTTP or HTTPS listening address")
 	f.StringVar(&c.DataDir, "data-dir", envValue("LINGSHU_DATA_DIR", "data"), "Persistent data and key directory")
 	f.StringVar(&c.StorageProvider, "storage-provider", envValue("LINGSHU_STORAGE_PROVIDER", "sqlite"), "sqlite or postgres")
 	f.StringVar(&c.DatabaseURL, "database-url", envValue("LINGSHU_DATABASE_URL", ""), "PostgreSQL connection URL; prefer environment")
@@ -42,16 +47,25 @@ func ParseConfig(args []string) (Config, error) {
 		return c, errors.New("LINGSHU_SECURE_COOKIES must be true or false")
 	}
 	f.BoolVar(&c.SecureCookies, "secure-cookies", secure, "Require HTTPS cookies")
+	f.StringVar(&c.TLSCertFile, "tls-cert-file", envValue("LINGSHU_TLS_CERT_FILE", ""), "PEM certificate chain for direct HTTPS; requires tls-key-file")
+	f.StringVar(&c.TLSKeyFile, "tls-key-file", envValue("LINGSHU_TLS_KEY_FILE", ""), "PEM private key for direct HTTPS; requires tls-cert-file")
+	f.StringVar(&documentRoots, "document-roots", envValue("LINGSHU_DOCUMENT_ROOTS", "[]"), "JSON array of allowed absolute document directories; disabled by default")
 	if err := f.Parse(args); err != nil {
 		return c, err
 	}
 	if f.NArg() != 0 {
 		return c, errors.New("unexpected positional arguments")
 	}
+	if err := json.Unmarshal([]byte(documentRoots), &c.DocumentRoots); err != nil {
+		return c, errors.New("LINGSHU_DOCUMENT_ROOTS must be a JSON array of absolute directory paths")
+	}
 	return c, c.validate()
 }
 
 func (c *Config) validate() error {
+	if (c.TLSCertFile == "") != (c.TLSKeyFile == "") {
+		return errors.New("TLS certificate and key must be configured together (LINGSHU_TLS_CERT_FILE / LINGSHU_TLS_KEY_FILE)")
+	}
 	switch c.Language {
 	case "", "zh-CN", "en":
 	default:
@@ -81,5 +95,8 @@ func (c *Config) validate() error {
 	}
 	var err error
 	c.DataDir, err = filepath.Abs(c.DataDir)
-	return err
+	if err != nil {
+		return err
+	}
+	return c.validateDocumentRoots()
 }

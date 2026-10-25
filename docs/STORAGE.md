@@ -162,3 +162,26 @@ Component coverage adds push/import receipt replay and retention, credential pro
 The separate HTTP acceptance runner in `tests/` supports disposable server instances and persistence checks across real process restarts. Record provider-specific results with the release; a source-level build alone does not verify a running deployment.
 
 The application CI configuration creates `lingshu_core`, `lingshu_integrations`, `lingshu_icons`, `lingshu_components`, `lingshu_component_migration` and `lingshu_navigation` for the six Go provider suites, plus distinct `lingshu_http` / `lingshu_ownerless` databases for HTTP acceptance. The PostgreSQL test step requires all six Go variables and uses verbose, uncached execution so each provider subtest is visible. The existing race, HTTP restart and Docker gates remain. Updating or locally checking this workflow is not evidence that the revised workflow has run successfully on GitHub. Actual execution results belong in [tests/README.md](../tests/README.md).
+
+
+## Unreleased document-library storage
+
+The updated source adds separately maintained migration **008** to SQLite and PostgreSQL. Published 0.0.4 ends at migration 007; the following behavior requires a source build containing 008.
+
+Migration 008 adds optional bookmark usage notes (`links.context_markdown`, empty for old rows), directory registrations, durable document records, tags/relationships, searchable body caches and explicit publication/attachment snapshots. It does not rewrite existing links, categories, ownership or document files. Working document bodies remain authoritative in their mounted source directories. The database still contains irreplaceable manual metadata and public snapshots; it is not a disposable cache.
+
+| Location | Contents / backup requirement |
+| --- | --- |
+| One or more separately mounted source directories | Original `.md` / `.markdown` and attachments; back up the originals, filenames and folder structure |
+| Home database | Source/space bindings, stable IDs, tags, bookmark relationships, publication state/body/attachment snapshots and rebuildable search text |
+| `<data-dir>/document-history/` | Up to 20 distinct prior body revisions per document, created before Home overwrites/deletes; private permissions, not a complete external-edit or attachment history |
+| Existing data directory and keys | Retain the original `/data`, `csrf.key` and `integrations.key` for both database providers |
+| Deployment configuration | Host/container mount mappings, allowed root list, readonly flags, TLS certificate configuration and ownership |
+
+`LINGSHU_DOCUMENT_ROOTS` / `--document-roots` is a JSON array of absolute allowed document paths, default `[]`. It never replaces `LINGSHU_DATA_DIR`. Root paths cannot expose application data/web assets or configured TLS keys, including their resolved paths. Register multiple non-overlapping roots under one space in Admin; disconnecting a registration does not delete either original files or their metadata/history.
+
+Before upgrading, stop Home and back up the database, instance keys/history, mounted originals and deployment configuration together. To revert to 0.0.4, restore its matching pre-upgrade database/data backup and executable/image. Restoring the database alone cannot undo edits made to original Markdown files; recover those from the corresponding original-file backup. Do not modify applied migration checksums, delete migration ledger entries or let an older binary operate on the new schema.
+
+File operations and database transactions are coordinated but are not one cross-filesystem transaction. An index-finalization failure after writing a file is reported as `document_index_pending`; recovery copies remain and a later scan can repair derived content records. Metadata is retained on missing mounts, partial scan failures and unexpectedly empty scans. File/version behavior and exact limits are documented in [the library guide](DOCUMENT_LIBRARY.md).
+
+Direct HTTPS adds `LINGSHU_TLS_CERT_FILE` / `--tls-cert-file` and `LINGSHU_TLS_KEY_FILE` / `--tls-key-file`. Both must be present; certificate-load errors fail before opening business storage and never cause HTTP fallback. The private key is mounted separately from document roots. `LINGSHU_SECURE_COOKIES` still does not enable a TLS listener by itself. HTTPS does not encrypt document/history/database files at rest or a host-to-NAS mount; see [transport encryption](TRANSPORT_SECURITY.md).

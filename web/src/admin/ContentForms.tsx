@@ -14,7 +14,7 @@ import { ErrorMessage, Field, FilePicker, handleFormInvalid, Modal } from '../co
 import { IconPicker } from '../components/IconPicker'
 import LinkEndpointsEditor, { endpointValidationError } from './LinkEndpointsEditor'
 type Common = { dashboard: Dashboard; onClose: () => void; onSaved: (message: string) => Promise<void> }
-const emptyLink: LinkInput = { title: '', url: '', description: '', categoryId: null, icon: 'lucide:link', iconMode: 'auto', tags: [], isFavorite: false, sortOrder: 0, endpoints: [] }
+const emptyLink: LinkInput = { title: '', url: '', description: '', contextMarkdown: '', categoryId: null, icon: 'lucide:link', iconMode: 'auto', tags: [], isFavorite: false, sortOrder: 0, endpoints: [] }
 function categoryOptions(categories: Category[]) { return categories.map(category => ({ value: category.id, label: categoryLabel(category,categories) })) }
 export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons = true, autoSelectEndpoint = true }: Common & { link: NavLink | null; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean }) {
   const categories = navigationData(dashboard.datasets.navigation)?.categories || []
@@ -25,8 +25,9 @@ export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons =
     event.preventDefault(); if (busy || iconBusy || !dashboard.space.canEdit) return; setError('')
     if (!safeHref(form.url) || form.endpoints.some(item=>!safeHref(item.url))) { setError(t("主入口和其他入口均须使用完整的 HTTP 或 HTTPS 网址。", "The primary and additional URLs must be complete HTTP or HTTPS addresses.")); return }
     const endpointError = endpointValidationError(form.endpoints); if (endpointError) { setError(endpointError); return }
+    if (new TextEncoder().encode(form.contextMarkdown || '').length > 64 * 1024) { setError(t('使用说明不能超过 64 KiB。', 'Usage notes must be at most 64 KiB.')); return }
     setBusy(true)
-    try { await request(`/spaces/${dashboard.space.id}/links${link ? '/'+link.id : ''}`,{method:link?'PUT':'POST',body:{...form,iconMode:form.iconMode === 'auto' ? 'auto' : 'manual',title:form.title.trim(),url:form.url.trim(),tags:[...new Set(tags.split(/[,，]/).map(t=>t.trim()).filter(Boolean))]}}); await onSaved(form.iconMode === 'auto' && autoFetchIcons ? t('链接已保存；图标在后台获取，刷新后显示。', 'Link saved. Its icon is fetched in the background; refresh to see it.') : link?t("链接已更新", "Link updated"):t("链接已添加", "Link added")) } catch (cause) { setError(messageOf(cause)) } finally { setBusy(false) }
+    try { await request(`/spaces/${dashboard.space.id}/links${link ? '/'+link.id : ''}`,{method:link?'PUT':'POST',body:{...form,expectedUpdatedAt:link?.updatedAt,iconMode:form.iconMode === 'auto' ? 'auto' : 'manual',title:form.title.trim(),url:form.url.trim(),tags:[...new Set(tags.split(/[,，]/).map(t=>t.trim()).filter(Boolean))]}}); await onSaved(form.iconMode === 'auto' && autoFetchIcons ? t('链接已保存；图标在后台获取，刷新后显示。', 'Link saved. Its icon is fetched in the background; refresh to see it.') : link?t("链接已更新", "Link updated"):t("链接已添加", "Link added")) } catch (cause) { setError(messageOf(cause)) } finally { setBusy(false) }
   }
   return <Modal title={link ? t('编辑链接', 'Edit link') : t('添加链接', 'Add link')}
     description={t('保存到 {name}', 'Save to {name}', { name: dashboard.space.name })}
@@ -55,6 +56,10 @@ export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons =
               spaceId={dashboard.space.id} canEdit={dashboard.space.canEdit} disabled={busy} url={form.url} onBusyChange={setIconBusy}/>
           </div>
         </div>
+        <Field label={t('使用说明', 'Usage notes')} hint={t('选填 · Markdown · 最多 64 KiB', 'Optional · Markdown · Up to 64 KiB')}>
+          <Textarea rows={7} maxLength={65536} value={form.contextMarkdown || ''} onChange={e => field('contextMarkdown', e.target.value)} placeholder={t('记录何时使用、适用场景和相关操作说明…', 'Describe when to use this bookmark and add relevant guidance…')}/>
+          <p className="admin-hint">{t('供你和 Agent 阅读。这里的文字不会授予额外权限，也不会自动执行。使用说明与书签具有相同的可见范围。', 'Reference material for you and agents. These notes grant no permissions and do not run automatically. Usage notes have the same visibility as their bookmark.')}</p>
+        </Field>
         <LinkEndpointsEditor value={form.endpoints} onChange={endpoints => field('endpoints', endpoints)} disabled={busy || iconBusy || !dashboard.space.canEdit} autoSelectEndpoint={autoSelectEndpoint}/>
         <div className="admin-form-footer">
           <ErrorMessage error={error}/>

@@ -5,16 +5,20 @@ import argparse
 import contextlib
 import errno
 import io
+import http.server
 import json
 import os
 from pathlib import Path
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
+import urllib.error
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -64,6 +68,63 @@ class DevelopmentLanguageTests(unittest.TestCase):
                 dev.main()
             self.assertEqual(exit_status.exception.code, 2)
             launch.assert_not_called()
+
+
+@unittest.skipUnless(shutil.which("openssl"), "requires OpenSSL to generate temporary TLS test certificates")
+class DevelopmentTLSHealthTests(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory(prefix="lingshu-tls-health-test-")
+        self.addCleanup(folder.cleanup)
+        self.cert, self.key = Path(folder.name) / "cert.pem", Path(folder.name) / "key.pem"
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
+                        "-nodes", "-days", "1", "-subj", "/CN=localhost",
+                        "-addext", "subjectAltName=DNS:localhost", "-keyout", str(self.key),
+                        "-out", str(self.cert)], check=True, capture_output=True)
+
+        class HealthHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200 if self.path == "/health" else 404)
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), HealthHandler)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(self.cert, self.key)
+        self.server.socket = context.wrap_socket(self.server.socket, server_side=True)
+        thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+        self.port = str(self.server.server_port)
+        self.environment = {"LINGSHU_TLS_CERT_FILE": str(self.cert), "LINGSHU_TLS_KEY_FILE": str(self.key)}
+
+    def test_https_health_check_trusts_configured_ca_and_ignores_proxy_environment(self):
+        with mock.patch.dict(os.environ, {"SSL_CERT_FILE": str(self.cert), "HTTPS_PROXY": "http://127.0.0.1:1",
+                                          "https_proxy": "http://127.0.0.1:1", "NO_PROXY": "", "no_proxy": ""}):
+            url, client = dev.health_connection("localhost", self.port, self.environment)
+            self.assertEqual(url, "https://localhost:" + self.port)
+            with client.open(url + "/health", timeout=3) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.read(), b"ok")
+
+    def test_untrusted_ca_and_wrong_hostname_are_rejected(self):
+        for trusted, host in ((False, "localhost"), (True, "127.0.0.1")):
+            with self.subTest(trusted=trusted, host=host), \
+                    mock.patch.dict(os.environ, {"SSL_CERT_FILE": str(self.cert) if trusted else str(self.cert.parent / "missing-ca.pem")}):
+                url, client = dev.health_connection(host, self.port, self.environment)
+                with self.assertRaises(urllib.error.URLError) as refused:
+                    client.open(url + "/health", timeout=3)
+                self.assertIsInstance(refused.exception.reason, ssl.SSLCertVerificationError)
+
+    def test_incomplete_tls_is_rejected_and_http_mode_is_preserved(self):
+        with self.assertRaisesRegex(ValueError, "configured together"):
+            dev.health_connection("localhost", self.port, {"LINGSHU_TLS_CERT_FILE": str(self.cert)})
+        url, _ = dev.health_connection("0.0.0.0", self.port, {})
+        self.assertEqual(url, "http://127.0.0.1:" + self.port)
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux TCP reuse semantics")
@@ -139,6 +200,48 @@ class DevelopmentLauncherTests(unittest.TestCase):
             self.fail("execution environment denies /proc/PID/exe access for this test's own child; "
                       "run this Linux regression where own-process inspection is permitted")
         self.fail("owned executable identity was not observable within the bounded startup wait")
+
+    def test_tls_verification_failure_stops_only_new_child_and_removes_its_state(self):
+        with tempfile.TemporaryDirectory(prefix="lingshu-failed-start-test-") as folder:
+            root = Path(folder)
+            runtime = root / ".runtime"
+            binary = root / "sleep"
+            shutil.copy2(shutil.which("sleep"), binary)
+            (root / "web/dist").mkdir(parents=True)
+            (root / "web/dist/index.html").write_text("test")
+            with socket.socket() as port_probe:
+                port_probe.bind(("127.0.0.1", 0))
+                port = port_probe.getsockname()[1]
+            args = argparse.Namespace(listen=f"127.0.0.1:{port}", data_dir=str(root / "data"),
+                                      provider="sqlite", language=None)
+            original_popen = subprocess.Popen
+            children = []
+
+            def launch_owned_child(command, **kwargs):
+                self.assertEqual(command, [str(binary)])
+                child = original_popen([str(binary), "30"], **kwargs)
+                children.append(child)
+                return child
+
+            health = mock.Mock()
+            health.open.side_effect = urllib.error.URLError(ssl.SSLCertVerificationError(1, "hostname mismatch"))
+            other = original_popen([shutil.which("sleep"), "30"])
+            try:
+                with mock.patch.multiple(dev, ROOT=root, RUNTIME=runtime, STATE=runtime / "service.json",
+                                         LOG=runtime / "service.log", BINARY=binary), \
+                        mock.patch.object(dev, "health_connection", return_value=(f"https://127.0.0.1:{port}", health)), \
+                        mock.patch.object(dev.subprocess, "Popen", side_effect=launch_owned_child), \
+                        self.assertRaisesRegex(ValueError, "certificate verification failed.*hostname mismatch"):
+                    dev.start(args)
+                self.assertEqual(len(children), 1)
+                self.assertEqual(children[0].returncode, -15)
+                self.assertFalse((runtime / "service.json").exists())
+                self.assertIsNone(other.poll(), "startup cleanup must not stop unrelated processes")
+            finally:
+                for child in [*children, other]:
+                    if child.poll() is None:
+                        child.terminate()
+                    child.wait(timeout=5)
 
     def test_replaced_executable_keeps_owned_identity_and_can_be_stopped(self):
         with tempfile.TemporaryDirectory(prefix="lingshu-launcher-test-") as folder:

@@ -1,0 +1,15 @@
+# Optional direct HTTPS for a source build. Certificates must be readable by
+# the container identity and renewed externally; restart Home after renewal.
+services:
+  home:
+    environment:
+      LINGSHU_TLS_CERT_FILE: /certs/fullchain.pem
+      LINGSHU_TLS_KEY_FILE: /certs/privkey.pem
+      LINGSHU_SECURE_COOKIES: "true"
+    volumes:
+      - type: bind
+        source: "${LINGSHU_CERTS_DIR:?Set the existing certificate directory}"
+        target: /certs
+        read_only: true
+        bind:
+          create_host_path: false

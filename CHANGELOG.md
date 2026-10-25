@@ -4,6 +4,22 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+### File-backed library and bookmark usage notes
+
+- Keep the navigation homepage and add a unified Library for bookmarks and Markdown, including source/folder filtering, content search, previews, original-file editing, copy creation, tags and bookmark relationships. Add optional `contextMarkdown` usage notes with a narrow revision-checked update endpoint; legacy updates that omit notes preserve them.
+- Connect existing Docker/host directories through an explicit `LINGSHU_DOCUMENT_ROOTS` allowlist. Support multiple non-overlapping directories per space, read-only or writable sources, one default write location per space, and centralized directory settings. Owner-session registration is limited to already editable spaces; agents and Members cannot grant themselves server-path access.
+- Scan originals without rewriting them. Combine filesystem notifications, periodic scanning and manual checks, retain metadata on disconnect or missing mounts, detect unambiguous external renames, and require confirmation before marking widespread missing files. Collect file contents outside global navigation/database locks and apply bounded index updates separately.
+- Check body revisions against original files, protect metadata with a separate revision, retain browser drafts on conflicts, and keep bounded recovery copies before overwrites/deletions. Disconnecting a source never deletes originals. Report file/index partial completion explicitly instead of implying a failed response left the file unchanged.
+- Require explicit publication of shared-space documents. Freeze published Markdown, metadata and referenced attachments; later external edits remain private until re-published. Apply document/space authorization to all attachment reads and use safe Markdown rendering without executable raw HTML.
+- Add scoped document HTTP/MCP operations and `documents:read` / `documents:write` permissions. Writing requires both; old tokens do not gain scopes automatically. Document text is data, not an authorization instruction.
+- Add separately maintained SQLite/PostgreSQL migration `008_document_library.sql`, deployment overrides, backup/rollback instructions and focused filesystem, permission, publication, concurrency, MCP and browser regressions. Back up original document directories together with the database, instance keys and recovery-history directory before upgrading.
+
+### Transport encryption
+
+- Add optional direct HTTPS using `LINGSHU_TLS_CERT_FILE` and `LINGSHU_TLS_KEY_FILE`, with matching flags, certificate-pair validation before opening business storage, TLS 1.2 minimum and no plaintext fallback after a TLS error. Retain loopback HTTP for existing local deployments; direct TLS automatically marks browser cookies Secure.
+- Document HTTPS reverse-proxy deployment, protected upstreams, certificate renewal, and the separate host-to-NAS and at-rest encryption boundaries. Do not trust arbitrary forwarded headers or label a bind mount as encrypted.
+- Make the development helper verify HTTPS health with normal CA/hostname checks when TLS is configured, and clean up only its own failed startup process. Add real TLS handshake and launcher regressions.
+
 ## [0.0.4] - 2026-10-25
 
 ### Container distribution

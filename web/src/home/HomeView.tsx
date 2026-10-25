@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowUpRight, ChevronDown, Compass, LayoutGrid, List, LoaderCircle, LogOut, Moon, Pencil, RefreshCw, Settings2, Sun, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, ChevronDown, Compass, LayoutGrid, List, LoaderCircle, LogOut, Moon, Pencil, RefreshCw, Settings2, Sun, X } from 'lucide-react';
 import { HomeGrid, type GridPosition } from './HomeGrid';
 import { CategoryPanel, EMPTY_FILTER, NavigationPanel, SearchPanel, readNavigation, type NavigationCollection, type NavigationFilter, type NavigationLink } from './NavigationPanels';
 import { ApiError, request as apiRequest } from '../core/api';
@@ -309,6 +309,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
         <button className="lh-icon-button" onClick={() => setTemporaryColor(color === 'dark' ? 'light' : 'dark')} title={t('切换深浅色', 'Toggle light or dark')} aria-label={t('切换深浅色', 'Toggle light or dark')}>{color === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></>}
         {!preview && !editing && <button type="button" className="lh-quiet-button" disabled={refreshingData} aria-label={hasExternalPanels ? t('读取最新组件快照', 'Read latest component snapshots') : t('刷新内容', 'Refresh content')} title={t('读取已保存内容，不触发外部获取', 'Read saved content without starting external requests')} onClick={() => { void readSavedData(); }}><RefreshCw size={14} className={refreshingData ? 'lh-spin' : undefined} /><span>{hasExternalPanels ? t('更新数据', 'Refresh data') : t('刷新内容', 'Refresh content')}</span></button>}
         {!preview && dashboard.space.canEdit && !editing && <button className="lh-quiet-button lh-edit-trigger" title={t('编辑页面', 'Edit page')} aria-label={t('编辑页面', 'Edit page')} disabled={busy} onClick={startEditing}><Pencil size={14} /><span>{t('编辑页面', 'Edit page')}</span></button>}
+        {!preview && !editing && <a className="lh-admin-link" href="#/library"><BookOpen size={16}/><span>{t('资料库', 'Library')}</span></a>}
         {!preview && !editing && <a className="lh-admin-link" href="#/admin" aria-label={managementLabel} title={managementLabel}><Settings2 size={16} /><span>{managementLabel}</span></a>}
         {!preview && !editing && bootstrap.user && onLogout && <button className="lh-icon-button" aria-label={t('退出登录', 'Sign out')} title={t('{name} · 退出登录', '{name} · Sign out', { name: bootstrap.user.displayName || bootstrap.user.username })} onClick={() => { void onLogout(); }}><LogOut size={16} /></button>}
       </div>
