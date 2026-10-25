@@ -1367,3 +1367,14 @@ BASE_URL=http://127.0.0.1:5222 node tests/browser_integration_confirm.cjs --allo
 修正后使用固定 Go 1.26.8 官方镜像摘要的独立 Linux amd64 容器执行，开启 `CGO_ENABLED=1` 与 `-race`：`TestIconPrivateProxyTargetBoundary` 连续 **100 次通过**，随后 `go test -race -count=1 ./...` **完整通过**。完整套件用时 84.91 秒；目标用例首次执行含 race 工具链编译用时 91.90 秒，Go 报告测试阶段 1.161 秒。默认 SQLite 路径实际执行，可选 PostgreSQL 套件仍由新的标签 CI 单独验证。没有放宽断言、改动生产代理逻辑或忽略失败。
 
 0.0.4 在这次修正上同步 VERSION、双语 README、下载/镜像坐标和相关使用/API/发布文档；上一节 0.0.3 发布前的 55 项 Python、73 项核心测试与前端构建保留其真实运行身份。正式 0.0.4 的产物身份及发布结果以新标签的托管工作流和公开产物验证为准。
+
+
+## 0.0.5 Docker 升级与可选文档／HTTPS 验收
+
+本次发布准备保留上一轮文件资料库的实际浏览器、SQLite/PostgreSQL、TLS 和 race 记录；版本升级本身不把旧报告重标为正式镜像验收。正式镜像身份、产物校验和及运行结果以对应标签的 GitHub Actions 为准。
+
+`python3 scripts/check_container.py --image <候选镜像>` 在原有新实例、静态资产和重启检查后，继续调用 `scripts/check_document_container.py`。应用 CI 与正式发行打包均通过同一入口检查各自构建的实际镜像；正式打包随后保存该受验镜像并从中提取 Linux 程序与前端。
+
+新增验收使用公开 0.0.4 镜像生成独立的旧数据，再以候选镜像复用同一 `/data`，核对账号、导航、旧会话／PAT、实例密钥和 008 迁移。文档／HTTPS 场景挂载独立可写与只读目录、临时证书，正常验证证书链和名称，检查 Secure Cookie、原件读写／恢复历史、只读挂载和目录缺失保护。所有容器和数据均属于本次独立夹具；不连接日常实例或真实 NAS。
+
+容器回归需要 Docker、可拉取的公开 0.0.4 镜像和用于临时证书的 OpenSSL；语法检查、单元测试或仅阅读 workflow 都不构成这些实际容器步骤已通过的证明。完成后核对托管运行中具体的 Docker 步骤，再记录成功结果。Unraid 模板的 XML/default/打包检查与 Unraid WebUI 实际安装也分开记录。

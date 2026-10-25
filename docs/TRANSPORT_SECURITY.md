@@ -4,7 +4,7 @@ Home can serve its UI, HTTP API, MCP endpoint and protected document responses t
 
 ## Direct HTTPS
 
-The current source supports a PEM certificate chain and matching PEM private key:
+Version 0.0.5 supports a PEM certificate chain and matching PEM private key:
 
 | Environment variable | Command-line flag | Meaning |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ A failed background startup, including a certificate-validation failure, stops o
 
 ### Docker
 
-The supplied Compose files build the updated source; the published 0.0.4 image does not include direct TLS. From the updated checkout's repository root, set the existing host certificate directory and apply the TLS override with a base deployment:
+The 0.0.5 image includes direct TLS. Image installations can add the certificate mount and both TLS environment settings below to their existing container definition; the 0.0.4 image does not support them. The supplied Compose files build the matching 0.0.5 source. From that checkout's repository root, set the existing host certificate directory and apply the TLS override with a base deployment:
 
 ```bash
 export LINGSHU_CERTS_DIR=/srv/lingshu-home/tls

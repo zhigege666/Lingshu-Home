@@ -4,6 +4,8 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-10-25
+
 ### File-backed library and bookmark usage notes
 
 - Keep the navigation homepage and add a unified Library for bookmarks and Markdown, including source/folder filtering, content search, previews, original-file editing, copy creation, tags and bookmark relationships. Add optional `contextMarkdown` usage notes with a narrow revision-checked update endpoint; legacy updates that omit notes preserve them.
@@ -19,6 +21,13 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 - Add optional direct HTTPS using `LINGSHU_TLS_CERT_FILE` and `LINGSHU_TLS_KEY_FILE`, with matching flags, certificate-pair validation before opening business storage, TLS 1.2 minimum and no plaintext fallback after a TLS error. Retain loopback HTTP for existing local deployments; direct TLS automatically marks browser cookies Secure.
 - Document HTTPS reverse-proxy deployment, protected upstreams, certificate renewal, and the separate host-to-NAS and at-rest encryption boundaries. Do not trust arbitrary forwarded headers or label a bind mount as encrypted.
 - Make the development helper verify HTTPS health with normal CA/hostname checks when TLS is configured, and clean up only its own failed startup process. Add real TLS handshake and launcher regressions.
+
+### Docker upgrades and Unraid configuration
+
+- Preserve existing `/data`, account/navigation data, saved instance language, and HTTP startup when upgrading from 0.0.4. Migration 008 runs on first start; document roots remain disabled (`[]`) and direct TLS remains off until configured. Back up data and matching keys first; rollback requires the matching pre-upgrade database/data and old image.
+- Extend the Unraid template with optional advanced document-root and TLS certificate/key variables, retain `latest` and the existing HTTP WebUI defaults, and explain multiple document Path mappings and the HTTPS WebUI change. Existing installed containers retain their saved settings; add new mappings/variables explicitly when enabling these features.
+- Keep original document mounts and certificates separate from `/data`. Docker/Unraid updates pull and recreate the container with the original storage, ports and settings; a restart alone does not load a new image or mount configuration.
+- Extend the actual container gate with a public 0.0.4-to-candidate upgrade using the same data volume, old-data/key comparisons and existing session/PAT checks. Exercise writable/read-only Markdown mounts and verified direct HTTPS on the candidate image, including missing-mount retention and reconnect behavior.
 
 ## [0.0.4] - 2026-10-25
 

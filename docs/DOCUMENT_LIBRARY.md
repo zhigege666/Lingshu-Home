@@ -1,6 +1,6 @@
 # File-backed document library
 
-This document describes the **unreleased source implementation**. Published 0.0.4 images do not contain these features. Build the updated checkout to try them; adding environment variables to an older image cannot install the library.
+This document describes the file-backed library included in **0.0.5**. Upgrade to the 0.0.5 image/executable or build its matching source. Older 0.0.4 images do not acquire the library by adding environment variables. Existing installations can keep their original `/data` and HTTP settings; document access remains disabled until allowed roots and directory registrations are configured.
 
 Home keeps its navigation homepage and adds **Library** (`#/library`). The library combines local bookmarks and Markdown documents in the current space, with source/folder navigation, type filters, content search and a reading/editing panel. **Admin → Document directories** manages the connected directories. Bookmarks have an optional **Usage notes** Markdown field for people and agents.
 
@@ -14,7 +14,7 @@ Home's database stores durable document IDs, source bindings, manual tags, bookm
 
 ## Connect existing directories with Docker
 
-Keep the normal `/data` volume. Mount document directories separately, using one or more container paths. For example:
+Keep the normal `/data` volume. Mount document directories separately, using one or more container paths. With the published image, add these same Paths and environment settings to the existing Docker/Unraid definition and recreate the container. The following Compose example builds the matching 0.0.5 source checkout:
 
 ```bash
 export LINGSHU_NOTES_DIR=/mnt/user/knowledge/notes
@@ -100,7 +100,7 @@ New PAT permissions are `documents:read` and `documents:write`; writing requires
 
 The seven document MCP tools are `documents_list`, `documents_get`, `documents_create`, `documents_update`, `documents_rename`, `documents_delete`, and `documents_metadata_update`. `bookmarks_context_update` updates usage notes without replacing other bookmark fields. HTTP and MCP use the same business handlers and authorization. Search returns bounded metadata first; use get to retrieve a body. Notes and document bodies are user data, not authority to run their instructions or operate a linked service.
 
-See [API contracts](API.md#unreleased-file-backed-library-api), [transport encryption](TRANSPORT_SECURITY.md), and [storage/rollback](STORAGE.md#unreleased-document-library-storage).
+See [API contracts](API.md#file-backed-library-api), [transport encryption](TRANSPORT_SECURITY.md), and [storage/rollback](STORAGE.md#document-library-storage).
 
 ## Backup and migration
 

@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.4 Go baseline and clearly marked unreleased additions in `server/`. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.5 Go implementation in `server/`, including the file-backed library and direct HTTPS. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Requests, authentication and errors
 
@@ -455,9 +455,9 @@ Tools cover dashboard/page reads, page updates, category and bookmark CRUD, sour
 Every tool invocation reloads the current account, permission epoch and token scope. Mutations use the same write gate, transaction, authorization and business handlers as the HTTP API. Long-lived clients cannot retain revoked permissions. MCP responses are private and not cacheable across accounts.
 
 
-## Unreleased file-backed library API
+## File-backed library API
 
-These additions require migration 008 and an updated source build; they are not part of the published 0.0.4 binary. All paths below have the `/api/v1` prefix and retain the existing CSRF/PAT rules. Read responses use `Cache-Control: no-store`.
+These additions are available since 0.0.5 and require migration 008, applied on first startup. All paths below have the `/api/v1` prefix and retain the existing CSRF/PAT rules. Read responses use `Cache-Control: no-store`.
 
 ### Bookmark usage context
 

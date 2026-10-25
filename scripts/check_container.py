@@ -5,8 +5,10 @@ import gzip
 import http.cookiejar
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
+import sys
 import time
 import urllib.request
 import uuid
@@ -85,3 +87,8 @@ finally:
     if created:
         subprocess.run([docker, "rm", "-f", prefix], stdout=subprocess.DEVNULL, check=False)
     subprocess.run([docker, "volume", "rm", prefix], stdout=subprocess.DEVNULL, check=False)
+
+# The exact image exercised above must also preserve a real old /data volume
+# and support the optional document mounts/HTTPS configuration before packaging.
+subprocess.run([sys.executable, str(Path(__file__).with_name("check_document_container.py")),
+                "--image", args.image, "--port", str(args.port)], check=True)
