@@ -170,6 +170,13 @@ func (a *App) dashboard(r *Request) (*Response, error) {
 	var local *Dataset
 	for alias, value := range bindings {
 		binding, _ := value.(map[string]any)
+		if binding["datasetId"] == "local-document-activity" {
+			// This is only a public renderer contract. Personal activity is read
+			// by the separate, document-authorized endpoint, never this snapshot.
+			now := time.Now().UTC()
+			dashboard.Datasets[alias] = Dataset{DatasetID: "local-document-activity", SchemaID: "documents.activity", SchemaVersion: 1, Revision: "1", Data: map[string]any{}, Meta: DatasetMeta{ReceivedAt: now, LastSuccessAt: now, Freshness: "fresh"}}
+			continue
+		}
 		if binding["datasetId"] != "local-navigation" {
 			continue
 		}

@@ -2,6 +2,8 @@ package home
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"io/fs"
 	"net/http"
 	"os"
@@ -141,6 +143,10 @@ func (a *App) applyDocumentScan(r *Request, s *DocumentSource, scan documentScan
 	if scan.status != "ready" {
 		return setStatus(scan.status, scan.message)
 	}
+	activityStarted, err := a.documentActivityBaseline(r, s.ID)
+	if err != nil {
+		return err
+	}
 	old := map[string]struct{ id, revision, modified string }{}
 	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT id,relative_path,revision,updated_at FROM documents WHERE source_id=? AND status='ready'"), s.ID)
 	if err != nil {
@@ -194,18 +200,55 @@ func (a *App) applyDocumentScan(r *Request, s *DocumentSource, scan documentScan
 	if !confirmMissing && (len(old) > 0 && len(scan.seen) == 0 || len(old) >= 10 && missingCount*2 > len(old)) {
 		return setStatus("error", "The directory is unexpectedly empty or many files are missing. The previous index is retained. Check the mount, then explicitly confirm missing files if the removal was intentional.")
 	}
+	renamed := map[string]bool{}
 	for _, rename := range renames {
 		if _, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE documents SET relative_path=? WHERE id=?"), rename.to, rename.id); err != nil {
 			return err
 		}
+		if activityStarted != "" {
+			revision := old[rename.from].revision
+			if err = a.recordDocumentActivity(r, rename.id, "rename", "external", revision, revision); err != nil {
+				return err
+			}
+		}
+		renamed[rename.to] = true
 		delete(old, rename.from)
 	}
 	for _, file := range scan.found {
-		if previous, exists := old[file.relative]; exists && previous.revision == documentHash(file.body) && previous.modified == file.modified {
+		revision := documentHash(file.body)
+		previous, existed := old[file.relative]
+		if existed && previous.revision == revision && previous.modified == file.modified {
 			continue
+		}
+		action, before := "", previous.revision
+		if activityStarted != "" && !renamed[file.relative] {
+			if existed && previous.revision != revision {
+				action = "update"
+			} else if !existed {
+				// A missing file that reappears keeps its identity. Distinguish
+				// restoration from a newly discovered file before upserting it.
+				var oldStatus string
+				err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT revision,status FROM documents WHERE source_id=? AND relative_path=?"), s.ID, file.relative).Scan(&before, &oldStatus)
+				if errors.Is(err, sql.ErrNoRows) {
+					action = "create"
+				} else if err != nil {
+					return err
+				} else if oldStatus != "ready" {
+					action = "restore"
+				}
+			}
 		}
 		if err = a.indexDocument(r, s, file.relative, file.body, file.modified); err != nil {
 			return err
+		}
+		if action != "" {
+			var id string
+			if err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT id FROM documents WHERE source_id=? AND relative_path=?"), s.ID, file.relative).Scan(&id); err != nil {
+				return err
+			}
+			if err = a.recordDocumentActivity(r, id, action, "external", before, revision); err != nil {
+				return err
+			}
 		}
 	}
 	for relative, doc := range old {
@@ -213,6 +256,16 @@ func (a *App) applyDocumentScan(r *Request, s *DocumentSource, scan documentScan
 			if _, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE documents SET status='missing' WHERE id=?"), doc.id); err != nil {
 				return err
 			}
+			if activityStarted != "" {
+				if err = a.recordDocumentActivity(r, doc.id, "delete", "external", doc.revision, ""); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if activityStarted == "" {
+		if _, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE document_sources SET activity_started_at=? WHERE id=? AND activity_started_at=''"), documentActivityStamp(time.Now()), s.ID); err != nil {
+			return err
 		}
 	}
 	s.DocumentCount = len(scan.found)

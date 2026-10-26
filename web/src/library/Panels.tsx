@@ -38,7 +38,7 @@ export function DocumentPanel({ space, bootstrap, documentId, refreshToken, book
     // Refresh the preview together with the list, while preserving an active editor draft.
     if (editing) return
     const abort = new AbortController()
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setDocument(null); setDraft('')
     request<DocumentDetail>(docPath(space.id, documentId), { signal: abort.signal }).then(value => { setDocument(value); setDraft(value.content); setEditing(false) }).catch(cause => { if (!abort.signal.aborted) setError(messageOf(cause)) }).finally(() => { if (!abort.signal.aborted) setLoading(false) })
     return () => abort.abort()
   }, [space.id, documentId, reload, refreshToken])

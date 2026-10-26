@@ -11,7 +11,7 @@ import { ProjectLogo } from '../components/ProjectLogo'
 import { HomeChromeInspector } from './HomeChromeInspector'
 import { HomePanelInspector } from './HomePanelInspector'
 import { ComposerButton, ComposerSelect } from './HomeEditorControls'
-import { addPagePanel, panelContracts, COMPOSER_PANEL_LIMIT, panelLocked, panelTitle, type ComposerSource, type HomeSelection } from './composition'
+import { addDocumentActivityPanel, documentActivityPresets, addPagePanel, panelContracts, COMPOSER_PANEL_LIMIT, panelLocked, panelTitle, type ComposerSource, type HomeSelection } from './composition'
 import './home-editor.css'
 const WidgetImportDialog = lazy(() => import('../components/WidgetImportDialog'))
 const DashboardPresetDialog = lazy(() => import('../components/DashboardPresetDialog'))
@@ -24,7 +24,7 @@ export type HomeEditorProps = {
   children: ReactNode; notice?: ReactNode; pageName?: string; spaceId?: string; datasets?: Record<string, Dataset<unknown>>;
   sources?: ComposerSource[]; onSourcesChange?: (sources: ComposerSource[]) => void; space?: Space; canManageSources?: boolean
 }
-const panelIcons = { 'builtin/search': Search, 'builtin/category-navigation': PanelLeft, 'builtin/favorites': Star, 'builtin/navigation': Bookmark, 'builtin/github-traffic': Activity, 'builtin/calendar': CalendarDays, 'builtin/weather': CloudSun, 'builtin/metrics': BarChart3, 'builtin/status': Activity }
+const panelIcons = { 'builtin/search': Search, 'builtin/category-navigation': PanelLeft, 'builtin/favorites': Star, 'builtin/navigation': Bookmark, 'builtin/github-traffic': Activity, 'builtin/calendar': CalendarDays, 'builtin/weather': CloudSun, 'builtin/metrics': BarChart3, 'builtin/status': Activity, 'builtin/document-activity': CalendarDays }
 function slotName(position?: Placement) {
   if (!position || position.kind === 'hidden') return t('已隐藏', 'Hidden')
   return ({ top: t('顶部', 'Top'), left: t('左侧', 'Left'), main: t('主内容区', 'Main canvas'), right: t('右侧', 'Right'), bottom: t('底部', 'Bottom') })[position.region]
@@ -85,6 +85,11 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
     try { const result = addPagePanel(config, panelId, panelContracts[panelId]?.schema !== 'navigation.collection' ? allSources.find(source => source.schemaId === panelContracts[panelId]?.schema) : undefined); change(result.config); select({ kind: 'view', id: result.id }); setLibraryTab('layers') }
     catch (cause) { setError(cause instanceof Error ? cause.message : t('无法添加组件。', 'The component could not be added.')) }
   }
+  function addActivity(presentation: 'heatmap' | 'split' | 'month') {
+    if (disabled || limit) return
+    try { const result = addDocumentActivityPanel(config, presentation); change(result.config); select({ kind: 'view', id: result.id }); setLibraryTab('layers') }
+    catch (cause) { setError(cause instanceof Error ? cause.message : t('无法添加组件。', 'The component could not be added.')) }
+  }
   function save() {
     if (busy || !dirty) return
     const issue = validatePageChrome(config.chrome)
@@ -121,11 +126,13 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
     </TabsPrimitive.Content>
     <TabsPrimitive.Content value="library" className="lh-composer-tab-body">
       <div className="lh-composer-library-heading"><h3>{t('内置组件', 'Built-in components')}</h3><span>{config.views.length} / {COMPOSER_PANEL_LIMIT}</span></div>
-      <div className="lh-composer-library-items">{Object.entries(panelIcons).map(([panelId, Icon]) => { const schema = panelContracts[panelId]?.schema; const unavailable = !!schema && schema !== 'navigation.collection' && !allSources.some(source => source.schemaId === schema)
+      <div className="lh-composer-library-items">{Object.entries(panelIcons).filter(([panelId]) => panelId !== 'builtin/document-activity').map(([panelId, Icon]) => { const schema = panelContracts[panelId]?.schema; const unavailable = !!schema && schema !== 'navigation.collection' && !allSources.some(source => source.schemaId === schema)
         return <button type="button" key={panelId} className="lh-composer-library-item" disabled={disabled || limit || unavailable} title={unavailable ? t('先在管理中心添加兼容的数据来源', 'Add a compatible data source in admin first') : undefined} onClick={() => add(panelId)}>
           <span className="lh-composer-library-icon"><Icon size={20} /></span><span><strong>{panelTitle({ panel: { id: panelId }, settings: {} })}</strong>{unavailable && <small>{t('需要数据来源', 'Data source required')}</small>}</span><Plus size={15} />
         </button>
       })}</div>
+      <div className="lh-composer-library-heading"><h3>{t('文档活动', 'Document activity')}</h3></div>
+      <div className="lh-composer-library-items">{documentActivityPresets.map(preset => <button type="button" key={preset.id} className="lh-composer-library-item" data-activity-preset={preset.id} disabled={disabled || limit} onClick={() => addActivity(preset.id)}><span className="lh-composer-library-icon"><CalendarDays size={20}/></span><span><strong>{preset.name}</strong></span><Plus size={15}/></button>)}</div>
       {spaceId && <div className="lh-composer-mini-actions"><ComposerButton disabled={disabled} onClick={() => setPresetOpen(true)}><LayoutDashboard size={14}/>{t('预置仪表板', 'Dashboard presets')}</ComposerButton><ComposerButton disabled={disabled || limit} onClick={() => setImportOpen(true)}><Upload size={14} />{t('导入组件模板', 'Import template')}</ComposerButton><ComposerButton disabled={disabled || sourcesBusy} onClick={async () => { setSourcesBusy(true); try { const value = await request<ComposerSource[]>(`/spaces/${encodeURIComponent(spaceId)}/sources`); setSources(value); sourceCallback.current?.(value); setSourceError(false) } catch { setSourceError(true) } finally { setSourcesBusy(false) } }}><RefreshCw size={14} />{t('刷新来源', 'Refresh sources')}</ComposerButton></div>}
       <p className="lh-composer-hint">{t('组件读取本地快照；外部采集由数据来源的启用状态控制。', 'Components read local snapshots. The data source’s enabled state controls external collection.')}</p>
       {sourceError && <p className="lh-composer-hint">{t('外部来源暂未加载；现有绑定保留。', 'External sources are unavailable; existing bindings are retained.')}</p>}
@@ -156,7 +163,7 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
   </div>
   const inspector = <div className="lh-composer-inspector">
     <div className="lh-composer-inspector-heading"><Settings2 size={16} /><h2>{inspectorTitle}</h2></div>
-    {selectedView ? <HomePanelInspector key={selectedView.id} config={config} view={selectedView} sources={allSources} disabled={disabled} onChange={change} onSelect={select} onError={setError} />
+    {selectedView ? <HomePanelInspector key={selectedView.id} config={config} view={selectedView} sources={allSources} spaceId={spaceId} disabled={disabled} onChange={change} onSelect={select} onError={setError} />
       : selection.kind === 'chrome' ? <HomeChromeInspector key={selection.area} chrome={config.chrome} area={selection.area} alignment={selection.alignment} disabled={disabled} issue={chromeIssue} onSelect={select} onChange={next => edit(value => { value.chrome = next })} /> : pageInspector}
   </div>
 

@@ -121,6 +121,48 @@ async function main() {
       assert.deepEqual(h.switchPageTheme(ios, 'builtin/dashboard'), before);
       assert.deepEqual(config, before);
     });
+    check('activity presets and repeated instances share a local contract while preserving per-view settings', () => {
+      let config = base;
+      for (const preset of ['heatmap', 'split', 'month', 'heatmap']) {
+        const added = h.addDocumentActivityPanel(config, preset);
+        config = added.config;
+        const view = config.views.find(item => item.id === added.id), position = config.layout.placements[added.id].base;
+        assert.equal(view.panel.id, 'builtin/document-activity');
+        assert.equal(view.settings.presentation, preset);
+        assert.equal(view.settings.recentLimit, preset === 'heatmap' ? 3 : 0);
+        assert.equal(view.interactionScope, undefined);
+        assert.deepEqual(config.bindings[view.inputs.activity], { datasetId: 'local-document-activity', space: 'current-page-space', query: {} });
+        assert.equal(position.w, preset === 'split' ? 24 : 12);
+        assert.equal(position.heightMode, 'content');
+        assert.ok(!Object.hasOwn(view.settings, 'width') && !Object.hasOwn(view.settings, 'height'));
+        noOverlap(config);
+      }
+      assert.equal(Object.values(config.bindings).filter(binding => binding.datasetId === 'local-document-activity').length, 1);
+      assert.equal(new Set(config.views.map(view => view.id)).size, config.views.length);
+      for (const id of Object.keys(base.layout.placements)) assert.deepEqual(config.layout.placements[id], base.layout.placements[id]);
+      assert.deepEqual(config.views.slice(0, base.views.length), base.views);
+      assert.deepEqual(base, initial);
+      const changedTheme = h.switchPageTheme(config, 'builtin/ios');
+      assert.deepEqual({ ...changedTheme, pageTheme: config.pageTheme }, config);
+      assert.throws(() => h.addPagePanel(base, 'builtin/document-activity', { ...h.documentActivitySource, datasetId: 'source:fake' }));
+    });
+    check('duplicating activity keeps its filters but starts an independent date selection group', () => {
+      const added = h.addDocumentActivityPanel(base, 'split');
+      const original = added.config.views.find(view => view.id === added.id);
+      original.interactionScope = 'activity:writing';
+      original.settings = { ...original.settings, months: 12, perspective: 'library', sourceIds: ['a'.repeat(32)], timezone: 'Asia/Shanghai' };
+      const before = structuredClone(added.config), duplicated = h.duplicatePagePanel(added.config, added.id);
+      const copy = duplicated.config.views.find(view => view.id === duplicated.id);
+      assert.equal(copy.interactionScope, undefined);
+      assert.deepEqual(copy.settings, original.settings);
+      assert.deepEqual(copy.inputs, original.inputs);
+      assert.deepEqual(duplicated.config.views.find(view => view.id === added.id), original);
+      assert.deepEqual(added.config, before);
+      noOverlap(duplicated.config);
+      const removed = h.removePagePanel(duplicated.config, added.id);
+      assert.deepEqual(removed.views.find(view => view.id === duplicated.id), copy);
+      assert.deepEqual(removed.bindings, duplicated.config.bindings);
+    });
     check('adding an unfiltered panel does not silently reuse or replace a filtered alias', () => {
       const filtered = structuredClone(base); filtered.bindings.navigation.query = { favoritesOnly: true };
       const { config, id } = h.addPagePanel(filtered, 'builtin/navigation');

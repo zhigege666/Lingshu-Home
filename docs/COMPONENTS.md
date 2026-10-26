@@ -1,6 +1,6 @@
 # Components, source contracts and lightweight operation
 
-This document covers the uncommitted component/data-source development iteration. It defines the public behavior and its limits; test results belong to [tests/README.md](../tests/README.md), and a development build is not an application release.
+This document describes component/data-source contracts in the source tree. Features explicitly marked Unreleased are not included in the published 0.0.5 image; test results belong to [tests/README.md](../tests/README.md), and a development build is not an application release.
 
 ## Separation of responsibilities
 
@@ -14,7 +14,7 @@ The browser shares the dashboard snapshot among components. It exposes a cached-
 
 ## Built-in component contracts
 
-All schemas below are version 1. The four new data schemas use exact fields and bounded collections; unknown fields are rejected. Times described as instants use UTC Unix seconds, not JavaScript milliseconds. Dates are calendar dates (`YYYY-MM-DD`) and are not UTC instants.
+All schemas below are version 1. The external component schemas use exact fields and bounded collections; unknown fields are rejected. Calendar/weather instants use UTC Unix seconds, not JavaScript milliseconds. Document-activity timestamps use RFC 3339 strings as defined by its API. Calendar dates (`YYYY-MM-DD`) are not UTC instants.
 
 | Renderer | Dataset schema | Input | Function |
 | --- | --- | --- | --- |
@@ -27,10 +27,11 @@ All schemas below are version 1. The four new data schemas use exact fields and 
 | `builtin/weather` | `weather.forecast` | `weather` | Current conditions and a bounded daily forecast |
 | `builtin/metrics` | `metrics.summary` | `metrics` | Numeric metrics and optional defined-range bars |
 | `builtin/status` | `status.collection` | `status` | Service availability and optional latency |
+| `builtin/document-activity` | `documents.activity` | `activity` | **Unreleased**: heatmap, heatmap with details, or monthly calendar |
 
 ### Component settings
 
-Every component accepts an optional plain-text `title` of at most 80 characters. The four new renderers additionally support:
+Every component accepts an optional plain-text `title` of at most 80 characters. Calendar, weather, metrics and status additionally support:
 
 | Renderer | Setting | Accepted values | Default |
 | --- | --- | --- | --- |
@@ -40,6 +41,12 @@ Every component accepts an optional plain-text `title` of at most 80 characters.
 | Status | `showLatency` | Boolean | `true` |
 
 Display settings do not change source collection settings. The forecast view can only display days present in its source snapshot. Calendar day/week navigation during ordinary browsing is temporary.
+
+### `documents.activity@1` — Unreleased
+
+This built-in component has three repeatable presets, not a fixed homepage layout. Bind `activity` to `local-document-activity` in the current page space with `query:{}`. Each view owns `presentation`, `months`, `perspective`, `sourceIds`, `showSummary`, `recentLimit`, `detailLayout` and `timezone`; widths and heights remain in `layout.placements`. The [activity guide](DOCUMENT_ACTIVITY.md) defines exact values, defaults and counting rules.
+
+Dashboard datasets contain only an empty schema marker for this binding. A shared browser provider reads authorized working-document activity through its dedicated read-only API, deduplicates queries and resets on identity/space/permission changes. It does not use external JSON/push sources or collect original files. Public-page readers receive no draft activity data. Date selection is independent unless views explicitly share `interactionScope`; copying an activity component clears that scope. Browsed dates/details remain runtime state.
 
 ### `calendar.events@1`
 
@@ -196,6 +203,8 @@ The supported import unit is a declarative template for an installed built-in re
 The manifest is at most 64 KiB, supports only manifest version 1 and known renderer/schema pairs, and must pass normal page-settings validation. The head-discovery path reads at most 128 KiB and does not render or execute the external page. Requests accept HTTP/HTTPS ports 1–65535. The editor-supplied hostname may resolve to RFC1918/ULA or public addresses; redirects and declarations on other hosts must remain public. The original hostname scope survives discovery and nested preview, and every DNS answer is validated before dialing a literal IP. Loopback/link-local/metadata/CGNAT/reserved targets remain blocked. Requests retain bounded redirects and carry no browser cookies or Home token. See [destination policies](NETWORK.md#destination-policies). An ordinary arbitrary webpage without a supported template is not convertible into a component.
 
 The import flow previews the name, renderer, version, license, source URL and content hash; the user then selects a compatible source. The dialog can create a compatible source and return to the preserved preview, using normal account and space authorization. Source creation persists immediately; dismissing an unsaved page draft does not delete that source. The dialog also provides static, credential-free renderer examples and an HTML-head declaration example. Applying the template only changes the current page draft. The existing explicit, revision-checked page save persists it. Saved `view.template` metadata is `{id,version,sha256,sourceUrl?}`; it is provenance, not executable loader configuration or proof of publisher identity. A hash alone is not a signature. A template source URL is public provenance, including any query string, and follows page sharing/export visibility; use a publicly shareable template URL. Secret subscriptions belong in encrypted source configuration. Imported templates contain no credentials, source connections, scripts, styles, external assets or automatic update channel.
+
+**Unreleased activity templates:** use `renderer:"builtin/document-activity"` with `dataSchema:{"id":"documents.activity","version":1}` and the [activity settings](DOCUMENT_ACTIVITY.md). The importer automatically uses the built-in current-space binding and does not offer external source/token/header setup. Import remains a draft operation, and the template conveys no document-read permission.
 
 Remote JavaScript plugins and arbitrary iframes remain future design work. Supporting them would need a separate trust model, version compatibility, isolated origin/runtime, content security policy, capability grants, package signatures/provenance, resource limits, update/rollback and revocation. They must not be introduced by broadening this template endpoint.
 

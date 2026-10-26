@@ -15,7 +15,7 @@ import { Empty, ErrorMessage, Loading } from '../components/Shared'
 import { BookmarkPanel, DocumentPanel, NewDocumentDialog } from './Panels'
 import './library.css'
 
-type Props = { bootstrap: Bootstrap; dashboard: Dashboard; onHome: () => void; onManage: () => void; onLogin: () => void; onLogout: () => Promise<void>; onSpaceChange: (id: string) => void }
+type Props = { bootstrap: Bootstrap; dashboard: Dashboard; documentId?: string; onHome: () => void; onManage: () => void; onLogin: () => void; onLogout: () => Promise<void>; onSpaceChange: (id: string) => void }
 type Selection = { kind: 'bookmark' | 'document'; id: string }
 type FolderNode = { path: string; name: string; children: Map<string, FolderNode> }
 function folderTree(documents: LibraryDocument[], sourceId: string): FolderNode[] {
@@ -41,19 +41,22 @@ function FolderBranch({ nodes, active, onSelect, depth = 0 }: { nodes: FolderNod
   </li>)}</ul>
 }
 
-export default function LibraryView({ bootstrap, dashboard, onHome, onManage, onLogin, onLogout, onSpaceChange }: Props) {
+export default function LibraryView({ bootstrap, dashboard, documentId, onHome, onManage, onLogin, onLogout, onSpaceChange }: Props) {
   const space = dashboard.space, identity = `${bootstrap.user?.id || 'visitor'}:${space.id}`
   const [sources, setSources] = useState<DocumentSource[]>([]), [bookmarks, setBookmarks] = useState<LibraryBookmark[]>([])
   const [documents, setDocuments] = useState<LibraryDocument[]>([]), [total, setTotal] = useState(0)
   const [query, setQuery] = useState(''), [search, setSearch] = useState(''), [kind, setKind] = useState<'all' | 'bookmark' | 'document'>('all')
   const [section, setSection] = useState<'all' | 'recent' | 'favorites'>('all'), [sourceId, setSourceId] = useState(''), [folder, setFolder] = useState('')
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set())
-  const [selection, setSelection] = useState<Selection | null>(null), [expandedPreview, setExpandedPreview] = useState(false)
+  const [selection, setSelection] = useState<Selection | null>(documentId ? { kind: 'document', id: documentId } : null), [expandedPreview, setExpandedPreview] = useState(false)
   const [newDocument, setNewDocument] = useState(false), [loading, setLoading] = useState(true), [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [refreshKey, setRefreshKey] = useState(0)
   const requestGeneration = useRef(0)
   const canWrite = !!bootstrap.user && space.canEdit
   const canManage = bootstrap.user?.role === 'Owner'
+  useEffect(() => {
+    if (documentId) { setSelection({ kind: 'document', id: documentId }); setExpandedPreview(false) }
+  }, [documentId])
   useEffect(() => { const timer = setTimeout(() => setSearch(query.trim()), 250); return () => clearTimeout(timer) }, [query])
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 6500); return () => clearTimeout(timer) }, [notice])
   useEffect(() => {

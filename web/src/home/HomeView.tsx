@@ -16,6 +16,7 @@ import { panelLocked, panelTitle, type ComposerSource, type HomeSelection } from
 import { getLocale, t } from '../core/i18n';
 import { ProjectLogo } from '../components/ProjectLogo';
 import { HomeEnvironment } from './HomeEnvironment';
+import { DocumentActivityProvider } from './DocumentActivityProvider';
 import { useHomeEndpointRouting } from './useEndpointRouting';
 import { PageChromeArea } from './PageChrome';
 import type { Bootstrap, Dashboard, Page, PageConfig, Placement, Region, View } from '../core/types';
@@ -30,6 +31,7 @@ type EditDraft = { pageId: string; spaceId: string; identity: string; revision: 
 const SpaceSelect = lazy(() => import('./SpaceSelect'));
 const HomeEditor = lazy(() => import('./HomeEditor'));
 const DataPanel = lazy(() => import('./DataPanels'));
+const DocumentActivityPanel = lazy(() => import('./DocumentActivityPanel'));
 const TrafficPanel = lazy(() => import('./TrafficPanel').then(module => ({ default: module.TrafficPanel })));
 const DiscardChangesDialog = lazy(() => import('../components/DiscardChangesDialog'));
 const NO_SOURCES: ComposerSource[] = [];
@@ -264,6 +266,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
     else if (view.panel.id === 'builtin/category-navigation') content = <CategoryPanel data={collection || scopeData.get(scope) || { categories: [], links: [] }} filter={filter} onChange={update}
       orientation={narrow || (placement.kind !== 'hidden' && ['top', 'bottom'].includes(placement.region)) ? 'horizontal' : 'vertical'} settings={readCategoryNavigationSettings(view.settings)}
       collapsed={categoryCollapsed(view)} onCollapsedChange={collapsed => changeCategoryCollapse(view.id, collapsed)} stateKey={`${dashboard.page.id}:${view.id}${editing ? ':draft' : ''}`} persistState={!preview && !editing} theme={color} />;
+    else if (view.panel.id === 'builtin/document-activity') content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在读取…', 'Loading…')}</section>}><DocumentActivityPanel view={view}/></Suspense>;
     else if (view.panel.id === 'builtin/github-traffic') content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在加载流量组件…', 'Loading traffic component…')}</section>}><TrafficPanel dataset={dataset} title={heading} /></Suspense>;
     else if (['builtin/calendar', 'builtin/weather', 'builtin/metrics', 'builtin/status'].includes(view.panel.id)) content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在加载组件…', 'Loading component…')}</section>}><DataPanel view={view} dataset={dataset} loading={!dataset && loadingData} failed={!dataset && failedData} /></Suspense>;
     else if (['builtin/navigation', 'builtin/favorites'].includes(view.panel.id)) content = collection ? <NavigationPanel data={collection} filter={filter} title={heading} settings={view.settings}
@@ -331,11 +334,11 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
     {!!bottom.length && <div className="lh-bottom-region">{renderRegion(bottom)}</div>}
     <PageChromeArea area={chrome.footer} placement="footer" version={bootstrap.version} editing={inspecting} selectedSlot={selection.kind === 'chrome' && selection.area === 'footer' ? selection.alignment || 'right' : undefined} onSelect={alignment => setSelection({ kind: 'chrome', area: 'footer', alignment })} />
   </div>;
-  return <HomeEnvironment.Provider value={environment}>{editing ? <Suspense fallback={<div className="lh-home lh-composer-loading"><LoaderCircle className="lh-spin" size={20} /><span>{t('正在加载页面编辑器', 'Loading the page editor')}</span><button className="lh-quiet-button" onClick={() => { void cancel(); }}><X size={14}/>{t('取消', 'Cancel')}</button></div>}>
+  return <HomeEnvironment.Provider value={environment}><DocumentActivityProvider key={`${identity}:${dashboard.space.id}:${bootstrap.mode}:${bootstrap.user?.role || 'visitor'}:${canEdit}:${preview || editing}`} spaceId={dashboard.space.id} userKey={bootstrap.user?.id || 'visitor'} enabled={!!bootstrap.user && canEdit}>{editing ? <Suspense fallback={<div className="lh-home lh-composer-loading"><LoaderCircle className="lh-spin" size={20} /><span>{t('正在加载页面编辑器', 'Loading the page editor')}</span><button className="lh-quiet-button" onClick={() => { void cancel(); }}><X size={14}/>{t('取消', 'Cancel')}</button></div>}>
     <HomeEditor config={config} theme={color} pageName={dashboard.page.name} busy={busy} dirty={dirty} narrow={narrow} historyBusy={gridInteracting} canUndo={canUndo} canRedo={canRedo} onUndo={() => historyAction(false)} onRedo={() => historyAction(true)}
       selection={selection} onSelect={setSelection} previewing={editorPreview} onPreviewChange={value => { setPreviewCollapses({}); setEditorPreview(value); }}
       datasets={datasets} spaceId={dashboard.space.id} space={dashboard.space} canManageSources={!!bootstrap.user && dashboard.space.canEdit} onSourcesChange={updateSources}
       onChange={changeDraft} onSave={() => { void save(); }} onCancel={() => leaveGuard.requestLeave(() => { void cancel(); })} onRestore={() => leaveGuard.requestLeave(restore)}
       notice={notice || loadingData || incompleteData ? <>{noticeElement}{loadingData ? <p className="lh-composer-data-status" role="status">{t('正在读取组件数据…', 'Loading component data…')}</p> : incompleteData ? <p className="lh-composer-data-status" role="status">{t('部分组件的数据尚未就绪。', 'Some component data is unavailable.')}{failedData && <button type="button" onClick={retryData}>{t('重试', 'Retry')}</button>}</p> : null}</> : null}>{canvas}</HomeEditor>
-  </Suspense> : canvas}{leaveGuard.blocked && <Suspense fallback={null}><DiscardChangesDialog onKeep={leaveGuard.keep} onDiscard={leaveGuard.discard} /></Suspense>}</HomeEnvironment.Provider>;
+  </Suspense> : canvas}{leaveGuard.blocked && <Suspense fallback={null}><DiscardChangesDialog onKeep={leaveGuard.keep} onDiscard={leaveGuard.discard} /></Suspense>}</DocumentActivityProvider></HomeEnvironment.Provider>;
 }

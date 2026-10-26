@@ -7,13 +7,14 @@ This document describes the current development implementation. It is not a prod
 | Source kind | Update method | Dataset schema | Current behavior |
 | --- | --- | --- | --- |
 | `local-navigation` | Home's navigation APIs | `navigation.collection@1` | Built-in, authoritative categories and bookmarks |
+| `local-document-activity` | Authorized local activity query | `documents.activity@1` | **Unreleased**: empty dashboard marker; working-document data comes from the dedicated read-only API |
 | `external-push` | External HTTP or MCP write | Navigation or four component schemas | Validated, versioned snapshots stored independently of local navigation |
 | `external-json` | Scheduled HTTP GET/manual queue | Calendar, weather, metrics or status | Normalized JSON data object; no arbitrary code mapping |
 | `calendar-ics` | Scheduled HTTP/HTTPS subscription | `calendar.events@1` | Read-only bounded ICS agenda |
 | `weather-open-meteo` | Fixed provider HTTP API | `weather.forecast@1` | Current observations and daily forecast |
 | `github-traffic` | Scheduled polling and manual queue | `github.traffic@1` | GitHub repository traffic, immutable first baseline, retained daily observations |
 
-The public `deliveryModes` capability is `push` and `poll`. Built-in local navigation is a source kind, not an external delivery mode. Realtime request adapters, arbitrary JSON field mapping, and `knowledge.items@1` are future work. The bounded HTTP GET adapter, calendar/weather configuration, four component schemas and template import are documented in [COMPONENTS.md](COMPONENTS.md). Unsupported source kinds and schemas are rejected.
+The public `deliveryModes` capability is `push` and `poll`. Built-in local navigation and document activity are not external delivery modes. Realtime request adapters, arbitrary JSON field mapping, and `knowledge.items@1` are future work. The bounded HTTP GET adapter, calendar/weather configuration, four component schemas and template import are documented in [COMPONENTS.md](COMPONENTS.md). Unsupported source kinds and schemas are rejected.
 
 The homepage reads stored snapshots. Opening or refreshing the homepage does not trigger an upstream source request. One failing integration does not replace the local navigation tables.
 
@@ -32,8 +33,10 @@ Personal access tokens are the intersection of an active account, one space, sel
 | `datasets:write` | Push an external snapshot |
 | `pages:read` | Read saved page configuration |
 | `pages:write` | Save a page using its expected revision |
+| `documents:read` | Read authorized documents; **Unreleased** activity queries additionally require working-document access |
+| `documents:write` | Maintain authorized documents using the separate document contracts; writes also require `documents:read` |
 
-Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
+Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source, and `documents:read` for a local activity binding. Reading a dashboard with an activity binding does not require activity access because that projection contains only an empty schema marker; the dedicated activity query enforces working-document permission separately. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
 
 ### Create and revoke a Home token
 
@@ -77,7 +80,7 @@ Home stores only the token's SHA-256 digest. Later GETs do not return the secret
 | POST | `/api/v1/sources/{id}/calendar-import` | Import a bounded ICS file into a calendar push source |
 | DELETE | `/api/v1/sources/{id}` | Revision-checked deletion; active/hidden page references block it |
 
-Configuration writes require a real account even in `open_edit`. Source and snapshot reads follow their space's visibility. Source listing excludes the built-in source; use `/api/v1/spaces/{spaceId}/navigation` for the complete authoritative local navigation, independently of page bindings. This iteration allows up to 64 external sources per space. Source deletion and one-time ICS import use the endpoints below and their [component lifecycle contract](COMPONENTS.md#one-time-ics-import-and-source-deletion).
+Configuration writes require a real account even in `open_edit`. Source and snapshot reads follow their space's visibility. Source listing excludes built-in bindings; use `/api/v1/spaces/{spaceId}/navigation` for the complete authoritative local navigation, independently of page bindings. This iteration allows up to 64 external sources per space. Source deletion and one-time ICS import use the endpoints below and their [component lifecycle contract](COMPONENTS.md#one-time-ics-import-and-source-deletion).
 
 An external navigation source can be created with:
 
@@ -177,6 +180,12 @@ Page Schema 2 refers to source datasets by ID:
 This is a fragment of the full page configuration, not a complete page-save request. Bind a navigation panel's `collection` input to `projects`. A GitHub Traffic panel uses the `traffic` input and consumes `github.traffic@1`. Calendar uses the `events` input, weather uses `weather`, metrics uses `metrics`, and status uses `status`. The server rejects cross-space bindings, schema mismatches, and query fields on all non-navigation datasets.
 
 `GET /api/v1/dashboard?spaceId=...` returns datasets under the page's **binding aliases**, such as `datasets.projects`, not under their dataset IDs. External aliases without a successful snapshot are absent. The renderer should show the corresponding missing-data state. A layout or theme change does not copy, delete, or reassign navigation records.
+
+### Local document activity binding — Unreleased
+
+Use `datasetId:"local-document-activity"`, `space:"current-page-space"`, `query:{}`, renderer `builtin/document-activity` and input `activity`. The page remains Schema 2. Per-instance activity filters belong in view settings; selected dates and open details are runtime state, not shared configuration. The same binding can serve multiple independently configured instances. Its dashboard envelope contains no activity counts, directory metadata or document titles.
+
+No external source or credential is required for the browser component. Use `GET /api/v1/spaces/{spaceId}/document-activity` or MCP `documents_activity_list` to read authorized activity. Anonymous open-edit page saves retain their existing behavior, while activity reads always require a signed-in working-document reader. See [the activity guide](DOCUMENT_ACTIVITY.md), [API details](API.md) and [component templates](COMPONENTS.md#import-a-component-from-a-web-page). This feature is not in the published 0.0.5 image.
 
 ## GitHub Traffic
 

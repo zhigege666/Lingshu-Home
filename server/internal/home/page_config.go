@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func defaultPageConfig() map[string]any {
@@ -258,7 +259,7 @@ func validatePageConfig(config map[string]any) error {
 			return invalid("Invalid binding fields.")
 		}
 		datasetID, ok := binding["datasetId"].(string)
-		if !ok || (datasetID != "local-navigation" && !(strings.HasPrefix(datasetID, "source:") && validID(strings.TrimPrefix(datasetID, "source:")))) {
+		if !ok || (datasetID != "local-navigation" && datasetID != "local-document-activity" && !(strings.HasPrefix(datasetID, "source:") && validID(strings.TrimPrefix(datasetID, "source:")))) {
 			return invalid("Unknown dataset identifier.")
 		}
 		if binding["space"] != "current-page-space" {
@@ -267,6 +268,9 @@ func validatePageConfig(config map[string]any) error {
 		query, ok := object(binding["query"])
 		if !ok {
 			return invalid("Binding query must be an object.")
+		}
+		if datasetID == "local-document-activity" && len(query) != 0 {
+			return invalid("Document activity filters belong to each panel settings.")
 		}
 		if err = validateNavigationQuery(query); err != nil {
 			return err
@@ -291,7 +295,7 @@ func validatePageConfig(config map[string]any) error {
 			return invalid("Invalid panel reference.")
 		}
 		panelID, ok := panel["id"].(string)
-		if !ok || !oneOf(panelID, "builtin/category-navigation", "builtin/search", "builtin/favorites", "builtin/navigation", "builtin/github-traffic", "builtin/calendar", "builtin/weather", "builtin/metrics", "builtin/status") {
+		if !ok || !oneOf(panelID, "builtin/category-navigation", "builtin/search", "builtin/favorites", "builtin/navigation", "builtin/github-traffic", "builtin/calendar", "builtin/weather", "builtin/metrics", "builtin/status", "builtin/document-activity") {
 			return invalid("Panel theme is not registered.")
 		}
 		if raw, exists := view["template"]; exists {
@@ -339,6 +343,11 @@ func validatePageConfig(config map[string]any) error {
 		}
 		allowed := []string{"title"}
 		switch panelID {
+		case "builtin/document-activity":
+			allowed = append(allowed, "presentation", "months", "perspective", "sourceIds", "showSummary", "recentLimit", "detailLayout", "timezone")
+			if err = validateDocumentActivityPanelSettings(settings); err != nil {
+				return err
+			}
 		case "builtin/calendar":
 			allowed = append(allowed, "viewMode")
 		case "builtin/weather":
@@ -495,6 +504,80 @@ func validatePageConfig(config map[string]any) error {
 	}
 	if overlap(base) || overlap(narrow) {
 		return invalid("Grid placements cannot overlap, including locked and breakpoint placements.")
+	}
+	return nil
+}
+
+// Activity settings describe one view. Position and size remain in placements.
+func validateDocumentActivityPanelSettings(settings map[string]any) error {
+	for _, field := range []struct {
+		name   string
+		values []string
+	}{
+		{"presentation", []string{"heatmap", "split", "month"}},
+		{"perspective", []string{"mine", "library"}},
+		{"detailLayout", []string{"auto", "side", "below"}},
+	} {
+		if value, exists := settings[field.name]; exists {
+			valid := false
+			for _, allowed := range field.values {
+				if value == allowed {
+					valid = true
+				}
+			}
+			if !valid {
+				return invalid("Invalid document activity " + field.name + ".")
+			}
+		}
+	}
+	for _, field := range []struct {
+		name   string
+		values []int
+	}{
+		{"months", []int{3, 6, 12}}, {"recentLimit", []int{0, 3, 5}},
+	} {
+		if value, exists := settings[field.name]; exists {
+			number, ok := integer(value, 0, 12)
+			valid := false
+			for _, allowed := range field.values {
+				if ok && number == allowed {
+					valid = true
+				}
+			}
+			if !valid {
+				return invalid("Invalid document activity " + field.name + ".")
+			}
+		}
+	}
+	if value, exists := settings["showSummary"]; exists {
+		if _, ok := value.(bool); !ok {
+			return invalid("Document activity showSummary must be a boolean.")
+		}
+	}
+	if value, exists := settings["timezone"]; exists {
+		zone, ok := value.(string)
+		if !ok || zone == "" || zone == "Local" || len(zone) > 100 {
+			return invalid("Invalid document activity timezone.")
+		}
+		if zone != "local" {
+			if _, err := time.LoadLocation(zone); err != nil {
+				return invalid("Use an IANA document activity timezone or local.")
+			}
+		}
+	}
+	if value, exists := settings["sourceIds"]; exists {
+		ids, ok := value.([]any)
+		if !ok || len(ids) > 100 {
+			return invalid("Document activity sourceIds must contain at most 100 directory IDs.")
+		}
+		seen := map[string]bool{}
+		for _, value := range ids {
+			id, ok := value.(string)
+			if !ok || !validID(id) || seen[id] {
+				return invalid("Document activity sourceIds must contain unique directory IDs.")
+			}
+			seen[id] = true
+		}
 	}
 	return nil
 }

@@ -4,7 +4,7 @@ import { ApiError, request, messageOf } from '../core/api'
 import { t } from '../core/i18n'
 import type { PageConfig, Space } from '../core/types'
 import type { SourceInfo } from '../admin/IntegrationsPanel'
-import { addPagePanel, panelContracts, resizePagePanel, type ComposerSource } from '../home/composition'
+import { documentActivitySource, addPagePanel, panelContracts, resizePagePanel, type ComposerSource } from '../home/composition'
 import { componentTemplateExample, templateRenderers } from './component-template-examples'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -60,12 +60,13 @@ export default function WidgetImportDialog({ spaceId, space, canCreateSource = f
   useEffect(() => () => { generation.current++; pending.current?.abort() }, [])
   const local: ComposerSource = { id: '', name: t('本地书签', 'Local bookmarks'), datasetId: 'local-navigation', schemaId: 'navigation.collection', schemaVersion: 1, enabled: true }
   const loaded = updatedSources || sources
-  const available = loaded.some(source => source.datasetId === local.datasetId) ? loaded : [local, ...loaded]
+  const available = [local, documentActivitySource, ...loaded].filter((source, index, all) => all.findIndex(item => item.datasetId === source.datasetId) === index)
   const compatible = preview ? available.filter(source => matches(source, preview)) : []
   const currentSource = compatible.find(source => source.datasetId === sourceID)
   const schemaNames: Record<string, string> = {
     'navigation.collection': t('书签', 'Bookmarks'), 'github.traffic': 'GitHub Traffic',
     'calendar.events': t('日程', 'Calendar'), 'weather.forecast': t('天气', 'Weather'),
+    'documents.activity': t('文档活动', 'Document activity'),
     'metrics.summary': t('统计指标', 'Metrics'), 'status.collection': t('服务状态', 'Service status')
   }
   function stop() {
@@ -226,7 +227,7 @@ export default function WidgetImportDialog({ spaceId, space, canCreateSource = f
           <div><dt>{t('来源', 'Source')}</dt><dd>{preview.sourceUrl || filename || t('粘贴的 JSON', 'Pasted JSON')}</dd></div>
         </dl>
         <p className="widget-import-note">{t('使用 Home 内置组件并随当前页面主题显示，不执行外部脚本。模板本身不会创建连接或开始采集数据。', 'Uses a component bundled with Home and the current page theme. No external scripts execute. The template itself does not create connections or start data collection.')}</p>
-        {compatible.length ? <Field label={t('数据来源', 'Data source')} hint={t('{count} 个来源与此格式兼容', '{count} sources match this format', { count: compatible.length })}>
+        {preview.manifest.renderer !== 'builtin/document-activity' && <>{compatible.length ? <Field label={t('数据来源', 'Data source')} hint={t('{count} 个来源与此格式兼容', '{count} sources match this format', { count: compatible.length })}>
           <StyledSelect value={sourceID} disabled={busy} onValueChange={setSourceID} options={[
             { value: '', label: t('选择数据来源', 'Choose a data source') },
             ...compatible.map(source => ({ value: source.datasetId, label: (source.name || t('本地书签', 'Local bookmarks')) + (source.enabled === false ? t(' · 已停用', ' · Disabled') : '') }))
@@ -237,7 +238,7 @@ export default function WidgetImportDialog({ spaceId, space, canCreateSource = f
           {canCreateSource && space ? <Button type="button" variant="outline" disabled={busy} onClick={() => setSourceOpen(true)}><Plus size={15}/>{t('创建兼容来源', 'Create a compatible source')}</Button> : !compatible.length && <p className="widget-import-note">{t('请先登录有编辑权限的账号以创建来源，或在管理中心完成设置后刷新此列表。模板输入仍会保留。', 'Sign in with edit access to create a source, or configure one in admin and refresh this list. Your template input remains here.')}</p>}
           <Button type="button" variant="outline" disabled={busy} onClick={() => { void refreshSources() }}><RefreshCw size={15}/>{t('刷新数据来源', 'Refresh data sources')}</Button>
         </div>
-        {sourceNotice && <p className="widget-import-note" role="status">{sourceNotice}</p>}
+        {sourceNotice && <p className="widget-import-note" role="status">{sourceNotice}</p>}</>}
         <details><summary>{t('来源记录', 'Provenance record')}</summary><p>{preview.manifest.id}</p><code>{preview.sha256}</code>
           <p>{t('摘要用于记录本次模板内容，不代表作者身份或安全认证。', 'The digest records this template content; it does not certify the publisher or its safety.')}</p>
         </details>

@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.5 Go implementation in `server/`, including the file-backed library and direct HTTPS. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.5 Go implementation in `server/`, including the file-backed library and direct HTTPS, plus the explicitly marked unreleased document-activity additions. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Requests, authentication and errors
 
@@ -66,7 +66,7 @@ An ownerless instance supplies `owner:{username,displayName,password}` when swit
 
 Usernames contain 3–40 ASCII letters, digits, dots, underscores or hyphens, and are unique ignoring case. Passwords contain 10–128 characters and cannot be entirely whitespace. Display names and site names are limited to 80 characters. Passwords use Argon2id with 64 MiB memory, three iterations, one lane, a random 16-byte salt and a 32-byte derived hash.
 
-Bootstrap capabilities distinguish the built-in theme package (`builtin`), its full-page exports (`builtin/dashboard` and `builtin/ios`), and its nine panel exports. Supported external delivery modes are `push` and `poll`. Local navigation is authoritative application data, not an external delivery adapter.
+Bootstrap capabilities distinguish the built-in theme package (`builtin`), its full-page exports (`builtin/dashboard` and `builtin/ios`), and its panel exports (ten with the unreleased document-activity panel). Supported external delivery modes are `push` and `poll`. Local navigation and local document activity are application data, not external delivery adapters.
 
 ### Instance language
 
@@ -171,6 +171,8 @@ For `local-navigation`, `receivedAt` and `lastSuccessAt` describe the current su
 
 External snapshots use `datasetId:"source:<sourceId>"`. Their navigation records include `externalId` and `sourceId`, and rendered IDs are namespaced as `source:<sourceId>:<externalId>`. Snapshot freshness can be `fresh`, `stale` or `disabled`. Optional `meta.lastError` is a safe `{code,message,at}` from the latest failed refresh while successful data remains unchanged. Optional `meta.attribution` is adapter-owned `{name,url,license,licenseUrl}`; generic pushed weather does not receive an Open-Meteo attribution. A source without a snapshot does not inject a fake empty dataset; its alias can be absent from a dashboard while local navigation remains available.
 
+The unreleased `local-document-activity` binding uses `schemaId:"documents.activity"`, `schemaVersion:1`. Its dashboard envelope is only a renderer marker: `revision:"1"` and `data:{}`, with read-time metadata. It contains no activity counts, dates, document titles or directory details, including in public dashboards. This revision/freshness does not represent activity freshness. The component obtains authorized records through the separate [document-activity endpoint](#document-activity-unreleased); adding a binding does not grant permission to those records.
+
 ## Batch bookmark organization
 
 Version 0.0.2 adds `POST /spaces/{spaceId}/links/batch`; this route is not available in 0.0.1. Use the navigation dataset revision returned by `GET /spaces/{spaceId}/navigation`, not the page revision:
@@ -236,7 +238,7 @@ There are at most 32 bindings and 32 views. Empty bindings, views and placements
 
 ### Built-in page themes and link appearance
 
-Both bundled page themes accept Schema 2, the regions-grid layout, all nine built-in panels, light/dark/system color modes, both content densities, and header/footer content with all three alignments. Bootstrap advertises the supported page themes. No remote theme URL or executable package is accepted.
+Both bundled page themes accept Schema 2, the regions-grid layout, all built-in panels (including the unreleased document-activity panel), light/dark/system color modes, both content densities, and header/footer content with all three alignments. Bootstrap advertises the supported page themes. No remote theme URL or executable package is accepted.
 
 | Theme ID | Interface name | Default `linkAppearance` |
 | --- | --- | --- |
@@ -279,7 +281,9 @@ The homepage path is **Edit page → select Bookmarks/Favorites → Component co
 
 ### Panels and bindings
 
-Built-in panels are category navigation, search, favorites, navigation, GitHub Traffic, calendar, weather, metrics and service status. Navigation/category/favorites require `collection`; Traffic uses `traffic`, calendar uses `events`, weather uses `weather`, metrics uses `metrics`, and status uses `status`; search has no dataset input. Renderer/schema mappings, component settings, template preview and source limits are specified in [COMPONENTS.md](COMPONENTS.md). Every alias must exist and expose the panel's supported dataset schema. The same authorized dataset can feed multiple instances. `interactionScope` connects frontend filtering interactions and grants no additional data access. When provided, it is a nonempty string of at most 80 characters. An omitted scope is independent and falls back to that view’s ID.
+Built-in panels are category navigation, search, favorites, navigation, GitHub Traffic, calendar, weather, metrics, service status and the unreleased document activity. Navigation/category/favorites require `collection`; Traffic uses `traffic`, calendar uses `events`, weather uses `weather`, metrics uses `metrics`, status uses `status`, and `builtin/document-activity` uses `activity` with `documents.activity@1`; search has no dataset input. Renderer/schema mappings, component settings, template preview and source limits are specified in [COMPONENTS.md](COMPONENTS.md). Every alias must exist and expose the panel's supported dataset schema. The same authorized dataset can feed multiple instances. `interactionScope` connects frontend filtering interactions and grants no additional data access. When provided, it is a nonempty string of at most 80 characters. An omitted scope is independent and falls back to that view’s ID.
+
+Binding `datasetId` is `local-navigation`, `local-document-activity`, or `source:<sourceId>`. Local activity requires `space:"current-page-space"` and `query:{}`; each activity instance keeps filters in its own settings. A PAT saving this binding through the page API/MCP needs `documents:read` in addition to its page-write grant. Existing anonymous `open_edit` page composition remains available but cannot read working-document activity.
 
 The built-in editor presents scopes as **Search and category linking**:
 
@@ -293,9 +297,13 @@ The built-in editor presents scopes as **Search and category linking**:
 
 A name is part of the persisted scope; no separate group registry or hidden name map is created. The same named scope links its search/category/navigation/favorite instances. An independent search has no other target. Neither a named group nor a shared dataset allows access to a different space.
 
+Activity components use explicit date-linking groups separately: the editor stores `interactionScope:"activity:<name>"` when linked, otherwise each view is independent. The scope is a view field, not a panel setting. Selected dates, current calendar months and open detail drawers remain transient state.
+
 Navigation bindings accept only `categoryIds`, `tags`, `favoritesOnly`, `search`, `sort` and `limit`. Category ID and tag lists contain at most 100 unique entries; IDs are at most 256 characters and tags at most 40. Search is at most 160 characters. Sort is `sortOrder`, `title` or `updatedAt`; limit is 1–10,000. All non-navigation bindings require an empty query. Bindings cannot select another space.
 
 All panels accept an optional title of at most 80 characters. Navigation and favorites independently select `cards` or `directory`, link appearance and the content settings above; navigation supports `groupBy:"category"`. Actual component width, height, order, coordinates and visibility never belong in panel settings; `maxColumns` controls only the component's internal link arrangement.
+
+`builtin/document-activity` accepts `presentation:"heatmap"|"split"|"month"`, `months:3|6|12`, `perspective:"mine"|"library"`, up to 100 unique current-space `sourceIds`, boolean `showSummary`, `recentLimit:0|3|5`, `detailLayout:"auto"|"side"|"below"`, and `timezone:"local"` or an IANA zone, in addition to `title`. The browser resolves the settings value `local` to a concrete timezone before querying; the HTTP/MCP endpoint does not accept that sentinel. Defaults, repeatable presets and the declarative template contract are in [DOCUMENT_ACTIVITY.md](DOCUMENT_ACTIVITY.md). Template import uses renderer `builtin/document-activity` with data schema `documents.activity@1` and binds the local activity marker; it cannot create a directory grant or install a collector.
 
 Category navigation accepts the following optional presentation settings. Existing pages without these keys remain valid and use the defaults; no database migration is needed.
 
@@ -457,7 +465,7 @@ Every tool invocation reloads the current account, permission epoch and token sc
 
 ## File-backed library API
 
-These additions are available since 0.0.5 and require migration 008, applied on first startup. All paths below have the `/api/v1` prefix and retain the existing CSRF/PAT rules. Read responses use `Cache-Control: no-store`.
+The file-backed library is available since 0.0.5 and requires migration 008, applied on first startup. The unreleased activity endpoint additionally requires migration 009. All paths below have the `/api/v1` prefix and retain the existing CSRF/PAT rules. Read responses use `Cache-Control: no-store`.
 
 ### Bookmark usage context
 
@@ -507,8 +515,43 @@ Writes return their resulting document and therefore require both PAT actions `d
 
 Filesystem reads/scans are separated from database transactions; original-file mutations are serialized independently of ordinary navigation updates. File bytes and SQL metadata cannot form one atomic transaction. After a file has been created, replaced, linked or removed, a later operation/finalization failure returns `503 document_index_pending`; inspect the original path and rescan before retrying. File effects are not automatically rolled back; recovery copies retained before destructive changes remain available. Content conflicts return `409 document_version_conflict`; metadata conflicts return `409 document_metadata_conflict`; source-setting conflicts return `409 document_source_version_conflict`, with `currentRevision` where relevant. Metadata saves check the current original's revision and update its index, so an external edit followed by a reload does not require waiting for the next scan before tagging.
 
+### Document activity (unreleased)
+
+`GET /spaces/{spaceId}/document-activity` returns persisted activity for the current space without opening original files or triggering a scan. It requires a signed-in user with access to working documents; a PAT additionally needs `documents:read` and the same space grant. A read-only directory remains readable to an otherwise authorized working-document reader. Access to a public document snapshot does not grant access to draft counts, titles or directory names. A signed-in snapshot-only reader receives `403 document_activity_forbidden`; missing PAT actions receive `403 forbidden`. Anonymous access is rejected. Inaccessible spaces and unknown, disconnected or cross-space source IDs return 404 under the normal resource-hiding rules.
+
+| Parameter | Meaning and default |
+| --- | --- |
+| `from`, `to` | Inclusive `YYYY-MM-DD` dates in the selected timezone, with `from <= to` and at most 367 calendar days. `to` defaults to today in that timezone. `from` defaults to `to` shifted back six calendar months plus one day, using calendar-date arithmetic. |
+| `timezone` | IANA timezone such as `Asia/Shanghai` or `America/New_York`; default `UTC`. `Local` and unknown zones are rejected. Day boundaries follow local daylight-saving transitions. |
+| `perspective` | `mine` (default) or `library`. `mine` selects events attributed to the authenticated account, including its browser, HTTP API and MCP writes. `library` includes all actors and external observations in this authorized space. |
+| `sourceIds` | Optional directory IDs; omission or an empty MCP array selects all enabled directories in the space. HTTP accepts repeated parameters and comma-separated values, for example `sourceIds=<id1>,<id2>&sourceIds=<id1>`; duplicates are removed. MCP accepts a string array. At most 100 supplied IDs; malformed IDs fail validation and unknown, disconnected or cross-space IDs return 404. |
+| `date` | Optional `YYYY-MM-DD` inside the range. Filters only the detail items; `days` and `summary` continue to describe the whole `from`/`to` range. |
+| `limit`, `offset` | Detail pagination: `limit` defaults to 20 and accepts 1–100; `offset` defaults to 0 and accepts 0–1,000,000. |
+
+The response is one object with the following fields. Arrays are empty arrays when there are no matching entries.
+
+| Field | Result contract |
+| --- | --- |
+| `from`, `to`, `timezone`, `perspective` | The effective query values after applying defaults. |
+| `recordedFrom` | Earliest recording baseline among the selected enabled directories, or an earlier known event for this perspective; UTC RFC 3339 timestamp, or `""` if neither exists. It is a recording boundary, not the first day on which this user edited a document. |
+| `days` | Sparse, ascending `[{date,count,created,updated}]` for dates with content activity. Each document ID counts once per local date. Creation and later updates/restorations on the same date count only under `created`; other `restore` events count under `updated`. Thus `created + updated == count`. |
+| `summary` | `{documents,activeDays}`: distinct document IDs with content activity across the entire range, and the number of dates with nonzero content activity. One document edited on two dates contributes one document and two active days. |
+| `items` | `[{documentId,title,relativePath,sourceId,sourceName,date,lastAt,count,actions,origins,status}]`, grouped by document ID and local date, ordered by latest activity descending with a stable document-ID tie-breaker. Titles, paths, source names and `status` reflect the current index; they are not historical name snapshots. `lastAt` is a UTC RFC 3339 instant. `count` is the number of recorded operations in the group; `actions` and `origins` are deduplicated arrays. A `missing` document retains a detail item but has no currently indexed original to open. |
+| `total`, `hasMore` | Total daily document groups after the optional `date` filter, and whether another page follows. These describe detail pagination; they do not truncate or redefine `days` or `summary`. |
+| `sources` | All currently enabled directories readable in this space, even when `sourceIds` selects a subset: `[{id,name,status,lastScanAt,recordedFrom}]`. Each source's `recordedFrom` is its successful scan baseline or `""`. Offline/error sources retain their historical activity and report their current status; disconnected sources and their counts are omitted. Absolute filesystem paths are not returned. |
+
+Only `create`, `update` and `restore` contribute to content activity in `days` and `summary`. `rename`, `delete` and `metadata` also appear in `items`, so a date can have detail operations while its heatmap count is zero. Saving unchanged bytes, changing only file mtime, repeating unchanged metadata or rescanning unchanged files produces no extra event. A real `A → B → A` sequence observed by Home records both content transitions. Recreating an indexed missing path keeps its document ID and records `restore`.
+
+Origins are server-assigned: `web` for browser operations, `api` for ordinary Bearer HTTP operations, `mcp` for MCP dispatch, and `external` for filesystem observations. A Bearer request alone is not an agent label. External events have no inferred actor and do not enter `mine`, including when an Owner manually triggers the scan or a metadata save first observes an external body change. External timestamps record observation time, not file mtime or an inferred authoring time; changes between observations cannot be reconstructed.
+
+The first successful complete scan of a newly connected or upgraded directory establishes a baseline without backfilling its existing files as new activity. Explicit Home changes already recorded before that scan remain visible. Treat dates before `recordedFrom` as unrecorded rather than zero activity, and inspect per-source baselines when combining directories that began recording on different dates. Failed/incomplete scans do not advance a new baseline or fabricate removals. Disconnecting retains stored history; reconnecting unchanged files does not create fresh edits.
+
+Invalid parameters return `400 validation_error`. A query whose selected range, perspective and directories contain more than 250,000 events returns `422 document_activity_window_too_large`, with no partial aggregate. Reduce the date range or selected directories; changing only `date`, `limit` or `offset` does not reduce the full-range aggregation work. The 367-day and 250,000-event limits bound a query, not stored history retention. See [document activity](DOCUMENT_ACTIVITY.md) for component configuration and [activity storage](STORAGE.md#document-activity-storage-unreleased) for persistence and recovery.
+
 ### MCP
 
 `bookmarks_context_update` takes `spaceId,id,input:{contextMarkdown,expectedUpdatedAt}`. The document tools are `documents_list`, `documents_get`, `documents_create`, `documents_update`, `documents_rename`, `documents_delete` and `documents_metadata_update`. Their `spaceId`/`id` arguments and `input` objects follow the HTTP contracts; `documents_list` uses an input object for its filters, and `documents_delete` puts `expectedRevision` in input. Results contain metadata or body as appropriate. Directory grants and publication are deliberately not exposed as agent tools.
+
+The unreleased `documents_activity_list` requires `spaceId` and an `input` object whose optional fields are `from,to,timezone,perspective,sourceIds,date,limit,offset`; use `input:{}` for all defaults. `sourceIds` is an array, not a comma-separated string. It runs the same read handler, permissions, defaults, aggregation, pagination and limits as the HTTP activity endpoint. It returns the same result fields and cannot request another user's `mine` perspective or assign an event origin.
 
 The same HTTPS listener or trusted reverse proxy protects `/api/v1`, `/mcp` and attachment routes. Configure clients with the HTTPS URL directly; do not send a bearer token to HTTP and rely on a redirect. See [transport encryption](TRANSPORT_SECURITY.md) and the [document guide](DOCUMENT_LIBRARY.md).

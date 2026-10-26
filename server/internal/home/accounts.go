@@ -28,7 +28,7 @@ func (a *App) bootstrap(r *Request) (*Response, error) {
 		"datasetSchemas":     []map[string]any{{"id": "navigation.collection", "version": 1}},
 		"pageSchemaVersions": []int{2}, "themePackages": []string{"builtin"},
 		"pageThemes":  []string{"builtin/dashboard", "builtin/ios"},
-		"panelThemes": []string{"builtin/category-navigation", "builtin/search", "builtin/favorites", "builtin/navigation", "builtin/github-traffic", "builtin/calendar", "builtin/weather", "builtin/metrics", "builtin/status"},
+		"panelThemes": []string{"builtin/category-navigation", "builtin/search", "builtin/favorites", "builtin/navigation", "builtin/github-traffic", "builtin/calendar", "builtin/weather", "builtin/metrics", "builtin/status", "builtin/document-activity"},
 		"layoutModes": []string{"regions-grid"}, "authModes": []string{ModeOpenEdit, ModePublicRead, ModePrivateSingle, ModePrivateMulti},
 	}
 	for key, value := range integrationCapabilities() {

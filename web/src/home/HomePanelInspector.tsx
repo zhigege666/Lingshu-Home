@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, Eye, EyeOff, LockKeyhole, Plus, Trash2, UnlockKeyhole, X } from 'lucide-react'
 import { Input } from '../components/ui/input'
 import { NavigationContentFields } from '../components/NavigationContentFields'
+import { DocumentActivityFields } from '../components/DocumentActivityFields'
 import { t } from '../core/i18n'
 import { readCategoryNavigationSettings, viewId } from '../core/presentation'
 import type { PageConfig, Slot, View } from '../core/types'
@@ -44,8 +45,8 @@ function InteractionGroup({ view, views, disabled, onChange }: { view: View; vie
   </div>
 }
 
-export function HomePanelInspector({ config, view, sources, disabled, onChange, onSelect, onError }: {
-  config: PageConfig; view: View; sources: ComposerSource[]; disabled: boolean;
+export function HomePanelInspector({ config, view, sources, spaceId, disabled, onChange, onSelect, onError }: {
+  config: PageConfig; view: View; sources: ComposerSource[]; spaceId?: string; disabled: boolean;
   onChange: (config: PageConfig) => void; onSelect: (selection: HomeSelection) => void; onError: (message: string) => void
 }) {
   const placement = config.layout.placements[view.id]?.base || { kind: 'hidden' }
@@ -120,11 +121,12 @@ export function HomePanelInspector({ config, view, sources, disabled, onChange, 
       <NavigationContentFields settings={view.settings} disabled={disabled} SelectControl={ComposerSelect} CheckControl={ComposerCheck}
         onChange={(key, value) => editView(next => { if (value === undefined) delete next.settings[key]; else next.settings[key] = value })}/>
     </section>}
+    {view.panel.id === 'builtin/document-activity' && <section className="lh-composer-inspector-section"><DocumentActivityFields view={view} views={config.views} spaceId={spaceId} disabled={disabled} SelectControl={ComposerSelect} CheckControl={ComposerCheck} onChange={settings} onScopeChange={scope => editView(next => { if (scope) next.interactionScope = scope; else delete next.interactionScope })}/></section>}
     {view.panel.id === 'builtin/calendar' && <div className="lh-composer-inspector-section"><ComposerSelect label={t('默认日程视图', 'Default calendar view')} value={view.settings.viewMode === 'day' ? 'day' : 'week'} disabled={disabled} onChange={value => settings({ viewMode: value })} options={[{ value: 'day', label: t('日', 'Day') }, { value: 'week', label: t('周', 'Week') }]} /><p className="lh-composer-hint">{t('按来源时区展示全天和跨天日程。', 'Displays all-day and multi-day events in the source time zone.')}</p></div>}
     {view.panel.id === 'builtin/weather' && <div className="lh-composer-inspector-section"><ComposerSelect label={t('显示预报天数', 'Forecast days to show')} value={String(view.settings.forecastDays || 5)} disabled={disabled} onChange={value => settings({ forecastDays: Number(value) })} options={[3, 5, 7].map(value => ({ value: String(value), label: t('{value} 天', '{value} days', { value }) }))} /><p className="lh-composer-hint">{t('地点与采集范围在数据来源中配置。', 'Configure the location and collected range in the data source.')}</p></div>}
     {view.panel.id === 'builtin/metrics' && <div className="lh-composer-inspector-section"><ComposerCheck label={t('显示已定义量程的进度条', 'Show bars for defined metric ranges')} checked={view.settings.showBars !== false} disabled={disabled} onChange={value => settings({ showBars: value })} /></div>}
     {view.panel.id === 'builtin/status' && <div className="lh-composer-inspector-section"><ComposerCheck label={t('显示响应时间', 'Show response times')} checked={view.settings.showLatency !== false} disabled={disabled} onChange={value => settings({ showLatency: value })} /></div>}
-    <div className="lh-composer-inspector-section">
+    {view.panel.id !== 'builtin/document-activity' && <div className="lh-composer-inspector-section">
       <h3>{t('数据与联动', 'Data and linking')}</h3>
       {!search && <ComposerSelect label={t('数据来源', 'Data source')} value={binding?.datasetId || ''} disabled={disabled}
         hint={binding && Object.keys(binding.query).length ? t('当前来源包含已保存的筛选条件。', 'This source includes saved filters.') : undefined}
@@ -134,7 +136,7 @@ export function HomePanelInspector({ config, view, sources, disabled, onChange, 
           ...(!binding ? [{ value: '', label: t('请选择数据来源', 'Choose a data source'), disabled: true }] : [])
         ]} onChange={value => { const source = compatible.find(item => item.datasetId === value); if (source) change(() => bindPagePanel(config, view.id, source)) }} />}
       {linkingPanels.includes(view.panel.id) && <InteractionGroup key={view.id} view={view} views={config.views} disabled={disabled} onChange={value => editView(next => { next.interactionScope = value })} />}
-    </div>
+    </div>}
     <div className="lh-composer-inspector-section lh-composer-delete-actions">
       <ComposerButton disabled={disabled || locked || config.views.length >= 32} onClick={duplicate}><Copy size={15} />{t('复制组件', 'Duplicate component')}</ComposerButton>
       <ComposerButton kind="danger" disabled={disabled || locked} onClick={() => { if (disabled || locked) return; onChange(removePagePanel(config, view.id)); onSelect({ kind: 'page' }) }}><Trash2 size={15} />{t('移除组件', 'Remove component')}</ComposerButton>

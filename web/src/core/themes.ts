@@ -22,7 +22,7 @@ const sharedCapabilities = {
   schemaVersions: [2],
   colorModes: ['light', 'dark', 'system'],
   regions: ['top', 'left', 'main', 'right', 'bottom'],
-  panelIds: ['builtin/category-navigation', 'builtin/search', 'builtin/favorites', 'builtin/navigation', 'builtin/github-traffic', 'builtin/calendar', 'builtin/weather', 'builtin/metrics', 'builtin/status'],
+  panelIds: ['builtin/category-navigation', 'builtin/search', 'builtin/favorites', 'builtin/navigation', 'builtin/github-traffic', 'builtin/calendar', 'builtin/weather', 'builtin/metrics', 'builtin/status', 'builtin/document-activity'],
   chromeRegions: ['header', 'footer'],
   chromeAlignments: ['left', 'center', 'right'],
 } as const

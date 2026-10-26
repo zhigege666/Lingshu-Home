@@ -453,11 +453,22 @@ func (a *App) createDocument(r *Request) (*Response, error) {
 		}
 		r.DocumentFileChanged = true
 		return a.documentTransaction(r, func(rr *Request) (*Response, error) {
+			action, before := "create", ""
+			err := rr.Q.QueryRowContext(rr.HTTP.Context(), a.store.Query("SELECT revision FROM documents WHERE source_id=? AND relative_path=?"), source.ID, in.RelativePath).Scan(&before)
+			if err == nil {
+				// Recreating a previously indexed path preserves its identity.
+				action = "restore"
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return nil, err
+			}
 			if err := a.indexDocument(rr, source, in.RelativePath, body, nowUTC()); err != nil {
 				return nil, err
 			}
 			var id string
 			if err := rr.Q.QueryRowContext(rr.HTTP.Context(), a.store.Query("SELECT id FROM documents WHERE source_id=? AND relative_path=?"), source.ID, in.RelativePath).Scan(&id); err != nil {
+				return nil, err
+			}
+			if err := a.recordDocumentActivity(rr, id, action, "", before, documentHash(body)); err != nil {
 				return nil, err
 			}
 			rr.Params = map[string]string{"spaceId": space.ID, "id": id}
@@ -539,8 +550,16 @@ func (a *App) updateDocument(r *Request) (*Response, error) {
 			r.DocumentFileChanged = true
 		}
 		return a.documentTransaction(r, func(rr *Request) (*Response, error) {
+			if err := a.recordObservedDocumentChange(rr, d, documentHash(old)); err != nil {
+				return nil, err
+			}
 			if err := a.indexDocument(rr, &DocumentSource{ID: d.SourceID, SpaceID: d.SpaceID}, d.RelativePath, body, nowUTC()); err != nil {
 				return nil, err
+			}
+			if string(old) != *in.Content {
+				if err := a.recordDocumentActivity(rr, d.ID, "update", "", documentHash(old), documentHash(body)); err != nil {
+					return nil, err
+				}
 			}
 			return a.getDocument(rr)
 		})
@@ -621,8 +640,17 @@ func (a *App) renameDocument(r *Request) (*Response, error) {
 			return nil, documentFileError(err)
 		}
 		return a.documentTransaction(r, func(rr *Request) (*Response, error) {
+			if err := a.recordObservedDocumentChange(rr, d, documentHash(body)); err != nil {
+				return nil, err
+			}
 			_, err := rr.Q.ExecContext(rr.HTTP.Context(), a.store.Query("UPDATE documents SET relative_path=?,title=?,updated_at=? WHERE id=?"), in.RelativePath, documentTitle(in.RelativePath, body), nowUTC(), d.ID)
 			if err != nil {
+				return nil, err
+			}
+			if err = a.indexDocument(rr, &DocumentSource{ID: d.SourceID, SpaceID: d.SpaceID}, in.RelativePath, body, nowUTC()); err != nil {
+				return nil, err
+			}
+			if err = a.recordDocumentActivity(rr, d.ID, "rename", "", documentHash(body), documentHash(body)); err != nil {
 				return nil, err
 			}
 			return a.getDocument(rr)
@@ -678,11 +706,17 @@ func (a *App) deleteDocument(r *Request) (*Response, error) {
 		}
 		r.DocumentFileChanged = true
 		return a.documentTransaction(r, func(rr *Request) (*Response, error) {
+			if err := a.recordObservedDocumentChange(rr, d, documentHash(body)); err != nil {
+				return nil, err
+			}
 			_, err := rr.Q.ExecContext(rr.HTTP.Context(), a.store.Query("UPDATE documents SET status='missing',published_revision='',published_content='',published_title='',published_path='',published_source_name='',published_at='',published_tags='[]',published_bookmarks='[]' WHERE id=?"), d.ID)
 			if err != nil {
 				return nil, err
 			}
 			if _, err = rr.Q.ExecContext(rr.HTTP.Context(), a.store.Query("DELETE FROM document_published_assets WHERE document_id=?"), d.ID); err != nil {
+				return nil, err
+			}
+			if err = a.recordDocumentActivity(rr, d.ID, "delete", "", documentHash(body), ""); err != nil {
 				return nil, err
 			}
 			return a.getDocument(rr)
@@ -798,6 +832,9 @@ func (a *App) updateDocumentMetadata(r *Request) (*Response, error) {
 				}
 			}
 			if !missingFile {
+				if err = a.recordObservedDocumentChange(rr, current, revision); err != nil {
+					return nil, err
+				}
 				if err = a.indexDocument(rr, &DocumentSource{ID: current.SourceID, SpaceID: current.SpaceID}, current.RelativePath, body, modified); err != nil {
 					return nil, err
 				}
@@ -810,6 +847,11 @@ func (a *App) updateDocumentMetadata(r *Request) (*Response, error) {
 			}
 			for _, id := range ids {
 				if _, err = rr.Q.ExecContext(rr.HTTP.Context(), a.store.Query("INSERT INTO document_bookmarks(document_id,bookmark_id) VALUES(?,?)"), current.ID, id); err != nil {
+					return nil, err
+				}
+			}
+			if !documentActivitySameValues(tags, current.Tags) || !documentActivitySameValues(ids, current.LinkedBookmarkIDs) {
+				if err = a.recordDocumentActivity(rr, current.ID, "metadata", "", revision, revision); err != nil {
 					return nil, err
 				}
 			}
@@ -965,8 +1007,18 @@ func (a *App) restoreDocument(r *Request) (*Response, error) {
 		}
 		r.DocumentFileChanged = true
 		return a.documentTransaction(r, func(rr *Request) (*Response, error) {
+			if expected != "" {
+				if err := a.recordObservedDocumentChange(rr, d, documentHash(old)); err != nil {
+					return nil, err
+				}
+			}
 			if err := a.indexDocument(rr, &DocumentSource{ID: d.SourceID, SpaceID: d.SpaceID}, d.RelativePath, body, nowUTC()); err != nil {
 				return nil, err
+			}
+			if expected == "" || documentHash(old) != documentHash(body) {
+				if err := a.recordDocumentActivity(rr, d.ID, "restore", "", expected, documentHash(body)); err != nil {
+					return nil, err
+				}
 			}
 			return a.getDocument(rr)
 		})

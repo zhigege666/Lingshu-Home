@@ -81,6 +81,7 @@ func (r *Request) documentSpace(write bool) (*Space, bool, error) {
 }
 
 func (a *App) registerDocumentRoutes() {
+	a.route("GET /api/v1/spaces/{spaceId}/document-activity", false, a.listDocumentActivity)
 	a.route("GET /api/v1/spaces/{spaceId}/document-sources", false, a.listDocumentSources)
 	a.route("POST /api/v1/spaces/{spaceId}/document-sources", true, a.createDocumentSource)
 	a.route("PUT /api/v1/spaces/{spaceId}/document-sources/{id}", true, a.updateDocumentSource)

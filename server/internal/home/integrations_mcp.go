@@ -283,7 +283,7 @@ func (a *App) callIntegrationTool(ctx context.Context, request *mcp.CallToolRequ
 	if space := params["spaceId"]; space != "" {
 		query.Set("spaceId", space)
 	}
-	httpRequest := (&http.Request{Method: "POST", Header: request.Extra.Header.Clone(), URL: &url.URL{Path: "/mcp", RawQuery: query.Encode()}}).WithContext(ctx)
+	httpRequest := (&http.Request{Method: "POST", Header: request.Extra.Header.Clone(), URL: &url.URL{Path: "/mcp", RawQuery: query.Encode()}}).WithContext(withDocumentActivityOrigin(ctx, "mcp"))
 	r := &Request{App: a, HTTP: httpRequest, Q: tx, Input: input, Params: params, Bearer: true}
 	r.Settings, err = a.loadSettings(ctx, tx)
 	if err != nil {

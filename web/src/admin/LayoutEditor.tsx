@@ -15,10 +15,11 @@ import { StyledSelect } from '../components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Empty, ErrorMessage, Field, handleFormInvalid, Modal } from '../components/Shared'
 import { InteractionScopeEditor } from './InteractionScopeEditor'
+import { DocumentActivityFields } from '../components/DocumentActivityFields'
 import { NavigationContentFields, type NavigationSelectProps, type NavigationCheckProps } from '../components/NavigationContentFields'
 import { PageChromeEditor, validatePageChrome, type ChromeValidationIssue } from './PageChromeEditor'
 import { PagePreview } from './PagePreview'
-import { addPagePanel, bindPagePanel, panelContracts, panelTitle } from '../home/composition'
+import { addDocumentActivityPanel, documentActivityPresets, addPagePanel, bindPagePanel, panelContracts, panelTitle } from '../home/composition'
 const DiscardChangesDialog = lazy(() => import('../components/DiscardChangesDialog'))
 
 type Source = { id: string; name: string; datasetId: string; schemaId: string }
@@ -167,6 +168,11 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
   }
   function addView() {
     try {
+      if (addType.startsWith('document-activity:')) {
+        const presentation = addType.slice('document-activity:'.length) as 'heatmap' | 'split' | 'month'
+        const added = addDocumentActivityPanel(config, presentation)
+        setConfig(added.config); setSelectedId(added.id); setError(''); return
+      }
       const schema = panelContracts[addType]?.schema
       const source = schema && schema !== 'navigation.collection' ? sources.find(item => item.schemaId === schema) : undefined
       if (schema && schema !== 'navigation.collection' && !source) { setError(t('请先添加兼容的数据来源。', 'Add a compatible data source first.')); return }
@@ -312,7 +318,7 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
               <h3>{t('页面积木', 'Page panels')}</h3>
               <div className="admin-inline-controls">
                 <StyledSelect aria-label={t('要添加的积木', 'Panel to add')} value={addType} onValueChange={setAddType} disabled={disabled || config.views.length >= 32}
-                  options={panelTypes.map(panel => ({ value: panel.id, label: panelName({ panel }) }))} />
+                  options={[...panelTypes.filter(panel => panel.id !== 'builtin/document-activity').map(panel => ({ value: panel.id, label: panelName({ panel }) })), ...documentActivityPresets.map(preset => ({ value: 'document-activity:' + preset.id, label: preset.name }))]} />
                 <Button type="button" disabled={disabled || config.views.length >= 32} onClick={addView}><Plus size={16} />{t('添加积木', 'Add panel')}</Button>
               </div>
             </div>
@@ -342,7 +348,7 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
                       onValueChange={value => moveTo(selected, value)} options={regions.filter(option => selected.panel.id !== 'builtin/category-navigation' || option.value !== 'main')} /></Field>
                   </div>
                   <div className="admin-form-row equal">
-                    {selected.panel.id !== 'builtin/search' && <Field label={t('数据来源', 'Data source')}><StyledSelect aria-label={t('数据来源', 'Data source')} disabled={disabled} value={datasetId}
+                    {!['builtin/search', 'builtin/document-activity'].includes(selected.panel.id) && <Field label={t('数据来源', 'Data source')}><StyledSelect aria-label={t('数据来源', 'Data source')} disabled={disabled} value={datasetId}
                       onValueChange={value => bindSource(selected, value)} options={[
                         ...(panelContracts[selected.panel.id]?.schema === 'navigation.collection' ? [{ value: 'local-navigation', label: t('当前空间 · 本地导航', 'Current space · Local navigation') }] : []),
                         ...sources.filter(source => source.schemaId === panelContracts[selected.panel.id]?.schema).map(source => ({ value: source.datasetId, label: source.name })),
@@ -360,6 +366,7 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
                     <NavigationContentFields settings={selected.settings} disabled={disabled} SelectControl={NavigationSelectControl} CheckControl={NavigationCheckControl}
                       onChange={(key, value) => edit(next => { const settings = next.views.find(view => view.id === selected.id)!.settings; if (value === undefined) delete settings[key]; else settings[key] = value })}/>
                   </section>}
+                  {selected.panel.id === 'builtin/document-activity' && <section className="admin-inspector-section"><DocumentActivityFields view={selected} views={config.views} spaceId={dashboard.space.id} disabled={disabled} SelectControl={NavigationSelectControl} CheckControl={NavigationCheckControl} onChange={values => updateSettings(selected.id, values)} onScopeChange={scope => edit(next => { const view = next.views.find(item => item.id === selected.id)!; if (scope) view.interactionScope = scope; else delete view.interactionScope })}/></section>}
                   {selected.panel.id === 'builtin/calendar' && <Field label={t('默认日程视图', 'Default calendar view')}><StyledSelect value={selected.settings.viewMode === 'day' ? 'day' : 'week'} disabled={disabled} onValueChange={value => updateSettings(selected.id, { viewMode: value })} options={[{ value: 'day', label: t('日', 'Day') }, { value: 'week', label: t('周', 'Week') }]} /></Field>}
                   {selected.panel.id === 'builtin/weather' && <Field label={t('显示预报天数', 'Forecast days to show')}><StyledSelect value={String(selected.settings.forecastDays || 5)} disabled={disabled} onValueChange={value => updateSettings(selected.id, { forecastDays: Number(value) })} options={[3, 5, 7].map(value => ({ value: String(value), label: t('{value} 天', '{value} days', { value }) }))} /></Field>}
                   {selected.panel.id === 'builtin/metrics' && <label className="admin-check-line"><Checkbox checked={selected.settings.showBars !== false} disabled={disabled} onCheckedChange={value => updateSettings(selected.id, { showBars: value })} />{t('显示已定义量程的进度条', 'Show bars for defined metric ranges')}</label>}

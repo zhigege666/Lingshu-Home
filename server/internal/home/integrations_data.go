@@ -398,6 +398,16 @@ func (a *App) validateIntegrationPageBindings(r *Request, config map[string]any)
 	for alias, raw := range bindings {
 		binding, _ := raw.(map[string]any)
 		datasetID, _ := binding["datasetId"].(string)
+		if datasetID == "local-document-activity" {
+			if err := r.requireAction("documents:read"); err != nil {
+				return err
+			}
+			if r.TokenSourceID != "" {
+				return forbidden()
+			}
+			schemas[alias] = "documents.activity"
+			continue
+		}
 		if datasetID == "local-navigation" {
 			if err := r.requireAction("navigation:read"); err != nil {
 				return err
@@ -438,6 +448,19 @@ func (a *App) validateIntegrationPageBindings(r *Request, config map[string]any)
 		panel, _ := view["panel"].(map[string]any)
 		panelID, _ := panel["id"].(string)
 		inputs, _ := view["inputs"].(map[string]any)
+		if panelID == "builtin/document-activity" {
+			settings, _ := view["settings"].(map[string]any)
+			ids, _ := settings["sourceIds"].([]any)
+			for _, id := range ids {
+				var exists bool
+				if err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT EXISTS(SELECT 1 FROM document_sources WHERE id=? AND space_id=?)"), id, r.param("spaceId")).Scan(&exists); err != nil {
+					return err
+				}
+				if !exists {
+					return invalid("Activity directory does not belong to this page space.")
+				}
+			}
+		}
 		for name, value := range inputs {
 			alias, _ := value.(string)
 			expected := "navigation.collection"

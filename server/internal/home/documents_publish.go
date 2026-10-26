@@ -141,6 +141,9 @@ func (a *App) publishDocument(r *Request) (*Response, error) {
 			assets = append(assets, asset{relative, documentAssetMIME(value), value})
 		}
 		return a.documentTransaction(r, func(rr *Request) (*Response, error) {
+			if err := a.recordObservedDocumentChange(rr, d, documentHash(body)); err != nil {
+				return nil, err
+			}
 			if err := a.indexDocument(rr, &DocumentSource{ID: d.SourceID, SpaceID: d.SpaceID}, d.RelativePath, body, info.ModTime().UTC().Format("2006-01-02T15:04:05.999999999Z07:00")); err != nil {
 				return nil, err
 			}

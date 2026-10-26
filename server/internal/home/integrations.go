@@ -147,11 +147,11 @@ func integrationRevision(s string) (int64, error) {
 }
 func integrationCapabilities() map[string]any {
 	return map[string]any{
-		"sourceKinds":     []string{"local-navigation", "external-push", "github-traffic", "calendar-ics", "weather-open-meteo", "external-json"},
+		"sourceKinds":     []string{"local-navigation", "local-document-activity", "external-push", "github-traffic", "calendar-ics", "weather-open-meteo", "external-json"},
 		"deliveryModes":   []string{"push", "poll"},
 		"componentImport": map[string]any{"manifestVersion": 1, "executable": false, "inputModes": []string{"url", "json"}},
 		"websocket":       map[string]any{"supported": false, "enabled": false},
-		"datasetSchemas":  []map[string]any{{"id": "navigation.collection", "version": 1}, {"id": "github.traffic", "version": 1}, {"id": "calendar.events", "version": 1}, {"id": "weather.forecast", "version": 1}, {"id": "metrics.summary", "version": 1}, {"id": "status.collection", "version": 1}},
+		"datasetSchemas":  []map[string]any{{"id": "navigation.collection", "version": 1}, {"id": "github.traffic", "version": 1}, {"id": "calendar.events", "version": 1}, {"id": "weather.forecast", "version": 1}, {"id": "metrics.summary", "version": 1}, {"id": "status.collection", "version": 1}, {"id": "documents.activity", "version": 1}},
 		"mcp":             map[string]any{"endpoint": "/mcp", "transport": "streamable-http", "authentication": "bearer", "protocolVersions": []string{"2026-07-28", "2025-11-25"}},
 	}
 }

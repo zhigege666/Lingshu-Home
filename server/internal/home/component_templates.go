@@ -63,6 +63,8 @@ func componentTemplateSchema(renderer string) (schema, input string) {
 		return "metrics.summary", "metrics"
 	case "builtin/status":
 		return "status.collection", "status"
+	case "builtin/document-activity":
+		return "documents.activity", "activity"
 	}
 	return "", ""
 }
@@ -140,8 +142,12 @@ func parseComponentTemplate(raw []byte) (ComponentTemplate, error) {
 	}
 	// The normal page validator remains the single authority for settings.
 	config := defaultPageConfig()
+	datasetID := "local-navigation"
+	if manifest.Renderer == "builtin/document-activity" {
+		datasetID = "local-document-activity"
+	}
 	config["bindings"] = map[string]any{"template-data": map[string]any{
-		"datasetId": "local-navigation", "space": "current-page-space", "query": map[string]any{},
+		"datasetId": datasetID, "space": "current-page-space", "query": map[string]any{},
 	}}
 	config["views"] = []any{map[string]any{
 		"id": "template-preview", "panel": map[string]any{"id": manifest.Renderer},

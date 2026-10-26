@@ -8,11 +8,13 @@ export const templateRenderers = () => [
   { value: 'builtin/weather', label: t('天气', 'Weather') },
   { value: 'builtin/metrics', label: t('统计指标', 'Metrics') },
   { value: 'builtin/status', label: t('服务状态', 'Service status') },
-  { value: 'builtin/github-traffic', label: 'GitHub Traffic' }
+  { value: 'builtin/github-traffic', label: 'GitHub Traffic' },
+  { value: 'builtin/document-activity', label: t('文档活动', 'Document activity') }
 ]
 export function componentTemplateExample(renderer: string) {
   const selected = templateRenderers().find(item => item.value === renderer) || templateRenderers()[0]!
-  const settings = selected.value === 'builtin/calendar' ? { viewMode: 'week' }
+  const settings = selected.value === 'builtin/document-activity' ? { presentation: 'heatmap', months: 6, perspective: 'mine', sourceIds: [], showSummary: true, recentLimit: 3, detailLayout: 'auto', timezone: 'local' }
+    : selected.value === 'builtin/calendar' ? { viewMode: 'week' }
     : selected.value === 'builtin/weather' ? { forecastDays: 5 }
     : selected.value === 'builtin/metrics' ? { showBars: true }
     : selected.value === 'builtin/status' ? { showLatency: true } : {}

@@ -1,0 +1,9 @@
+.document-activity-fields { display: grid; gap: 12px; min-width: 0; }
+.document-activity-fields :is(.admin-field,.lh-composer-field) { display: grid; grid-template-columns: minmax(75px, auto) minmax(0, 1fr); align-items: center; column-gap: 12px; margin: 0; }
+.document-activity-fields :is(.admin-field,.lh-composer-field)>:is(label,span) { margin: 0; }
+.document-activity-fields :is(.admin-field,.lh-composer-field) small { grid-column: 2; }
+.document-activity-directories { display: grid; gap: 8px; min-width: 0; max-height: 240px; overflow: auto; padding: 0; margin: 0; border: 0; }
+.document-activity-directories legend { margin-bottom: 8px; font-weight: 600; font-size: 12px; }
+.document-activity-scope-field { display: grid; grid-template-columns: minmax(75px, auto) minmax(0, 1fr); align-items: center; gap: 12px; font-size: 12px; }
+.document-activity-scope-field input { min-width: 0; width: 100%; }
+.document-activity-fields-retry { color: inherit; font: inherit; border: 0; background: transparent; text-align: left; text-decoration: underline; cursor: pointer; }

@@ -4,6 +4,15 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+### Composable document activity
+
+- Add three repeatable homepage presets—document heatmap, heatmap with records, and monthly calendar—using one built-in component. Keep existing pages unchanged and expose the same independent per-instance filters and display settings in the homepage inspector and admin layout editor.
+- Reuse the 24-column placement model, fit-content/fixed heights, drafts, Undo/Redo and explicit revision-checked saves. Link selected dates only through an explicit interaction group; duplicated activity components start independent, and browsing dates/details never writes shared page configuration.
+- Record real document changes with authenticated Web/API/MCP attribution and authorless external observations, including content observed during publication before a scan. Count distinct created/edited/restored documents per local day; retain rename/delete/metadata details separately from heat counts. Initial scans establish a recording baseline without fabricating history from old file timestamps.
+- Read activity through one cached, deduplicated provider and a scoped read-only HTTP/MCP query. Shared dashboards expose only an empty schema marker; anonymous and published-snapshot-only readers receive no working-document activity. Preserve existing anonymous open-edit page configuration behavior.
+- Add authorized document/space deep links into Library, clear stale previews on read failures, and support activity templates through the existing local binding without external-source credentials.
+- Add SQLite/PostgreSQL migration `009_document_activity.sql`, focused regression coverage and [usage/maintenance guidance](docs/DOCUMENT_ACTIVITY.md). These changes are in Unreleased source; the published 0.0.5 image and executable do not include them.
+
 ## [0.0.5] - 2026-10-25
 
 ### File-backed library and bookmark usage notes

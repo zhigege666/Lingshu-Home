@@ -10,6 +10,12 @@ Maintain your links, import browser bookmarks, and compose your homepage from da
 
 The jade folded-house logo is shared throughout the Web interface. [Brand assets, usage and provenance](docs/BRANDING.md) cover the scalable SVG, browser icons and touch icon.
 
+## Unreleased source: document activity components
+
+The current source adds **Document heatmap**, **Heatmap and records**, and **Document calendar** to the component library. Add any preset repeatedly, configure each instance independently, and arrange it with the existing homepage editor. Explicit groups can share a selected date; activity reads retain working-document permissions and never project private draft activity into a public dashboard.
+
+**The published 0.0.5 image and executable do not contain this feature.** It requires a source revision that includes it, or a future release that explicitly lists it. Existing pages stay unchanged. See the [activity guide](docs/DOCUMENT_ACTIVITY.md) for counting rules, configuration, API/MCP access and migration 009, and [Unreleased changes](CHANGELOG.md#unreleased).
+
 ## New in 0.0.5
 
 Version 0.0.5 adds a file-backed document library and optional HTTPS while retaining the existing navigation homepage and deployment defaults:

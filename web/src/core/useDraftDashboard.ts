@@ -24,7 +24,7 @@ export function useDraftDashboard(dashboard: Dashboard, name: string, config: Pa
     .flatMap(view => Object.values(view.inputs)))
   const bindings = Object.entries(config.bindings).filter(([alias]) => visibleAliases.has(alias))
   const missing = [...new Set(bindings
-    .filter(([alias, binding]) => !existingProjection(dashboard, alias, binding) && !Object.keys(binding.query).length && !snapshots[binding.datasetId])
+    .filter(([alias, binding]) => binding.datasetId !== 'local-document-activity' && !existingProjection(dashboard, alias, binding) && !Object.keys(binding.query).length && !snapshots[binding.datasetId])
     .map(([, binding]) => binding.datasetId))].sort()
   const missingKey = JSON.stringify(missing)
   const sourceKey = JSON.stringify(sources.map(source => [source.id, source.datasetId]))
@@ -73,6 +73,10 @@ export function useDraftDashboard(dashboard: Dashboard, name: string, config: Pa
   const preview = useMemo<Dashboard>(() => {
     const datasets: Record<string, Dataset<unknown>> = {}
     for (const [alias, binding] of Object.entries(config.bindings)) {
+      if (binding.datasetId === 'local-document-activity') {
+        datasets[alias] = { datasetId: binding.datasetId, schemaId: 'documents.activity', schemaVersion: 1, revision: '1', data: {}, meta: { sourceUpdatedAt: null, receivedAt: null, lastSuccessAt: null, freshness: 'fresh' } }
+        continue
+      }
       const projected = existingProjection(dashboard, alias, binding)
       const dataset = projected || (!Object.keys(binding.query).length ? snapshots[binding.datasetId] : undefined)
       if (dataset) datasets[alias] = dataset

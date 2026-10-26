@@ -15,15 +15,23 @@ export const panelContracts: Record<string, { schema: string; input: string }> =
   'builtin/calendar': { schema: 'calendar.events', input: 'events' },
   'builtin/weather': { schema: 'weather.forecast', input: 'weather' },
   'builtin/metrics': { schema: 'metrics.summary', input: 'metrics' },
-  'builtin/status': { schema: 'status.collection', input: 'status' }
+  'builtin/status': { schema: 'status.collection', input: 'status' },
+  'builtin/document-activity': { schema: 'documents.activity', input: 'activity' }
 }
 const panelIds = ['builtin/search', ...Object.keys(panelContracts)]
 const localSource = { id: '', name: '', datasetId: 'local-navigation', schemaId: 'navigation.collection' }
+export const documentActivitySource: ComposerSource = { id: '', get name() { return t('文档活动', 'Document activity') }, datasetId: 'local-document-activity', schemaId: 'documents.activity', schemaVersion: 1 }
+export const documentActivityPresets = [
+  { id: 'heatmap', get name() { return t('文档热力图', 'Document heatmap') } },
+  { id: 'split', get name() { return t('热力图与记录', 'Heatmap and records') } },
+  { id: 'month', get name() { return t('文档月历', 'Document calendar') } },
+] as const
 export const panelTitle = (view: Pick<View, 'panel' | 'settings'>): string => typeof view.settings.title === 'string' && view.settings.title.trim()
   ? view.settings.title : ({
     'builtin/search': t('搜索', 'Search'), 'builtin/category-navigation': t('分类导航', 'Categories'),
     'builtin/favorites': t('常用收藏', 'Favorites'), 'builtin/navigation': t('书签导航', 'Bookmarks'),
     'builtin/github-traffic': 'GitHub Traffic', 'builtin/calendar': t('日程', 'Calendar'),
+    'builtin/document-activity': documentActivityPresets.find(item => item.id === view.settings.presentation)?.name || t('文档活动', 'Document activity'),
     'builtin/weather': t('天气', 'Weather'), 'builtin/metrics': t('统计指标', 'Metrics'), 'builtin/status': t('服务状态', 'Service status')
   } as Record<string, string>)[view.panel.id] || view.panel.id
 
@@ -56,7 +64,7 @@ function defaultPlacement(config: PageConfig, view: View, region?: Region): Page
   const search = view.panel.id === 'builtin/search', category = view.panel.id === 'builtin/category-navigation'
   const target = region || (search || category ? 'top' : 'main')
   if (target === 'main') {
-    const dataPanelIds = ['builtin/calendar', 'builtin/weather', 'builtin/metrics', 'builtin/status']
+    const dataPanelIds = ['builtin/calendar', 'builtin/weather', 'builtin/metrics', 'builtin/status', 'builtin/document-activity']
     const dataPanel = dataPanelIds.includes(view.panel.id)
     let y = gridBottom(config), x = 0
     if (dataPanel) {
@@ -83,11 +91,11 @@ function defaultPlacement(config: PageConfig, view: View, region?: Region): Page
 
 function requireSource(panelId: string, source: ComposerSource): void {
   const schema = panelContracts[panelId]?.schema
-  if (source.schemaId !== schema) throw new Error(t('请选择与组件匹配的数据来源。', 'Choose a data source compatible with this component.'))
+  if (source.schemaId !== schema || panelId === 'builtin/document-activity' && source.datasetId !== 'local-document-activity') throw new Error(t('请选择与组件匹配的数据来源。', 'Choose a data source compatible with this component.'))
 }
 
 /** These operations only return page drafts. They never write or remove source data. */
-export function addPagePanel(config: PageConfig, panelId: string, source: ComposerSource = localSource, id = viewId()): { config: PageConfig; id: string } {
+export function addPagePanel(config: PageConfig, panelId: string, source: ComposerSource = panelId === 'builtin/document-activity' ? documentActivitySource : localSource, id = viewId()): { config: PageConfig; id: string } {
   if (!panelIds.includes(panelId)) throw new Error(t('此组件暂不支持。', 'This component is not supported.'))
   if (config.views.length >= COMPOSER_PANEL_LIMIT) throw new Error(t('每页最多 32 个组件。', 'Each page supports up to 32 components.'))
   if (config.views.some(view => view.id === id)) throw new Error(t('组件标识重复，请重试。', 'The component identifier already exists. Try again.'))
@@ -99,12 +107,20 @@ export function addPagePanel(config: PageConfig, panelId: string, source: Compos
     ...(search || source.schemaId === 'navigation.collection' ? { interactionScope: 'primary-navigation' } : {}),
     settings: category ? { ...defaultCategoryNavigationSettings } : panelId === 'builtin/navigation' ? { variant: 'cards', groupBy: 'category' }
       : panelId === 'builtin/favorites' ? { variant: 'cards' }
+      : panelId === 'builtin/document-activity' ? { presentation: 'heatmap', months: 6, perspective: 'mine', sourceIds: [], showSummary: true, recentLimit: 3, detailLayout: 'auto', timezone: 'local' }
       : panelId === 'builtin/calendar' ? { viewMode: 'week' } : panelId === 'builtin/weather' ? { forecastDays: 5 }
       : panelId === 'builtin/metrics' ? { showBars: true } : panelId === 'builtin/status' ? { showLatency: true } : {}
   }
   next.layout.placements[id] = defaultPlacement(next, view)
   next.views.push(view)
   return { config: next, id }
+}
+
+export function addDocumentActivityPanel(config: PageConfig, presentation: 'heatmap' | 'split' | 'month', id = viewId()): { config: PageConfig; id: string } {
+  const added = addPagePanel(config, 'builtin/document-activity', documentActivitySource, id)
+  Object.assign(added.config.views.find(view => view.id === id)!.settings, { presentation, recentLimit: presentation === 'heatmap' ? 3 : 0 })
+  if (presentation === 'split') added.config = resizePagePanel(added.config, id, { w: 24 })
+  return added
 }
 
 export function removePagePanel(config: PageConfig, id: string): PageConfig {
@@ -121,6 +137,7 @@ export function duplicatePagePanel(config: PageConfig, id: string, newId = viewI
   if (config.views.length >= COMPOSER_PANEL_LIMIT) throw new Error(t('每页最多 32 个组件。', 'Each page supports up to 32 components.'))
   if (config.views.some(item => item.id === newId)) throw new Error(t('组件标识重复，请重试。', 'The component identifier already exists. Try again.'))
   const next = structuredClone(config), copy = { ...structuredClone(view), id: newId }
+  if (copy.panel.id === 'builtin/document-activity') delete copy.interactionScope
   const previous = config.layout.placements[id]?.base
   const region = previous && previous.kind !== 'hidden' ? previous.region : undefined
   next.layout.placements[newId] = defaultPlacement(next, copy, region)
