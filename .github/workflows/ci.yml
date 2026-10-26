@@ -103,13 +103,18 @@ jobs:
         run: node tests/composer_operations.cjs
       - name: Draft undo and redo invariants
         run: node tests/draft_history_core.test.mjs
-      - name: Browser routing, dashboard presets, startup space and navigation appearance
+      - name: Frontend routing, dashboard, navigation and document activity invariants
         run: |
           node tests/endpoint_routing_core.test.mjs
           node tests/dashboard_presets_core.test.mjs
           node tests/space_selection_core.test.mjs
           node tests/navigation_appearance_core.test.mjs
           node tests/library_links_core.test.mjs
+          node tests/library_navigation_core.test.mjs
+          node tests/document_activity_core.test.mjs
+          node tests/navigation_folder_core.test.mjs
+          node tests/navigation_inline_core.test.mjs
+          node tests/session_requests_core.test.mjs
       - name: Original Go license and verified fallback regressions
         working-directory: server
         run: go test ../scripts/collect_go_licenses.go ../scripts/collect_go_licenses_test.go
@@ -131,6 +136,10 @@ jobs:
           createdb lingshu_ownerless
           createdb lingshu_documents
           createdb lingshu_bookmark_context
+          createdb lingshu_storage
+          createdb lingshu_storage_http
+          createdb lingshu_storage_container
+          createdb lingshu_storage_container_env
       - name: PostgreSQL core, integrations, icons, components and migration regressions
         working-directory: server
         env:
@@ -142,6 +151,7 @@ jobs:
           LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_component_migration?sslmode=disable
           LINGSHU_TEST_DOCUMENT_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_documents?sslmode=disable
           LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_bookmark_context?sslmode=disable
+          LINGSHU_TEST_STORAGE_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_storage?sslmode=disable
         run: |
           : "${LINGSHU_TEST_POSTGRES_URL:?core test database is required}"
           : "${LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL:?integrations test database is required}"
@@ -151,6 +161,7 @@ jobs:
           : "${LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL:?component migration test database is required}"
           : "${LINGSHU_TEST_DOCUMENT_POSTGRES_URL:?document library test database is required}"
           : "${LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL:?bookmark context test database is required}"
+          : "${LINGSHU_TEST_STORAGE_POSTGRES_URL:?storage bootstrap and profile test database is required}"
           go test -count=1 -v ./...
       - name: SQLite HTTP acceptance and process restart
         run: python3 scripts/validate_http.py --provider sqlite --output-dir .runtime/ci-sqlite
@@ -159,10 +170,18 @@ jobs:
           LINGSHU_HTTP_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_http?sslmode=disable
           LINGSHU_OWNERLESS_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_ownerless?sslmode=disable
         run: python3 scripts/validate_http.py --provider postgres --output-dir .runtime/ci-postgres
+      - name: Storage selection, recovery and process restart
+        env:
+          LINGSHU_STORAGE_ACCEPTANCE_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_storage_http?sslmode=disable
+        run: python3 scripts/validate_storage.py --binary dist/lingshu-home --postgres --output-dir .runtime/ci-storage
       - name: Build and exercise Docker image
+        env:
+          LINGSHU_CONTAINER_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_storage_container?sslmode=disable
+          LINGSHU_CONTAINER_ENV_POSTGRES_URL: postgres://home_ci:isolated_ci_database_only@127.0.0.1:5432/lingshu_storage_container_env?sslmode=disable
         run: |
           docker build --network=host -t lingshu-home:ci .
           python3 scripts/check_container.py --image lingshu-home:ci
+          python3 scripts/validate_storage_container.py --image lingshu-home:ci --output .runtime/ci-storage-container/summary.json
       - name: Save credential-free test summaries
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

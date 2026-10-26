@@ -1,6 +1,8 @@
+import { navigationFolderPage, navigationGroupPreview } from '../core/navigation-folder'
+import './navigation-folder.css'
 import { ArrowUpRight, Bookmark, ChevronDown, ChevronLeft, ChevronRight, Folder, PanelLeftClose, PanelLeftOpen, Search, Star, X } from 'lucide-react';
 import { memo, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import { Tooltip } from 'radix-ui';
+import { Dialog as DialogPrimitive, Tooltip } from 'radix-ui';
 import type { Category, NavLink, NavigationData } from '../core/types';
 import type { LinkAppearance } from '../core/themes';
 import { IconAsset } from '../components/IconAsset';
@@ -227,6 +229,70 @@ const BookmarkItem = memo(function BookmarkItem({ link, directory, presentation,
   </article>;
 });
 
+
+type NavigationFolderTheme = { style: CSSProperties; theme?: string; pageTheme?: string; density?: string }
+function navigationFolderTheme(element: HTMLElement | null): NavigationFolderTheme {
+  const home = element?.closest<HTMLElement>('.lh-home'), hostWindow = element?.ownerDocument.defaultView
+  const values: Record<string, string> = {}
+  if (element && hostWindow) {
+    const computed = hostWindow.getComputedStyle(element)
+    for (let index = 0; index < computed.length; index++) { const name = computed.item(index); if (name.startsWith('--lh-')) values[name] = computed.getPropertyValue(name) }
+  }
+  return { style: values as CSSProperties, theme: home?.dataset.theme, pageTheme: home?.dataset.pageTheme, density: home?.dataset.density }
+}
+function NavigationGroup({ group, presentation, variant, linkAppearance, favorites, matching, canEdit, onFavorite, pending }: {
+  group: { id: string; name: string; icon: string; links: NavigationLink[] }; presentation: NavigationAppearanceSettings;
+  variant: 'cards' | 'directory'; linkAppearance: LinkAppearance; favorites: boolean; matching: boolean;
+  canEdit: boolean; onFavorite: (link: NavigationLink) => void; pending?: string;
+}) {
+  const locale = getLocale(), { preview, viewportWindow } = useHomeEnvironment()
+  const groupElement = useRef<HTMLElement>(null), trigger = useRef<HTMLButtonElement>(null), search = useRef<HTMLInputElement>(null), scrollBody = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [page, setPage] = useState(1)
+  const [folderTheme, setFolderTheme] = useState<NavigationFolderTheme>({ style: {} })
+  const visible = useMemo(() => navigationGroupPreview(group.links, favorites ? 0 : presentation.groupPreviewCount), [group.links, favorites, presentation.groupPreviewCount])
+  const folder = useMemo(() => navigationFolderPage(group.links, query, page, locale), [group.links, query, page, locale])
+  const context = useMemo(() => JSON.stringify([group.id, ...group.links.map(link => link.id)]), [group.id, group.links])
+  useEffect(() => { setOpen(false); setQuery(''); setPage(1) }, [context])
+  useEffect(() => { if (scrollBody.current) scrollBody.current.scrollTop = 0 }, [folder.page, query])
+  const count = (value: number) => value.toLocaleString(locale)
+  function changeOpen(value: boolean) {
+    if (value) { setFolderTheme(navigationFolderTheme(groupElement.current)); setQuery(''); setPage(1) }
+    setOpen(value)
+  }
+  const renderLink = (link: NavigationLink) => <BookmarkItem key={link.id} link={link} directory={variant === 'directory'} presentation={presentation} canEdit={canEdit} onFavorite={onFavorite} pending={pending}/>
+  return <DialogPrimitive.Root open={open} onOpenChange={changeOpen} modal={!preview}>
+    <section ref={groupElement} className={'lh-link-group ' + (favorites ? 'lh-favorites-group' : '') + (group.links.length <= 3 && variant !== 'directory' ? ' is-sparse' : '')}
+      aria-label={group.name} style={{ '--lh-link-count': visible.visible.length } as CSSProperties}>
+      {presentation.showGroupTitles && <div className="lh-group-heading"><span className="lh-group-icon"><NavigationIcon name={group.icon} size={17}/></span><h2>{group.name}</h2>{presentation.showCounts && <span className="lh-count">{count(group.links.length)}</span>}</div>}
+      <div className={'lh-links ' + (variant === 'directory' ? 'is-directory' : '')}>
+        {visible.visible.map(renderLink)}
+        {visible.hiddenCount > 0 && <DialogPrimitive.Trigger asChild><button ref={trigger} type="button" className="lh-folder-more"
+          aria-label={t('打开“{name}”，查看全部 {count} 个书签', 'Open {name}, view all {count} bookmarks', { name: group.name, count: count(group.links.length) })}
+          onClick={event => event.stopPropagation()}>
+          <Folder size={22} aria-hidden="true"/><span className="lh-folder-more-copy"><strong>{t('查看全部', 'View all')}</strong><small>{matching ? t('还有 {count} 个匹配项', '{count} more matches', { count: count(visible.hiddenCount) }) : t('还有 {count} 个书签', '{count} more bookmarks', { count: count(visible.hiddenCount) })}</small></span><ChevronRight size={17} aria-hidden="true"/>
+        </button></DialogPrimitive.Trigger>}
+      </div>
+    </section>
+    {open && <DialogPrimitive.Portal container={viewportWindow?.document.body || trigger.current?.ownerDocument.body}>
+      <div className="lh-home lh-folder-portal" data-theme={folderTheme.theme} data-page-theme={folderTheme.pageTheme} data-density={folderTheme.density} style={folderTheme.style}>
+        <DialogPrimitive.Overlay className="lh-folder-overlay"/>
+        <DialogPrimitive.Content className="lh-folder-dialog lh-navigation-panel" aria-describedby={undefined}
+          data-link-appearance={linkAppearance} data-content-density={presentation.density}
+          data-show-tags={presentation.showTags === null ? undefined : String(presentation.showTags)} data-description-lines={presentation.descriptionLines}
+          onOpenAutoFocus={event => { if (search.current) { event.preventDefault(); search.current.focus({ preventScroll: true }) } }}
+          onCloseAutoFocus={event => { if (trigger.current?.isConnected) { event.preventDefault(); trigger.current.focus({ preventScroll: true }) } }}>
+          <header className="lh-folder-header"><div className="lh-folder-heading"><span className="lh-folder-heading-icon"><Folder size={24} aria-hidden="true"/></span><div><DialogPrimitive.Title>{group.name}</DialogPrimitive.Title><p>{matching ? t('{count} 个匹配的书签', '{count} matching bookmarks', { count: count(group.links.length) }) : t('{count} 个书签', '{count} bookmarks', { count: count(group.links.length) })}</p></div></div><DialogPrimitive.Close asChild><button type="button" className="lh-folder-icon-button" aria-label={t('关闭书签文件夹', 'Close bookmark folder')}><X size={20} aria-hidden="true"/></button></DialogPrimitive.Close></header>
+          <div className="lh-folder-search"><Search size={17} aria-hidden="true"/><input ref={search} type="search" value={query} aria-label={matching ? t('搜索当前匹配结果', 'Search current matches') : t('搜索此分类的书签', 'Search bookmarks in this category')} placeholder={t('搜索名称、网址或标签', 'Search name, URL or tags')} onChange={event => { setQuery(event.target.value); setPage(1) }}/>
+            {query && <button type="button" className="lh-folder-icon-button" aria-label={t('清空分类搜索', 'Clear folder search')} onClick={() => { setQuery(''); setPage(1); search.current?.focus() }}><X size={16} aria-hidden="true"/></button>}
+          </div>
+          <div className="lh-folder-body" ref={scrollBody}>{folder.count ? <div className="lh-folder-grid">{folder.items.map(renderLink)}</div> : <div className="lh-folder-empty"><Search size={26} aria-hidden="true"/><p>{t('没有匹配的书签', 'No matching bookmarks')}</p><button type="button" onClick={() => { setQuery(''); setPage(1); search.current?.focus() }}>{t('清空搜索', 'Clear search')}</button></div>}</div>
+          <nav className="lh-folder-pagination" aria-label={t('分类书签分页', 'Category bookmark pagination')}><span aria-live="polite">{t('{start}–{end} / {count}', '{start}–{end} / {count}', { start: count(folder.start), end: count(folder.end), count: count(folder.count) })}</span><div><button type="button" className="lh-folder-icon-button" disabled={folder.page <= 1} aria-label={t('上一页书签', 'Previous bookmark page')} onClick={() => setPage(folder.page - 1)}><ChevronLeft size={18} aria-hidden="true"/></button><span>{t('第 {page} / {pages} 页', 'Page {page} / {pages}', { page: count(folder.page), pages: count(folder.pageCount) })}</span><button type="button" className="lh-folder-icon-button" disabled={folder.page >= folder.pageCount} aria-label={t('下一页书签', 'Next bookmark page')} onClick={() => setPage(folder.page + 1)}><ChevronRight size={18} aria-hidden="true"/></button></div></nav>
+        </DialogPrimitive.Content>
+      </div>
+    </DialogPrimitive.Portal>}
+  </DialogPrimitive.Root>
+}
+
 export function NavigationPanel({ data, filter, title, variant = 'cards', linkAppearance = 'icon-text', settings, favorites = false, canEdit = false, onFavorite, pending, onClear, emptyActions }: {
   data: NavigationCollection; filter: NavigationFilter; title?: string; variant?: 'cards' | 'directory'; linkAppearance?: LinkAppearance; favorites?: boolean;
   settings?: Record<string, unknown>; canEdit?: boolean; onFavorite: (link: NavigationLink) => void; pending?: string; onClear?: () => void;
@@ -260,10 +326,6 @@ export function NavigationPanel({ data, filter, title, variant = 'cards', linkAp
     data-description-lines={presentation.descriptionLines}
     style={{ '--lh-max-columns': presentation.maxColumns || undefined, '--lh-description-lines': presentation.descriptionLines || 1 } as CSSProperties}>
     {title && !favorites && <div className="lh-panel-heading lh-custom-panel-title"><h2>{title}</h2>{presentation.showCounts && <span>{t('{count} 个链接', '{count} links', { count: links.length.toLocaleString(locale) })}</span>}</div>}
-    {groups.map(group => <section className={`lh-link-group ${favorites ? 'lh-favorites-group' : ''}${group.links.length <= 3 && variant !== 'directory' ? ' is-sparse' : ''}`} key={group.id} aria-label={group.name}
-      style={{ '--lh-link-count': group.links.length } as CSSProperties}>
-      {presentation.showGroupTitles && <div className="lh-group-heading"><span className="lh-group-icon"><NavigationIcon name={group.icon} size={17} /></span><h2>{group.name}</h2>{presentation.showCounts && <span className="lh-count">{group.links.length.toLocaleString(locale)}</span>}</div>}
-      <div className={`lh-links ${variant === 'directory' ? 'is-directory' : ''}`}>{group.links.map(link => <BookmarkItem key={link.id} link={link} directory={variant === 'directory'} presentation={presentation} canEdit={canEdit} onFavorite={onFavorite} pending={pending} />)}</div>
-    </section>)}
+    {groups.map(group => <NavigationGroup key={group.id} group={group} presentation={presentation} variant={variant} linkAppearance={linkAppearance} favorites={favorites} matching={!favorites && links.length !== data.links.length} canEdit={canEdit} onFavorite={onFavorite} pending={pending}/>)}
   </div>;
 }

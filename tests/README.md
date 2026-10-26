@@ -4,7 +4,7 @@
 
 本文记录 HTTP、Go 集成、Docker、开发启动器与发布边界的不同验证范围。正式标签打包、GitHub 托管工作流和浏览器交互的状态单独说明；已经通过的服务测试不替代这些检查。
 
-**当前 `VERSION` 为 0.0.5，文档活动组件属于 Unreleased 源码变更，尚未进入已发布镜像。** 导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
+**当前源码 `VERSION` 为 0.0.6，本轮整合文档活动、登录保持、行内编辑、分类文件夹和存储初始化。** 导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
 
 **0.0.4 开发轮次为分类图标、链接删除、内网获取、弹窗、空间偏好和组件内容设置。** 这些变更已整理到 0.0.4 的日期版本记录；开发时的源码与独立浏览器结果见文末“2026-10-24 开发验收：导航内容与管理交互”，不计入 0.0.2 的既有发布记录。
 
@@ -16,7 +16,7 @@
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
 
-## 文档活动组件：Unreleased 源码
+## 文档活动组件：0.0.6
 
 使用 [README 的源码工具链](../README.md#build-from-source)并安装 `web/` 依赖后，从仓库根目录运行已存在的核心测试：
 
@@ -54,9 +54,9 @@ node tests/browser_document_activity.cjs --allow-fixture-write
 
 预期检查包括三种预设、8/12/24 列、内容/固定高度、独立与显式日期联动、日期网格行列语义、键盘明细、真实色阶、文档深链、未登录和仅发布文档读者的拒绝，以及 2560×1440、1920×1080、1600×900、2560×1080 的真实截图与几何测量。iOS 浅色/深色预览只临时切换，取消后核对原页面不变。执行后查看 `.runtime/document-activity/browser-<run>/report.json` 与截图；只有实际报告通过才记录验收完成。此处列的是运行方法和写入范围，不宣称浏览器写入、恢复、Docker 镜像或发布验证已经通过。
 
-### 2026-10-27 活动组件定向验收记录（Asia/Shanghai）
+### 2026-10-27 活动组件整合前定向验收记录（Asia/Shanghai）
 
-本轮对未发布源码执行最小必要验证，没有运行完整发布流水线。
+以下是活动组件提交 `b45bd711` 的整合前证据，没有运行完整发布流水线；后续登录、存储和批量编辑整合的结果须另行记录，不复用这些通过数。
 
 | 范围 | 实际结果 |
 | --- | --- |
@@ -69,6 +69,75 @@ node tests/browser_document_activity.cjs --allow-fixture-write
 | 实际浏览器 | 三预设添加/复制/配置/保存/重读、实例独立与显式联动、日期键盘与焦点恢复、分页和文档深链、四种桌面尺寸、窄/固定高度、匿名/只读成员拒绝、浅/深色主题预览和取消恢复均有通过记录；应用 pageerror 与 console error 均为 0 |
 
 浏览器验证由保存检查点连续补齐：前一阶段已通过的步骤在续跑中明确标为 `skipped` 并引用原报告，不把多次运行重复累加，也不把早期失败报告改成通过。过程中修复了实际组件的日期网格行语义、浅色月历文字对比度、跨年范围标签与图例文案；另行修正了验收脚本对懒加载空间选择、跨午夜、延迟 tooltip、预览放弃确认和退出清理的处理。中文字体属于测试环境准备。此次记录不代表 Docker 镜像、完整 HTTP 套件、生产数据升级或新版本发布已经完成。
+
+## 登录、行内编辑与存储初始化：0.0.6
+
+纯前端状态回归从仓库根目录运行，不启动服务：
+
+```bash
+node tests/navigation_folder_core.test.mjs
+node tests/navigation_inline_core.test.mjs
+node tests/session_requests_core.test.mjs
+```
+
+它们分别覆盖分类预览与搜索分页、跨列表草稿与字段冲突合并、Cookie 变更请求的顺序与身份切换。服务端的会话策略、续期、个人资料、500 条原子批量编辑、存储选择与迁移兼容由相应 Go 测试覆盖；SQLite 和 PostgreSQL 的执行结果分别记录。
+
+### 存储与旧版本真实进程升级
+
+`validate_storage.py` 为每个场景启动自己的短时回环服务，使用新建私有结果目录。PostgreSQL 必须通过 `LINGSHU_STORAGE_ACCEPTANCE_POSTGRES_URL` 指向单独的空测试库，不能复用 Go、HTTP 或容器套件的数据库：
+
+```bash
+python3 scripts/validate_storage.py --binary dist/lingshu-home --postgres
+```
+
+该入口检查首次明确选择、CSRF、只读连接测试、配置权限、密钥与业务数据在进程重启后保留、显式配置优先级、数据库故障时拒绝重建，以及恢复后仍连接原数据库。错误密码、空白／损坏／外来 SQLite 文件和孤立密钥也包含在拒绝场景中。`--tls-fixture` 仅用于已准备好证书只匹配 `localhost` 的独立 PostgreSQL 实例，并要求 `SSL_CERT_FILE`；它实际验证主机名不匹配、正确证书与显式内网明文选项。
+
+使用经过发行版校验和核对的旧 Linux 二进制可增加真实替换升级：
+
+```bash
+python3 scripts/validate_storage.py \
+  --binary dist/lingshu-home \
+  --legacy-binary /absolute/path/to/verified-old-release/lingshu-home \
+  --postgres --output-dir .runtime/storage-upgrade-new-run
+```
+
+旧二进制先创建未完成初始化和已初始化的两份 SQLite fixture，新二进制继续使用同一数据目录，核对识别、语言、导航、账号／会话与密钥。发布前还需要 `check_document_container.py` 的真实旧镜像升级：分别覆盖 0.0.4 与 0.0.5，后者保留资料库、发布快照和附件，并检查活动首次扫描只建立基线、升级后真实修改才产生事件。Go 迁移测试另外覆盖 010 及旧未发布 `008_session_retention` 的精确桥接、篡改拒绝和事务失败回滚。这些是互补入口，不能用其中一项替代全部升级验证。
+
+### 会话、账号和行内编辑浏览器验收
+
+`browser_session_inline_folder.cjs`、`browser_session_recovery.cjs` 使用 `UI_FIXTURES` 指向私有 JSON，其中 `sqlite`／`postgres` 各自提供独立回环 `url`、`folder`、随机 `username`／`password` 及测试共享空间 `shared`。数据目录必须属于这一份专用 fixture；这些脚本会改变测试会话策略、草稿和导航，并创建、撤销测试登录。恢复脚本还会在严格限定的测试数据库内调整自己的会话时间，不得指向现有业务实例。
+
+```bash
+UI_FIXTURES=/absolute/path/to/private-fixtures.json \
+OUTPUT_DIR=/absolute/path/to/private-results \
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright \
+CHROMIUM_PATH=/absolute/path/to/chromium \
+node tests/browser_session_inline_folder.cjs
+```
+
+恢复脚本使用同一组变量；PostgreSQL 时间调整还需要私有 `PGHOST`／`PGPORT`／`PGUSER`／`PGPASSWORD`、`LINGSHU_PSQL` 和符合 `home_ui_<随机十六进制>` 的 `UI_BROWSER_PG_DATABASE`。`browser_admin_account.cjs` 另行覆盖账号菜单、资料冲突、密码轮换与后续写入，其运行凭据与结果同样保存在测试目录。当前进程和页面草稿保留、真实交互续期、登录失效后的恢复、网络响应丢失读回、跨页保存、冲突处理以及四种桌面尺寸都必须以实际报告核对；截图前需要安装中文字体。
+
+`browser_storage_setup.cjs` 使用 `BASE_SQLITE`、`BASE_PG` 和 `BASE_ERROR` 三个专属回环实例，前两个必须尚未选择存储，第三个配置为测试数据库不可达；`PG_URL` 指向另一个空库，`OUTPUT_DIR` 指定私有结果目录。它检查中英文、只读测试、错误密码、编辑后重新测试、四种尺寸、保存与刷新，以及错误页禁止更换为 SQLite。所有报告和截图只用于本次验收，不提交到源码或发行包。
+
+### 2026-10-27 整合后的发布前自测（Asia/Shanghai）
+
+本轮同时整合活动组件与此前未发布的登录、个人资料、批量编辑、文件夹预览及存储初始化。以下均为整合后的实际执行记录，和上文 `b45bd711` 的活动组件单独验收分开；正式镜像、旧镜像升级和最终下载产物由发布工作流继续验证。
+
+| 范围 | 实际结果与边界 |
+| --- | --- |
+| 迁移与关键后端 | SQLite 及真实 PostgreSQL 16 的定向范围通过，168 个测试／子测试，PostgreSQL 分支没有跳过；另补旧会话 Cookie、原策略版本 CAS、额外约束及字符串默认值不匹配的定向回归 |
+| 旧正式 Linux 版本升级 | 下载并核对 0.0.5 官方 Linux 包的 SHA-256，再实际创建未完成／已完成初始化的两个实例并替换候选；原会话、账号、每个空间完整导航及页面配置／版本、语言与密钥保留 |
+| 存储进程与 PostgreSQL TLS | 14 个场景全部通过，报告确认 `legacyExecuted`、`postgresExecuted`、`tlsFixtureExecuted` 均为 `true`；真实验证证书主机名错误拒绝、`verify-full` 成功及故障后恢复到同一个数据库 |
+| Linux 包默认入口 | 使用候选二进制、实际前端与默认相对路径运行发布包校验器，首次存储选择、只读连接测试、私密配置、初始化、真实进程重启、原密钥与逐字静态资源检查通过；最终从镜像提取的发行包还要再次经过同一校验器 |
+| Python 发布边界 | 完整 89 项通过；随后精确私有文件排除与 Linux 包存储验证变更后，13 项打包回归再次通过 |
+| 前端构建与核心 | TypeScript 与 Vite 生产构建通过；11 个既有组合／草稿／路由／布局／资料库／活动／行内编辑核心脚本通过，另有会话排队与旧读结果隔离的 4 项定向检查通过 |
+| 双数据库浏览器 | SQLite／PostgreSQL 登录与行内编辑 18 项、会话恢复 10 项、账号维护 24 项、首页编辑 36 项通过；包含真实输入、Cookie、跨页草稿、密码首尾空格、冲突及四种桌面尺寸，应用异常为 0 |
+| 双页面身份切换 | 两库追加 6 项通过：共享 Cookie 的两个真实页面换账号后清除旧首页草稿／私有活动，同账号保留表单，延迟旧 bootstrap 不覆盖已完成退出及后续登录的 CSRF；headless Chrome 的窗口焦点通过显式 `focus` 事件刺激，不计作操作系统窗口焦点验证 |
+| 活动组件完整浏览器 | 全新数据库完整 13 项通过、无跳过，16 张截图和 9 次几何检查；覆盖三预设、独立复制／显式联动、日历／键盘／抽屉、分页和深链、四种桌面尺寸、权限拒绝及浅深主题预览取消 |
+| 存储设置浏览器 | 3 个独立 SQLite／PostgreSQL／数据库错误实例，17 项通过；中英文、错误密码、修改后重测、四尺寸、保存刷新及原目标重试均实际执行，应用未捕获异常为 0 |
+| 完整 HTTP 与真实重启 | SQLite／PostgreSQL 各 18 组、2,241 个断言通过，合计 36 组、4,482 个断言；每个提供方分别执行有账号和免账号初始化，再停止／重启原实例复核数据持久化 |
+
+完整 SQLite `-race` 的首次运行发现旧 MCP 工具数量断言未包含新活动查询：其余 1,013 个测试／子测试通过，60 个 PostgreSQL 专用分支因该回合未配置而跳过，没有报告数据竞态。工具目录已改为包含 `documents_activity_list` 的精确 29 个名称集合，失败用例的定向 `-race` 复验通过；这段记录不把首次全量失败改写为全绿。完整 HTTP 预检也发现活动来源、组件和数据集能力列表的旧精确断言遗漏新项，已补齐后另用空数据库完整通过。活动浏览器首次遇到前一焦点残留影响 hover 断言，仅同步普通控件焦点与鼠标位置，保留原断言，随后从空数据库全跑通过。正式整套 CI 与发行产物仍以主分支／标签工作流的实际结果为准。
 
 ## 自动启动、完整验收和进程重启
 
@@ -88,7 +157,7 @@ PostgreSQL 验收使用两个不同的全新专用数据库。在私有环境中
 python3 scripts/validate_http.py --provider postgres
 ```
 
-这些变量与 Go 单元/集成测试使用的八个 PostgreSQL 变量是不同入口，完整对应关系见下文“Go 集成、Docker 与发布工具”。不要重复使用已完成其他套件的数据库，也不要指向个人实例。
+这些变量与 Go 单元/集成测试使用的九个 PostgreSQL 变量是不同入口，完整对应关系见下文“Go 集成、Docker 与发布工具”。不要重复使用已完成其他套件的数据库，也不要指向个人实例。
 
 ## 对已启动的独立测试实例执行
 
@@ -175,18 +244,19 @@ python3 tests/http_smoke.py \
 
 ## Go 集成、Docker 与发布工具
 
-从 `server/` 运行 `go test ./...` 可执行 Go 套件。PostgreSQL 分支需要以下 **八个不同的、全新且可丢弃的测试数据库**；每个变量只供对应套件使用，不能与 HTTP 验收、运行实例或其他套件共用数据库。未设置时对应测试明确跳过，不能把跳过报告为该提供方验证通过。
+从 `server/` 运行 `go test ./...` 可执行 Go 套件。PostgreSQL 分支需要以下 **九个不同的、全新且可丢弃的测试数据库**；每个变量只供对应套件使用，不能与 HTTP 验收、运行实例或其他套件共用数据库。未设置时对应测试明确跳过，不能把跳过报告为该提供方验证通过。
 
 | 环境变量 | 对应覆盖 | CI 专用数据库 |
 | --- | --- | --- |
 | `LINGSHU_TEST_POSTGRES_URL` | 核心权限、页面并发及存储提供方行为 | `lingshu_core` |
 | `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL` | PAT、MCP、外部推送及 GitHub Traffic 持久化 | `lingshu_integrations` |
-| `LINGSHU_TEST_ICONS_POSTGRES_URL` | 图标存储、授权、引用保护、自动任务生命周期、005 迁移，代理设置和 006 迁移，以及一次性语言和 007 迁移回滚 | `lingshu_icons` |
+| `LINGSHU_TEST_ICONS_POSTGRES_URL` | 图标存储、授权、引用保护、自动任务生命周期，005／006／007 迁移，以及登录策略 010 迁移保留与回滚 | `lingshu_icons` |
 | `LINGSHU_TEST_COMPONENTS_POSTGRES_URL` | 新组件数据源的 HTTP 生命周期、快照、凭据与删除保护 | `lingshu_components` |
 | `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL` | `004_component_sources.sql` 升级的数据保留与失败原子性 | `lingshu_component_migration` |
 | `LINGSHU_TEST_NAVIGATION_POSTGRES_URL` | 导航批量变更、无变化、权限、版本冲突、事务回滚及持久化 | `lingshu_navigation` |
-| `LINGSHU_TEST_DOCUMENT_POSTGRES_URL` | 原文件文档库生命周期、空间隔离、历史恢复，以及 008 迁移成功与失败回滚 | `lingshu_documents` |
+| `LINGSHU_TEST_DOCUMENT_POSTGRES_URL` | 原文件文档库、活动与权限，008／009 迁移，以及正式 007／008／009 升级链和旧会话 008 精确桥接、数据保留与失败回滚 | `lingshu_documents` |
 | `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` | 书签使用说明的兼容更新、并发冲突、文档令牌作用域和 MCP 文件 CRUD | `lingshu_bookmark_context` |
+| `LINGSHU_TEST_STORAGE_POSTGRES_URL` | 存储初始化与目标识别、恢复和相关账号行为 | `lingshu_storage` |
 
 组件 HTTP 套件覆盖推送幂等回执、过期请求的版本保护、每源最多 256 条回执的保留、凭据加密与投影隐藏、跨源 URL 变更时禁止隐式转发旧 Bearer 凭据、一次性 ICS 导入重试、更新失败保留旧快照、禁用源后丢弃已开始任务的结果，以及活动组件引用和闲置页面绑定的删除边界。测试停止自己创建的后台 worker，并使用受控 HTTP 响应，不请求真实日历、天气服务或其他公网源。
 
@@ -211,10 +281,11 @@ python3 tests/http_smoke.py \
 : "${LINGSHU_TEST_NAVIGATION_POSTGRES_URL:?set a fresh navigation batch test database}"
 : "${LINGSHU_TEST_DOCUMENT_POSTGRES_URL:?set a fresh document library test database}"
 : "${LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL:?set a fresh bookmark context test database}"
+: "${LINGSHU_TEST_STORAGE_POSTGRES_URL:?set a fresh storage bootstrap test database}"
 go test -count=1 -v ./...
 ```
 
-每次完整重跑应重新准备专用空库，不能用清除已有实例的方式满足测试前提。应用 CI 为八个 Go 套件分别建库并传入八个变量；HTTP 验收仍使用另外两个数据库。CI 定义覆盖这些入口，不表示修改后的工作流已经在 GitHub 托管环境执行通过。
+每次完整重跑应重新准备专用空库，不能用清除已有实例的方式满足测试前提。应用 CI 为九个 Go 套件分别建库并传入九个变量；HTTP 验收仍使用另外两个数据库，存储进程验收再使用一个独立库。CI 定义覆盖这些入口，不表示修改后的工作流已经在 GitHub 托管环境执行通过。
 
 在具备 Docker 的 Linux 环境中，使用新的测试镜像和专用测试卷执行：
 
@@ -223,7 +294,7 @@ docker build --network=host -t lingshu-home:ci .
 python3 scripts/check_container.py --image lingshu-home:ci
 ```
 
-容器检查创建并清理自己的随机命名容器和卷，默认占用回环端口 `5190`，可用 `--port` 选择空闲端口。它检查实际服务及重启后状态，不操作 Compose 中已有的应用卷，也不执行页面视觉或鼠标交互验收。
+容器检查创建并清理自己的随机命名容器和卷，默认占用回环端口 `5190`，可用 `--port` 选择空闲端口。它检查实际服务及重启后状态，不操作 Compose 中已有的应用卷，也不执行页面视觉或鼠标交互验收。CI 另外运行 `scripts/validate_storage_container.py`，用 `LINGSHU_CONTAINER_POSTGRES_URL` 和 `LINGSHU_CONTAINER_ENV_POSTGRES_URL` 指向两个不同的空库，分别检查容器内保存 PostgreSQL 选择和显式环境配置，不允许故障时静默回退到 SQLite。
 
 Python 发布边界、`latest` 推广与 Linux 启动器统一入口为：
 
@@ -255,7 +326,7 @@ python3 -m unittest discover -s tests -p 'test_dev_launcher.py' -v
 
 ## 浏览器交互与实际截图
 
-### 未发布的文件资料库与 HTTPS
+### 文件资料库与 HTTPS（0.0.5 引入，0.0.6 继续覆盖）
 
 文档资料库的后端回归使用临时原文件目录与真实 HTTP/MCP 请求。`TestDocumentLibrarySQLite` 和 `TestDocumentLibraryPostgres` 分别覆盖多个来源聚合、同名文件隔离、读取原文件、外部修改冲突、外部修改后立即保存元数据、正文写回、历史、重命名、删除、恢复、离线保留和解绑。`TestDocumentMigrationPreservesAndRollsBack` 对两种数据库分别验证 001–007 数据保留、008 升级和注入失败后的完整回滚。
 

@@ -16,7 +16,7 @@ import LinkEndpointsEditor, { endpointValidationError } from './LinkEndpointsEdi
 type Common = { dashboard: Dashboard; onClose: () => void; onSaved: (message: string) => Promise<void> }
 const emptyLink: LinkInput = { title: '', url: '', description: '', contextMarkdown: '', categoryId: null, icon: 'lucide:link', iconMode: 'auto', tags: [], isFavorite: false, sortOrder: 0, endpoints: [] }
 function categoryOptions(categories: Category[]) { return categories.map(category => ({ value: category.id, label: categoryLabel(category,categories) })) }
-export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons = true, autoSelectEndpoint = true }: Common & { link: NavLink | null; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean }) {
+export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons = true, autoSelectEndpoint = true, onApplyDraft }: Common & { link: NavLink | null; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean; onApplyDraft?: (input: LinkInput) => void }) {
   const categories = navigationData(dashboard.datasets.navigation)?.categories || []
   const [form,setForm] = useState<LinkInput>(() => link ? linkInput(link) : structuredClone(emptyLink))
   const [tags,setTags] = useState(form.tags.join(', ')); const [busy,setBusy] = useState(false); const [error,setError] = useState(''); const [iconBusy,setIconBusy] = useState(false)
@@ -26,12 +26,13 @@ export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons =
     if (!safeHref(form.url) || form.endpoints.some(item=>!safeHref(item.url))) { setError(t("主入口和其他入口均须使用完整的 HTTP 或 HTTPS 网址。", "The primary and additional URLs must be complete HTTP or HTTPS addresses.")); return }
     const endpointError = endpointValidationError(form.endpoints); if (endpointError) { setError(endpointError); return }
     if (new TextEncoder().encode(form.contextMarkdown || '').length > 64 * 1024) { setError(t('使用说明不能超过 64 KiB。', 'Usage notes must be at most 64 KiB.')); return }
+    if (onApplyDraft) { onApplyDraft({ ...form, iconMode: form.iconMode === 'auto' ? 'auto' : 'manual', title: form.title.trim(), url: form.url.trim(), tags: [...new Set(tags.split(/[,，]/).map(value => value.trim()).filter(Boolean))] }); return }
     setBusy(true)
     try { await request(`/spaces/${dashboard.space.id}/links${link ? '/'+link.id : ''}`,{method:link?'PUT':'POST',body:{...form,expectedUpdatedAt:link?.updatedAt,iconMode:form.iconMode === 'auto' ? 'auto' : 'manual',title:form.title.trim(),url:form.url.trim(),tags:[...new Set(tags.split(/[,，]/).map(t=>t.trim()).filter(Boolean))]}}); await onSaved(form.iconMode === 'auto' && autoFetchIcons ? t('链接已保存；图标在后台获取，刷新后显示。', 'Link saved. Its icon is fetched in the background; refresh to see it.') : link?t("链接已更新", "Link updated"):t("链接已添加", "Link added")) } catch (cause) { setError(messageOf(cause)) } finally { setBusy(false) }
   }
   return <Modal title={link ? t('编辑链接', 'Edit link') : t('添加链接', 'Add link')}
-    description={t('保存到 {name}', 'Save to {name}', { name: dashboard.space.name })}
-    busy={busy || iconBusy} wide className="admin-link-dialog" onClose={onClose}>
+    description={onApplyDraft ? t('先应用到草稿，再通过列表的“保存全部”提交。', 'Apply to the draft, then use Save all in the list.') : t('保存到 {name}', 'Save to {name}', { name: dashboard.space.name })}
+    busy={busy || iconBusy} wide className={'admin-link-dialog' + (onApplyDraft ? ' admin-inline-detail' : '')} onClose={onClose}>
     <form onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}>
       <fieldset disabled={busy || iconBusy || !dashboard.space.canEdit} className="admin-plain-fieldset">
         <div className="admin-link-details">
@@ -46,38 +47,39 @@ export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons =
             <Field label={t('描述', 'Description')} hint={t('选填', 'Optional')}><Textarea maxLength={2000} value={form.description} onChange={e => field('description', e.target.value)}/></Field>
             <div className="admin-form-row equal">
               <Field label={t('标签', 'Tags')} hint={t('使用逗号分隔', 'Separate with commas')}><Input value={tags} onChange={e => setTags(e.target.value)} maxLength={1300}/></Field>
-              <Field label={t('排序', 'Sort order')}><Input type="number" value={form.sortOrder} onChange={e => field('sortOrder', Number(e.target.value))}/></Field>
+              <Field className="admin-field-inline" label={t('排序', 'Sort order')}><Input type="number" value={form.sortOrder} onChange={e => field('sortOrder', Number(e.target.value))}/></Field>
             </div>
             <label className="admin-check-line"><Checkbox checked={form.isFavorite} onCheckedChange={value => field('isFavorite', value)} disabled={busy}/>{t('加入常用收藏', 'Add to favorites')}</label>
           </div>
           <div className="admin-link-icon-panel">
             <IconPicker value={form.icon} onChange={icon => setForm(previous => ({ ...previous, icon, iconMode: 'manual' }))}
               iconMode={form.iconMode || 'manual'} onModeChange={mode => field('iconMode', mode)} autoFetchIcons={autoFetchIcons}
-              spaceId={dashboard.space.id} canEdit={dashboard.space.canEdit} disabled={busy} url={form.url} onBusyChange={setIconBusy}/>
+              spaceId={dashboard.space.id} canEdit={dashboard.space.canEdit} allowLibraryChanges={!onApplyDraft} disabled={busy} url={form.url} onBusyChange={setIconBusy}/>
           </div>
         </div>
-        <Field label={t('使用说明', 'Usage notes')} hint={t('选填 · Markdown · 最多 64 KiB', 'Optional · Markdown · Up to 64 KiB')}>
+        {!onApplyDraft && <Field label={t('使用说明', 'Usage notes')} hint={t('选填 · Markdown · 最多 64 KiB', 'Optional · Markdown · Up to 64 KiB')}>
           <Textarea rows={7} maxLength={65536} value={form.contextMarkdown || ''} onChange={e => field('contextMarkdown', e.target.value)} placeholder={t('记录何时使用、适用场景和相关操作说明…', 'Describe when to use this bookmark and add relevant guidance…')}/>
           <p className="admin-hint">{t('供你和 Agent 阅读。这里的文字不会授予额外权限，也不会自动执行。使用说明与书签具有相同的可见范围。', 'Reference material for you and agents. These notes grant no permissions and do not run automatically. Usage notes have the same visibility as their bookmark.')}</p>
-        </Field>
+        </Field>}
+        {onApplyDraft && <p className="admin-hint">{t('列表保存会保留已有使用说明；请在单条编辑中修改使用说明。', 'List saves preserve existing usage notes. Edit those notes in the individual bookmark editor.')}</p>}
         <LinkEndpointsEditor value={form.endpoints} onChange={endpoints => field('endpoints', endpoints)} disabled={busy || iconBusy || !dashboard.space.canEdit} autoSelectEndpoint={autoSelectEndpoint}/>
         <div className="admin-form-footer">
           <ErrorMessage error={error}/>
           <Button type="button" variant="outline" onClick={onClose}>{t('取消', 'Cancel')}</Button>
-          <Button type="submit">{busy ? t('正在保存…', 'Saving…') : t('保存链接', 'Save link')}</Button>
+          <Button type="submit">{busy ? t('正在保存…', 'Saving…') : onApplyDraft ? t('应用到草稿', 'Apply to draft') : t('保存链接', 'Save link')}</Button>
         </div>
       </fieldset>
     </form>
   </Modal>
 }
-export function CategoryEditor({ dashboard, category, onClose, onSaved }: Common & { category: Category | null }) {
+export function CategoryEditor({ dashboard, category, onClose, onSaved, onApplyDraft }: Common & { category: Category | null; onApplyDraft?: (input: Omit<Category, 'id' | 'spaceId'>) => void }) {
   const categories = navigationData(dashboard.datasets.navigation)?.categories || []
   const [form,setForm] = useState({name:category?.name||'',parentId:category?.parentId||null as string|null,icon:category?.icon||'lucide:folder',sortOrder:category?.sortOrder||0})
   const [busy,setBusy] = useState(false); const [error,setError] = useState(''); const [iconBusy,setIconBusy] = useState(false)
   const forbidden = new Set<string>(category?[category.id]:[]); let growing=true
   while(growing){growing=false;for(const c of categories)if(c.parentId&&forbidden.has(c.parentId)&&!forbidden.has(c.id)){forbidden.add(c.id);growing=true}}
-  async function save(event: FormEvent) { event.preventDefault();if(busy || iconBusy || !dashboard.space.canEdit)return;setBusy(true);setError('');try{await request(`/spaces/${dashboard.space.id}/categories${category?'/'+category.id:''}`,{method:category?'PUT':'POST',body:{...form,name:form.name.trim()}});await onSaved(category?t("分类已更新", "Category updated"):t("分类已添加", "Category added"))}catch(cause){setError(messageOf(cause))}finally{setBusy(false)} }
-  return <Modal title={category?t("编辑分类", "Edit category"):t("添加分类", "Add category")} busy={busy || iconBusy} onClose={onClose}><form onSubmit={save} onInvalidCapture={event=>handleFormInvalid(event,setError)}><fieldset disabled={busy || iconBusy || !dashboard.space.canEdit} className="admin-plain-fieldset"><Field label={t("分类名称", "Category name")}><Input required autoFocus maxLength={80} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><div className="admin-form-row equal"><Field label={t("父分类", "Parent category")}><StyledSelect name="parentId" value={form.parentId||''} onValueChange={value=>setForm({...form,parentId:value||null})} disabled={busy} options={[{value:'',label:t("顶层分类", "Top level")},...categoryOptions(categories.filter(c=>!forbidden.has(c.id)))]}/></Field><Field label={t("排序", "Sort order")}><Input type="number" value={form.sortOrder} onChange={e=>setForm({...form,sortOrder:Number(e.target.value)})}/></Field></div><IconPicker value={form.icon} onChange={icon=>setForm({...form,icon})} spaceId={dashboard.space.id} canEdit={dashboard.space.canEdit} disabled={busy} fallback="lucide:folder" onBusyChange={setIconBusy}/><ErrorMessage error={error}/><div className="admin-form-footer"><Button type="button" variant="outline" onClick={onClose}>{t("取消", "Cancel")}</Button><Button type="submit">{busy?t("正在保存…", "Saving…"):t("保存分类", "Save category")}</Button></div></fieldset></form></Modal>
+  async function save(event: FormEvent) { event.preventDefault();if(busy || iconBusy || !dashboard.space.canEdit)return;if(onApplyDraft){onApplyDraft({...form,name:form.name.trim()});return}setBusy(true);setError('');try{await request(`/spaces/${dashboard.space.id}/categories${category?'/'+category.id:''}`,{method:category?'PUT':'POST',body:{...form,name:form.name.trim()}});await onSaved(category?t("分类已更新", "Category updated"):t("分类已添加", "Category added"))}catch(cause){setError(messageOf(cause))}finally{setBusy(false)} }
+  return <Modal title={category?t("编辑分类", "Edit category"):t("添加分类", "Add category")} className={'admin-category-dialog' + (onApplyDraft ? ' admin-inline-detail' : '')} busy={busy || iconBusy} onClose={onClose}><form onSubmit={save} onInvalidCapture={event=>handleFormInvalid(event,setError)}><fieldset disabled={busy || iconBusy || !dashboard.space.canEdit} className="admin-plain-fieldset"><Field className="admin-field-inline" label={t("分类名称", "Category name")}><Input required autoFocus maxLength={80} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><div className="admin-form-row equal"><Field className="admin-field-inline" label={t("父分类", "Parent category")}><StyledSelect name="parentId" value={form.parentId||''} onValueChange={value=>setForm({...form,parentId:value||null})} disabled={busy} options={[{value:'',label:t("顶层分类", "Top level")},...categoryOptions(categories.filter(c=>!forbidden.has(c.id)))]}/></Field><Field className="admin-field-inline" label={t("排序", "Sort order")}><Input type="number" value={form.sortOrder} onChange={e=>setForm({...form,sortOrder:Number(e.target.value)})}/></Field></div><IconPicker value={form.icon} onChange={icon=>setForm({...form,icon})} spaceId={dashboard.space.id} canEdit={dashboard.space.canEdit} allowLibraryChanges={!onApplyDraft} disabled={busy} fallback="lucide:folder" onBusyChange={setIconBusy}/><ErrorMessage error={error}/><div className="admin-form-footer"><Button type="button" variant="outline" onClick={onClose}>{t("取消", "Cancel")}</Button><Button type="submit">{busy?t("正在保存…", "Saving…"):onApplyDraft?t("应用到草稿", "Apply to draft"):t("保存分类", "Save category")}</Button></div></fieldset></form></Modal>
 }
 export function BookmarkImporter({ dashboard, onClose, onSaved, autoFetchIcons = true }: Common & { autoFetchIcons?: boolean }) {
   const categories = navigationData(dashboard.datasets.navigation)?.categories || []

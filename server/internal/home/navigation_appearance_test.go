@@ -136,3 +136,31 @@ func TestNavigationAppearanceSaveReloadAndRestart(t *testing.T) {
 		t.Fatal("content settings did not survive application restart")
 	}
 }
+
+func TestNavigationCategoryFolderSettings(t *testing.T) {
+	for _, value := range []any{0, 4, 6, 8, 12, 24} {
+		config := cloneConfig(t, defaultPageConfig())
+		for _, raw := range config["views"].([]any) {
+			view := raw.(map[string]any)
+			if view["panel"].(map[string]any)["id"] == "builtin/navigation" {
+				view["settings"].(map[string]any)["groupPreviewCount"] = value
+			}
+		}
+		if err := validatePageConfig(cloneConfig(t, config)); err != nil {
+			t.Fatal(value, err)
+		}
+	}
+	for _, value := range []any{-1, 1, 5, 7, 25, 6.5, "6", nil, true} {
+		config := cloneConfig(t, defaultPageConfig())
+		// The navigation view follows category navigation, search and favorites.
+		config["views"].([]any)[3].(map[string]any)["settings"].(map[string]any)["groupPreviewCount"] = value
+		if err := validatePageConfig(cloneConfig(t, config)); err == nil {
+			t.Fatal("Invalid folder setting accepted", value)
+		}
+	}
+	config := cloneConfig(t, defaultPageConfig())
+	config["views"].([]any)[2].(map[string]any)["settings"].(map[string]any)["groupPreviewCount"] = 6
+	if err := validatePageConfig(cloneConfig(t, config)); err == nil {
+		t.Fatal("Favorites accepted category-only folder setting")
+	}
+}

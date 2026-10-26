@@ -118,7 +118,7 @@ export function HomePanelInspector({ config, view, sources, spaceId, disabled, o
     </div>}
     {links && <section className="lh-composer-inspector-section" data-navigation-content-settings>
       <h3>{t('组件内容', 'Component content')}</h3>
-      <NavigationContentFields settings={view.settings} disabled={disabled} SelectControl={ComposerSelect} CheckControl={ComposerCheck}
+      <NavigationContentFields settings={view.settings} grouped={view.panel.id === 'builtin/navigation'} disabled={disabled} SelectControl={ComposerSelect} CheckControl={ComposerCheck}
         onChange={(key, value) => editView(next => { if (value === undefined) delete next.settings[key]; else next.settings[key] = value })}/>
     </section>}
     {view.panel.id === 'builtin/document-activity' && <section className="lh-composer-inspector-section"><DocumentActivityFields view={view} views={config.views} spaceId={spaceId} disabled={disabled} SelectControl={ComposerSelect} CheckControl={ComposerCheck} onChange={settings} onScopeChange={scope => editView(next => { if (scope) next.interactionScope = scope; else delete next.interactionScope })}/></section>}

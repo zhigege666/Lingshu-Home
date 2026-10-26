@@ -1,12 +1,12 @@
 # Document activity components / 文档活动组件
 
-**Unreleased source feature. The published 0.0.5 image and executable do not contain it.** Build a source revision that includes this feature, or wait for a release that explicitly includes it. Existing pages are preserved; upgrading does not automatically add a component or replace the homepage.
+**Document activity is included in version 0.0.6.** Use its image/executable or build the matching source. The activity store uses migration 009; this release also applies session-retention migration 010 on first start while retaining existing data and document mounts. Existing pages are preserved; upgrading does not automatically add a component or replace the homepage.
 
-**当前为源码中的未发布功能，已发布的 0.0.5 镜像和程序尚未包含。** 使用包含此功能的源码构建，或等待明确包含它的发行版。已有首页不会自动添加组件或套用固定布局。
+**文档活动从 0.0.6 起提供。** 使用该版本镜像／程序或对应源码构建，活动数据使用迁移 009，本版本首次启动还会执行登录保持迁移 010；保留原数据和文档挂载。已有首页不会自动添加组件或套用固定布局。
 
 ## 1 用户体验 / User experience
 
-在首页的**编辑页面 → 组件库**中选择一个预设，也可通过管理中心的页面积木编辑器添加。三种入口属于同一组件，可重复添加，每个实例分别保存自己的显示、目录和时间范围设置。
+在首页的**编辑页面 → 添加组件 → 文档活动**中选择一个预设，也可通过管理中心的页面积木编辑器添加。三种入口属于同一组件，可重复添加，每个实例分别保存自己的显示、目录和时间范围设置。
 
 | 添加入口 / Preset | 展示 / Presentation | 默认宽度 / Width |
 | --- | --- | --- |
@@ -73,7 +73,7 @@ Dashboard projection supplies only an empty `documents.activity` schema marker. 
 
 The component template contract remains manifest version 1: use renderer `builtin/document-activity`, `dataSchema:{"id":"documents.activity","version":1}`, and the settings above. Import binds the local activity source automatically. Templates cannot grant document access, supply executable code or configure a separate activity collector. See [component templates](COMPONENTS.md#import-a-component-from-a-web-page).
 
-Maintenance: migration `009_document_activity.sql` adds the activity store and recording baseline for both SQLite and PostgreSQL. Back up the matching database, instance keys and original document directories before upgrading. Returning to 0.0.5 requires its matching pre-upgrade database/data backup, not only an image-tag change. The complete query, retention and migration details belong to [API](API.md) and [Storage](STORAGE.md).
+Maintenance: version 0.0.6 automatically applies migration `009_document_activity.sql` on first start, adding the activity store and recording baseline for both SQLite and PostgreSQL. Retain the existing data directory, keys, original-file mounts, allowed roots and deployment settings; activity needs no new volume or credential. Back up the matching database, private `storage.json` when present, instance keys and original document directories before upgrading; keep the same explicit database/deployment configuration. The same release also applies session-retention migration 010. Returning to 0.0.5 requires its matching pre-upgrade database/data/configuration backup, not only an image-tag change. The complete query, retention and migration details belong to [API](API.md) and [Storage](STORAGE.md).
 
 ## 3 AI Agent 体验 / AI Agent experience
 

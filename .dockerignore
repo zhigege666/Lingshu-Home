@@ -1,6 +1,7 @@
 # Build copies only the application source, VERSION and bundled public icons.
 # Keep private design material and runtime data outside the build context.
 design
+docs/SESSION_AND_INLINE_EDIT_DESIGN.md
 .runtime
 .git
 .gitnexus

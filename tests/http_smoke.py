@@ -346,7 +346,7 @@ class Suite:
                    {"open_edit", "public_read", "private_single", "private_multi"},
                    "Bootstrap must advertise exactly the four implemented access modes.")
         self.check(set(capabilities.get("sourceKinds", [])) ==
-                   {"local-navigation", "external-push", "github-traffic",
+                   {"local-navigation", "local-document-activity", "external-push", "github-traffic",
                     "calendar-ics", "weather-open-meteo", "external-json"} and
                    set(capabilities.get("deliveryModes", [])) == {"push", "poll"},
                    "Bootstrap must advertise the implemented source kinds and external delivery modes.")
@@ -364,12 +364,13 @@ class Suite:
             "builtin/category-navigation", "builtin/search", "builtin/favorites",
             "builtin/navigation", "builtin/github-traffic",
             "builtin/calendar", "builtin/weather", "builtin/metrics", "builtin/status",
+            "builtin/document-activity",
         }, "Bootstrap panel theme registry is incomplete or reports an unknown panel.")
         self.check({(entry.get("id"), entry.get("version"))
                     for entry in capabilities.get("datasetSchemas", [])} ==
                    {("navigation.collection", 1), ("github.traffic", 1),
                     ("calendar.events", 1), ("weather.forecast", 1),
-                    ("metrics.summary", 1), ("status.collection", 1)},
+                    ("metrics.summary", 1), ("status.collection", 1), ("documents.activity", 1)},
                    "Dataset schemas must be separately versioned from page schemas.")
         self.check(bootstrap.get("version") == health["version"] and bootstrap.get("spaces") == [],
                    "Bootstrap version must match health and an empty instance must expose no spaces.")

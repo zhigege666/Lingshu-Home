@@ -1,5 +1,7 @@
+import { normalizeNavigationGroupPreviewCount } from './navigation-folder.ts'
 /** Content presentation belongs to each navigation/favorites view, not its placement. */
 export type NavigationAppearanceSettings = {
+  groupPreviewCount: number
   maxColumns: number
   urlDisplay: 'fallback' | 'always' | 'hidden'
   descriptionLines: number
@@ -16,6 +18,7 @@ function boundedInteger(value: unknown, min: number, max: number, fallback: numb
 
 export function readNavigationAppearanceSettings(settings: Record<string, unknown> = {}): NavigationAppearanceSettings {
   return {
+    groupPreviewCount: normalizeNavigationGroupPreviewCount(settings.groupPreviewCount),
     maxColumns: boundedInteger(settings.maxColumns, 0, 8, 0),
     urlDisplay: settings.urlDisplay === 'always' || settings.urlDisplay === 'hidden' ? settings.urlDisplay : 'fallback',
     descriptionLines: boundedInteger(settings.descriptionLines, 0, 3, 1),

@@ -6,6 +6,7 @@ __pycache__/
 
 # Private design documents, mockups and working references
 /design/
+/docs/SESSION_AND_INLINE_EDIT_DESIGN.md
 /.runtime/
 **/dist/
 **/wwwroot/

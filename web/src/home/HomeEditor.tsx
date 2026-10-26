@@ -8,6 +8,7 @@ import { validatePageChrome, type ChromeValidationIssue } from '../core/chrome-v
 import { builtinPageThemes, switchPageTheme } from '../core/themes'
 import type { Dataset, PageConfig, Placement, Space } from '../core/types'
 import { ProjectLogo } from '../components/ProjectLogo'
+import { FieldHelp } from '../components/FieldHelp'
 import { HomeChromeInspector } from './HomeChromeInspector'
 import { HomePanelInspector } from './HomePanelInspector'
 import { ComposerButton, ComposerSelect } from './HomeEditorControls'
@@ -44,6 +45,7 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
   const [error, setError] = useState(''), [chromeIssue, setChromeIssue] = useState<ChromeValidationIssue | null>(null)
   const sourceCallback = useRef(onSourcesChange), returnFocus = useRef<HTMLElement | null>(null)
   const previousSelection = useRef(selection)
+  const pendingLibraryDialog = useRef<'preset' | 'import' | null>(null)
   sourceCallback.current = onSourcesChange
   useEffect(() => { setError(''); setChromeIssue(null) }, [config])
   const supplied = providedSources !== undefined
@@ -80,6 +82,26 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
   function edit(update: (next: PageConfig) => void) { const next = structuredClone(config); update(next); change(next) }
   function select(next: HomeSelection) { if (busy) return; onSelect(next); if (compact) { if (!drawer) returnFocus.current = document.activeElement as HTMLElement; setDrawer('inspector') } }
   function openLibrary(tab: string) { setLibraryTab(tab); if (compact) { returnFocus.current = document.activeElement as HTMLElement; setDrawer('library') } }
+  function showLibraryDialog(kind: 'preset' | 'import') {
+    if (kind === 'preset') setPresetOpen(true)
+    else setImportOpen(true)
+  }
+  function requestLibraryDialog(kind: 'preset' | 'import') {
+    if (compact && drawer !== null) {
+      // Let the drawer release its focus trap before the dialog takes focus.
+      pendingLibraryDialog.current = kind
+      setDrawer(null)
+    } else showLibraryDialog(kind)
+  }
+  function closeDrawerFocus(event: Event) {
+    if (returnFocus.current?.isConnected) {
+      event.preventDefault()
+      returnFocus.current.focus({ preventScroll: true })
+    }
+    const pending = pendingLibraryDialog.current
+    pendingLibraryDialog.current = null
+    if (pending) showLibraryDialog(pending)
+  }
   function add(panelId: string) {
     if (disabled) return
     try { const result = addPagePanel(config, panelId, panelContracts[panelId]?.schema !== 'navigation.collection' ? allSources.find(source => source.schemaId === panelContracts[panelId]?.schema) : undefined); change(result.config); select({ kind: 'view', id: result.id }); setLibraryTab('layers') }
@@ -125,7 +147,7 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
       <ComposerButton className="lh-composer-add-button" disabled={disabled || limit} onClick={() => openLibrary('library')}><Plus size={15} />{t('添加组件', 'Add component')}</ComposerButton>
     </TabsPrimitive.Content>
     <TabsPrimitive.Content value="library" className="lh-composer-tab-body">
-      <div className="lh-composer-library-heading"><h3>{t('内置组件', 'Built-in components')}</h3><span>{config.views.length} / {COMPOSER_PANEL_LIMIT}</span></div>
+      <div className="lh-composer-library-heading"><div className="lh-composer-library-title"><h3>{t('内置组件', 'Built-in components')}</h3><FieldHelp label={t('内置组件', 'Built-in components')}>{t('组件显示本地快照。需要外部数据时，请先添加并启用数据来源。', 'Components display local snapshots. Add and enable a data source to collect external data.')}</FieldHelp></div><span>{config.views.length} / {COMPOSER_PANEL_LIMIT}</span></div>
       <div className="lh-composer-library-items">{Object.entries(panelIcons).filter(([panelId]) => panelId !== 'builtin/document-activity').map(([panelId, Icon]) => { const schema = panelContracts[panelId]?.schema; const unavailable = !!schema && schema !== 'navigation.collection' && !allSources.some(source => source.schemaId === schema)
         return <button type="button" key={panelId} className="lh-composer-library-item" disabled={disabled || limit || unavailable} title={unavailable ? t('先在管理中心添加兼容的数据来源', 'Add a compatible data source in admin first') : undefined} onClick={() => add(panelId)}>
           <span className="lh-composer-library-icon"><Icon size={20} /></span><span><strong>{panelTitle({ panel: { id: panelId }, settings: {} })}</strong>{unavailable && <small>{t('需要数据来源', 'Data source required')}</small>}</span><Plus size={15} />
@@ -133,8 +155,7 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
       })}</div>
       <div className="lh-composer-library-heading"><h3>{t('文档活动', 'Document activity')}</h3></div>
       <div className="lh-composer-library-items">{documentActivityPresets.map(preset => <button type="button" key={preset.id} className="lh-composer-library-item" data-activity-preset={preset.id} disabled={disabled || limit} onClick={() => addActivity(preset.id)}><span className="lh-composer-library-icon"><CalendarDays size={20}/></span><span><strong>{preset.name}</strong></span><Plus size={15}/></button>)}</div>
-      {spaceId && <div className="lh-composer-mini-actions"><ComposerButton disabled={disabled} onClick={() => setPresetOpen(true)}><LayoutDashboard size={14}/>{t('预置仪表板', 'Dashboard presets')}</ComposerButton><ComposerButton disabled={disabled || limit} onClick={() => setImportOpen(true)}><Upload size={14} />{t('导入组件模板', 'Import template')}</ComposerButton><ComposerButton disabled={disabled || sourcesBusy} onClick={async () => { setSourcesBusy(true); try { const value = await request<ComposerSource[]>(`/spaces/${encodeURIComponent(spaceId)}/sources`); setSources(value); sourceCallback.current?.(value); setSourceError(false) } catch { setSourceError(true) } finally { setSourcesBusy(false) } }}><RefreshCw size={14} />{t('刷新来源', 'Refresh sources')}</ComposerButton></div>}
-      <p className="lh-composer-hint">{t('组件读取本地快照；外部采集由数据来源的启用状态控制。', 'Components read local snapshots. The data source’s enabled state controls external collection.')}</p>
+      {spaceId && <div className="lh-composer-mini-actions lh-composer-library-actions"><ComposerButton disabled={disabled} onClick={() => requestLibraryDialog('preset')}><LayoutDashboard size={14}/><span>{t('预置仪表板', 'Dashboard presets')}</span></ComposerButton><ComposerButton disabled={disabled || limit} onClick={() => requestLibraryDialog('import')}><Upload size={14} /><span>{t('导入模板', 'Import template')}</span></ComposerButton><ComposerButton disabled={disabled || sourcesBusy} aria-label={t('刷新来源', 'Refresh sources')} title={t('刷新来源', 'Refresh sources')} aria-busy={sourcesBusy} onClick={async () => { setSourcesBusy(true); try { const value = await request<ComposerSource[]>(`/spaces/${encodeURIComponent(spaceId)}/sources`); setSources(value); sourceCallback.current?.(value); setSourceError(false) } catch { setSourceError(true) } finally { setSourcesBusy(false) } }}><RefreshCw size={14} className={sourcesBusy ? 'admin-spin' : undefined} aria-hidden="true"/></ComposerButton></div>}
       {sourceError && <p className="lh-composer-hint">{t('外部来源暂未加载；现有绑定保留。', 'External sources are unavailable; existing bindings are retained.')}</p>}
       <div className="lh-composer-library-heading"><h3>{t('页面内容', 'Page content')}</h3></div>
       <div className="lh-composer-library-items">{(['header', 'footer'] as const).map(area => <button type="button" className="lh-composer-library-item" key={area} disabled={disabled} onClick={() => select({ kind: 'chrome', area, alignment: area === 'header' ? 'left' : 'right' })}>
@@ -202,7 +223,7 @@ export default function HomeEditor({ config, busy, dirty, narrow, selection, onS
       onApply={next => { change(next); select({ kind: 'page' }); setLibraryTab('layers') }} /></Suspense>}
     <DialogPrimitive.Root open={compact && drawer !== null && !previewing} onOpenChange={open => { if (!open) setDrawer(null) }}>
       <DialogPrimitive.Portal><DialogPrimitive.Overlay className="lh-composer-drawer-overlay" />
-        <DialogPrimitive.Content className="lh-composer-drawer lh-composer-chrome-ui" aria-describedby={undefined} onCloseAutoFocus={event => { if (returnFocus.current?.isConnected) { event.preventDefault(); returnFocus.current.focus() } }}>
+        <DialogPrimitive.Content className="lh-composer-drawer lh-composer-chrome-ui" aria-describedby={undefined} onCloseAutoFocus={closeDrawerFocus}>
           <div className="lh-composer-drawer-header"><DialogPrimitive.Title>{drawer === 'library' ? t('组件与页面结构', 'Components and layers') : t('组件属性', 'Component properties')}</DialogPrimitive.Title><DialogPrimitive.Close asChild><ComposerButton kind="icon" aria-label={t('关闭面板', 'Close panel')}><X size={18} /></ComposerButton></DialogPrimitive.Close></div>
           <div className="lh-composer-drawer-body">{drawer === 'library' ? library : inspector}</div>
           <div className="lh-composer-drawer-footer"><DialogPrimitive.Close asChild><ComposerButton kind="primary">{t('返回画布', 'Back to canvas')}</ComposerButton></DialogPrimitive.Close></div>

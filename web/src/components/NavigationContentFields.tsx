@@ -9,13 +9,14 @@ export type NavigationSelectProps = {
 export type NavigationCheckProps = { label: string; checked: boolean; disabled: boolean; onChange: (value: boolean) => void }
 
 /** The same content options in the homepage inspector and administration. */
-export function NavigationContentFields({ settings, disabled, SelectControl, CheckControl, onChange }: {
-  settings: Record<string, unknown>; disabled: boolean
+export function NavigationContentFields({ settings, disabled, grouped = true, SelectControl, CheckControl, onChange }: {
+  settings: Record<string, unknown>; disabled: boolean; grouped?: boolean
   SelectControl: ComponentType<NavigationSelectProps>; CheckControl: ComponentType<NavigationCheckProps>
   onChange: (key: keyof NavigationAppearanceSettings, value: string | number | boolean | undefined) => void
 }) {
   const value = readNavigationAppearanceSettings(settings)
   return <>
+    {grouped && <SelectControl label={t('分类默认显示', 'Category preview')} value={String(value.groupPreviewCount)} disabled={disabled} hint={t('其余书签通过文件夹入口打开，可搜索并多列浏览。', 'Open remaining bookmarks in a searchable folder with multiple columns.')} options={[{ value: '0', label: t('全部', 'All') }, ...[4,6,8,12,24].map(count => ({ value: String(count), label: t('{count} 个', '{count} bookmarks', { count }) }))]} onChange={next => onChange('groupPreviewCount', Number(next))}/>}
     {settings.variant !== 'directory' && <SelectControl label={t('每行最多链接数', 'Maximum links per row')} value={String(value.maxColumns)} disabled={disabled}
       hint={t('空间不足时自动换行，不改变组件宽度。', 'Fewer links fit on narrow screens. This does not change the component width.')}
       options={[{ value: '0', label: t('自动', 'Automatic') }, ...Array.from({ length: 8 }, (_, index) => ({ value: String(index + 1), label: t('{count} 个', '{count} links', { count: index + 1 }) }))]}

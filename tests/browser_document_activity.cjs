@@ -552,7 +552,11 @@ async function main() {
     const zero = day(ids.heatmap, dateAdd(sampleDate, -8)), unknown = day(ids.heatmap, dateAdd(sampleDate, -16));
     assert.equal(await zero.getAttribute('data-level'), '0'); assert.ok(!(await zero.getAttribute('class')).includes('is-unrecorded'));
     assert.ok((await unknown.getAttribute('class')).includes('is-unrecorded')); assert.match(await unknown.getAttribute('aria-label'), /尚未记录|Not recorded/);
-    await day(ids.heatmap, dateAdd(sampleDate, -2)).focus();
+    // The prior drawer restores focus to its date trigger. Separate this
+    // pointer check from that focused tooltip and its hover transit region;
+    // keyboard navigation and focus restoration are asserted below.
+    await button('刷新文档活动', 'Refresh document activity', panel(ids.heatmap)).focus();
+    await page.mouse.move(0, 0);
     const zeroLabel = await zero.getAttribute('aria-label');
     const zeroDateLabel = zeroLabel.slice(0, zeroLabel.lastIndexOf(', '));
     await zero.hover();

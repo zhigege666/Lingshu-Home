@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { ApiError, request } from '../core/api'
+import { sessionVerifiedEvent } from '../core/session-requests'
 import { documentActivityQueryKey, isDocumentActivityData, type DocumentActivityData, type DocumentActivityQuery } from '../core/document-activity'
 import { t } from '../core/i18n'
 
@@ -106,10 +107,10 @@ export function DocumentActivityProvider({ spaceId, userKey, enabled, children }
 }) {
   const scope = useMemo<Scope>(() => ({ spaceId, userKey, enabled, store: new ActivityStore(spaceId, enabled) }), [spaceId, userKey, enabled])
   useEffect(() => {
-    // Normal focus refresh is shared by all active instances; no per-widget polling timer.
+    // App verifies the browser's current account before sharing a focus refresh.
     const onFocus = () => { if (document.visibilityState !== 'hidden') scope.store.refreshActive() }
-    window.addEventListener('focus', onFocus)
-    return () => { window.removeEventListener('focus', onFocus); scope.store.dispose() }
+    window.addEventListener(sessionVerifiedEvent, onFocus)
+    return () => { window.removeEventListener(sessionVerifiedEvent, onFocus); scope.store.dispose() }
   }, [scope])
   return <ActivityContext.Provider value={scope}>{children}</ActivityContext.Provider>
 }

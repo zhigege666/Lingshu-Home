@@ -34,7 +34,7 @@ func run(args []string) (exitCode int) {
 		log.Printf("TLS startup failed: %v", err)
 		return 1
 	}
-	app, err := home.Open(c)
+	app, err := home.OpenRuntime(c)
 	if err != nil {
 		log.Printf("startup failed: %v", err)
 		return 1
@@ -53,7 +53,7 @@ func run(args []string) (exitCode int) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	log.Printf("Lingshu-Home %s listening on %s (%s)", protocol, c.Listen, c.StorageProvider)
+	log.Printf("Lingshu-Home %s listening on %s (%s)", protocol, c.Listen, app.StorageProvider())
 	if err = serveHTTP(ctx, server, serve, 15*time.Second); err != nil {
 		log.Printf("%s server failed: %v", protocol, err)
 		return 1

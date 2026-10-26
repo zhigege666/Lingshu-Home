@@ -46,11 +46,16 @@ func openStore(ctx context.Context, c Config) (*Store, error) {
 	if err := os.MkdirAll(c.DataDir, 0700); err != nil {
 		return nil, err
 	}
-	lease, err := acquireFileLease(filepath.Join(c.DataDir, ".instance.lock"))
-	if err != nil {
-		return nil, err
+	var err error
+	var ownedLease *fileLease
+	if c.runtimeLease == nil {
+		ownedLease, err = acquireFileLease(filepath.Join(c.DataDir, ".instance.lock"))
+		if err != nil {
+			return nil, err
+		}
 	}
-	s := &Store{Provider: c.StorageProvider, lease: lease}
+	// Runtime owns borrowed leases across setup, retries and App replacements.
+	s := &Store{Provider: c.StorageProvider, lease: ownedLease}
 	if s.Provider == "postgres" {
 		s.leaseGate = make(chan struct{}, 1)
 	}
@@ -221,6 +226,9 @@ func (s *Store) migrate(ctx context.Context) error {
 		digest := sha256.Sum256(body)
 		contents[base] = body
 		checksums[base] = hex.EncodeToString(digest[:])
+	}
+	if err = s.bridgeLegacySessionRetention(ctx, contents, checksums); err != nil {
+		return err
 	}
 	rows, err := s.DB.QueryContext(ctx, "SELECT version,checksum FROM schema_migrations ORDER BY version")
 	if err != nil {

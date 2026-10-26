@@ -1,9 +1,10 @@
+import { SessionChoice, choiceFromOptions, sessionChoiceBody } from './SessionChoice'
 import { t, type AppLanguage } from '../core/i18n'
 import { ProjectLogo } from './ProjectLogo'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowRight, Languages, LockKeyhole, RefreshCw } from 'lucide-react'
 import { ApiError, bootstrap as readBootstrap, request, messageOf, selectSetupLanguage } from '../core/api'
-import type { AuthMode, Bootstrap } from '../core/types'
+import type { AuthMode, Bootstrap, SessionChoiceValue } from '../core/types'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Checkbox } from './ui/checkbox'
@@ -91,6 +92,7 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onLa
   const setup = !bootstrap.initialized
   const choosingLanguage = setup && bootstrap.languageSelectionRequired
   const [registering, setRegistering] = useState(false)
+  const [sessionChoice, setSessionChoice] = useState<SessionChoiceValue>(() => choiceFromOptions(bootstrap.sessionOptions))
   const [siteName, setSiteName] = useState(bootstrap.siteName || 'Lingshu-Home')
   const [mode, setMode] = useState<AuthMode>('public_read')
   const [createOwner, setCreateOwner] = useState(false)
@@ -120,10 +122,11 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onLa
     actionInFlight.current = true; setBusy('submit'); setError(''); setRecoveryNote('')
     try {
       const path = setup ? '/setup' : registering ? '/auth/register' : '/auth/login'
-      const identity = { username: username.trim(), displayName: displayName.trim() || username.trim(), password }
+      const retention = sessionChoiceBody(sessionChoice, bootstrap.sessionOptions)
+      const identity = { username: username.trim(), displayName: displayName.trim() || username.trim(), password, ...retention }
       const body = setup
         ? { siteName: siteName.trim(), mode, seedDemo, ...(needsAccount ? identity : {}) }
-        : registering ? identity : { username: username.trim(), password }
+        : registering ? identity : { username: username.trim(), password, ...retention }
       await request(path, { method: 'POST', body })
       setPassword('')
       await onComplete(setup && (publicMode || seedDemo))
@@ -174,9 +177,9 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onLa
                 <Checkbox aria-label={t('同时创建管理员（可选）', 'Also create an administrator (optional)')} checked={createOwner} disabled={disabled} onCheckedChange={setCreateOwner} />
                 <span>{t('同时创建管理员（可选）', 'Also create an administrator (optional)')}</span>
               </label>
-              <p className="admin-hint">{t('管理员可配置网络和外部数据源；共享导航仍可免登录维护。也可以稍后在“访问与账号”中创建。', 'An administrator can configure networking and external sources. Shared navigation stays editable without signing in; you can also create the account later in Access and accounts.')}</p>
+              <p className="admin-hint">{t('管理员可配置网络和外部数据源；共享导航仍可免登录维护。也可以稍后在“站点设置”中创建。', 'An administrator can configure networking and external sources. Shared navigation stays editable without signing in; you can also create the account later in Site settings.')}</p>
             </>}
-            {mode === 'private_multi' && <p className="admin-info">{t('成员自行注册默认关闭。创建后可在“成员管理”添加账号，或在“访问与账号”开启注册。', 'Member self-registration starts off. After setup, add accounts in Member management or enable registration in Access and accounts.')}</p>}
+            {mode === 'private_multi' && <p className="admin-info">{t('成员自行注册默认关闭。创建后可在“成员管理”添加账号，或在“站点设置”开启注册。', 'Member self-registration starts off. After setup, add accounts in Member management or enable registration in Site settings.')}</p>}
           </>}
           {needsAccount && <div className="auth-account-fields">
             {setup && <h3>{t('创建管理员', 'Create administrator')}</h3>}
@@ -189,6 +192,7 @@ export default function AuthScreen({ bootstrap, onComplete, onRecheckSetup, onLa
             <Field label={t('密码', 'Password')}>
               <Input value={password} onChange={event => setPassword(event.target.value)} required type="password" minLength={setup || registering ? 10 : undefined} maxLength={128} autoComplete={setup || registering ? 'new-password' : 'current-password'} placeholder={setup || registering ? t('至少 10 个字符', 'At least 10 characters') : t('输入你的密码', 'Enter your password')} />
             </Field>
+            <div className="auth-session-choice" style={{ gridColumn: '1 / -1', minWidth: 0 }}><SessionChoice options={bootstrap.sessionOptions} value={sessionChoice} onChange={setSessionChoice} disabled={disabled}/></div>
           </div>}
           {setup && <>
             <label className="admin-check-line">

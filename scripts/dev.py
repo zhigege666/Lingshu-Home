@@ -12,8 +12,8 @@ import ssl
 import subprocess
 import sys
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / ".runtime"
@@ -62,9 +62,10 @@ def build() -> None:
 def app_environment(args: argparse.Namespace) -> dict[str, str]:
     environment = {**os.environ, "LINGSHU_LISTEN": args.listen,
                    "LINGSHU_DATA_DIR": str(Path(args.data_dir).resolve()),
-                   "LINGSHU_STORAGE_PROVIDER": args.provider,
                    "LINGSHU_WEB_DIR": str(ROOT / "web" / "dist"),
                    "LINGSHU_VERSION_FILE": str(ROOT / "VERSION")}
+    if args.provider is not None:
+        environment["LINGSHU_STORAGE_PROVIDER"] = args.provider
     # Do not turn the server's first-run language choice into an implicit
     # startup override. Omission also lets an existing instance reuse its
     # persisted language after the helper restarts it.
@@ -140,6 +141,55 @@ def cleanup_failed_start(process: subprocess.Popen, record: dict | None) -> None
             STATE.unlink(missing_ok=True)
 
 
+class StorageSetupError(ValueError):
+    """The owned server is serving its recovery UI and must remain running."""
+
+
+def probe_startup(url: str, timeout: float = 1.0, *, client=None) -> tuple[str, str]:
+    """Probe setup and health through the same verified connection."""
+    base_url = url.rstrip("/")
+    open_url = client.open if client is not None else urllib.request.urlopen
+    try:
+        with open_url(base_url + "/api/v1/storage/bootstrap", timeout=timeout) as response:
+            if response.status != 200:
+                return "pending", ""
+            bootstrap = json.load(response)
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            return "pending", ""
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, ssl.SSLCertVerificationError):
+            raise
+        return "pending", ""
+    except ssl.SSLCertVerificationError:
+        raise
+    except (OSError, ValueError):
+        return "pending", ""
+    else:
+        if not isinstance(bootstrap, dict):
+            return "pending", ""
+        state = bootstrap.get("state")
+        if state == "required":
+            return "required", ""
+        if state == "error":
+            detail = bootstrap.get("error")
+            message = detail.get("message") if isinstance(detail, dict) else None
+            return "error", message if isinstance(message, str) and message else "Storage initialization failed."
+        if state != "ready":
+            return "pending", ""
+    try:
+        with open_url(base_url + "/health", timeout=timeout) as response:
+            return ("ready", "") if response.status == 200 else ("pending", "")
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, ssl.SSLCertVerificationError):
+            raise
+        return "pending", ""
+    except ssl.SSLCertVerificationError:
+        raise
+    except OSError:
+        return "pending", ""
+
+
 def start(args: argparse.Namespace) -> None:
     if not sys.platform.startswith("linux"):
         raise ValueError("Use 'run' in the foreground on this operating system.")
@@ -178,7 +228,7 @@ def start(args: argparse.Namespace) -> None:
             time.sleep(0.05)
         if not identity or identity["exe"] != str(BINARY.resolve()):
             raise ValueError("Could not verify the started process identity.")
-        data = {**identity, "url": url, "dataDir": str(Path(args.data_dir).resolve()), "provider": args.provider, "language": args.language}
+        data = {**identity, "url": url, "dataDir": str(Path(args.data_dir).resolve()), "provider": environment.get("LINGSHU_STORAGE_PROVIDER"), "language": args.language}
         STATE.write_text(json.dumps(data, indent=2) + "\n")
         STATE.chmod(0o600)
         last_error = "No successful health response."
@@ -186,11 +236,17 @@ def start(args: argparse.Namespace) -> None:
             if process.poll() is not None:
                 raise ValueError(f"Service exited. Inspect {LOG}")
             try:
-                with client.open(url + "/health", timeout=1) as response:
-                    if response.status == 200:
-                        print(f"Started PID {process.pid}: {url}")
-                        return
-                    last_error = f"Health endpoint returned HTTP {response.status}."
+                readiness, detail = probe_startup(url, client=client)
+                if readiness == "required":
+                    print(f"Started PID {process.pid}: {url}; choose the database in the browser to finish storage setup.")
+                    return
+                if readiness == "ready":
+                    print(f"Started PID {process.pid}: {url}")
+                    return
+                if readiness == "error":
+                    raise StorageSetupError(f"Storage is not ready: {detail} Open {url} to retry. "
+                                            "The recorded process is still running and can be stopped with this launcher.")
+                last_error = "Storage or health endpoint is not ready."
             except urllib.error.URLError as exc:
                 if isinstance(exc.reason, ssl.SSLCertVerificationError):
                     raise ValueError(f"HTTPS health check certificate verification failed for {url}: {exc.reason}. "
@@ -202,6 +258,10 @@ def start(args: argparse.Namespace) -> None:
                 last_error = str(exc)
             time.sleep(0.1)
         raise ValueError(f"Service did not become healthy: {last_error} Inspect {LOG}.")
+    except StorageSetupError:
+        # A reachable recovery page is useful even while the selected database
+        # is unavailable. Keep its verified process/state for retry or stop.
+        raise
     except BaseException as exc:
         if process is not None:
             try:
@@ -233,7 +293,7 @@ def main() -> int:
     parser.add_argument("--listen", default=os.environ.get("LINGSHU_LISTEN", "127.0.0.1:5180"))
     parser.add_argument("--data-dir", default=os.environ.get("LINGSHU_DATA_DIR", str(ROOT / "data")))
     parser.add_argument("--provider", choices=("sqlite", "postgres"),
-                        default=os.environ.get("LINGSHU_STORAGE_PROVIDER", "sqlite"))
+                        default=None, help="Select storage explicitly; omit to use environment, saved storage or first-run setup")
     parser.add_argument("--language", type=instance_language, metavar="{zh-CN,en}",
                         default=os.environ.get("LINGSHU_LANGUAGE") or None,
                         help="Set the instance language; omit to choose on first setup or reuse its saved language")

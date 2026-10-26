@@ -1,3 +1,4 @@
+import { FieldHelp } from './FieldHelp'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, LoaderCircle, Search, Trash2, Upload, X } from 'lucide-react'
 import { request } from '../core/api'
@@ -14,11 +15,12 @@ import { ErrorMessage, Field, FilePicker } from './Shared'
 import { IconAsset } from './IconAsset'
 import './icon-picker.css'
 
-type Props = { value: string; onChange: (ref: string) => void; spaceId: string; canEdit: boolean; disabled?: boolean; url?: string; fallback?: string; onBusyChange?: (busy: boolean) => void; iconMode?: IconMode; onModeChange?: (mode: IconMode) => void; autoFetchIcons?: boolean }
+type Props = { value: string; onChange: (ref: string) => void; spaceId: string; canEdit: boolean; disabled?: boolean; url?: string; fallback?: string; onBusyChange?: (busy: boolean) => void; iconMode?: IconMode; onModeChange?: (mode: IconMode) => void; autoFetchIcons?: boolean; allowLibraryChanges?: boolean }
 const PAGE_SIZE = 32
 const BUILTIN_PAGE_SIZE = 24
+const PICKER_ICON_SIZE = 24
 
-export function IconPicker({ value, onChange, spaceId, canEdit, disabled = false, url, fallback = 'lucide:link', onBusyChange, iconMode, onModeChange, autoFetchIcons = true }: Props) {
+export function IconPicker({ value, onChange, spaceId, canEdit, disabled = false, url, fallback = 'lucide:link', onBusyChange, iconMode, onModeChange, autoFetchIcons = true, allowLibraryChanges = true }: Props) {
   const headingId = useId(), queryId = useId()
   const [tab, setTab] = useState('builtin'), [query, setQuery] = useState(''), [page, setPage] = useState(1)
   const [group, setGroup] = useState('all')
@@ -74,7 +76,7 @@ export function IconPicker({ value, onChange, spaceId, canEdit, disabled = false
   useEffect(() => { if (tab === 'imported' && library?.spaceId !== spaceId && !loading && !error) void loadPacks() }, [tab, spaceId, library?.spaceId, loading, error])
 
   function begin(label: string): AbortController | null {
-    if (pending.current || disabled || !canEdit) return null
+    if (pending.current || disabled || !canEdit || !allowLibraryChanges) return null
     readRequest.current?.abort(); setLoading(false)
     pending.current = true; setOperation(label); setError(''); setNotice(''); onBusyChange?.(true)
     const controller = new AbortController(); writeRequest.current = controller
@@ -151,7 +153,7 @@ export function IconPicker({ value, onChange, spaceId, canEdit, disabled = false
   return <fieldset className="lh-icon-picker" aria-labelledby={headingId} disabled={disabled || !canEdit} onKeyDown={event => {
     if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault()
   }}>
-    <legend id={headingId}>{t('图标', 'Icon')}</legend>
+    <legend id={headingId}>{t('图标', 'Icon')}<FieldHelp label={t('图标保存方式', 'How icons are saved')}>{allowLibraryChanges ? t('导入、删除和网站图标缓存会立即保存到当前空间。取消表单只放弃本次图标选择。', 'Imports, deletions and website icon caching are saved to the current space immediately. Canceling the form only discards the current icon selection.') : t('在列表草稿中可选择现有图标或自动模式。图标库的导入、删除和立即获取请在结束列表编辑后操作。', 'Choose existing icons or automatic mode in a list draft. Finish list editing before importing, deleting or fetching icon assets.')}</FieldHelp></legend>
     {url !== undefined && onModeChange && <div className="lh-icon-picker-mode">
       <div className="lh-icon-picker-mode-options" role="group" aria-label={t('图标模式', 'Icon mode')}>
         <Button type="button" variant={iconMode === 'auto' ? 'secondary' : 'outline'} size="sm" disabled={blocked} aria-pressed={iconMode === 'auto'} onClick={() => changeMode('auto')}>{t('自动获取', 'Automatic')}</Button>
@@ -162,14 +164,14 @@ export function IconPicker({ value, onChange, spaceId, canEdit, disabled = false
         : iconMode === 'auto' ? t('保存后由服务器获取，已有图标会保留，刷新内容后显示结果。选择下方图标将切换为手动。', 'The server fetches the icon after saving. The current icon is kept until then; refresh content to see the result. Selecting an icon below switches to manual mode.')
         : t('手选图标会保留。切换为自动获取并保存后，服务器可在后台更新此链接的图标。', 'Manually selected icons are kept. Switch to automatic mode and save to let the server update this link’s icon in the background.')}</p>
     </div>}
-    <div className="lh-icon-picker-current"><div className="lh-icon-picker-preview"><IconAsset name={value} size={30} fallback={fallback}/></div><span>{currentLabel}</span>
+    <div className="lh-icon-picker-current"><div className="lh-icon-picker-preview"><IconAsset name={value} size={PICKER_ICON_SIZE} fallback={fallback}/></div><span>{currentLabel}</span>
       <Button type="button" variant="ghost" size="sm" disabled={blocked || ((!value || value === fallback) && iconMode !== 'auto')} onClick={() => select(fallback)}>{t('使用默认图标', 'Use default')}</Button>
-      {url !== undefined && <Button type="button" variant="outline" size="sm" disabled={blocked || !website} onClick={() => void fetchWebsite()}><Download size={14}/>{t('获取网站图标', 'Fetch website icon')}</Button>}
+      {url !== undefined && <Button type="button" variant="outline" size="sm" disabled={blocked || !website || !allowLibraryChanges} onClick={() => void fetchWebsite()}><Download size={14}/>{t('获取网站图标', 'Fetch website icon')}</Button>}
     </div>
     <Tabs value={tab} onValueChange={changeTab} className="lh-icon-picker-tabs"><TabsList aria-label={t('图标来源', 'Icon source')}>
       <TabsTrigger type="button" value="builtin" disabled={blocked}>{t('内置', 'Built-in')} <small>{builtin.length}</small></TabsTrigger>
       <TabsTrigger type="button" value="imported" disabled={blocked}>{t('图标库', 'Libraries')}</TabsTrigger>
-      <TabsTrigger type="button" value="import" disabled={blocked}><Upload size={13}/>{t('导入', 'Import')}</TabsTrigger>
+      <TabsTrigger type="button" value="import" disabled={blocked || !allowLibraryChanges}><Upload size={13}/>{t('导入', 'Import')}</TabsTrigger>
     </TabsList>
     {tab !== 'import' && <div className="lh-icon-picker-filters">
       {tab === 'builtin' && <StyledSelect aria-label={t('图标分组', 'Icon group')} value={group} disabled={blocked} onValueChange={changeGroup} options={[{ value: 'all', label: t('全部图标（{count}）', 'All icons ({count})', { count: builtin.length }) }, ...groups.map(item => ({ value: item.id, label: `${item.label} (${item.count})` }))]}/>}
@@ -179,13 +181,13 @@ export function IconPicker({ value, onChange, spaceId, canEdit, disabled = false
     </div>}
     <TabsContent value="builtin">
       <div className="lh-icon-picker-results" role="status"><span>{t('{count} 个图标', '{count} icons', { count: results.length })}</span><span className="lh-icon-picker-full-label" aria-hidden="true">{focusedLabel || hoveredLabel}</span></div>
-      <div ref={builtinGrid} className="lh-icon-picker-grid is-labelled">{visible.map(icon => <Button key={icon.ref} type="button" variant={value === icon.ref ? 'secondary' : 'ghost'} disabled={blocked} aria-label={icon.label} title={icon.label} aria-pressed={value === icon.ref} onFocus={() => setFocusedLabel(icon.label)} onBlur={() => setFocusedLabel('')} onMouseEnter={() => setHoveredLabel(icon.label)} onMouseLeave={() => setHoveredLabel('')} onClick={() => select(icon.ref)}><IconAsset name={icon.ref} size={22}/><span>{icon.label}</span></Button>)}</div>
+      <div ref={builtinGrid} className="lh-icon-picker-grid is-labelled">{visible.map(icon => <Button key={icon.ref} type="button" variant={value === icon.ref ? 'secondary' : 'ghost'} disabled={blocked} aria-label={icon.label} title={icon.label} aria-pressed={value === icon.ref} onFocus={() => setFocusedLabel(icon.label)} onBlur={() => setFocusedLabel('')} onMouseEnter={() => setHoveredLabel(icon.label)} onMouseLeave={() => setHoveredLabel('')} onClick={() => select(icon.ref)}><IconAsset name={icon.ref} size={PICKER_ICON_SIZE}/><span>{icon.label}</span></Button>)}</div>
       {!visible.length && <p className="lh-icon-picker-note">{t('没有匹配的图标，试试其他关键词或清空搜索。', 'No matching icons. Try another keyword or clear the search.')}</p>}
     </TabsContent>
     <TabsContent value="imported">
       {loading ? <p role="status" className="lh-icon-picker-note"><LoaderCircle className="admin-spin" size={14}/>{t('正在读取图标库…', 'Loading icon libraries…')}</p> : selected ? <>
-        <div className="lh-icon-picker-library"><StyledSelect aria-label={t('选择图标库', 'Choose icon library')} value={selected.id} disabled={blocked} options={packs.map(pack => ({ value: pack.id, label: `${pack.name} (${pack.icons.length})` }))} onValueChange={id => { setSelectedPack(id); setPage(1); setConfirmDelete(null) }}/><Button type="button" variant="ghost" size="icon-sm" disabled={blocked} aria-label={t('删除图标库 {name}', 'Delete library {name}', { name: selected.name })} onClick={() => { setConfirmDelete(selected.id); setError('') }}><Trash2 size={15}/></Button></div>
-        <div className="lh-icon-picker-grid">{visible.map(icon => <Button key={icon.ref + icon.label} type="button" variant={value === icon.ref ? 'secondary' : 'ghost'} disabled={blocked} aria-label={icon.label} title={icon.label} aria-pressed={value === icon.ref} onClick={() => select(icon.ref)}><IconAsset name={icon.ref} size={25}/></Button>)}</div>
+        <div className="lh-icon-picker-library"><StyledSelect aria-label={t('选择图标库', 'Choose icon library')} value={selected.id} disabled={blocked} options={packs.map(pack => ({ value: pack.id, label: `${pack.name} (${pack.icons.length})` }))} onValueChange={id => { setSelectedPack(id); setPage(1); setConfirmDelete(null) }}/><Button type="button" variant="ghost" size="icon-sm" disabled={blocked || !allowLibraryChanges} aria-label={t('删除图标库 {name}', 'Delete library {name}', { name: selected.name })} onClick={() => { setConfirmDelete(selected.id); setError('') }}><Trash2 size={15}/></Button></div>
+        <div className="lh-icon-picker-grid">{visible.map(icon => <Button key={icon.ref + icon.label} type="button" variant={value === icon.ref ? 'secondary' : 'ghost'} disabled={blocked} aria-label={icon.label} title={icon.label} aria-pressed={value === icon.ref} onClick={() => select(icon.ref)}><IconAsset name={icon.ref} size={PICKER_ICON_SIZE}/></Button>)}</div>
         {!visible.length && <p className="lh-icon-picker-note">{t('没有匹配的图标。', 'No matching icons.')}</p>}
         <details className="lh-icon-picker-provenance"><summary>{t('来源与许可', 'Source and license')}</summary>{selectedSource && <a href={selectedSource} target="_blank" rel="noopener noreferrer">{selected.sourceUrl}</a>}<p>{selected.license}</p></details>
         {confirmDelete === selected.id && <div className="lh-icon-picker-delete"><p>{t('删除“{name}”及其中未使用的图标？此操作立即保存。', 'Delete “{name}” and its unused icons? This change is saved immediately.', { name: selected.name })}</p><div><Button type="button" variant="outline" size="sm" disabled={blocked} onClick={() => setConfirmDelete(null)}>{t('取消', 'Cancel')}</Button><Button type="button" variant="destructive" size="sm" disabled={blocked} onClick={() => void removePack(selected)}>{t('删除图标库', 'Delete library')}</Button></div></div>}
@@ -199,6 +201,5 @@ export function IconPicker({ value, onChange, spaceId, canEdit, disabled = false
     {tab !== 'import' && results.length > pageSize && <nav className="lh-icon-picker-pagination" aria-label={t('图标分页', 'Icon pagination')}><Button type="button" variant="ghost" size="icon-sm" disabled={blocked || currentPage === 1} aria-label={t('上一页图标', 'Previous icon page')} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={15}/></Button><span>{currentPage} / {pageCount}</span><Button type="button" variant="ghost" size="icon-sm" disabled={blocked || currentPage === pageCount} aria-label={t('下一页图标', 'Next icon page')} onClick={() => setPage(currentPage + 1)}><ChevronRight size={15}/></Button></nav>}
     {operation && <p className="lh-icon-picker-note" role="status"><LoaderCircle className="admin-spin" size={14}/>{operation}</p>}
     {notice && <p className="lh-icon-picker-notice" role="status">{notice}</p>}<ErrorMessage error={error}/>
-    <p className="lh-icon-picker-note">{t('导入、删除和网站图标缓存会立即保存到空间；取消表单只放弃本次图标选择。', 'Imports, deletions and website icon caching are saved to the space immediately. Canceling this form only discards the icon selection.')}</p>
   </fieldset>
 }

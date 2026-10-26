@@ -180,7 +180,7 @@ async function main() {
   const config = structuredClone(originalPage.config), selected = config.views.find(view => view.panel.id === 'builtin/navigation'); assert.ok(selected, 'Fresh fixture has a navigation panel'); viewId = selected.id;
   assert.notEqual(config.layout.placements[viewId]?.base.kind, 'hidden', 'Fixture navigation panel must be visible');
   config.pageTheme = { id: 'builtin/dashboard' }; config.appearance = { ...config.appearance, colorMode: 'light', density: 'comfortable' };
-  selected.settings = { ...selected.settings, title: prefix, variant: 'cards', linkAppearance: 'icon-text', maxColumns: 0, urlDisplay: 'fallback', descriptionLines: 1, showTags: true, showEndpoints: true, showGroupTitles: true, showCounts: true, density: 'inherit' };
+  selected.settings = { ...selected.settings, title: prefix, groupPreviewCount: 0, variant: 'cards', linkAppearance: 'icon-text', maxColumns: 0, urlDisplay: 'fallback', descriptionLines: 1, showTags: true, showEndpoints: true, showGroupTitles: true, showCounts: true, density: 'inherit' };
   fixturePage = await writeFixturePage(config); fixtureNavigation = await readNavigation();
   await context.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url());
@@ -199,8 +199,18 @@ async function main() {
       responseTasks.push(response.json().then(value => { ownedRevision = value.revision; pageChanged = true; }));
   });
 
-  await step('homepage inspector exposes eight content settings and live URL changes stay draft-only', async () => {
-    await home(); await enter(); assert.equal(await contentFields().getByRole('combobox').count(), 5); assert.equal(await contentFields().getByRole('checkbox').count(), 3);
+  await step('homepage inspector exposes navigation content and category-preview settings and live URL changes stay draft-only', async () => {
+    await home(); await enter(); assert.equal(await contentFields().getByRole('combobox').count(), 6); assert.equal(await contentFields().getByRole('checkbox').count(), 3);
+    const previewControl = label(contentFields(), '分类默认显示', 'Category preview');
+    const help = previewControl.locator('..').getByRole('button').first();
+    assert.equal(await page.locator('.lh-field-help:visible').count(), 0);
+    await help.hover(); assert.equal(await page.locator('.lh-field-help:visible').count(), 0);
+    await help.click(); await page.locator('.lh-field-help:visible').waitFor();
+    await page.keyboard.press('Escape'); await page.locator('.lh-field-help:visible').waitFor({ state: 'hidden' });
+    await previewControl.click(); await page.getByRole('option', { name: l('4 个', '4 bookmarks'), exact: true }).click(); await settle();
+    assert.ok(await panel().locator('.lh-folder-more').count() > 0, 'Category preview must expose remaining bookmarks');
+    await previewControl.click(); await page.getByRole('option', { name: l('全部', 'All'), exact: true }).click(); await settle();
+    assert.equal(await panel().locator('.lh-folder-more').count(), 0, 'All option must keep every bookmark visible');
     const before = await readPage(), writes = uiWrites.length;
     await assertVisible(item(longLink).locator('.lh-bookmark-url'), false); await assertVisible(item(emptyLink).locator('.lh-bookmark-url'), true);
     await setURL('hidden'); await assertVisible(item(emptyLink).locator('.lh-bookmark-url'), false);

@@ -39,7 +39,7 @@ func (a *App) bootstrap(r *Request) (*Response, error) {
 	if language == "" {
 		language = "zh-CN"
 	}
-	return ok(map[string]any{"version": a.version, "language": language, "languageSelectionRequired": r.Settings.Language == "" && !r.Settings.Initialized, "initialized": r.Settings.Initialized, "siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "user": r.User, "spaces": spaces, "defaultSpaceId": defaultID, "csrfToken": a.csrfToken(r), "capabilities": capabilities}), nil
+	return ok(map[string]any{"version": a.version, "language": language, "languageSelectionRequired": r.Settings.Language == "" && !r.Settings.Initialized, "initialized": r.Settings.Initialized, "siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "user": r.User, "spaces": spaces, "defaultSpaceId": defaultID, "sessionOptions": sessionOptions(r.Settings.SessionPolicy), "session": sessionSummary(r.SessionInfo, r.Settings.SessionPolicy, sessionNow()), "csrfToken": a.csrfToken(r), "capabilities": capabilities}), nil
 }
 
 func (a *App) insertUser(r *Request, input accountInput, role string) (*User, error) {
@@ -78,7 +78,8 @@ func (a *App) setup(r *Request) (*Response, error) {
 	if r.Settings.Language == "" {
 		return nil, languageRequired()
 	}
-	var input struct {
+	var in struct {
+		SessionChoice
 		SiteName    string `json:"siteName"`
 		Mode        string `json:"mode"`
 		Username    string `json:"username"`
@@ -87,58 +88,58 @@ func (a *App) setup(r *Request) (*Response, error) {
 		SeedDemo    bool   `json:"seedDemo"`
 		StarterPack string `json:"starterPack,omitempty"`
 	}
-	if err := r.decode(&input); err != nil {
+	if err := r.decode(&in); err != nil {
 		return nil, err
 	}
-	if input.StarterPack != "" {
-		if _, err := starterPack(input.StarterPack); err != nil {
+	if in.StarterPack != "" {
+		if _, err := starterPack(in.StarterPack); err != nil {
 			return nil, err
 		}
-		if input.StarterPack != r.Settings.Language {
+		if in.StarterPack != r.Settings.Language {
 			return nil, &APIError{Status: 400, Code: "starter_language_mismatch", Message: "Starter content must use the instance language."}
 		}
 	}
-	name, err := required(input.SiteName, "siteName", 80)
+	name, err := required(in.SiteName, "siteName", 80)
 	if err != nil {
 		return nil, err
 	}
-	if input.Mode == "" {
-		input.Mode = ModePublicRead
+	if in.Mode == "" {
+		in.Mode = ModePublicRead
 	}
-	if !validMode(input.Mode) {
+	if !validMode(in.Mode) {
 		return nil, invalid("Unknown access mode.")
 	}
-	needOwner := input.Mode != ModeOpenEdit || input.Username != "" || input.Password != "" || input.DisplayName != ""
+	needOwner := in.Mode != ModeOpenEdit || in.Username != "" || in.Password != "" || in.DisplayName != ""
 	var user *User
 	if needOwner {
-		user, err = a.insertUser(r, accountInput{input.Username, input.DisplayName, input.Password}, "Owner")
+		user, err = a.insertUser(r, accountInput{in.Username, in.DisplayName, in.Password}, "Owner")
 		if err != nil {
 			return nil, err
 		}
 	}
-	shared, err := a.insertSpace(r, a.localized("共享空间", "Shared"), "shared", "", input.Mode == ModeOpenEdit || input.Mode == ModePublicRead)
+	shared, err := a.insertSpace(r, a.localized("共享空间", "Shared"), "shared", "", in.Mode == ModeOpenEdit || in.Mode == ModePublicRead)
 	if err != nil {
 		return nil, err
 	}
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE settings SET initialized=?,site_name=?,mode=?,registration_enabled=? WHERE id=1"), true, name, input.Mode, false)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE settings SET initialized=?,site_name=?,mode=?,registration_enabled=? WHERE id=1"), true, name, in.Mode, false)
 	if err != nil {
 		return nil, err
 	}
 	r.Settings.Initialized = true
 	r.Settings.SiteName = name
-	r.Settings.Mode = input.Mode
+	r.Settings.Mode = in.Mode
 	r.Settings.HasOwner = user != nil
-	if input.SeedDemo {
-		if err = a.seedStarterPack(r, shared.ID, input.StarterPack); err != nil {
+	if in.SeedDemo {
+		if err = a.seedStarterPack(r, shared.ID, in.StarterPack); err != nil {
 			return nil, err
 		}
 	}
 	if user != nil {
-		if err = a.issueSession(r, user); err != nil {
+		if err = a.issueSessionWithChoice(r, user, in.SessionChoice); err != nil {
 			return nil, err
 		}
 	}
-	return &Response{Status: 201, Data: map[string]any{"initialized": true, "mode": input.Mode, "user": user}}, nil
+	return &Response{Status: 201, Data: map[string]any{"initialized": true, "mode": in.Mode, "user": user}}, nil
 }
 
 func (a *App) login(r *Request) (*Response, error) {
@@ -149,6 +150,7 @@ func (a *App) login(r *Request) (*Response, error) {
 		return nil, forbidden()
 	}
 	var in struct {
+		SessionChoice
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
@@ -175,7 +177,7 @@ func (a *App) login(r *Request) (*Response, error) {
 			return nil, err
 		}
 	}
-	if err = a.issueSession(r, user); err != nil {
+	if err = a.issueSessionWithChoice(r, user, in.SessionChoice); err != nil {
 		return nil, err
 	}
 	return ok(map[string]any{"user": user}), nil
@@ -202,15 +204,18 @@ func (a *App) register(r *Request) (*Response, error) {
 	if r.Bearer || !r.Settings.Initialized || r.Settings.Mode != ModePrivateMulti || !r.Settings.RegistrationEnabled {
 		return nil, forbidden()
 	}
-	var in accountInput
+	var in struct {
+		accountInput
+		SessionChoice
+	}
 	if err := r.decode(&in); err != nil {
 		return nil, err
 	}
-	user, err := a.insertUser(r, in, "Member")
+	user, err := a.insertUser(r, in.accountInput, "Member")
 	if err != nil {
 		return nil, err
 	}
-	if err = a.issueSession(r, user); err != nil {
+	if err = a.issueSessionWithChoice(r, user, in.SessionChoice); err != nil {
 		return nil, err
 	}
 	return &Response{Status: 201, Data: user}, nil

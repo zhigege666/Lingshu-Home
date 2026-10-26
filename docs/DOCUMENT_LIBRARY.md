@@ -1,6 +1,6 @@
 # File-backed document library
 
-This document describes the file-backed library included in **0.0.5**. Upgrade to the 0.0.5 image/executable or build its matching source. Older 0.0.4 images do not acquire the library by adding environment variables. Existing installations can keep their original `/data` and HTTP settings; document access remains disabled until allowed roots and directory registrations are configured.
+This document describes the file-backed library introduced in **0.0.5** and retained in **0.0.6**. Use the 0.0.6 image/executable or build its matching source. Older 0.0.4 images do not acquire the library by adding environment variables. Existing installations can keep their original `/data` and HTTP settings; document access remains disabled until allowed roots and directory registrations are configured.
 
 Home keeps its navigation homepage and adds **Library** (`#/library`). The library combines local bookmarks and Markdown documents in the current space, with source/folder navigation, type filters, content search and a reading/editing panel. **Admin → Document directories** manages the connected directories. Bookmarks have an optional **Usage notes** Markdown field for people and agents.
 
@@ -14,7 +14,7 @@ Home's database stores durable document IDs, source bindings, manual tags, bookm
 
 ## Connect existing directories with Docker
 
-Keep the normal `/data` volume. Mount document directories separately, using one or more container paths. With the published image, add these same Paths and environment settings to the existing Docker/Unraid definition and recreate the container. The following Compose example builds the matching 0.0.5 source checkout:
+Keep the normal `/data` volume. Mount document directories separately, using one or more container paths. With the published image, add these same Paths and environment settings to the existing Docker/Unraid definition and recreate the container. The following Compose example builds the matching 0.0.6 source checkout:
 
 ```bash
 export LINGSHU_NOTES_DIR=/mnt/user/knowledge/notes
@@ -104,7 +104,7 @@ See [API contracts](API.md#file-backed-library-api), [transport encryption](TRAN
 
 ## Backup and migration
 
-Migration `008_document_library.sql` is additive and separately maintained for SQLite and PostgreSQL. Back up the database, matching instance keys, `document-history`, all mounted original directories/attachments, and the mount/root configuration before upgrading. Originals and Home metadata must be backed up together to preserve relationships and recovery/publication state. The published-asset bytes live in the database; recovery bodies live under the data directory.
+Migration `008_document_library.sql` is additive and separately maintained for SQLite and PostgreSQL. Version 0.0.6 retains that migration and applies 009 for [document activity](DOCUMENT_ACTIVITY.md) and 010 for login retention on first start; existing library data, original-file mounts and allowed roots are retained. A new unconfigured instance selects storage before language/account setup, while existing or explicit targets continue unchanged. The complete upgrade, legacy compatibility and matching-backup rollback rules are in [Storage](STORAGE.md#versioned-migrations). Back up the database, private `storage.json` when present, matching instance keys, `document-history`, all mounted original directories/attachments, and the mount/root configuration before upgrading. Originals and Home metadata must be backed up together to preserve relationships and recovery/publication state. The published-asset bytes live in the database; recovery bodies live under the data directory.
 
 Rolling back to 0.0.4 requires its matching pre-upgrade database/data backup and binary/image. Restoring Home's database does not undo edits made to mounted originals; recover those separately from their matching file backups. Do not delete migration ledger entries, edit applied migration checksums, or point an old binary at a schema it does not understand.
 

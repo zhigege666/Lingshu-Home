@@ -1,6 +1,6 @@
 # Components, source contracts and lightweight operation
 
-This document describes component/data-source contracts in the source tree. Features explicitly marked Unreleased are not included in the published 0.0.5 image; test results belong to [tests/README.md](../tests/README.md), and a development build is not an application release.
+This document describes the component/data-source contracts in version 0.0.6, including the document-activity component. Test results and release verification are recorded separately in [tests/README.md](../tests/README.md).
 
 ## Separation of responsibilities
 
@@ -27,7 +27,7 @@ All schemas below are version 1. The external component schemas use exact fields
 | `builtin/weather` | `weather.forecast` | `weather` | Current conditions and a bounded daily forecast |
 | `builtin/metrics` | `metrics.summary` | `metrics` | Numeric metrics and optional defined-range bars |
 | `builtin/status` | `status.collection` | `status` | Service availability and optional latency |
-| `builtin/document-activity` | `documents.activity` | `activity` | **Unreleased**: heatmap, heatmap with details, or monthly calendar |
+| `builtin/document-activity` | `documents.activity` | `activity` | Heatmap, heatmap with details, or monthly calendar (since 0.0.6) |
 
 ### Component settings
 
@@ -42,7 +42,11 @@ Every component accepts an optional plain-text `title` of at most 80 characters.
 
 Display settings do not change source collection settings. The forecast view can only display days present in its source snapshot. Calendar day/week navigation during ordinary browsing is temporary.
 
-### `documents.activity@1` — Unreleased
+### Navigation category previews
+
+The `builtin/navigation` renderer additionally accepts `settings.groupPreviewCount`: numeric `0` (all), `4`, `6`, `8`, `12` or `24`, defaulting to `6` when absent. The remainder opens in a searchable category folder with 24 records per page and up to four responsive columns. Current navigation filters still apply. `builtin/favorites` does not accept this category-only setting. The saved choice belongs to the page draft; opened folders and their local search/page remain temporary, and no dataset records are trimmed. See [the page/API contract](API.md#category-folder-presentation).
+
+### `documents.activity@1`
 
 This built-in component has three repeatable presets, not a fixed homepage layout. Bind `activity` to `local-document-activity` in the current page space with `query:{}`. Each view owns `presentation`, `months`, `perspective`, `sourceIds`, `showSummary`, `recentLimit`, `detailLayout` and `timezone`; widths and heights remain in `layout.placements`. The [activity guide](DOCUMENT_ACTIVITY.md) defines exact values, defaults and counting rules.
 
@@ -204,7 +208,7 @@ The manifest is at most 64 KiB, supports only manifest version 1 and known rende
 
 The import flow previews the name, renderer, version, license, source URL and content hash; the user then selects a compatible source. The dialog can create a compatible source and return to the preserved preview, using normal account and space authorization. Source creation persists immediately; dismissing an unsaved page draft does not delete that source. The dialog also provides static, credential-free renderer examples and an HTML-head declaration example. Applying the template only changes the current page draft. The existing explicit, revision-checked page save persists it. Saved `view.template` metadata is `{id,version,sha256,sourceUrl?}`; it is provenance, not executable loader configuration or proof of publisher identity. A hash alone is not a signature. A template source URL is public provenance, including any query string, and follows page sharing/export visibility; use a publicly shareable template URL. Secret subscriptions belong in encrypted source configuration. Imported templates contain no credentials, source connections, scripts, styles, external assets or automatic update channel.
 
-**Unreleased activity templates:** use `renderer:"builtin/document-activity"` with `dataSchema:{"id":"documents.activity","version":1}` and the [activity settings](DOCUMENT_ACTIVITY.md). The importer automatically uses the built-in current-space binding and does not offer external source/token/header setup. Import remains a draft operation, and the template conveys no document-read permission.
+**Activity templates (since 0.0.6):** use `renderer:"builtin/document-activity"` with `dataSchema:{"id":"documents.activity","version":1}` and the [activity settings](DOCUMENT_ACTIVITY.md). The importer automatically uses the built-in current-space binding and does not offer external source/token/header setup. Import remains a draft operation, and the template conveys no document-read permission.
 
 Remote JavaScript plugins and arbitrary iframes remain future design work. Supporting them would need a separate trust model, version compatibility, isolated origin/runtime, content security policy, capability grants, package signatures/provenance, resource limits, update/rollback and revocation. They must not be introduced by broadening this template endpoint.
 

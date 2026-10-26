@@ -127,7 +127,7 @@ func canLogin(user *User, s Settings) bool {
 
 func (a *App) loadSettings(ctx context.Context, q Queryer) (Settings, error) {
 	var s Settings
-	err := q.QueryRowContext(ctx, "SELECT initialized,site_name,mode,registration_enabled,auth_epoch,auto_fetch_icons,auto_select_endpoint,language FROM settings WHERE id=1").Scan(&s.Initialized, &s.SiteName, &s.Mode, &s.RegistrationEnabled, &s.AuthEpoch, &s.AutoFetchIcons, &s.AutoSelectEndpoint, &s.Language)
+	err := q.QueryRowContext(ctx, "SELECT initialized,site_name,mode,registration_enabled,auth_epoch,auto_fetch_icons,auto_select_endpoint,language,default_session_mode,default_idle_days,max_idle_days,allow_until_logout,session_policy_version FROM settings WHERE id=1").Scan(&s.Initialized, &s.SiteName, &s.Mode, &s.RegistrationEnabled, &s.AuthEpoch, &s.AutoFetchIcons, &s.AutoSelectEndpoint, &s.Language, &s.SessionPolicy.DefaultMode, &s.SessionPolicy.DefaultIdleDays, &s.SessionPolicy.MaxIdleDays, &s.SessionPolicy.AllowUntilLogout, &s.SessionPolicy.PolicyVersion)
 	if err != nil {
 		return s, err
 	}
@@ -151,52 +151,45 @@ func (a *App) loadUser(ctx context.Context, q Queryer, id string) (*User, error)
 
 func (a *App) authenticateCookie(r *Request) error {
 	cookie, err := r.HTTP.Cookie(sessionCookie)
-	if err != nil {
-		return nil
-	}
-	clear := func() { a.clearSessionCookie(r); r.User = nil; r.SessionToken = "" }
-	if len(cookie.Value) != 43 {
-		clear()
-		return nil
-	}
-	var userID string
-	var epoch, version int64
-	var expires databaseTime
-	err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT user_id,auth_epoch,user_version,expires_at FROM sessions WHERE token_hash=?"), tokenHash(cookie.Value)).Scan(&userID, &epoch, &version, &expires)
-	if errors.Is(err, sql.ErrNoRows) {
-		clear()
+	if errors.Is(err, http.ErrNoCookie) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	user, err := a.loadUser(r.HTTP.Context(), r.Q, userID)
+	raw := cookie.Value
+	if len(raw) != 43 {
+		a.expireBrowserSession(r)
+		return nil
+	}
+	record, err := a.readSessionRecord(r.HTTP.Context(), r.Q, tokenHash(raw))
 	if errors.Is(err, sql.ErrNoRows) {
-		clear()
+		a.expireBrowserSession(r)
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	if epoch != r.Settings.AuthEpoch || version != user.Version || !expires.After(time.Now()) || !canLogin(user, r.Settings) {
-		clear()
+	user, err := a.loadUser(r.HTTP.Context(), r.Q, record.UserID)
+	if errors.Is(err, sql.ErrNoRows) {
+		a.expireBrowserSession(r)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if record.AuthEpoch != r.Settings.AuthEpoch || user == nil || record.UserVersion != user.Version || !canLogin(user, r.Settings) || !usableSession(record, r.Settings.SessionPolicy, sessionNow()) {
+		a.expireBrowserSession(r)
 		return nil
 	}
 	r.User = user
-	r.SessionToken = cookie.Value
+	r.SessionToken = raw
+	r.SessionInfo = record
 	return nil
 }
 
 func (a *App) issueSession(r *Request, user *User) error {
-	raw := randomToken()
-	_, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO sessions(token_hash,user_id,auth_epoch,user_version,expires_at) VALUES(?,?,?,?,?)"), tokenHash(raw), user.ID, r.Settings.AuthEpoch, user.Version, time.Now().UTC().Add(12*time.Hour).Format(time.RFC3339Nano))
-	if err != nil {
-		return err
-	}
-	http.SetCookie(r.Writer, &http.Cookie{Name: sessionCookie, Value: raw, Path: "/", HttpOnly: true, Secure: a.config.SecureCookies || r.HTTP.TLS != nil, SameSite: http.SameSiteLaxMode})
-	r.SessionToken = raw
-	r.User = user
-	return nil
+	return a.issueSessionWithChoice(r, user, SessionChoice{})
 }
 
 func (a *App) clearSessionCookie(r *Request) {

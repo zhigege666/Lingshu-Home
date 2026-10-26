@@ -36,6 +36,17 @@ def ready():
         time.sleep(0.1)
     raise RuntimeError("Container health check timed out")
 
+def storage_ready():
+    for _ in range(100):
+        try:
+            with opener.open(url + "/api/v1/storage/bootstrap", timeout=1) as response:
+                if response.status == 200:
+                    return json.load(response)
+        except OSError:
+            pass
+        time.sleep(0.1)
+    raise RuntimeError("Container storage bootstrap timed out")
+
 def api(path, data=None, token=None):
     headers = {"Accept": "application/json"}
     if data is not None:
@@ -52,6 +63,12 @@ try:
             "-e", f"LINGSHU_LISTEN=127.0.0.1:{args.port}", "-e", "LINGSHU_LANGUAGE=zh-CN",
             "-v", prefix + ":/data", args.image)
     created = True
+    storage = storage_ready()
+    assert storage["state"] == "required", "A new default container must offer storage selection"
+    tested = api("/storage/test", {"provider": "sqlite"}, storage["csrfToken"])
+    assert tested["ok"] is True
+    configured = api("/storage/configure", {"provider": "sqlite"}, storage["csrfToken"])
+    assert configured["state"] == "ready"
     ready()
     bootstrap = api("/bootstrap")
     assert bootstrap["initialized"] is False, "Container must start with fresh data"
@@ -61,6 +78,9 @@ try:
     assert before["initialized"] is True
     command("restart", prefix)
     ready()
+    saved_storage = storage_ready()
+    assert saved_storage["state"] == "ready" and saved_storage["provider"] == "sqlite"
+    assert saved_storage["source"] == "file", "Container restart must load persisted storage configuration"
     after = api("/bootstrap")
     assert after["initialized"] is True and after["siteName"] == before["siteName"]
     assert after["language"] == before["language"] == "zh-CN", "Container restart must retain the instance language"
@@ -70,19 +90,28 @@ try:
         assert response.headers.get("Cache-Control") == "no-cache", "HTML must revalidate after updates"
     assets = set(re.findall(rb'(?:src|href)="(/assets/[^"?]+\.(?:js|css))"', html))
     assert len(assets) >= 2, "Built HTML must reference script and style assets"
+    compressed_count = 0
     for asset in assets:
         asset_url = url + asset.decode()
         with opener.open(urllib.request.Request(asset_url, headers={"Accept-Encoding": "identity"}), timeout=10) as response:
             original = response.read()
             assert response.headers.get("Content-Encoding") is None
         with opener.open(urllib.request.Request(asset_url, headers={"Accept-Encoding": "gzip"}), timeout=10) as response:
-            assert response.headers.get("Content-Encoding") == "gzip", "Build-time gzip sidecar must be served"
-            assert "Accept-Encoding" in response.headers.get("Vary", "")
+            encoding = response.headers.get("Content-Encoding")
             assert response.headers.get("Cache-Control") == "public, max-age=31536000, immutable"
-            assert gzip.decompress(response.read()) == original, "Compressed bytes must match final hashed assets"
+            # The build deliberately leaves tiny or incompressible preloads plain.
+            eligible = len(original) >= 1024 and len(gzip.compress(original, compresslevel=9)) < len(original)
+            assert encoding == ("gzip" if eligible else None), "Static encoding must match the build compression policy"
+            payload = response.read()
+            if eligible:
+                assert "Accept-Encoding" in response.headers.get("Vary", "")
+                compressed_count += 1
+                payload = gzip.decompress(payload)
+            assert payload == original, "Static bytes must match final hashed assets"
+    assert compressed_count >= 2, "Main script and stylesheet must use build-time compression"
     user = command("inspect", "--format", "{{.Config.User}}", prefix)
     assert user == "10001:10001", "Container must run as the unprivileged application user"
-    print("Container health, setup, static frontend, gzip integrity/cache boundaries, non-root user and restart persistence passed.")
+    print("Container storage choice, persisted provider, health, setup, static frontend, gzip integrity/cache boundaries, non-root user and restart persistence passed.")
 finally:
     if created:
         subprocess.run([docker, "rm", "-f", prefix], stdout=subprocess.DEVNULL, check=False)

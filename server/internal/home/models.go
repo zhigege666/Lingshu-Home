@@ -16,15 +16,16 @@ const (
 )
 
 type Settings struct {
-	Initialized         bool   `json:"initialized"`
-	Language            string `json:"language"`
-	SiteName            string `json:"siteName"`
-	Mode                string `json:"mode"`
-	RegistrationEnabled bool   `json:"registrationEnabled"`
-	AutoFetchIcons      bool   `json:"autoFetchIcons"`
-	AutoSelectEndpoint  bool   `json:"autoSelectEndpoint"`
-	HasOwner            bool   `json:"hasOwner"`
-	AuthEpoch           int64  `json:"-"`
+	SessionPolicy       SessionPolicy `json:"-"`
+	Initialized         bool          `json:"initialized"`
+	Language            string        `json:"language"`
+	SiteName            string        `json:"siteName"`
+	Mode                string        `json:"mode"`
+	RegistrationEnabled bool          `json:"registrationEnabled"`
+	AutoFetchIcons      bool          `json:"autoFetchIcons"`
+	AutoSelectEndpoint  bool          `json:"autoSelectEndpoint"`
+	HasOwner            bool          `json:"hasOwner"`
+	AuthEpoch           int64         `json:"-"`
 }
 
 type User struct {
@@ -134,6 +135,9 @@ type APIError struct {
 	Code            string `json:"code"`
 	Message         string `json:"message"`
 	CurrentRevision string `json:"currentRevision,omitempty"`
+	Entity          string `json:"entity,omitempty"`
+	ID              string `json:"id,omitempty"`
+	Field           string `json:"field,omitempty"`
 }
 
 func (e *APIError) Error() string { return e.Message }

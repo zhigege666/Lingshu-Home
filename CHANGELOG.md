@@ -4,6 +4,8 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-10-27
+
 ### Composable document activity
 
 - Add three repeatable homepage presets—document heatmap, heatmap with records, and monthly calendar—using one built-in component. Keep existing pages unchanged and expose the same independent per-instance filters and display settings in the homepage inspector and admin layout editor.
@@ -11,7 +13,44 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 - Record real document changes with authenticated Web/API/MCP attribution and authorless external observations, including content observed during publication before a scan. Count distinct created/edited/restored documents per local day; retain rename/delete/metadata details separately from heat counts. Initial scans establish a recording baseline without fabricating history from old file timestamps.
 - Read activity through one cached, deduplicated provider and a scoped read-only HTTP/MCP query. Shared dashboards expose only an empty schema marker; anonymous and published-snapshot-only readers receive no working-document activity. Preserve existing anonymous open-edit page configuration behavior.
 - Add authorized document/space deep links into Library, clear stale previews on read failures, and support activity templates through the existing local binding without external-source credentials.
-- Add SQLite/PostgreSQL migration `009_document_activity.sql`, focused regression coverage and [usage/maintenance guidance](docs/DOCUMENT_ACTIVITY.md). These changes are in Unreleased source; the published 0.0.5 image and executable do not include them.
+- Add SQLite/PostgreSQL migration `009_document_activity.sql`, focused regression coverage and [usage/maintenance guidance](docs/DOCUMENT_ACTIVITY.md). Existing pages keep their composition; add the presets through the component library.
+
+### Login retention and personal accounts
+
+- Add temporary 12-hour, remembered 7/30/90 idle-day and Owner-enabled until-sign-out login modes. New browser logins default to 30 idle days; legacy requests and existing sessions retain their original temporary deadlines. Visible user activity can renew a permitted session; background polling and PAT/MCP traffic do not extend it.
+- Add versioned Owner session policy and personal session listings/revocation. Tightening a policy constrains existing sessions; relaxing it does not revive expired access. Until-sign-out has no server idle deadline and uses a renewable 365-day cookie; browser storage and explicit account actions still determine access.
+- Support display-name maintenance and current-password-verified password changes with stale-edit detection. Rotate the current permitted session and revoke other sessions and access tokens after a successful password change. Do not issue successful cookies for failed handlers or failed transaction commits.
+- Preserve accessible private edit drafts across same-account reauthentication without replaying a save. Explicit sign-out and account changes clear those drafts. Serialize cookie-changing operations to prevent renewal responses from undoing a password change or logout.
+- Recheck identity before refreshing private content when a tab becomes active. Ignore stale bootstrap/CSRF responses after session changes, retain same-account form drafts, and clear old account activity and homepage drafts after a shared-cookie account switch.
+
+### Inline navigation editing and category folders
+
+- Edit category and bookmark fields directly in the management lists. Keep drafts across pages and both lists, save up to 500 changed records in one atomic revision-checked request, and preserve input after validation errors, conflicts or uncertain responses until server state is reconciled.
+- Add field-grouped Undo/Redo, changed-only filtering, Tab/Enter/Shift+Enter navigation, IME composition handling and row-detail changes that join the same draft. Existing bookmark context notes and document associations remain part of their established contracts.
+- Preview six bookmarks per category by default, with a folder icon, remaining count and View all entry. Browse the complete category in a responsive multi-column folder with search, 24-item pages and restored focus; favorites retain their full display.
+- Expose category preview limits (All, 4, 6, 8, 12, 24) in both layout editors. These presentation limits do not truncate navigation datasets, management lists or exports.
+
+### Storage initialization and recovery
+
+- Add pre-database setup for Docker, Linux and source runs, offering SQLite or external PostgreSQL, read-only connection tests and private atomic storage configuration. Existing explicitly configured or detected SQLite instances retain their storage target when upgraded.
+- Preserve database identity, instance leases and local signing/encryption keys across restarts. Refuse silent SQLite fallback, unrelated populated databases and missing provisioned stores; provide same-target recovery without exposing connection secrets.
+- Remove forced SQLite from the normal image, Compose example and development launcher so a genuinely new unconfigured instance can choose its database. Keep existing explicit environment/flag precedence and the one-time instance-language behavior.
+- Combine the development launcher's verified HTTPS checks with storage setup/recovery states. Certificate failures stop only its newly started child; a reachable database-recovery page keeps its verified process available for retry.
+
+### Management layout and icon clarity
+
+- Merge management page titles into the top bar, place the global space selector beside the account menu, and group content, current-space and site settings. Move space maintenance out of import/export and add personal profile/session entry points.
+- Align category labels with controls, keep optional explanations in accessible click-open help, and keep component-library actions within the editor sidebar. Preserve focus when compact drawers hand off to preset/import dialogs.
+- Standardize built-in, imported and selected picker icons at 24 by 24 CSS pixels, with fixed even-width cells and consistent labels. Preserve original SVG assets and saved icon references.
+
+### Upgrade and release maintenance
+
+- Keep the published `008_document_library.sql` migration unchanged, add document activity as `009_document_activity.sql`, and introduce login retention as `010_session_retention.sql` for SQLite and PostgreSQL. Preserve original document mounts, database contents, local storage configuration, instance identity and signing/encryption keys.
+- Handle the exact previously unshipped `008_session_retention.sql` schema through a validated transactional migration bridge. Verify its original checksum and actual schema before reconciling the official migration chain; reject altered or unknown migrations rather than guessing an upgrade path.
+- Add upgrade checks for public 0.0.4 and 0.0.5 images, including existing accounts, navigation, document metadata, publication snapshots/attachments, first-scan activity baselines and post-upgrade writes. Database rollback requires the matching pre-upgrade database/data and original-document backup, not merely an older image tag.
+- Include the new frontend core, storage initialization/recovery and external PostgreSQL checks in the release CI. Keep Linux amd64 downloads and the offline Docker archive derived from the same tested image, with matched source, release notes and checksums.
+- Exercise the extracted Linux bundle's initial storage choice, private saved configuration, instance keys and restart with its actual default paths. Exclude the known private session/inline-edit design file from Git archives, Docker contexts and application/source packages.
+- Record the required direct-main workflow in `AGENTS.md`: do not create task branches without an explicit user request, inventory pending local work before releases, and remove task branches after verified integration.
 
 ## [0.0.5] - 2026-10-25
 

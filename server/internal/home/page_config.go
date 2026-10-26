@@ -358,7 +358,7 @@ func validatePageConfig(config map[string]any) error {
 			allowed = append(allowed, "showLatency")
 		}
 		if panelID == "builtin/navigation" {
-			allowed = append(allowed, "variant", "groupBy", "linkAppearance")
+			allowed = append(allowed, "variant", "groupBy", "linkAppearance", "groupPreviewCount")
 		}
 		if panelID == "builtin/favorites" {
 			allowed = append(allowed, "variant", "linkAppearance")
@@ -402,6 +402,12 @@ func validatePageConfig(config map[string]any) error {
 		}
 		if appearance, exists := settings["linkAppearance"]; exists && !oneOf(appearance, "icon-text", "minimal", "app-icons") {
 			return invalid("Unknown link appearance.")
+		}
+		if preview, exists := settings["groupPreviewCount"]; exists {
+			n, ok := integer(preview, 0, 24)
+			if !ok || (n != 0 && n != 4 && n != 6 && n != 8 && n != 12 && n != 24) {
+				return invalid("groupPreviewCount must be 0, 4, 6, 8, 12 or 24.")
+			}
 		}
 		if columns, exists := settings["maxColumns"]; exists {
 			if _, ok := integer(columns, 0, 8); !ok {

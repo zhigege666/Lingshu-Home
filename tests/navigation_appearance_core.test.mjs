@@ -2,19 +2,19 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readNavigationAppearanceSettings } from '../web/src/core/navigation-appearance.ts'
 
-test('omitted view content settings preserve the historical rendering contract', () => {
+test('omitted view settings preserve display defaults and fold large categories', () => {
   const input = { variant: 'cards', linkAppearance: 'app-icons', title: 'Personal links' }
   const before = structuredClone(input)
   assert.deepEqual(readNavigationAppearanceSettings(input), {
     maxColumns: 0, urlDisplay: 'fallback', descriptionLines: 1, showTags: null,
-    showEndpoints: true, showGroupTitles: true, showCounts: true, density: 'inherit',
+    showEndpoints: true, showGroupTitles: true, showCounts: true, density: 'inherit', groupPreviewCount: 6,
   })
   assert.deepEqual(input, before)
 })
 
 test('explicit visibility overrides are independent and survive JSON serialization', () => {
   const input = { maxColumns: 3, urlDisplay: 'hidden', descriptionLines: 0, showTags: true,
-    showEndpoints: false, showGroupTitles: false, showCounts: false, density: 'compact' }
+    showEndpoints: false, showGroupTitles: false, showCounts: false, density: 'compact', groupPreviewCount: 12 }
   assert.deepEqual(readNavigationAppearanceSettings(JSON.parse(JSON.stringify(input))), input)
   const inherited = { ...input }; delete inherited.showTags
   assert.equal(readNavigationAppearanceSettings(inherited).showTags, null)

@@ -1,6 +1,6 @@
 # Icon libraries and cached website icons
 
-This document describes the current icon data and HTTP contract. Version 0.0.4 expands the built-in collection from 30 to 120 icons and adds the grouped picker. Homepage display choices, including minimal links and app-style icon cards, belong to the page/theme settings. Changing a display style preserves the link's saved icon reference.
+This document describes the current icon data and HTTP contract. Version 0.0.4 expanded the built-in collection from 30 to 120 icons and adds the grouped picker. Homepage display choices, including minimal links and app-style icon cards, belong to the page/theme settings. Changing a display style preserves the link's saved icon reference.
 
 ## Sources and references
 
@@ -33,6 +33,12 @@ Choose a group to browse, or type a Chinese/English name, technical ID or alias 
 
 Built-in results show 24 icons per page with visible names, full accessible labels, selected-state buttons, a selected-icon preview and a bounded scrolling area. Imported libraries retain their 32-item pagination and existing import limits. Changing an icon updates only the form draft until **Save category** or **Save link** succeeds.
 
+### Picker display sizing
+
+Since 0.0.6, the shared link/category picker displays built-in icons, imported-library icons and the selected preview at 24 × 24 CSS pixels. This matches the bundled SVG viewBox without the previous 22 px reduction; no SVG asset is rasterized or rewritten. Imported bitmap detail still depends on its original resolution.
+
+Built-in choices use fixed 64 px columns and 72 px rows, with a 4 px gap between each icon and its fixed 28 px label area. Labels use 12 px text and 14 px line height, capped at two lines; hover, keyboard focus and accessible names retain the full label. Library choices use 48 px cells. Both grids use an 8 px gap and 6 px inset, automatically reduce their column count on narrow screens and keep space for focus outlines. The built-in grid is bounded to four rows before scrolling. These dimensions remove fractional sizing introduced by the picker itself; browser zoom, display scaling and an ancestor's position can still affect physical-pixel alignment.
+
 The manifest records `label`, `labelEn` and `group` for each icon and a bilingual `groups` list. These are catalog metadata, not new navigation categories. Product-name search aliases refer to generic category illustrations and are not official product logos. All original IDs, SVG bytes, fallback mappings and saved references are preserved. The frontend manifest and backend allowlist are checked together by `TestBuiltinIconManifestContract`; no database migration is required.
 
 ## Access and persistence
@@ -51,7 +57,7 @@ The Web link/category picker exposes a searchable built-in collection, space lib
 
 ## Automatic website icons
 
-**Access and accounts → Automatically fetch website icons** controls the whole instance and defaults to on. `GET /bootstrap` and `GET /settings` expose `autoFetchIcons`; `PUT /settings` accepts that optional boolean. Omitting it preserves the stored value. Once an Owner exists, only that Owner may change the switch; an ownerless `open_edit` instance can maintain it without an account. Changing only this switch does not revoke sessions or advance the authentication epoch.
+**Site settings → Automatically fetch website icons** controls the whole instance and defaults to on. `GET /bootstrap` and `GET /settings` expose `autoFetchIcons`; `PUT /settings` accepts that optional boolean. Omitting it preserves the stored value. Once an Owner exists, only that Owner may change the switch; an ownerless `open_edit` instance can maintain it without an account. Changing only this switch does not revoke sessions or advance the authentication epoch.
 
 | Operation | Result |
 | --- | --- |
@@ -178,12 +184,13 @@ PostgreSQL tests use a dedicated disposable database selected by `LINGSHU_TEST_I
 
 ## 中文使用要点
 
-- 当前源码提供 120 个本地 Lucide 线性图标，按 8 组浏览；此扩充尚未包含在已发布的 0.0.2 中。分类与链接编辑器共用选择器，支持中文、英文、技术名称和常用别名搜索，每页 24 个内置图标。搜索会覆盖全部分组，选择分组会清空搜索；旧图标与已保存分类保持原样。
+- 0.0.6 将选择器中的内置图标、导入图库和已选预览统一为 24 × 24 CSS 像素；内置名称使用 12 px 字号和固定两行区域，网格按固定列宽自动换列，避免名称换行造成图标上下错位。仅调整显示布局，SVG 源文件和保存的图标引用保持原样；导入位图的细节仍取决于原始分辨率。
+- Home 提供 120 个本地 Lucide 线性图标，按 8 组浏览；0.0.2 的历史版本仅有 30 个。分类与链接编辑器共用选择器，支持中文、英文、技术名称和常用别名搜索，每页 24 个内置图标。搜索会覆盖全部分组，选择分组会清空搜索；旧图标与已保存分类保持原样。
 - 简约链接、图文卡片和应用图标样式由主题/组件控制，切换样式不会改写链接保存的图标。
 - 选择器可以导入上面的 JSON 图标库，也可导入单张 PNG、JPEG 或受限静态 SVG。每库最多 64 张，填写真实来源和许可说明；复杂 SVG 可先转成 PNG。接口不接收 ZIP、图标字体、CSS 包或可执行内容。
 - 导入、确认删除及网站缓存立即写入当前空间，所选引用随链接/分类表单保存；取消表单只放弃选择，不撤销已完成的图标库或缓存操作。
 - 导入和网站图标获取遵守当前空间的维护权限。选择完全开放模式后，免登录维护仍然可用，同时保留 CSRF 校验；个人空间图标不会跨用户公开。
-- “访问与账号 → 自动获取网页图标”默认开启。新增/导入书签默认使用自动模式，保存提交后由单个后台任务逐项获取；选择内置/导入图标会转为手动模式。旧链接升级时保留原图标，可逐条改为自动。
+- “站点设置 → 自动获取网页图标”默认开启。新增/导入书签默认使用自动模式，保存提交后由单个后台任务逐项获取；选择内置/导入图标会转为手动模式。旧链接升级时保留原图标，可逐条改为自动。
 - 关闭开关会清理待办并取消/丢弃在途自动结果，保留已保存图片；“获取网站图标”仍可主动使用。重新开启不会批量扫描旧链接，后续保存/导入才会排队。
 - 服务端只访问网站公开根地址和图标候选地址，缓存后由 Home 自己提供图片；普通访客浏览首页不会触发远程获取。内网网站图标使用本地导入。浏览器仅用带权限重新验证的 HTTP 缓存，图片权威副本保存在数据库。
 - HTML/XHTML 只读取有界的 head/前缀，到页头结束或 body 开始就停止，最多 512 KiB、初始阶段最多 3 秒；大页面无需等待完整下载。图片仍完整校验，总流程不超过 10 秒/6 次请求/1 MiB，并为 `/favicon.ico` 保留请求、时间和图片预算。

@@ -1,0 +1,12 @@
+ALTER TABLE settings ADD COLUMN default_session_mode TEXT NOT NULL DEFAULT 'remember' CHECK(default_session_mode IN ('temporary','remember','until_logout'));
+ALTER TABLE settings ADD COLUMN default_idle_days INTEGER NOT NULL DEFAULT 30 CHECK(default_idle_days IN (7,30,90));
+ALTER TABLE settings ADD COLUMN max_idle_days INTEGER NOT NULL DEFAULT 30 CHECK(max_idle_days IN (7,30,90));
+ALTER TABLE settings ADD COLUMN allow_until_logout BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE settings ADD COLUMN session_policy_version BIGINT NOT NULL DEFAULT 1 CHECK(session_policy_version>=1);
+ALTER TABLE sessions ADD COLUMN session_mode TEXT NOT NULL DEFAULT 'temporary' CHECK(session_mode IN ('temporary','remember','until_logout'));
+ALTER TABLE sessions ADD COLUMN idle_days INTEGER NOT NULL DEFAULT 0 CHECK(idle_days IN (0,7,30,90));
+ALTER TABLE sessions ADD COLUMN created_at TIMESTAMPTZ;
+ALTER TABLE sessions ADD COLUMN last_interactive_at TIMESTAMPTZ;
+ALTER TABLE sessions ADD COLUMN renewed_at TIMESTAMPTZ;
+ALTER TABLE sessions ADD COLUMN user_agent TEXT NOT NULL DEFAULT '';
+CREATE INDEX sessions_retention ON sessions(session_mode,idle_days);

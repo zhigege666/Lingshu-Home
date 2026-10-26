@@ -1,6 +1,7 @@
 package home
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -22,6 +23,9 @@ type Config struct {
 	TLSKeyFile      string
 	Language        string
 	DocumentRoots   []string
+	storageSource   string
+	runtimeLease    *fileLease
+	runtimeContext  context.Context
 }
 
 func envValue(name, fallback string) string {
@@ -38,7 +42,7 @@ func ParseConfig(args []string) (Config, error) {
 	f.StringVar(&c.Listen, "listen", envValue("LINGSHU_LISTEN", "127.0.0.1:5180"), "HTTP or HTTPS listening address")
 	f.StringVar(&c.DataDir, "data-dir", envValue("LINGSHU_DATA_DIR", "data"), "Persistent data and key directory")
 	f.StringVar(&c.StorageProvider, "storage-provider", envValue("LINGSHU_STORAGE_PROVIDER", "sqlite"), "sqlite or postgres")
-	f.StringVar(&c.DatabaseURL, "database-url", envValue("LINGSHU_DATABASE_URL", ""), "PostgreSQL connection URL; prefer environment")
+	f.StringVar(&c.DatabaseURL, "database-url", "", "PostgreSQL connection URL; prefer environment")
 	f.StringVar(&c.WebDir, "web-dir", envValue("LINGSHU_WEB_DIR", "web/dist"), "Built frontend directory")
 	f.StringVar(&c.VersionFile, "version-file", envValue("LINGSHU_VERSION_FILE", "VERSION"), "Product VERSION file")
 	f.StringVar(&c.Language, "language", envValue("LINGSHU_LANGUAGE", ""), "Initial instance language: zh-CN or en; omit to choose during setup")
@@ -58,6 +62,25 @@ func ParseConfig(args []string) (Config, error) {
 	}
 	if err := json.Unmarshal([]byte(documentRoots), &c.DocumentRoots); err != nil {
 		return c, errors.New("LINGSHU_DOCUMENT_ROOTS must be a JSON array of absolute directory paths")
+	}
+	provided := map[string]bool{}
+	f.Visit(func(item *flag.Flag) { provided[item.Name] = true })
+	if !provided["database-url"] {
+		c.DatabaseURL = envValue("LINGSHU_DATABASE_URL", "")
+	}
+	providerEnv := strings.TrimSpace(envValue("LINGSHU_STORAGE_PROVIDER", ""))
+	urlEnv := strings.TrimSpace(envValue("LINGSHU_DATABASE_URL", ""))
+	c.storageSource = "default"
+	if provided["storage-provider"] || provided["database-url"] {
+		c.storageSource = "cli"
+	} else if providerEnv != "" || urlEnv != "" {
+		c.storageSource = "environment"
+	}
+	if provided["storage-provider"] && strings.TrimSpace(c.StorageProvider) == "" {
+		return c, errors.New("storage provider must be sqlite or postgres")
+	}
+	if !provided["storage-provider"] && providerEnv == "" && strings.TrimSpace(c.DatabaseURL) != "" {
+		c.StorageProvider = "postgres"
 	}
 	return c, c.validate()
 }

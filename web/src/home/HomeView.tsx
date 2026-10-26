@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowUpRight, BookOpen, ChevronDown, Compass, LayoutGrid, List, LoaderCircle, LogOut, Moon, Pencil, RefreshCw, Settings2, Sun, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, ChevronDown, Compass, LayoutGrid, List, LoaderCircle, Moon, Pencil, RefreshCw, Settings2, Sun, X } from 'lucide-react';
 import { HomeGrid, type GridPosition } from './HomeGrid';
 import { CategoryPanel, EMPTY_FILTER, NavigationPanel, SearchPanel, readNavigation, type NavigationCollection, type NavigationFilter, type NavigationLink } from './NavigationPanels';
 import { ApiError, request as apiRequest } from '../core/api';
@@ -11,10 +11,12 @@ import { useUnsavedChanges } from '../core/useUnsavedChanges';
 import { createDraftHistory, inputHistoryGroup, recordDraft, redoDraft, undoDraft, type DraftHistory } from '../core/draft-history';
 import { useHistoryShortcuts } from '../core/useHistoryShortcuts';
 import { requestNavigation } from '../core/navigation';
+import { sessionVerifiedEvent } from '../core/session-requests';
 import { validatePageChrome } from '../core/chrome-validation';
 import { panelLocked, panelTitle, type ComposerSource, type HomeSelection } from './composition';
 import { getLocale, t } from '../core/i18n';
 import { ProjectLogo } from '../components/ProjectLogo';
+import AccountMenu from '../components/AccountMenu';
 import { HomeEnvironment } from './HomeEnvironment';
 import { DocumentActivityProvider } from './DocumentActivityProvider';
 import { useHomeEndpointRouting } from './useEndpointRouting';
@@ -26,7 +28,7 @@ import './link-appearance.css';
 import './composer-canvas.css';
 import './endpoint-routing.css';
 
-type HomeProps = { bootstrap: Bootstrap; dashboard: Dashboard; onRefresh: () => Promise<void>; onSpaceChange: (spaceId: string) => void; onLogout?: () => Promise<void>; preview?: boolean; viewportWindow?: Window };
+type HomeProps = { bootstrap: Bootstrap; dashboard: Dashboard; onRefresh: () => Promise<void>; onSpaceChange: (spaceId: string) => void; onLogout?: () => Promise<void>; onProfile?: () => void; preview?: boolean; viewportWindow?: Window };
 type EditDraft = { pageId: string; spaceId: string; identity: string; revision: string; history: DraftHistory<PageConfig>; original: PageConfig };
 const SpaceSelect = lazy(() => import('./SpaceSelect'));
 const HomeEditor = lazy(() => import('./HomeEditor'));
@@ -62,7 +64,7 @@ function readCategoryCollapses(pageId: string): Record<string, boolean> {
   } catch { return {}; }
 }
 
-export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLogout, preview = false, viewportWindow }: HomeProps) {
+export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLogout, onProfile, preview = false, viewportWindow }: HomeProps) {
   const ownerWindow = viewportWindow || (typeof window === 'undefined' ? undefined : window);
   const viewportNarrow = useMedia('(max-width: 900px)', ownerWindow);
   const [canvasElement, setCanvasElement] = useState<HTMLDivElement | null>(null);
@@ -221,8 +223,8 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   useEffect(() => {
     if (preview || editing || !hasExternalPanels || !ownerWindow) return;
     const resumed = () => { if (ownerWindow.document.visibilityState === 'visible' && Date.now() - lastDataRead.current > 60000) void readSavedData(); };
-    ownerWindow.addEventListener('focus', resumed); ownerWindow.document.addEventListener('visibilitychange', resumed);
-    return () => { ownerWindow.removeEventListener('focus', resumed); ownerWindow.document.removeEventListener('visibilitychange', resumed); };
+    ownerWindow.addEventListener(sessionVerifiedEvent, resumed);
+    return () => { ownerWindow.removeEventListener(sessionVerifiedEvent, resumed); };
   }, [preview, editing, hasExternalPanels, ownerWindow, readSavedData]);
   const region = (name: Region) => positions.filter(item => item.placement.kind !== 'hidden' && item.placement.region === name).sort((a,b) => orderOf(a.placement) - orderOf(b.placement));
   const top = region('top'), left = region('left'), right = region('right'), bottom = region('bottom'), main = region('main');
@@ -307,14 +309,14 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
         <div className="lh-home-heading"><h1>{dashboard.page.name || t('我的导航', 'My bookmarks')}</h1><p className="lh-home-summary">{t('{count} 个链接', '{count} links', { count: number.format(totals.links) })}<span>·</span>{t('{count} 个分类', '{count} categories', { count: number.format(totals.categories) })}{dashboard.space.kind === 'personal' && <><span>·</span>{t('仅自己可见', 'Private')}</>}</p></div></div>
       <div className="lh-header-search">{renderRegion(topSearch)}</div>
       <div className="lh-header-actions">
-        {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing} theme={color} onChange={onSpaceChange} bootstrap={bootstrap}/></Suspense></div>}
         {!editing && <><div className="lh-segmented" aria-label={t('链接展示方式', 'Link presentation')}><button aria-label={t('卡片模式', 'Card view')} title={t('卡片模式', 'Card view')} aria-pressed={mainVariant === 'cards'} onClick={() => setTemporaryVariant('cards')}><LayoutGrid size={16} /></button><button aria-label={t('目录模式', 'Directory view')} title={t('目录模式', 'Directory view')} aria-pressed={mainVariant === 'directory'} onClick={() => setTemporaryVariant('directory')}><List size={17} /></button></div>
         <button className="lh-icon-button" onClick={() => setTemporaryColor(color === 'dark' ? 'light' : 'dark')} title={t('切换深浅色', 'Toggle light or dark')} aria-label={t('切换深浅色', 'Toggle light or dark')}>{color === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></>}
         {!preview && !editing && <button type="button" className="lh-quiet-button" disabled={refreshingData} aria-label={hasExternalPanels ? t('读取最新组件快照', 'Read latest component snapshots') : t('刷新内容', 'Refresh content')} title={t('读取已保存内容，不触发外部获取', 'Read saved content without starting external requests')} onClick={() => { void readSavedData(); }}><RefreshCw size={14} className={refreshingData ? 'lh-spin' : undefined} /><span>{hasExternalPanels ? t('更新数据', 'Refresh data') : t('刷新内容', 'Refresh content')}</span></button>}
         {!preview && dashboard.space.canEdit && !editing && <button className="lh-quiet-button lh-edit-trigger" title={t('编辑页面', 'Edit page')} aria-label={t('编辑页面', 'Edit page')} disabled={busy} onClick={startEditing}><Pencil size={14} /><span>{t('编辑页面', 'Edit page')}</span></button>}
         {!preview && !editing && <a className="lh-admin-link" href="#/library"><BookOpen size={16}/><span>{t('资料库', 'Library')}</span></a>}
         {!preview && !editing && <a className="lh-admin-link" href="#/admin" aria-label={managementLabel} title={managementLabel}><Settings2 size={16} /><span>{managementLabel}</span></a>}
-        {!preview && !editing && bootstrap.user && onLogout && <button className="lh-icon-button" aria-label={t('退出登录', 'Sign out')} title={t('{name} · 退出登录', '{name} · Sign out', { name: bootstrap.user.displayName || bootstrap.user.username })} onClick={() => { void onLogout(); }}><LogOut size={16} /></button>}
+        {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing} theme={color} onChange={onSpaceChange} bootstrap={bootstrap}/></Suspense></div>}
+        {!preview && !editing && bootstrap.user && onLogout && <AccountMenu user={bootstrap.user} onProfile={() => onProfile?.()} onLogout={() => { void onLogout(); }}/>}
       </div>
     </header>}
     <PageChromeArea area={chrome.header} placement="header" version={bootstrap.version} editing={inspecting} selectedSlot={selection.kind === 'chrome' && selection.area === 'header' ? selection.alignment || 'left' : undefined} onSelect={alignment => setSelection({ kind: 'chrome', area: 'header', alignment })} />

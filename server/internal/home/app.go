@@ -43,6 +43,7 @@ type App struct {
 }
 
 type Request struct {
+	SessionInfo         *SessionRecord
 	App                 *App
 	HTTP                *http.Request
 	Writer              http.ResponseWriter
@@ -92,7 +93,11 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 	if err != nil || strings.TrimSpace(string(version)) == "" {
 		return nil, errors.New("a nonempty product VERSION file is required")
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	parent := c.runtimeContext
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
 	injectedIconClient := iconClient != nil
 	if iconClient == nil {
 		iconClient = newIconHTTPClient()
@@ -213,7 +218,7 @@ func (a *App) route(pattern string, write bool, handler handlerFunc) {
 				return
 			}
 		}
-		if h.URL.Path == "/api/v1/setup" || h.URL.Path == "/api/v1/setup/language" || h.URL.Path == "/api/v1/auth/login" || h.URL.Path == "/api/v1/auth/register" {
+		if h.URL.Path == "/api/v1/setup" || h.URL.Path == "/api/v1/setup/language" || h.URL.Path == "/api/v1/auth/login" || h.URL.Path == "/api/v1/auth/register" || h.URL.Path == "/api/v1/account/password" {
 			allowed, retry := a.limits.allow(h.RemoteAddr)
 			if !allowed {
 				w.Header().Set("Retry-After", strconv.Itoa(retry))
@@ -282,10 +287,14 @@ func (a *App) route(pattern string, write bool, handler handlerFunc) {
 			response, err = handler(r)
 		}
 		if err != nil {
+			// Cookies established by a failed transaction must not replace a
+			// browser's still-valid session with an uncommitted token.
+			w.Header().Del("Set-Cookie")
 			writeError(w, err)
 			return
 		}
 		if err = tx.Commit(); err != nil {
+			w.Header().Del("Set-Cookie")
 			writeError(w, err)
 			return
 		}
@@ -346,8 +355,16 @@ func (a *App) registerRoutes() {
 	a.route("POST /api/v1/setup", true, a.setup)
 	a.route("POST /api/v1/setup/language", true, a.selectSetupLanguage)
 	a.route("POST /api/v1/auth/login", true, a.login)
+	a.route("GET /api/v1/settings/session-policy", false, a.getSessionPolicy)
+	a.route("PUT /api/v1/settings/session-policy", true, a.updateSessionPolicy)
+	a.route("POST /api/v1/auth/renew", true, a.renewSession)
+	a.route("GET /api/v1/account/sessions", false, a.listBrowserSessions)
+	a.route("POST /api/v1/account/sessions/revoke", true, a.revokeBrowserSession)
+	a.route("POST /api/v1/account/sessions/revoke-others", true, a.revokeOtherBrowserSessions)
 	a.route("POST /api/v1/auth/logout", true, a.logout)
 	a.route("POST /api/v1/auth/register", true, a.register)
+	a.route("PUT /api/v1/account/profile", true, a.updateAccountProfile)
+	a.route("PUT /api/v1/account/password", true, a.updateAccountPassword)
 	a.route("GET /api/v1/settings", false, a.getSettings)
 	a.route("PUT /api/v1/settings", true, a.updateSettings)
 	a.route("PUT /api/v1/settings/navigation", true, a.updateNavigationSettings)
@@ -356,6 +373,7 @@ func (a *App) registerRoutes() {
 	a.route("PUT /api/v1/admin/users/{id}", true, a.updateUser)
 	a.route("GET /api/v1/dashboard", false, a.dashboard)
 	a.route("GET /api/v1/spaces/{spaceId}/navigation", false, a.getNavigation)
+	a.route("POST /api/v1/spaces/{spaceId}/navigation/batch-edit", true, a.batchEditNavigation)
 	a.route("PUT /api/v1/spaces/{spaceId}", true, a.updateSpace)
 	a.route("PUT /api/v1/spaces/{spaceId}/page", true, a.updatePage)
 	a.route("POST /api/v1/spaces/{spaceId}/categories", true, a.createCategory)

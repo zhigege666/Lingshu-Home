@@ -83,6 +83,11 @@ class DevelopmentTLSHealthTests(unittest.TestCase):
 
         class HealthHandler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
+                if self.path == "/api/v1/storage/bootstrap" and hasattr(self.server, "storage_state"):
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(json.dumps(self.server.storage_state).encode())
+                    return
                 self.send_response(200 if self.path == "/health" else 404)
                 self.end_headers()
                 self.wfile.write(b"ok")
@@ -125,6 +130,20 @@ class DevelopmentTLSHealthTests(unittest.TestCase):
             dev.health_connection("localhost", self.port, {"LINGSHU_TLS_CERT_FILE": str(self.cert)})
         url, _ = dev.health_connection("0.0.0.0", self.port, {})
         self.assertEqual(url, "http://127.0.0.1:" + self.port)
+
+    def test_storage_probe_keeps_verified_tls_and_bypasses_environment_proxy(self):
+        with mock.patch.dict(os.environ, {"SSL_CERT_FILE": str(self.cert), "HTTPS_PROXY": "http://127.0.0.1:1",
+                                          "https_proxy": "http://127.0.0.1:1", "NO_PROXY": "", "no_proxy": ""}):
+            url, client = dev.health_connection("localhost", self.port, self.environment)
+            for state in ("required", "ready"):
+                self.server.storage_state = {"state": state}
+                self.assertEqual(dev.probe_startup(url, client=client), (state, ""))
+            self.server.storage_state = {"state": "error", "error": {"message": "Database unavailable."}}
+            self.assertEqual(dev.probe_startup(url, client=client), ("error", "Database unavailable."))
+            wrong_url, wrong_client = dev.health_connection("127.0.0.1", self.port, self.environment)
+            with self.assertRaises(urllib.error.URLError) as refused:
+                dev.probe_startup(wrong_url, client=wrong_client)
+            self.assertIsInstance(refused.exception.reason, ssl.SSLCertVerificationError)
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux TCP reuse semantics")
@@ -243,6 +262,44 @@ class DevelopmentLauncherTests(unittest.TestCase):
                         child.terminate()
                     child.wait(timeout=5)
 
+    def test_storage_recovery_keeps_only_the_owned_server_and_its_state(self):
+        with tempfile.TemporaryDirectory(prefix="lingshu-storage-recovery-start-") as folder:
+            root = Path(folder)
+            runtime = root / ".runtime"
+            binary = root / "sleep"
+            shutil.copy2(shutil.which("sleep"), binary)
+            (root / "web/dist").mkdir(parents=True)
+            (root / "web/dist/index.html").write_text("test")
+            with socket.socket() as port_probe:
+                port_probe.bind(("127.0.0.1", 0))
+                port = port_probe.getsockname()[1]
+            args = argparse.Namespace(listen=f"127.0.0.1:{port}", data_dir=str(root / "data"),
+                                      provider=None, language=None)
+            original_popen = subprocess.Popen
+            children = []
+
+            def launch_owned_child(command, **kwargs):
+                self.assertEqual(command, [str(binary)])
+                child = original_popen([str(binary), "30"], **kwargs)
+                children.append(child)
+                return child
+
+            try:
+                with mock.patch.multiple(dev, ROOT=root, RUNTIME=runtime, STATE=runtime / "service.json",
+                                         LOG=runtime / "service.log", BINARY=binary), \
+                        mock.patch.object(dev.subprocess, "Popen", side_effect=launch_owned_child), \
+                        mock.patch.object(dev, "probe_startup", return_value=("error", "Database unavailable.")):
+                    with self.assertRaisesRegex(dev.StorageSetupError, "still running"):
+                        dev.start(args)
+                    self.assertEqual(len(children), 1)
+                    self.assertIsNone(children[0].poll(), "the reachable recovery UI must remain available")
+                    self.assertEqual(dev.load_state()["pid"], children[0].pid)
+            finally:
+                for child in children:
+                    if child.poll() is None:
+                        child.terminate()
+                    child.wait(timeout=5)
+
     def test_replaced_executable_keeps_owned_identity_and_can_be_stopped(self):
         with tempfile.TemporaryDirectory(prefix="lingshu-launcher-test-") as folder:
             root = Path(folder)
@@ -290,6 +347,76 @@ class DevelopmentLauncherTests(unittest.TestCase):
                 if process.poll() is None:
                     process.terminate()
                     process.wait(timeout=5)
+
+
+
+class DevelopmentStorageTests(unittest.TestCase):
+    @staticmethod
+    def response(payload):
+        response = mock.MagicMock()
+        response.status = 200
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps(payload).encode("utf-8")
+        return response
+
+    def test_storage_omission_environment_and_flag_precedence(self):
+        for environment, flags, expected in (
+            ({}, [], None),
+            ({"LINGSHU_STORAGE_PROVIDER": "postgres", "LINGSHU_DATABASE_URL": "postgres://example.invalid/home"}, [], "postgres"),
+            ({"LINGSHU_STORAGE_PROVIDER": "postgres"}, ["--provider", "sqlite"], "sqlite"),
+            ({}, ["--provider", "postgres"], "postgres"),
+        ):
+            with self.subTest(environment=environment, flags=flags), \
+                    mock.patch.dict(os.environ, environment, clear=True), \
+                    mock.patch.object(sys, "argv", ["dev.py", "start", *flags]), \
+                    mock.patch.object(dev, "start") as launch:
+                self.assertEqual(dev.main(), 0)
+                args = launch.call_args.args[0]
+                result = dev.app_environment(args)
+                if not flags:
+                    self.assertIsNone(args.provider)
+                self.assertEqual(result.get("LINGSHU_STORAGE_PROVIDER"), expected)
+                self.assertEqual(result.get("LINGSHU_DATABASE_URL"), environment.get("LINGSHU_DATABASE_URL"))
+
+    def test_required_is_actionable_without_claiming_health(self):
+        with mock.patch.object(dev.urllib.request, "urlopen", return_value=self.response({"state": "required"})) as request:
+            self.assertEqual(dev.probe_startup("http://localhost:5180"), ("required", ""))
+        self.assertEqual(request.call_count, 1)
+
+    def test_error_is_not_ready(self):
+        payload = {"state": "error", "error": {"code": "storage_unavailable", "message": "Database is not reachable."}}
+        with mock.patch.object(dev.urllib.request, "urlopen", return_value=self.response(payload)):
+            self.assertEqual(dev.probe_startup("http://localhost:5180"), ("error", "Database is not reachable."))
+
+    def test_ready_requires_health(self):
+        replies = [self.response({"state": "ready"}), self.response({"status": "ok"})]
+        with mock.patch.object(dev.urllib.request, "urlopen", side_effect=replies) as request:
+            self.assertEqual(dev.probe_startup("http://localhost:5180"), ("ready", ""))
+        self.assertEqual(request.call_args.args[0], "http://localhost:5180/health")
+
+    def test_ready_with_failed_health_is_not_ready(self):
+        from urllib.error import HTTPError
+        replies = [self.response({"state": "ready"}), HTTPError("http://localhost:5180/health", 503, "Unavailable", {}, None)]
+        with mock.patch.object(dev.urllib.request, "urlopen", side_effect=replies):
+            self.assertEqual(dev.probe_startup("http://localhost:5180"), ("pending", ""))
+
+    def test_old_version_404_falls_back_to_health(self):
+        from urllib.error import HTTPError
+        replies = [HTTPError("http://localhost:5180/api/v1/storage/bootstrap", 404, "Not Found", {}, None), self.response({"status": "ok"})]
+        with mock.patch.object(dev.urllib.request, "urlopen", side_effect=replies) as request:
+            self.assertEqual(dev.probe_startup("http://localhost:5180"), ("ready", ""))
+        self.assertEqual(request.call_count, 2)
+
+    def test_other_errors_and_unknown_shapes_are_not_ready(self):
+        from urllib.error import HTTPError
+        failure = HTTPError("http://localhost:5180/api/v1/storage/bootstrap", 503, "Unavailable", {}, None)
+        with mock.patch.object(dev.urllib.request, "urlopen", side_effect=failure) as request:
+            self.assertEqual(dev.probe_startup("http://localhost:5180"), ("pending", ""))
+        self.assertEqual(request.call_count, 1)
+        for payload in [None, [], {"state": "unknown"}, {"status": "ok"}]:
+            with self.subTest(payload=payload), mock.patch.object(dev.urllib.request, "urlopen", return_value=self.response(payload)) as request:
+                self.assertEqual(dev.probe_startup("http://localhost:5180"), ("pending", ""))
+                self.assertEqual(request.call_count, 1)
 
 
 if __name__ == "__main__":

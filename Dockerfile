@@ -31,7 +31,6 @@ RUN groupadd --gid 10001 lingshu \
 WORKDIR /app
 ENV LINGSHU_LISTEN=0.0.0.0:8080 \
     LINGSHU_DATA_DIR=/data \
-    LINGSHU_STORAGE_PROVIDER=sqlite \
     LINGSHU_WEB_DIR=/app/wwwroot \
     LINGSHU_VERSION_FILE=/app/VERSION
 COPY --from=server /build/lingshu-home ./lingshu-home

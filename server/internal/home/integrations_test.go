@@ -262,8 +262,25 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 				t.Fatal("MCP discovery protocol/cache contract differs")
 			}
 			tools, _ := anonymous.mcp(full, "tools/list", map[string]any{}, 200)
-			if len(integrationObject(t, tools["result"])["tools"].([]any)) != 28 {
-				t.Fatal("MCP tools were not registered")
+			expectedTools := map[string]bool{}
+			for _, name := range []string{
+				"bookmarks_list", "bookmarks_get", "bookmarks_create", "bookmarks_update", "bookmarks_context_update", "bookmarks_delete",
+				"categories_list", "categories_get", "categories_create", "categories_update", "categories_delete",
+				"dashboard_get", "sources_list", "sources_get", "sources_create", "sources_update", "sources_snapshot_get", "sources_snapshot_push", "sources_sync",
+				"page_get", "page_update", "documents_activity_list", "documents_list", "documents_get", "documents_create", "documents_update", "documents_rename", "documents_delete", "documents_metadata_update",
+			} {
+				expectedTools[name] = true
+			}
+			registeredTools := integrationObject(t, tools["result"])["tools"].([]any)
+			if len(registeredTools) != len(expectedTools) {
+				t.Fatalf("MCP tool count = %d, want %d", len(registeredTools), len(expectedTools))
+			}
+			for _, tool := range registeredTools {
+				name, _ := integrationObject(t, tool)["name"].(string)
+				if !expectedTools[name] {
+					t.Fatalf("unexpected or duplicate MCP tool %q", name)
+				}
+				delete(expectedTools, name)
 			}
 			legacyHeaders := http.Header{"Accept": []string{"application/json, text/event-stream"}, "Mcp-Protocol-Version": []string{"2025-11-25"}}
 			status, legacyRaw, legacyResponse := anonymous.raw("POST", "/mcp", map[string]any{"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "legacy-fixture", "version": "1"}}}, full, legacyHeaders)

@@ -1,13 +1,13 @@
 # Integrations, external snapshots, MCP, and GitHub Traffic
 
-This document describes the current development implementation. It is not a production release or a claim that a user's GitHub repository has already been connected. The first successful authorized GitHub synchronization establishes that source's traffic baseline.
+This document describes the integration contracts in version 0.0.6. It does not claim that a user's GitHub repository has already been connected. The first successful authorized GitHub synchronization establishes that source's traffic baseline.
 
 ## Supported sources
 
 | Source kind | Update method | Dataset schema | Current behavior |
 | --- | --- | --- | --- |
 | `local-navigation` | Home's navigation APIs | `navigation.collection@1` | Built-in, authoritative categories and bookmarks |
-| `local-document-activity` | Authorized local activity query | `documents.activity@1` | **Unreleased**: empty dashboard marker; working-document data comes from the dedicated read-only API |
+| `local-document-activity` | Authorized local activity query | `documents.activity@1` | Since 0.0.6: empty dashboard marker; working-document data comes from the dedicated read-only API |
 | `external-push` | External HTTP or MCP write | Navigation or four component schemas | Validated, versioned snapshots stored independently of local navigation |
 | `external-json` | Scheduled HTTP GET/manual queue | Calendar, weather, metrics or status | Normalized JSON data object; no arbitrary code mapping |
 | `calendar-ics` | Scheduled HTTP/HTTPS subscription | `calendar.events@1` | Read-only bounded ICS agenda |
@@ -33,7 +33,7 @@ Personal access tokens are the intersection of an active account, one space, sel
 | `datasets:write` | Push an external snapshot |
 | `pages:read` | Read saved page configuration |
 | `pages:write` | Save a page using its expected revision |
-| `documents:read` | Read authorized documents; **Unreleased** activity queries additionally require working-document access |
+| `documents:read` | Read authorized documents; activity queries additionally require working-document access |
 | `documents:write` | Maintain authorized documents using the separate document contracts; writes also require `documents:read` |
 
 Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source, and `documents:read` for a local activity binding. Reading a dashboard with an activity binding does not require activity access because that projection contains only an empty schema marker; the dedicated activity query enforces working-document permission separately. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
@@ -65,6 +65,8 @@ Omit `sourceId` or set it to `null` for a space-scoped token. Expiry must be mor
 The `201` response contains `{ "token": "lhp_...", "credential": {...} }`. The credential metadata includes `id`, `name`, `spaceId`, nullable `sourceId`, `actions`, `createdAt`, `expiresAt`, nullable `revokedAt`, and `status`. List status is `active`, `expired`, `revoked`, or `invalidated`.
 
 Home stores only the token's SHA-256 digest. Later GETs do not return the secret or its digest. Mode changes invalidate all existing tokens. Disabling a user or resetting their password invalidates that user's existing tokens. Revocation takes effect at authentication, including queued MCP operations after they acquire the write gate.
+
+Browser login retention does not renew or extend a personal access token. Session-policy, profile/password and browser-session endpoints accept browser authentication only; a PAT cannot use them. Revoking browser sessions leaves separately issued PATs intact, while a password/security-version change invalidates the account's existing PATs. The authorized HTTP `POST /api/v1/spaces/{spaceId}/navigation/batch-edit` endpoint can apply up to 500 per-record category/link patches with `navigation:write`, a matching space and `expectedRevision`; use the [atomic editing contract](API.md#atomic-category-and-link-editing), including readback after an uncertain response.
 
 ## Source configuration
 
@@ -181,11 +183,11 @@ This is a fragment of the full page configuration, not a complete page-save requ
 
 `GET /api/v1/dashboard?spaceId=...` returns datasets under the page's **binding aliases**, such as `datasets.projects`, not under their dataset IDs. External aliases without a successful snapshot are absent. The renderer should show the corresponding missing-data state. A layout or theme change does not copy, delete, or reassign navigation records.
 
-### Local document activity binding — Unreleased
+### Local document activity binding
 
 Use `datasetId:"local-document-activity"`, `space:"current-page-space"`, `query:{}`, renderer `builtin/document-activity` and input `activity`. The page remains Schema 2. Per-instance activity filters belong in view settings; selected dates and open details are runtime state, not shared configuration. The same binding can serve multiple independently configured instances. Its dashboard envelope contains no activity counts, directory metadata or document titles.
 
-No external source or credential is required for the browser component. Use `GET /api/v1/spaces/{spaceId}/document-activity` or MCP `documents_activity_list` to read authorized activity. Anonymous open-edit page saves retain their existing behavior, while activity reads always require a signed-in working-document reader. See [the activity guide](DOCUMENT_ACTIVITY.md), [API details](API.md) and [component templates](COMPONENTS.md#import-a-component-from-a-web-page). This feature is not in the published 0.0.5 image.
+No external source or credential is required for the browser component. Use `GET /api/v1/spaces/{spaceId}/document-activity` or MCP `documents_activity_list` to read authorized activity. Anonymous open-edit page saves retain their existing behavior, while activity reads always require a signed-in working-document reader. See [the activity guide](DOCUMENT_ACTIVITY.md), [API details](API.md) and [component templates](COMPONENTS.md#import-a-component-from-a-web-page). This binding and query are available since 0.0.6 and use migration 009.
 
 ## GitHub Traffic
 

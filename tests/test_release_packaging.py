@@ -130,6 +130,7 @@ class ReleasePackagingTests(unittest.TestCase):
 
     def test_private_generated_and_unreviewed_source_paths_are_rejected(self):
         forbidden = [".", "", "design/architecture.md", ".runtime/secret.json", "data/home.db", ".env", ".env.example",
+                     "docs/SESSION_AND_INLINE_EDIT_DESIGN.md",
                      "web/.env.production", "docs/../design/secret.md", "/etc/passwd", "server\\private.go",
                      "server/node_modules/example/LICENSE", "server/key.key", "web/dist/index.html",
                      "web/dist.compose-previous/index.html", "web/dist.previous",
@@ -143,6 +144,8 @@ class ReleasePackagingTests(unittest.TestCase):
         for name in forbidden:
             with self.subTest(path=name), self.assertRaises(release.ValidationError):
                 release.safe_path(name, source=True)
+        with self.assertRaises(release.ValidationError):
+            release.safe_path("docs/SESSION_AND_INLINE_EDIT_DESIGN.md")
         self.assertEqual(str(release.safe_path("web/dist/index.html")), "web/dist/index.html")
         self.assertEqual(str(release.safe_path("server/internal/home/integrations_data.go", source=True)),
                          "server/internal/home/integrations_data.go")

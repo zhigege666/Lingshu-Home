@@ -1,0 +1,35 @@
+.admin-ui .session-choice,.admin-ui .session-policy-form>.admin-field-inline{grid-template-columns:max-content minmax(0,1fr);column-gap:12px;align-items:center}
+.admin-ui .session-choice>.admin-field-label,.admin-ui .session-policy-form>.admin-field-inline>.admin-field-label{white-space:nowrap;margin:0}
+.admin-ui .session-choice>.lh-control-select,.admin-ui .session-policy-form>.admin-field-inline>.lh-control-select{width:100%;min-width:0}
+.session-policy-panel{margin-top:24px;padding-top:20px;border-top:1px solid var(--admin-line,#e0e8e1)}
+.session-section-heading{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:16px}
+.admin-ui .session-section-heading h2{margin:0;font-size:15px;line-height:1.5;font-weight:650;color:var(--admin-ink,#263d30)}
+.session-section-heading .session-refresh{margin-left:auto;flex:none}
+.session-policy-form{display:flex;flex-direction:column;gap:14px;min-width:0}
+.session-policy-form>.admin-field{margin:0}
+.session-policy-allow{display:flex;align-items:center;gap:8px;min-width:0}
+.session-policy-allow>label{font-size:12px;line-height:1.6;cursor:pointer;min-width:0}
+.session-policy-allow>[role=checkbox]{flex:none}
+.session-form-actions,.session-footer{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.session-form-actions>.cn-button,.session-footer>.cn-button{max-width:100%}
+.session-status{margin:0;color:#26745a;font-size:12px;line-height:1.7}
+.session-muted{margin:0;font-size:12px;line-height:1.7;color:var(--admin-muted,#738176)}
+.account-sessions{min-width:0;grid-column:1/-1}
+.session-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.session-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:18px;row-gap:10px;padding:16px 0;border-top:1px solid var(--admin-line,#e0e8e1);min-width:0}
+.session-row:first-child{border-top:0;padding-top:0}
+.session-row-copy{min-width:0}
+.session-row-title{display:flex;align-items:center;gap:7px;min-width:0}
+.session-row-title>strong{font-size:13px;font-weight:600;color:var(--admin-ink,#263d30)}
+.session-current-badge{font-size:10px;line-height:1.5;padding:2px 6px;border-radius:5px;background:#eaf4ed;color:#2d7556;white-space:nowrap}
+.admin-ui .session-device{margin:4px 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:1.6;color:var(--admin-muted,#738176)}
+.admin-ui .session-mode{margin:0;font-size:12px;line-height:1.7;color:var(--admin-ink,#263d30)}
+.session-dates{display:flex;flex-wrap:wrap;gap:4px 18px;margin:6px 0 0;font-size:11px;line-height:1.6;color:var(--admin-muted,#738176)}
+.session-dates>div{display:flex;flex-wrap:wrap;gap:6px}
+.session-dates dt,.session-dates dd{margin:0}
+.session-row-actions{min-width:0;max-width:320px}
+.session-inline-confirm{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;font-size:12px;line-height:1.6;color:var(--admin-ink,#263d30)}
+.session-inline-confirm>div{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.session-footer{padding-top:14px;border-top:1px solid var(--admin-line,#e0e8e1)}
+@media(max-width:640px){.session-row{grid-template-columns:minmax(0,1fr)}.session-row-actions{max-width:none}.session-dates{gap:4px 12px}.admin-ui .session-policy-form>.admin-field-inline,.admin-ui .session-choice{column-gap:8px}.session-form-actions>.cn-button{font-size:12px}}
+@media(forced-colors:active){.session-current-badge{border:1px solid CanvasText}.session-status{color:CanvasText}.session-row,.session-footer,.session-policy-panel{border-color:CanvasText}}

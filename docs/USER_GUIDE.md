@@ -2,13 +2,13 @@
 
 **English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
 
-This guide covers **Lingshu-Home 0.0.4**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.4/tests/README.md).
+This guide covers **Lingshu-Home 0.0.6**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.6/tests/README.md).
 
-The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.4/tests/README.md).
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.6/tests/README.md).
 
 ## 1. Start and initialize an instance
 
-Install the **Docker image or Linux amd64 release** using [Quick start](../README.md#quick-start). The release executable includes its frontend and needs no Go or Node.js. Both quick-start examples use SQLite and preserve the database and instance keys outside the replaceable application files.
+Install the **Docker image or Linux amd64 release** using [Quick start](../README.md#quick-start). The release executable includes its frontend and needs no Go or Node.js. Choose embedded SQLite on a new instance for a standalone installation, or connect an external PostgreSQL database. Both quick-start examples preserve the database configuration and instance keys outside the replaceable application files.
 
 For the source Compose alternative, obtain the matching checkout as described in the README, then run from its repository directory:
 
@@ -18,6 +18,10 @@ docker compose ps
 ```
 
 Open `http://127.0.0.1:5180` on the computer running Home. The examples bind access to that host's loopback address. For another computer, use the address provided by the instance administrator after configuring the published interface or reverse proxy. The homepage, admin, API and MCP use the same service.
+
+A new instance with no explicit or saved database selection opens storage setup first. Choose **SQLite** for an embedded database, or **PostgreSQL** and enter its host, port, database, username, password and TLS mode. Test the external connection, then confirm the selection. Testing does not save credentials, create tables or run migrations; confirmation validates again and initializes the selected target. Language and account setup follow only after storage is ready.
+
+An existing valid SQLite instance, saved storage selection or explicit deployment configuration uses its original target without this prompt. A failed connection to the selected PostgreSQL target opens recovery: repair the connection and retry that target. Invalid local configuration or an incomplete old SQLite instance prevents startup instead of creating an empty replacement. Before storage is ready, `/health` and business APIs return HTTP 503 while the setup page remains available. Storage setup does not move data between providers. Preserve the data directory and any private `storage.json`; see [storage selection and recovery](STORAGE.md#first-run-storage-setup).
 
 If Home displays **Set up Home**:
 
@@ -67,19 +71,19 @@ After confirmation, changing parameters or container environment does not switch
 
 **Public browsing** is the setup default. Personal spaces remain private in every mode. The Owner cannot open another user's personal space. Self-registration is a separate setting, initially off, available only in multi-user mode.
 
-Database selection is a deployment setting, not an initialization-page option. SQLite is built in; use the standalone PostgreSQL Compose file for an external database. Changing providers does not convert existing data. Follow [STORAGE.md](STORAGE.md) before choosing or changing storage.
+Database selection happens before language/account setup on an unconfigured 0.0.6 instance. Explicit deployment settings and existing storage continue to take precedence. Choosing another provider does not convert existing data; follow [STORAGE.md](STORAGE.md) for configuration and recovery.
 
 ### Add an account after account-free setup
 
-In an ownerless **Open editing** instance, open **Access and accounts**, enable **Also create the first administrator (optional)**, enter a username, optional display name and password, and select **Save access settings**. Keep Open editing or choose an account-required mode in the same form; switching modes twice is unnecessary. A successful creation signs you in as the new Owner and retains shared content. Open editing continues to allow anonymous navigation maintenance, while the account can manage integrations and other account-required features.
+In an ownerless **Open editing** instance, open **Site settings**, enable **Also create the first administrator (optional)**, enter a username, optional display name and password, and select **Save access settings**. Keep Open editing or choose an account-required mode in the same form; switching modes twice is unnecessary. A successful creation signs you in as the new Owner and retains shared content. Open editing continues to allow anonymous navigation maintenance, while the account can manage integrations and other account-required features.
 
 External source configuration, Home access tokens and MCP always require an account. Anonymous local navigation maintenance does not grant credential-management access. Once an Owner exists, global access settings are maintained by the Owner.
 
 ## 2. Find the right space and management page
 
-Open **Admin** from the homepage, or append `/#/admin` to your instance address. Where multiple spaces are available, use **Current space** in the admin heading or the space selector on the homepage. Check it before adding content or importing bookmarks.
+Open **Admin** from the homepage, or append `/#/admin` to your instance address. Where multiple spaces are available, use **Current space** beside the account menu in the admin top bar, or the space selector on the homepage. Check it before adding content or importing bookmarks.
 
-Version 0.0.4 remembers the last successfully loaded space separately for each account and the anonymous identity in this browser and site origin. It survives reloads, independent new tabs and browser restarts while browser data is retained. When signed in, use **Default opening space** beside the space selector to choose **Remember last space** or a fixed accessible space. Choosing **Remember last space** clears the fixed default without changing the currently displayed space.
+Since 0.0.4, Home remembers the last successfully loaded space separately for each account and the anonymous identity in this browser and site origin. It survives reloads, independent new tabs and browser restarts while browser data is retained. When signed in, use **Default opening space** beside the space selector to choose **Remember last space** or a fixed accessible space. Choosing **Remember last space** clears the fixed default without changing the currently displayed space.
 
 A successful manual selection in the current tab takes priority, including after a reload. Otherwise Home chooses the fixed default, then the last successfully loaded space, then the server default or first accessible space. Signing out clears the tab's manual override while retaining that account's browser preference for a later sign-in. Deleted or inaccessible preferences are discarded; a failed request never records its destination as the last successful space. If browser storage is unavailable, sign-in and space switching still work. These preferences belong to the current account in this browser, do not sync to another device and do not change account permissions. Examples belong to the shared space; an editable empty homepage offers **Add your first link** and **Import browser bookmarks** directly.
 
@@ -88,14 +92,34 @@ A successful manual selection in the current tab takes priority, including after
 | Link management | Create, edit, search and delete local links |
 | Category management | Organize nested categories and their sort order |
 | Layout and theme | Configure the page, presets, category navigation and component bindings |
-| Import and export | Import browser HTML bookmarks; export the current space; edit its name |
+| Import and export | Import browser HTML bookmarks and export the current space |
+| Space settings | Rename the current space; the Owner can manage shared-space public browsing |
 | Sources and MCP | Configure external sources and create or revoke your access tokens |
-| Access and accounts | Site name, access mode, registration settings and first-Owner creation when ownerless |
+| Site settings | Site name, access mode, registration, first-Owner creation when ownerless and Owner login-retention policy |
+| My profile | Change your display name/password and manage your signed-in browsers |
 | Network settings | Automatic internal/external selection and the Owner-managed server proxy |
 | Member management | Create and manage Members; visible to an Owner in multi-user mode |
 | About Home | Check application/frontend versions and project information |
 
+The top bar carries the current page title and the space/account controls. The sidebar groups Content, Current space and Site administration. Space settings is separate from import/export; personal spaces remain private, and shared-space publication still follows the site access mode. Optional explanations open from help icons using pointer or keyboard; Escape/outside click closes them, while validation errors and operation results stay visible.
+
 The admin uses a fixed-height workspace. Link/category tables scroll inside their content area; headings, search, actions and pagination stay visible. Settings use their own content area and the layout editor keeps save/cancel controls at the bottom. The whole browser document does not grow with every table row.
+
+### My profile and browser sessions
+
+Open the account menu → **My profile** to change your display name; the sign-in username stays fixed. A password change needs the current password and a different new password of 10–128 characters. The current browser receives a new session using its permitted login mode; all prior browser sessions and API/MCP tokens for that account become invalid. Changing only the display name does not end sessions. Unsaved input is retained for conflict review, and leaving prompts you to save or discard it.
+
+Login, registration and account-creating setup offer **Login retention**. The initial default is remembering the browser for 30 idle days; the Owner can change the choices in **Site settings → Login retention**:
+
+| Choice | Behavior |
+| --- | --- |
+| Temporary | A fixed 12-hour server session. The cookie is not persistent, but browser session restoration can retain it; closing a window is not a guaranteed sign-out. |
+| Remember browser | 7, 30 or 90 idle days, limited by the Owner's maximum. Real interaction in a visible page renews it at most once per 15 minutes; background polling and API/MCP activity do not renew browser access. |
+| Until I sign out | Available only when the Owner enables it. No server idle deadline; the browser cookie lasts up to 365 days and is renewed on eligible activity. Sign-out, revocation, security changes or cleared browser data can still end access. |
+
+Existing temporary sessions keep their old deadlines; sign in again to choose another mode. Tightening the idle limit shortens existing remembered sessions; later relaxing it does not restore their old duration. Disabling until-sign-out revokes those sessions and may sign out the current browser.
+
+In **My profile → Signed-in sessions**, revoke an individual browser, sign out other sessions or end this session. Save or cancel profile/password changes before doing so. Session revocation affects browser logins; separately issued API/MCP tokens remain valid until their own revocation, expiry or an account/security change. Device descriptions come from browser information and are not verified hardware identities.
 
 ### Pagination and search
 
@@ -131,6 +155,18 @@ Use the pencil to edit; the trash action opens a compact confirmation beside its
 
 On an editable homepage, the star button also updates a local link's favorite status immediately. External snapshot links are maintained by their source, so their favorite data cannot be changed through the local-link star action. A favorite appearing in both the favorites panel and the full navigation is one stored link shown twice.
 
+### Edit categories and links in their lists
+
+Choose **Edit list** in Category management or Link management. Edit category names, parents and sort order, or link names, primary URLs, categories, tags, sort order and favorites directly in rows. Both lists share an account/space-specific draft across pages. **Save all** commits up to 500 changed records together; any validation or revision failure leaves the whole batch unapplied.
+
+Use a row's **More settings** for icons, descriptions and additional URLs, then **Apply to draft** before the final save. These forms do not import an icon library or fetch website icons immediately. Untouched fields, including existing bookmark usage notes, stay intact; edit usage notes in the individual bookmark editor. While editing, rows retain their baseline order and search membership so a changed name or order does not move the focused row.
+
+**Changed only**, **Undo** and **Redo** help review the batch. History retains up to 40 edit groups; table Ctrl/⌘+Z and Shift+Z use that history, while search/detail text inputs retain their own input behavior. Tab/Shift+Tab follow normal controls. Enter/Shift+Enter move between single-line inputs without interrupting IME composition; the last row does not automatically change pages or save.
+
+Leaving, changing space or opening another settings page offers save and leave, discard and leave, or continue editing. Drafts live only in the current tab's memory; save before refreshing or closing. On a conflict or uncertain network result, use **Read latest and compare**. Nonconflicting fields merge, genuine conflicts require a choice, and changes already committed despite a lost response are removed from the draft without an automatic repeat write. Deleted records cannot be restored through this editor.
+
+After session expiry, the previous account's content is hidden until the same account signs in again and still has access. A retained draft can then resume. Explicit sign-out, switching accounts or confirmed loss of read permission clears it. These navigation edits are separate from the homepage layout draft and its Undo/Redo history.
+
 ### Organize selected links
 
 After importing, open **Link management** and search for the links to organize:
@@ -143,11 +179,13 @@ After importing, open **Link management** and search for the links to organize:
 
 Each link supports at most 32 tags of at most 40 characters each. Separate tags with commas; whitespace is trimmed and matching is case-sensitive. If another window, import or automatic icon completion changes the navigation revision, the dialog explains that this request made no changes and offers **Refresh and select again**. A batch either commits completely or rolls back completely.
 
-These actions write navigation records immediately and are outside page draft history. For field-update actions, only the selected category, tag or favorite field changes; URLs, additional URLs, icons and automatic/manual icon mode are preserved. Version 0.0.4 also offers **Delete selected**. Its button-side confirmation shows the space and selected count; **Delete N links** permanently removes those links and their additional URLs. Cancel/Escape/outside-click closes the confirmation before submission. A busy request cannot be submitted twice. If deletion succeeds but list refresh fails, the interface reports the completed deletion and asks for a reload; it does not offer the same deletion again.
+These actions write navigation records immediately and are outside page draft history. For field-update actions, only the selected category, tag or favorite field changes; URLs, additional URLs, icons and automatic/manual icon mode are preserved. Since 0.0.4, **Delete selected** is also available. Its button-side confirmation shows the space and selected count; **Delete N links** permanently removes those links and their additional URLs. Cancel/Escape/outside-click closes the confirmation before submission. A busy request cannot be submitted twice. If deletion succeeds but list refresh fails, the interface reports the completed deletion and asks for a reload; it does not offer the same deletion again.
 
 ### Choose or import icons
 
-Link and category forms use the same icon picker. In 0.0.4, **Built-in** provides 120 offline Lucide outline icons in eight groups, expanded from the 30 in 0.0.2. Choose **Icon group** to browse, or search Chinese/English names, IDs and aliases such as NAS, Docker, AI and video. A search covers all groups; choosing a group clears the search. The grid displays names, 24 icons per page and a preview of the selected icon. **Clear icon search** restores the complete collection. **Use default** returns the form to the normal link/category fallback. Selecting an icon changes the form draft; use **Save link** or the category's save action to apply it.
+Link and category forms use the same icon picker. **Built-in** provides 120 offline Lucide outline icons in eight groups, expanded from the 30 in 0.0.2. Choose **Icon group** to browse, or search Chinese/English names, IDs and aliases such as NAS, Docker, AI and video. A search covers all groups; choosing a group clears the search. The grid displays names, 24 icons per page and a preview of the selected icon. **Clear icon search** restores the complete collection. **Use default** returns the form to the normal link/category fallback. Selecting an icon changes the form draft; use **Save link** or the category's save action to apply it.
+
+Since 0.0.6, built-in icons, imported-library choices and the selected preview use 24 × 24 CSS pixels. Fixed cells and two-line labels keep icon rows aligned, while hover/focus retains the full name. This changes picker layout without rewriting icons or saved references.
 
 To use your own image or collection:
 
@@ -163,7 +201,7 @@ Under **Libraries**, choose a library, search its entries, inspect **Source and 
 
 ### Fetch a website icon
 
-**Access and accounts → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported website icons in the background. Choose **Refresh list** in link management or **Refresh content** on a navigation-only homepage to display completed results. There is no automatic navigation polling loop.
+**Site settings → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported website icons in the background. Choose **Refresh list** in link management or **Refresh content** on a navigation-only homepage to display completed results. There is no automatic navigation polling loop.
 
 The link form distinguishes automatic and manual modes. Selecting a built-in/library image, **Use default**, or an explicit fetched image makes the link manual, so background work cannot replace your choice. Choose automatic mode and save to opt a link in again. Existing links and the offline starter collection retain their original images after upgrade.
 
@@ -171,7 +209,7 @@ Turning the instance switch off clears queued work, cancels/discards in-flight a
 
 In a link form, enter a complete primary URL and select **Fetch website icon**. Home requests the website's origin page, checks its declared icon candidates and `/favicon.ico`, validates the image, and returns a local selection. It does not forward your bookmark's path, query or fragment. Save the link to apply that selection.
 
-Homepage visitors only load Home's authorized local images; there is no visitor-triggered missing-icon lookup or Google/other favicon proxy. Version 0.0.4 accepts automatic and explicit lookup from public or reachable LAN HTTP/HTTPS origins, including custom ports. The initial hostname may use RFC1918/ULA addresses or a resolvable LAN name; cross-host redirects/candidates must remain public. Home must be able to resolve/reach the server, and HTTPS must pass system certificate verification. For login-only or unsupported websites, use a local import or bundled icon. PNG, JPEG, the supported static SVG subset and bounded common ICO encodings are handled; not every site's icon format is supported. Failure or a full queue leaves the bookmark usable with its saved/fallback image.
+Homepage visitors only load Home's authorized local images; there is no visitor-triggered missing-icon lookup or Google/other favicon proxy. Since 0.0.4, Home accepts automatic and explicit lookup from public or reachable LAN HTTP/HTTPS origins, including custom ports. The initial hostname may use RFC1918/ULA addresses or a resolvable LAN name; cross-host redirects/candidates must remain public. Home must be able to resolve/reach the server, and HTTPS must pass system certificate verification. For login-only or unsupported websites, use a local import or bundled icon. PNG, JPEG, the supported static SVG subset and bounded common ICO encodings are handled; not every site's icon format is supported. Failure or a full queue leaves the bookmark usable with its saved/fallback image.
 
 Successful results are cached for 24 hours. Initial failures are cached for 30 minutes; a failed refresh preserves a previous good image. A later eligible save or explicit request after expiry can refresh it; expiry alone does not start work. Only one remote icon lookup runs at a time per instance, so retry after the current request finishes if the manual picker reports a busy service.
 
@@ -297,6 +335,14 @@ An explicit icon presentation remains selected after a theme switch. To let that
 
 For exact X/Y, grid dimensions, region order or sticky behavior, the admin's **Layout and theme → Panels and data → Advanced settings** remains available. That editor expands one selected component at a time and uses the same page API and validation.
 
+### Add document activity components
+
+In **Edit page → Add → Document activity**, choose **Document heatmap**, **Heatmap and records** or **Document calendar**. Add any preset repeatedly and arrange it with the existing grid controls; the admin layout editor offers the same presets and settings. Existing pages are preserved until you explicitly add and save components.
+
+Each instance selects its own time range, directories, My edits/Library changes perspective, summary, recent records and time zone. Use an explicit **Date linking group** to share date selection; otherwise instances work independently, and a duplicate starts independent. Browsing dates/months and opened details is temporary. A day shows distinct documents changed that day and opens its records; available documents link to Library in their authorized space.
+
+Activity requires a signed-in working-document reader. Public pages do not expose draft names, directories or counts. Initial scans establish a baseline instead of inventing edits from old file dates. See [the activity guide](DOCUMENT_ACTIVITY.md) for counting, permissions and configuration; no external activity source or credentials are needed.
+
 ### Adjust navigation and favorites content
 
 On the homepage, choose **Edit page**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
@@ -315,6 +361,14 @@ On the homepage, choose **Edit page**, select a **Bookmarks** or **Favorites** c
 **Directory** stays a single column and does not show **Maximum links per row**. A previously chosen limit is retained and applies again when switching back to **Cards**. **Follow style** for tags is saved by omitting `showTags`; it is not a separate stored string or a `null` value. The URL label shows the host, including a non-default port when present; its tooltip retains the full URL.
 
 Changes update the current draft and canvas/preview immediately, participate in **Undo/Redo**, and take effect for normal visits only after **Save page**. Cancel or Restore follows the same draft rules as other page settings. Existing pages that omit these options keep their compatible defaults; changing these controls does not modify bookmark records.
+
+### Browse category bookmark folders
+
+Navigation initially shows six bookmarks per category, including Uncategorized. When more remain, the folder entry shows **View all** and the remaining count. Open it for the full currently matched category, with up to four responsive columns, name/URL/description/tag search and 24 bookmarks per page. Current homepage filters still apply and are identified in the dialog. Favorites retain their own complete display.
+
+Use **Category preview** in the navigation component's content settings to choose **All**, 4, 6, 8, 12 or 24. The homepage inspector and **Layout and theme** provide the same control. Save the page to change the shared default. This limits only the homepage preview; navigation datasets, administration and exports retain every authorized bookmark. Opening, searching and paging a folder are temporary.
+
+The dialog focuses search when opened. Close it or press Escape to return focus to its folder entry; a changed category scope closes the old folder. Preview folders stay inside their own preview surface.
 
 ### Link search and category filters
 
@@ -479,7 +533,7 @@ The token can be viewed only at creation. Revoke it from the token list to stop 
 
 ## 8. Manage members and access
 
-As Owner, open **Access and accounts** to change the site name and mode. In **Multiple users**, optionally enable **Allow visitors to register member accounts**. Save and sign in again when the change invalidates your current session. Switching modes preserves personal-space data and does not publish it.
+As Owner, open **Site settings** to change the site name and mode. In **Multiple users**, optionally enable **Allow visitors to register member accounts**. Save and sign in again when the change invalidates your current session. Switching modes preserves personal-space data and does not publish it.
 
 In multi-user mode, open **Member management → Create member** to set a username, display name and initial password. The member can then sign in to their own space. Use **Edit** to change the display name, disable/enable the account, or set a replacement password. Leave the reset-password field empty to retain the password. Disabling or resetting invalidates that account's existing access. The interface does not expose Member deletion or an email password-recovery flow.
 
@@ -493,9 +547,9 @@ Use **Import and export → Export HTML** for a browser-compatible bookmark file
 
 ### Preserve the database and keys
 
-For a complete backup, follow [STORAGE.md](STORAGE.md#backups). For SQLite, the straightforward procedure is to stop Home cleanly and back up the complete persistent directory/volume, including both keys and any WAL files. For PostgreSQL, back up the dedicated database and the matching local keys together. Restore with the appropriate application version before starting one instance.
+For a complete backup, follow [STORAGE.md](STORAGE.md#backups). For SQLite, the straightforward procedure is to stop Home cleanly and back up the complete persistent directory/volume, including both keys, any private `storage.json`, document recovery history and any WAL files. For PostgreSQL, back up the dedicated database, matching local keys and saved storage configuration together. Back up externally mounted document originals/attachments separately, with their deployment mappings. Restore with the appropriate application version before starting one instance.
 
-Custom icon images, library metadata, website caches, the automatic switch and pending jobs are included in the database, with no extra upload directory to copy. Version 0.0.1 includes automatic-icon **migration 005** and network-setting **migration 006**. Version 0.0.2 adds **migration 007** for the fixed instance language; a database backup retains that choice too. An older binary that does not recognize an applied migration refuses that database. Rolling back requires the matching pre-upgrade database and keys as well as the older binary/image.
+Custom icon images, library metadata, website caches, the automatic switch and pending jobs are included in the database, with no extra upload directory to copy. Version 0.0.1 includes automatic-icon **migration 005** and network-setting **migration 006**. Version 0.0.2 adds **migration 007** for the fixed instance language; a database backup retains that choice too. Version 0.0.5 introduced the document library in **008**; 0.0.6 adds document activity in **009** and session retention in **010**, applied on first start. Preserve the same database, keys, allowed document roots and existing mounts. An older binary that does not recognize an applied migration refuses that database. Rolling back requires the matching pre-upgrade database and keys as well as the older binary/image.
 
 The README image command uses the **`lingshu-home-data`** named volume; source Compose uses its project-scoped **`home-data`** volume. Retain the original volume and Compose project identity when restarting or replacing a container. Switching installation methods does not transfer data automatically. For a Linux release, reuse the original `--data-dir` instead of a new empty `data/` beneath the next version directory. Removing a volume discards persistent data; do not use volume-removal commands as a restart procedure. Keep exports, full backups and credential files private.
 
@@ -546,9 +600,13 @@ The Linux development helper permits an immediate restart while closed connectio
 | Symptom | What to check |
 | --- | --- |
 | Cannot open Home from another device | The default host port is loopback-only. Check the deployment address, published interface and proxy; `127.0.0.1` on another device refers to that device. |
+| Storage setup reports an error | Repair the selected database connection and use Retry. Check `/health`; do not erase `storage.json` or point at an empty database to bypass recovery. |
 | A previously used instance asks for setup | Check the selected database/provider and data volume. Stop and verify the intended persistent storage before initializing what may be an empty replacement location. |
 | Admin content appears missing | Check **Current space**, search text, page number and category filter. Local link management reads the local dataset even if homepage bindings have changed. |
 | Link exists in admin but not on the homepage | Check whether a navigation component is present/visible, its source binding, category/search/favorites filters, and fixed-height panel scrolling. |
+| List edits cannot save after a conflict or network failure | Keep the draft and use Read latest and compare. Resolve fields before saving; do not repeatedly submit an uncertain batch. |
+| A category shows only six links | Open its View all folder, or save another Category preview value in that navigation component. No bookmarks were removed. |
+| Document activity shows a login/permission placeholder | Sign in with working-document access to the selected space. Published-document access alone does not expose activity. |
 | Cannot save a page | Read the inline error. Check revision conflicts, overlapping/out-of-range grid coordinates and locked components; the draft is retained after a rejected save. |
 | Language did not change | In 0.0.2 this is expected once the language is saved; a conflicting startup value is ignored with a warning. It is not a setting you can switch later. Stored names remain unchanged. |
 | Preview differs from the saved homepage | Check the Unsaved draft marker and any temporary filters. Preview follows the current editor draft; other visitors see saved configuration. |
@@ -578,6 +636,10 @@ The delivered model is a standalone navigation application with embedded/externa
 
 Use [API.md](API.md) for field contracts and limits, [INTEGRATIONS.md](INTEGRATIONS.md) for external writers, [ICONS.md](ICONS.md) for custom images and website caching, [STORAGE.md](STORAGE.md) for persistence, and [RELEASING.md](RELEASING.md) for packaging. Runtime screenshots and their historical/current scope are linked from the [README](../README.md#screenshots). Public runtime screenshots and user documentation may be shared; internal design files, private configuration and user data must stay out of Git, frontend assets and release packages.
 
+## File-backed document library
+
+Open **Library** beside Home to read authorized bookmarks and Markdown documents. The Owner connects existing directories through **Admin → Document directories** using the deployment's allowed roots; connections start read-only. Editing originals, publication, recovery history, attachments, bookmark usage notes and API/MCP access follow the [document-library guide](DOCUMENT_LIBRARY.md). Document activity is configured separately as a repeatable homepage component.
+
 ## Calendar, weather and other data components
 
 Open **Admin → Integrations** and add a data source before binding a calendar, weather, metrics or service-status component. An ICS subscription keeps following its secret HTTP/HTTPS URL. A one-time ICS file import uses a calendar push source and replaces its current finite-window snapshot. Choose a personal space for a private calendar; shared-space event content follows that space's viewing permissions. Source URLs/credentials stay on the server.
@@ -601,7 +663,7 @@ An Owner can configure a server HTTP, HTTPS or SOCKS5 proxy with separate creden
 
 Select **Import a component template** in the homepage editor and enter a page or JSON URL. A page must advertise compatible Home templates in its head; select one when multiple declarations are found. Review the renderer, version, license, data format and source. Errors preserve the input, and loading can be stopped before retrying.
 
-**Template examples and page declaration** provides seven component examples to insert or download as JSON. Choose a compatible source before adding a component to the page draft. Signed-in editors can create a compatible source within the same workflow and return to the preserved preview. Source creation saves immediately; the component still requires Add to page draft and the normal page Save. Template source URLs are public provenance shared/exported with the page; put private subscription addresses in separate encrypted source configuration.
+**Template examples and page declaration** provides built-in component examples to insert or download as JSON. Choose a compatible source before adding an external-data component to the page draft. Document activity automatically uses its built-in local binding. Signed-in editors can create a compatible source within the same workflow and return to the preserved preview. Source creation saves immediately; the component still requires Add to page draft and the normal page Save. Template source URLs are public provenance shared/exported with the page; put private subscription addresses in separate encrypted source configuration.
 
 ## Start with a dashboard preset
 

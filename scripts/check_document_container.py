@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Exercise a 0.0.4 container upgrade and mounted Markdown over verified HTTPS.
+"""Exercise published-container upgrades and mounted Markdown over verified HTTPS.
 
 Only synthetic, uniquely named containers/volumes and temporary host directories
 are used. Both CI and release packaging call this through check_container.py.
-The public baseline image is fixed to 0.0.4, never the moving latest alias.
+The public baselines are fixed to 0.0.4 and 0.0.5, never the moving latest alias.
 """
 from __future__ import annotations
 
@@ -22,14 +22,18 @@ import subprocess
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_IMAGE = "ghcr.io/zhigege666/lingshu-home:0.0.4"
-PRESERVED_TABLES = ("settings", "users", "spaces", "categories", "links", "pages")
+ACTIVITY_BASELINE_IMAGE = "ghcr.io/zhigege666/lingshu-home:0.0.5"
+PRESERVED_TABLES = ("settings", "users", "sessions", "spaces", "categories", "links", "pages")
 DOCUMENT_TABLES = {"document_sources", "documents", "document_bookmarks", "document_published_assets"}
+SESSION_COLUMNS = {"settings": {"default_session_mode", "default_idle_days", "max_idle_days", "allow_until_logout", "session_policy_version"},
+                   "sessions": {"session_mode", "idle_days", "created_at", "last_interactive_at", "renewed_at", "user_agent"}}
 
 
 def require(condition, message):
@@ -92,14 +96,20 @@ class Client:
         raise RuntimeError("Disposable container did not become healthy")
 
 
-def snapshot(data_dir, columns=None):
+def snapshot(data_dir, columns=None, *, include_documents=False):
     """Read only a stopped container's copied SQLite files, never its live volume."""
     path = data_dir / "lingshu-home.db"
     with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as db:
         require(db.execute("PRAGMA integrity_check").fetchone() == ("ok",), "SQLite integrity check failed")
         if columns is None:
+            preserved = PRESERVED_TABLES + (tuple(sorted(DOCUMENT_TABLES)) if include_documents else ())
             columns = {table: [row[1] for row in db.execute(f'PRAGMA table_info("{table}")')]
-                       for table in PRESERVED_TABLES}
+                       for table in preserved}
+            if include_documents and "last_scan_at" in columns["document_sources"]:
+                # A real complete scan advances this observation timestamp.
+                # Keep every other old column, including document body hashes,
+                # manual metadata, publication snapshots and attachment bytes.
+                columns["document_sources"].remove("last_scan_at")
         require(all(columns.values()), "Baseline database is missing an expected table")
         rows = {}
         for table, names in columns.items():
@@ -110,10 +120,23 @@ def snapshot(data_dir, columns=None):
         migrations = db.execute("SELECT version,checksum,applied_at FROM schema_migrations ORDER BY version").fetchall()
         has_context = any(row[1] == "context_markdown" for row in db.execute("PRAGMA table_info(links)"))
         contexts = db.execute("SELECT context_markdown FROM links").fetchall() if has_context else None
+        event_count = db.execute("SELECT COUNT(*) FROM document_activity").fetchone()[0] if "document_activity" in tables else None
+        has_baseline = any(row[1] == "activity_started_at" for row in db.execute("PRAGMA table_info(document_sources)"))
+        baselines = db.execute("SELECT id,activity_started_at FROM document_sources WHERE enabled=1 ORDER BY id").fetchall() if has_baseline else None
+        session_columns = {table: {row[1] for row in db.execute(f'PRAGMA table_info("{table}")')}
+                           for table in SESSION_COLUMNS}
+        indexes = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='index'")}
     keys = {name: hashlib.sha256((data_dir / name).read_bytes()).hexdigest()
             for name in ("csrf.key", "integrations.key")}
     return {"columns": columns, "rows": rows, "migrations": migrations, "tables": tables,
-            "contexts": contexts, "keys": keys}
+            "contexts": contexts, "keys": keys, "event_count": event_count, "baselines": baselines,
+            "session_columns": session_columns, "indexes": indexes}
+
+
+def check_session_upgrade(after):
+    require(any(row[0] == "010_session_retention.sql" for row in after["migrations"]), "Migration 010 was not applied")
+    require(all(names <= after["session_columns"][table] for table, names in SESSION_COLUMNS.items())
+            and "sessions_retention" in after["indexes"], "Session retention schema was not created")
 
 
 def check_upgrade(before, after):
@@ -126,6 +149,38 @@ def check_upgrade(before, after):
     require(DOCUMENT_TABLES <= after["tables"], "Document tables were not created")
     require(after["contexts"] is not None and all(row == ("",) for row in after["contexts"]),
             "Legacy bookmarks did not receive empty usage notes")
+    check_session_upgrade(after)
+
+
+def check_activity_upgrade(before, after):
+    require(len(before["migrations"]) == 8 and before["migrations"][-1][0] == "008_document_library.sql"
+            and "document_activity" not in before["tables"],
+            "The activity upgrade fixture is not a real pre-activity schema 008 database")
+    require(all(before["rows"].get(table) for table in DOCUMENT_TABLES),
+            "The baseline must contain registered documents, bookmark relationships and published attachments")
+    require(after["rows"] == before["rows"],
+            "Activity upgrade changed existing accounts, navigation, documents, metadata or published attachments")
+    require(after["keys"] == before["keys"], "Activity upgrade changed an instance key")
+    require(after["migrations"][:8] == before["migrations"], "Activity upgrade rewrote old migration records")
+    require(any(row[0] == "009_document_activity.sql" for row in after["migrations"]), "Migration 009 was not applied")
+    require("document_activity" in after["tables"], "Activity table was not created")
+    require(after["event_count"] == 0, "Activity upgrade or its first scan fabricated historical activity")
+    require(after["baselines"] and all(stamp for _, stamp in after["baselines"]),
+            "The first complete scan did not persist the recording baseline")
+    check_session_upgrade(after)
+
+
+def check_recorded_edit(activity, document_id, source_id):
+    require(activity["summary"] == {"documents": 1, "activeDays": 1}, "The real post-upgrade edit was not aggregated")
+    require(len(activity["days"]) == 1 and activity["days"][0]["count"] == 1
+            and activity["days"][0]["created"] == 0 and activity["days"][0]["updated"] == 1,
+            "An existing document edit was not counted as one updated document")
+    require(activity["total"] == 1 and len(activity["items"]) == 1 and activity["hasMore"] is False,
+            "Post-upgrade activity contains unexpected document/day groups")
+    item = activity["items"][0]
+    require(item["documentId"] == document_id and item["sourceId"] == source_id
+            and item["count"] == 1 and item["actions"] == ["update"] and item["origins"] == ["web"],
+            "The saved edit was lost, duplicated or assigned the wrong action/origin")
 
 
 class Containers:
@@ -263,7 +318,7 @@ def run(image, port):
             containers.stop(upgraded)
             containers.copy_stopped_data(upgraded, work / "after")
             check_upgrade(before, snapshot(work / "after", before["columns"]))
-            print("PASS real 0.0.4 image → candidate upgrade: schema 008, unchanged data/keys, session/PAT and HTTP defaults", flush=True)
+            print("PASS real 0.0.4 image → candidate upgrade: document and session migrations through 010, unchanged data/keys, session/PAT and HTTP defaults", flush=True)
 
             notes, projects, certs = (work / name for name in ("notes", "projects", "certs"))
             for folder in (notes, projects, certs):
@@ -340,6 +395,123 @@ def run(image, port):
             require(restored["id"] == saved["id"] and restored["content"] == saved["content"]
                     and restored["tags"] == saved["tags"], "Reconnect lost original bytes or durable document metadata")
             print("PASS container bind mounts + verified HTTPS: originals, read-only enforcement, history, empty/offline retention and reconnect", flush=True)
+        finally:
+            containers.close()
+    run_activity_upgrade(image, port)
+
+
+def run_activity_upgrade(image, port):
+    """Upgrade real 0.0.5 document data using the same volume and bind mount."""
+    check_available_port(port)
+    expected_version = (ROOT / "VERSION").read_text().strip()
+    containers = Containers(os.environ.get("LINGSHU_DOCKER", "docker"),
+                            "lingshu-activity-upgrade-" + uuid.uuid4().hex[:10], port)
+    with tempfile.TemporaryDirectory(prefix="lingshu-activity-upgrade-") as temp:
+        work = Path(temp)
+        work.chmod(0o755)
+        notes = work / "notes"
+        notes.mkdir()
+        notes.chmod(0o777)  # Disposable originals only, writable by the image's unprivileged UID.
+        original = b"---\r\ncustom: retain-before-activity\r\n---\r\n# Existing guide\r\n[Attachment](attachment.txt)\r\n"
+        attachment = b"Published attachment from 0.0.5\n"
+        (notes / "README.md").write_bytes(original)
+        (notes / "attachment.txt").write_bytes(attachment)
+        os.utime(notes / "README.md", (946684800, 946684800))
+        environment = ['LINGSHU_DOCUMENT_ROOTS=["/documents/existing"]']
+        mounts = [(notes, "/documents/existing", False)]
+        try:
+            containers.create_volume()
+            old = containers.start("old", ACTIVITY_BASELINE_IMAGE, environment=environment, mounts=mounts)
+            client = Client(f"http://127.0.0.1:{port}")
+            client.ready("0.0.5")
+            require(client.boot()["initialized"] is False, "Refusing to seed an existing instance")
+            client.api("POST", "/setup", {"siteName": "Document activity upgrade fixture", "mode": "private_single",
+                       "username": "activity-owner", "password": secrets.token_urlsafe(24), "seedDemo": False}, expected=201)
+            boot = client.boot()
+            shared = next(space["id"] for space in boot["spaces"] if space["kind"] == "shared")
+            category = client.api("POST", f"/spaces/{shared}/categories",
+                                  {"name": "Existing documents", "icon": "lucide:folder"}, expected=201)
+            bookmark = client.api("POST", f"/spaces/{shared}/links", {"categoryId": category["id"],
+                                  "title": "Existing related bookmark", "url": "https://example.com/activity-upgrade",
+                                  "description": "Retain navigation and document relationship", "icon": "lucide:link",
+                                  "iconMode": "manual", "tags": ["existing"], "isFavorite": True, "endpoints": []}, expected=201)
+            token = client.api("POST", "/integrations/tokens", {"name": "Existing document reader", "spaceId": shared,
+                               "sourceId": None, "actions": ["navigation:read", "documents:read"],
+                               "expiresAt": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()}, expected=201)["token"]
+            source_base = f"/spaces/{shared}/document-sources"
+            source = client.api("POST", source_base, {"name": "Existing mounted notes", "path": "/documents/existing",
+                                "readOnly": False, "defaultWrite": True, "scanIntervalSeconds": 86400}, expected=201)
+            document_base = f"/spaces/{shared}/documents"
+            documents = client.api("GET", document_base)["items"]
+            require(len(documents) == 1 and documents[0]["sourceId"] == source["id"],
+                    "The published 0.0.5 fixture did not index its mounted original")
+            document = documents[0]
+            path = document_base + "/" + document["id"]
+            document = client.api("PUT", path + "/metadata", {"expectedRevision": document["revision"],
+                                  "expectedMetadataRevision": document["metadataRevision"], "tags": ["preserved-before-activity"],
+                                  "linkedBookmarkIds": [bookmark["id"]]})
+            client.api("POST", path + "/publish", {"expectedRevision": document["revision"],
+                       "expectedMetadataRevision": document["metadataRevision"]})
+            require((notes / "README.md").read_bytes() == original and (notes / "attachment.txt").read_bytes() == attachment,
+                    "The published baseline image rewrote its original or attachment")
+            containers.stop(old)
+            containers.copy_stopped_data(old, work / "before")
+            before = snapshot(work / "before", include_documents=True)
+
+            upgraded = containers.start("upgraded", image, environment=environment, mounts=mounts)
+            client.ready(expected_version)
+            upgraded_boot = client.boot()
+            require(upgraded_boot["user"]["id"] == boot["user"]["id"], "Activity upgrade lost the existing login session")
+            require(all(upgraded_boot[key] == boot[key] for key in ("siteName", "mode", "language")),
+                    "Activity upgrade changed instance identity, mode or language")
+            navigation = client.api("GET", f"/spaces/{shared}/navigation", token=token)
+            require(navigation["data"]["links"][0]["id"] == bookmark["id"], "Activity upgrade lost the existing PAT or navigation")
+            retained = client.api("GET", path, token=token)
+            require(retained["id"] == document["id"] and retained["content"].encode() == original
+                    and retained["tags"] == document["tags"] and retained["linkedBookmarkIds"] == [bookmark["id"]]
+                    and retained["published"] is True, "Activity upgrade lost original content, metadata or publication")
+            scan_path = source_base + "/" + source["id"] + "/scan"
+            require(client.api("POST", scan_path, {})["status"] == "ready", "The upgraded source could not complete its baseline scan")
+            now = datetime.now(timezone.utc)
+            query = urllib.parse.urlencode({"from": (now - timedelta(days=1)).date().isoformat(),
+                                            "to": (now + timedelta(days=1)).date().isoformat(),
+                                            "timezone": "UTC", "sourceIds": source["id"]})
+            activity_path = f"/spaces/{shared}/document-activity?{query}"
+            baseline = client.api("GET", activity_path + "&perspective=library")
+            require(baseline["summary"] == {"documents": 0, "activeDays": 0} and baseline["days"] == []
+                    and baseline["items"] == [] and baseline["total"] == 0 and baseline["hasMore"] is False,
+                    "The first post-upgrade scan fabricated document activity")
+            require(baseline["recordedFrom"] and len(baseline["sources"]) == 1
+                    and baseline["sources"][0]["id"] == source["id"]
+                    and baseline["sources"][0]["recordedFrom"] == baseline["recordedFrom"],
+                    "The upgraded source did not expose its recording baseline")
+            require((notes / "README.md").read_bytes() == original and (notes / "attachment.txt").read_bytes() == attachment,
+                    "Activity upgrade or its baseline scan changed original files")
+            containers.stop(upgraded)
+            containers.copy_stopped_data(upgraded, work / "after-baseline")
+            check_activity_upgrade(before, snapshot(work / "after-baseline", before["columns"]))
+
+            # Reopen the same volume so the next edit also tests a durable baseline.
+            containers.command("start", upgraded)
+            client.ready(expected_version)
+            client.boot()
+            saved = client.api("PUT", path, {"content": original.decode() + "Saved after upgrade.\n",
+                               "expectedRevision": retained["revision"]})
+            require((notes / "README.md").read_bytes() == saved["content"].encode()
+                    and (notes / "attachment.txt").read_bytes() == attachment,
+                    "Post-upgrade save did not preserve the mounted file contract")
+            require(saved["tags"] == document["tags"] and saved["linkedBookmarkIds"] == [bookmark["id"]]
+                    and saved["published"] is True, "Post-upgrade save discarded existing manual metadata or publication")
+            check_recorded_edit(client.api("GET", activity_path + "&perspective=mine"), document["id"], source["id"])
+            require(client.api("POST", scan_path, {})["status"] == "ready", "Post-save scan failed")
+            after_scan = client.api("GET", activity_path + "&perspective=library")
+            check_recorded_edit(after_scan, document["id"], source["id"])
+            require(after_scan["recordedFrom"] == baseline["recordedFrom"], "Restart or save reset the recording baseline")
+            containers.stop(upgraded)
+            containers.copy_stopped_data(upgraded, work / "after-edit")
+            require(snapshot(work / "after-edit")["event_count"] == 1,
+                    "The persisted activity log lost or duplicated the post-upgrade edit")
+            print("PASS real 0.0.5 image → candidate upgrade: activity/session migrations 009/010, existing documents/metadata/attachments/sessions/keys, zero-event baseline, real edit and scan deduplication", flush=True)
         finally:
             containers.close()
 

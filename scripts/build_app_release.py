@@ -39,6 +39,7 @@ SOURCE_ROOTS = {
     "assets", "ca_profile.xml", "docs", "examples", "scripts", "server", "templates", "tests", "web",
 }
 PRIVATE_PARTS = {"design", ".runtime", "data", "uploads", ".git", ".gitnexus", "node_modules", "__pycache__"}
+PRIVATE_NAMES = {"session_and_inline_edit_design.md"}
 PRIVATE_SUFFIXES = (".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".key", ".pfx", ".p12", ".pyc")
 IMAGE_APP_ROOTS = {"lingshu-home", "wwwroot", "licenses", "VERSION", "LICENSE", "THIRD_PARTY_NOTICES.md"}
 METADATA_FILE = "release-metadata.json"
@@ -65,7 +66,8 @@ def safe_path(name: str, *, source: bool = False) -> PurePosixPath:
             or any(part in (".", "..") for part in path.parts)
             or any(ord(char) < 32 or ord(char) == 127 for char in name)):
         raise ValidationError(f"Unsafe archive path: {name!r}.")
-    if (any(part.lower() in PRIVATE_PARTS or part.lower().startswith(".env") for part in path.parts)
+    if (path.name.lower() in PRIVATE_NAMES
+            or any(part.lower() in PRIVATE_PARTS or part.lower().startswith(".env") for part in path.parts)
             or name.lower().endswith(PRIVATE_SUFFIXES)):
         raise ValidationError(f"Private/runtime material is forbidden in release artifacts: {name!r}.")
     if source and (path.parts[0] not in SOURCE_ROOTS
@@ -171,8 +173,10 @@ def verify_linux_bundle(bundle: Path, version: str) -> None:
                                             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         env = {key: value for key, value in os.environ.items() if not key.startswith("LINGSHU_")}
         env.update({"LINGSHU_LISTEN": f"127.0.0.1:{port}", "LINGSHU_DATA_DIR": str(temporary / "data"),
-                    "LINGSHU_STORAGE_PROVIDER": "sqlite", "LINGSHU_SECURE_COOKIES": "false",
+                    "LINGSHU_SECURE_COOKIES": "false",
                     "LINGSHU_LANGUAGE": "zh-CN"})
+        saved_storage = None
+        saved_keys = None
 
         def request(path: str, data: dict | None = None, csrf: str = "") -> bytes:
             headers = {"Accept": "application/json"}
@@ -193,12 +197,31 @@ def verify_linux_bundle(bundle: Path, version: str) -> None:
                         if process.poll() is not None:
                             raise ValidationError("Extracted Linux program exited before becoming healthy.")
                         try:
-                            request("/health")
+                            storage = json.loads(request("/api/v1/storage/bootstrap"))
                             break
                         except OSError:
                             time.sleep(0.1)
                     else:
-                        raise ValidationError("Extracted Linux program did not become healthy.")
+                        raise ValidationError("Extracted Linux program did not expose storage setup.")
+                    storage_file = temporary / "data/storage.json"
+                    if phase == "setup":
+                        if (storage.get("state") != "required" or storage_file.exists()
+                                or (temporary / "data/lingshu-home.db").exists()):
+                            raise ValidationError("Extracted Linux bundle did not require its initial storage choice.")
+                        tested = json.loads(request("/api/v1/storage/test", {"provider": "sqlite"}, storage["csrfToken"]))
+                        if (tested.get("ok") is not True or storage_file.exists()
+                                or (temporary / "data/lingshu-home.db").exists()):
+                            raise ValidationError("Extracted Linux storage test changed the unconfigured instance.")
+                        configured = json.loads(request("/api/v1/storage/configure", {"provider": "sqlite"}, storage["csrfToken"]))
+                        if configured.get("state") != "ready" or configured.get("provider") != "sqlite":
+                            raise ValidationError("Extracted Linux bundle could not save its storage choice.")
+                        if not storage_file.is_file() or storage_file.stat().st_mode & 0o077:
+                            raise ValidationError("Extracted Linux storage configuration permissions are not private.")
+                        saved_storage = storage_file.read_bytes()
+                    elif (storage.get("state") != "ready" or storage.get("provider") != "sqlite"
+                          or storage.get("source") != "file" or storage_file.read_bytes() != saved_storage):
+                        raise ValidationError("Extracted Linux bundle did not retain the saved storage target.")
+                    request("/health")
                     boot = json.loads(request("/api/v1/bootstrap"))
                     if boot.get("version") != version or boot.get("initialized") != (phase == "restart"):
                         raise ValidationError("Extracted Linux bundle version/setup persistence check failed.")
@@ -208,6 +231,11 @@ def verify_linux_bundle(bundle: Path, version: str) -> None:
                         request("/api/v1/setup", {"siteName": "Release bundle check", "mode": "open_edit", "seedDemo": False}, boot["csrfToken"])
                     elif boot.get("siteName") != "Release bundle check":
                         raise ValidationError("Extracted Linux bundle lost its setup after restart.")
+                    keys = {name: digest(temporary / "data" / name) for name in ("csrf.key", "integrations.key")}
+                    if phase == "setup":
+                        saved_keys = keys
+                    elif keys != saved_keys:
+                        raise ValidationError("Extracted Linux bundle changed its instance keys on restart.")
                     html = request("/").decode("utf-8")
                     assets = re.findall(r'(?:src|href)="(/assets/[^"?#]+\.(?:js|css))"', html)
                     if "<html" not in html.lower() or not assets:
@@ -347,14 +375,16 @@ def build(root: Path, tag: str, output: Path, repository: str) -> dict:
         (bundle / "RUNNING.md").write_text(
             "# Run the Linux amd64 release\n\nRun `./lingshu-home` from this directory and open http://127.0.0.1:5180. "
             "No Go or Node toolchain is needed. Use `./lingshu-home -help` for server options. "
-            "On a new instance, choose its language before setup, or specify `--language en` / `--language zh-CN` at startup. "
+            "On a new instance without storage settings, first choose SQLite or external PostgreSQL in the browser. "
+            "Then choose its language before account setup, or specify `--language en` / `--language zh-CN` at startup. "
             "The selected language is saved for later starts; the interface and example content use that language without a UI switch. "
-            "Data and encryption keys are created in `data/`; retain and back up that directory. "
+            "Storage settings, instance identity and encryption keys are kept in `data/`; retain and back up that directory "
+            "together with the selected database and original document mounts. Existing configured instances keep their storage target. "
             "The `web/dist` and `VERSION` paths are relative to this working directory. "
             "The repository README also covers building from source, whose development scripts are in the separate source archive.\n\n"
             "在本目录运行 `./lingshu-home`，访问 http://127.0.0.1:5180 完成初始化。无需安装 Go 或 Node。"
-            "新实例先选择语言，也可启动时指定 `--language zh-CN` 或 `--language en`；选择会保存，界面和示例内容统一使用该语言，之后不提供页面内切换。"
-            "请保留并备份首次启动后生成的 `data/` 数据和密钥目录。\n", encoding="utf-8")
+            "未配置存储的新实例先选择 SQLite 或外部 PostgreSQL，再确认语言，也可启动时指定 `--language zh-CN` 或 `--language en`；选择会保存，界面和示例内容统一使用该语言，之后不提供页面内切换。"
+            "已有实例继续使用原存储目标。请保留并备份 `data/` 中的存储配置、实例身份和密钥，同时备份所选数据库与文档原件挂载。\n", encoding="utf-8")
         verify_linux_bundle(bundle, version)
         archive_tree(bundle, artifacts / f"{prefix}-linux-amd64.tar.gz", prefix + "-linux-amd64/", timestamp)
         # Tag/save the already exercised image ID, not a second Docker build.
@@ -374,7 +404,8 @@ def build(root: Path, tag: str, output: Path, repository: str) -> dict:
                       "reference": image_ref, "platform": "linux/amd64", "archive": image_archive},
             "artifacts": sorted([path.name for path in artifacts.iterdir()] + [METADATA_FILE]),
             "verification": ["version-and-dated-changelog", "clean-tagged-source-allowlist", "container-health-setup-restart-nonroot",
-                             "linux-bundle-default-paths-assets-setup-restart", "required-original-license-notices"],
+                             "linux-bundle-default-paths-assets-setup-restart", "linux-bundle-storage-selection-private-config-keys",
+                             "required-original-license-notices"],
         }
         (artifacts / METADATA_FILE).write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
         (artifacts / "SHA256SUMS").write_text("".join(f"{digest(path)}  {path.name}\n" for path in sorted(artifacts.iterdir())), encoding="ascii")

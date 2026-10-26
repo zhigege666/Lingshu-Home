@@ -45,6 +45,7 @@
 .lh-composer-tabs{position:sticky;top:0;z-index:3;display:flex;gap:4px;padding:14px 12px 10px;background:var(--hc-surface);border-bottom:1px solid var(--hc-line)}
 .lh-composer-tabs>button{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-width:0;min-height:32px;padding:6px;border:0;border-radius:6px;background:transparent;color:var(--hc-muted);font:inherit;font-size:11px;font-weight:550;cursor:pointer;white-space:nowrap}
 .lh-composer-tabs>button[data-state=active]{color:var(--hc-accent);background:var(--hc-tint)}
+.lh-composer-library,.lh-composer-tab-body{min-width:0;max-width:100%}
 .lh-composer-tab-body{padding:12px;outline:none}
 .lh-composer-layer-list{display:flex;flex-direction:column;gap:3px;padding-top:10px;margin-top:10px;border-top:1px solid var(--hc-line)}
 .lh-composer-layer{display:flex;align-items:center;gap:10px;width:100%;min-width:0;padding:10px;border:1px solid transparent!important;background:transparent;color:var(--hc-muted);border-radius:7px;text-align:left;font:inherit;cursor:pointer}
@@ -60,13 +61,16 @@
 .lh-composer-library-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 2px 10px}
 .lh-composer-library-heading:not(:first-child){margin-top:22px}
 .lh-composer-library-heading h3{margin:0;font-size:11px;font-weight:550;color:var(--hc-muted)}
-.lh-composer-library-heading>span{font-size:10px;color:var(--hc-muted)}
+.lh-composer-library-heading>span{flex:none;font-size:10px;color:var(--hc-muted)}
+.lh-composer-library-title{display:flex;align-items:center;gap:3px;min-width:0}
+.lh-composer-library-title .lh-field-help-trigger{color:var(--hc-muted)}
 .lh-composer-library-items{display:flex;flex-direction:column;gap:8px}
 .lh-composer-library-item{display:flex;align-items:center;gap:11px;min-width:0;width:100%;padding:12px 9px;border:1px solid var(--hc-line)!important;border-radius:8px;background:var(--hc-surface);color:var(--hc-muted);text-align:left;font:inherit;cursor:pointer}
 .lh-composer-library-item:hover:not(:disabled){border-color:#b8d0f3!important;background:var(--hc-tint)}
 .lh-composer-library-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;background:var(--hc-hover);border:1px solid var(--hc-line);border-radius:7px;color:#536b8e}
 .lh-composer-library-item>span:nth-child(2){display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
-.lh-composer-library-item strong{font-weight:500;color:var(--hc-ink);font-size:12px}
+.lh-composer-library-item>svg{flex:none}
+.lh-composer-library-item strong{font-weight:500;color:var(--hc-ink);font-size:12px;overflow-wrap:anywhere}
 .lh-composer-library-item small{font-size:10px;color:var(--hc-muted)}
 .lh-composer-inspector-heading{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:17px 18px;border-bottom:1px solid var(--hc-line);background:var(--hc-surface);color:#65738b;min-height:57px}
 .lh-composer-inspector-heading h2{font-size:12px;font-weight:600;color:var(--hc-ink);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -97,6 +101,14 @@
 .lh-composer .lh-composer-text-action,.lh-composer-chrome-ui .lh-composer-text-action{min-height:27px;margin-top:4px;border:0;padding:4px 0;font-size:10px;color:var(--hc-accent)}
 .lh-composer-new-group{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .lh-composer-mini-actions{display:flex;align-items:center;gap:3px}
+.lh-composer-mini-actions.lh-composer-library-actions{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:stretch;gap:7px;width:100%;min-width:0;margin-top:12px}
+.lh-composer-library-actions>:first-child{grid-column:1/-1}
+.lh-composer .lh-composer-library-actions>.lh-composer-button,.lh-composer-chrome-ui .lh-composer-library-actions>.lh-composer-button{width:100%;min-width:0;justify-content:flex-start}
+.lh-composer .lh-composer-library-actions>.lh-composer-button:last-child,.lh-composer-chrome-ui .lh-composer-library-actions>.lh-composer-button:last-child{width:32px;min-height:32px;padding:0;justify-content:center}
+.lh-composer-library-actions>.lh-composer-button>svg{flex:none}
+.lh-composer-library-actions>.lh-composer-button>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lh-composer-library-actions+.lh-composer-hint{margin-top:8px}
+
 .lh-composer .lh-composer-inline-error,.lh-composer-chrome-ui .lh-composer-inline-error{font-size:11px;line-height:1.6;color:var(--hc-danger);margin:0}
 .lh-composer-themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .lh-composer-theme{padding:5px;border:1px solid var(--hc-line)!important;border-radius:8px;background:var(--hc-surface);color:var(--hc-ink);font:inherit;cursor:pointer;text-align:left}

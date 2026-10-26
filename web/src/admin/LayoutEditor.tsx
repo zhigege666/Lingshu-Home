@@ -74,7 +74,7 @@ function neighbor(config: PageConfig, id: string, direction: number): string | n
 }
 
 function NavigationSelectControl({ label, value, disabled, hint, options, onChange }: NavigationSelectProps) {
-  return <Field label={label} hint={hint}><StyledSelect aria-label={label} value={value} disabled={disabled} options={options} onValueChange={onChange}/></Field>
+  return <Field label={label} help={hint}><StyledSelect aria-label={label} value={value} disabled={disabled} options={options} onValueChange={onChange}/></Field>
 }
 function NavigationCheckControl({ label, checked, disabled, onChange }: NavigationCheckProps) {
   return <label className="admin-check-line"><Checkbox aria-label={label} checked={checked} disabled={disabled} onCheckedChange={value => onChange(value === true)}/>{label}</label>
@@ -363,7 +363,7 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
                     options={[{ value: 'theme', label: t('跟随主题', 'Follow theme') }, { value: 'icon-text', label: t('图标 + 文字', 'Icon + text') }, { value: 'minimal', label: t('简约文字', 'Minimal text') }, { value: 'app-icons', label: t('应用图标', 'App icons') }]} /></Field>}
                   {['builtin/navigation', 'builtin/favorites'].includes(selected.panel.id) && <section className="admin-inspector-section" data-navigation-content-settings>
                     <h4>{t('组件内容', 'Component content')}</h4>
-                    <NavigationContentFields settings={selected.settings} disabled={disabled} SelectControl={NavigationSelectControl} CheckControl={NavigationCheckControl}
+                    <NavigationContentFields settings={selected.settings} grouped={selected.panel.id === 'builtin/navigation'} disabled={disabled} SelectControl={NavigationSelectControl} CheckControl={NavigationCheckControl}
                       onChange={(key, value) => edit(next => { const settings = next.views.find(view => view.id === selected.id)!.settings; if (value === undefined) delete settings[key]; else settings[key] = value })}/>
                   </section>}
                   {selected.panel.id === 'builtin/document-activity' && <section className="admin-inspector-section"><DocumentActivityFields view={selected} views={config.views} spaceId={dashboard.space.id} disabled={disabled} SelectControl={NavigationSelectControl} CheckControl={NavigationCheckControl} onChange={values => updateSettings(selected.id, values)} onScopeChange={scope => edit(next => { const view = next.views.find(item => item.id === selected.id)!; if (scope) view.interactionScope = scope; else delete view.interactionScope })}/></section>}

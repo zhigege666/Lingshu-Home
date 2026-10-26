@@ -1,7 +1,9 @@
+import NavigationInlineEditor from './NavigationInlineEditor'
+import { cachedInlineDraft } from '../core/navigation-inline'
 import { t, getLocale } from '../core/i18n'
 import { notifyRouteCommitted, requestNavigation, routeCommittedEvent } from '../core/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Compass, Download, Folder, KeyRound, Layers, Link2, LogOut, Network, Pencil, Plus, RefreshCw, Search, Shield, Star, Trash2, Upload, Users } from 'lucide-react'
+import { ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Compass, Download, Folder, KeyRound, Layers, Link2, Network, Pencil, Plus, RefreshCw, Search, Shield, SlidersHorizontal, Star, UserRound, Trash2, Upload, Users } from 'lucide-react'
 import { ApiError, downloadExport, messageOf, request } from '../core/api'
 import { safeHref } from '../core/presentation'
 import type { Bootstrap, Category, Dashboard, Dataset, NavigationData, NavLink } from '../core/types'
@@ -10,6 +12,10 @@ import { Checkbox } from '../components/ui/checkbox'
 import { Input } from '../components/ui/input'
 import { StyledSelect } from '../components/ui/select'
 import { SpacePreferenceMenu } from '../components/SpacePreferenceMenu'
+import { FieldHelp } from '../components/FieldHelp'
+import AccountMenu from '../components/AccountMenu'
+import ProfilePanel from './ProfilePanel'
+import './admin-header.css'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { BuiltinIcon, Empty, ErrorMessage, Field, handleFormInvalid, Loading } from '../components/Shared'
 import { ConfirmPopover } from '../components/ConfirmPopover'
@@ -23,13 +29,14 @@ import DocumentDirectories from './DocumentDirectories'
 import { BulkLinkDialog, type BulkLinkAction, type BulkLinkResult } from './BulkLinkDialog'
 import './bulk-links.css'
 
-type Props = { bootstrap: Bootstrap; dashboard: Dashboard | null; onHome: () => void; onLogin: () => void; onLogout: () => Promise<void>; onRefresh: () => Promise<void>; onSwitchSpace: (id: string) => void; onSessionChanged: () => Promise<void>; onNotice: (message: string) => void }
+type Props = { bootstrap: Bootstrap; dashboard: Dashboard | null; onHome: () => void; onLogin: () => void; onLogout: () => Promise<void>; onRefresh: () => Promise<void>; onSwitchSpace: (id: string) => void; onSessionChanged: () => Promise<void>; onCurrentSessionRevoked: () => Promise<void>; onNotice: (message: string) => void }
 const standardMenu = () => [
   { id: 'links', name: t("链接管理", "Link management"), icon: Link2 },
   { id: 'categories', name: t("分类管理", "Category management"), icon: Folder },
   { id: 'appearance', name: t("布局与主题", "Layout and theme"), icon: Layers },
   { id: 'bookmarks', name: t("导入与导出", "Import and export"), icon: Upload },
   { id: 'documents', name: t('文档目录', 'Document directories'), icon: BookOpen },
+  { id: 'space', name: t('空间设置', 'Space settings'), icon: SlidersHorizontal },
   { id: 'integrations', name: t("数据源与 MCP", "Sources and MCP"), icon: KeyRound }
 ]
 const pageSizes = () => [25, 50, 100].map(value => ({ value: String(value), label: t("{count} 条 / 页", "{count} / page", { count: value }) }))
@@ -59,9 +66,10 @@ function Pagination({ total, page, pageSize, onPage, onPageSize, label }: { tota
   </nav>
 }
 
-export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLogout, onRefresh, onSwitchSpace, onSessionChanged, onNotice }: Props) {
+export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLogout, onRefresh, onSwitchSpace, onSessionChanged, onCurrentSessionRevoked, onNotice }: Props) {
   const [tab, setTab] = useState(initialTab), [query, setQuery] = useState(''), [page, setPage] = useState(1), [pageSize, setPageSize] = useState(25)
   const [contentIntent, setContentIntent] = useState(readContentIntent)
+  const [inlineScope, setInlineScope] = useState<string | null>(null)
   const switchingIntent = useRef<string | null>(null)
   const identity = `${bootstrap.user?.id || 'visitor'}:${bootstrap.mode}`
   const [localSnapshot, setLocalSnapshot] = useState<{ spaceId: string; identity: string; dataset: Dataset<NavigationData> } | null>(null)
@@ -71,14 +79,16 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   const [pendingListFocus, setPendingListFocus] = useState(false)
   const navigationRequest = useRef<AbortController | null>(null), tableScroll = useRef<HTMLDivElement | null>(null)
   const spaceId = dashboard?.space.id, currentSpaceId = useRef(spaceId); currentSpaceId.current = spaceId
+  const contentScope = identity + '/' + (spaceId || ''), inlineEditing = inlineScope === contentScope
   const localData = localSnapshot && localSnapshot.spaceId === spaceId && localSnapshot.identity === identity ? localSnapshot.dataset : null
   const [loading, setLoading] = useState(false), [error, setError] = useState(''), [editor, setEditor] = useState<'link' | 'category' | 'import' | null>(null)
   const [editingLink, setEditingLink] = useState<NavLink | null>(null), [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [deleting, setDeleting] = useState<{ type: 'links' | 'categories'; id: string; title: string; anchor: HTMLButtonElement; spaceId: string } | null>(null), [deleteError, setDeleteError] = useState(''), [deleteStale, setDeleteStale] = useState(false), [busy, setBusy] = useState(false)
   const siteManager = bootstrap.user?.role === 'Owner' || bootstrap.mode === 'open_edit'
   const menu = useMemo(() => [...standardMenu(),
-    ...(siteManager ? [{ id: 'network', name: t('网络设置', 'Network settings'), icon: Network }, { id: 'access', name: t("访问与账号", "Access and accounts"), icon: Shield }] : []),
+    ...(siteManager ? [{ id: 'network', name: t('网络设置', 'Network settings'), icon: Network }, { id: 'access', name: t("站点设置", "Site settings"), icon: Shield }] : []),
     ...(bootstrap.user?.role === 'Owner' && bootstrap.mode === 'private_multi' ? [{ id: 'members', name: t("成员管理", "Member management"), icon: Users }] : []),
+    ...(bootstrap.user ? [{ id: 'profile', name: t('我的资料', 'My profile'), icon: UserRound }] : []),
     { id: 'about', name: t("关于 Home", "About Home"), icon: Compass }
   ], [siteManager, bootstrap.user?.role, bootstrap.mode])
   const current = menu.find(item => item.id === tab) || menu[0]!
@@ -126,6 +136,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   }, [spaceId, identity])
   useEffect(() => {
     setLocalSnapshot(null); setEditor(null); setDeleting(null); setEditingLink(null); setEditingCategory(null); setDeleteError(''); setQuery(''); setPage(1)
+    setInlineScope(spaceId && cachedInlineDraft(identity, spaceId) ? contentScope : null)
     void loadNavigation(); return () => navigationRequest.current?.abort()
   }, [loadNavigation])
   useEffect(() => { if (!menu.some(item => item.id === tab)) setTab('links') }, [menu, tab])
@@ -138,6 +149,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   }, [])
   useEffect(() => {
     if (!contentIntent) { switchingIntent.current = null; return }
+    setInlineScope(null)
     if (window.location.hash !== contentIntent.hash) { setContentIntent(null); return }
     const consume = (destination?: string) => {
       // Remove the one-shot command before opening a dialog: refreshes and
@@ -191,7 +203,14 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
     return () => cancelAnimationFrame(frame)
   }, [pendingListFocus, busy, bulkBusy, loading])
 
-  function selectTab(id: string) { if (id === tab) return; requestNavigation(() => { clearSelection(); setTab(id); setQuery(''); setPage(1); window.history.replaceState(null, '', `#/admin?tab=${id}`); notifyRouteCommitted() }) }
+  function selectTab(id: string) {
+    if (id === tab) return
+    const proceed = () => { clearSelection(); setTab(id); setQuery(''); setPage(1); window.history.replaceState(null, '', '#/admin?tab=' + id); notifyRouteCommitted() }
+    if (inlineEditing && ['links', 'categories'].includes(tab) && ['links', 'categories'].includes(id)) proceed()
+    else requestNavigation(proceed)
+  }
+  function startInlineEditing() { clearSelection(); setError(''); setInlineScope(contentScope) }
+  function endInlineEditing() { setInlineScope(null); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('[data-start-inline]')?.focus()) }
   function changeQuery(value: string) { clearSelection(); setQuery(value); setPage(1) }
   function changePageSize(value: number) { setPageSize(value); setPage(1) }
   function focusListToolbar() { setPendingListFocus(true) }
@@ -247,21 +266,30 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   return <div className="admin-ui admin-shell" inert={busy || bulkBusy}>
     <header className="admin-topbar">
       <a className="admin-brand" href="#/" onClick={event => { event.preventDefault(); onHome() }}><span className="admin-brand-mark"><ProjectLogo size={39}/></span><span>Lingshu<span className="admin-brand-light"> / Home</span></span></a>
-      <span className="admin-top-label">{t("管理面板", "Administration")}</span><span className="grow"/>
+      <h1 className="admin-top-title" id="admin-page-title">{current.name}</h1><span className="grow"/>
       <Button variant="ghost" onClick={() => requestNavigation(() => { window.location.hash = '/library' })}><BookOpen size={16}/>{t('资料库', 'Library')}</Button>
       <Button variant="ghost" onClick={onHome}>{t("返回导航", "Back to Home")}<ArrowUpRight size={16}/></Button>
-      {bootstrap.user ? <Button variant="ghost" aria-label={t('退出登录', 'Sign out')} title={t('退出登录', 'Sign out')} onClick={() => requestNavigation(() => { void onLogout() })}><span className="admin-avatar small">{(bootstrap.user.displayName || bootstrap.user.username).slice(0, 1).toUpperCase()}</span><span className="admin-account-name">{bootstrap.user.displayName}</span><LogOut size={15}/></Button> : <Button variant="outline" size="sm" onClick={onLogin}>{t("管理员登录", "Administrator sign-in")}</Button>}
+      {dashboard && <div className="admin-global-space"><span className="admin-global-space-label">{t('当前空间', 'Current space')}</span><StyledSelect className="lh-space-control" aria-label={t('当前空间', 'Current space')} value={dashboard.space.id} onValueChange={id => { if (id !== dashboard.space.id) requestNavigation(() => onSwitchSpace(id)) }} options={bootstrap.spaces.map(space => ({ value: space.id, label: `${space.name} · ${space.kind === 'personal' ? t('个人', 'Personal') : t('共享', 'Shared')}` }))}/><SpacePreferenceMenu bootstrap={bootstrap}/></div>}
+      {bootstrap.user ? <AccountMenu user={bootstrap.user} onProfile={() => selectTab('profile')} onLogout={() => requestNavigation(() => { void onLogout() })}/> : <Button variant="outline" size="sm" onClick={onLogin}>{t("管理员登录", "Administrator sign-in")}</Button>}
     </header>
     <aside className="admin-sidebar">
-      <nav aria-label={t("管理菜单", "Administration menu")}>{menu.map(item => <button key={item.id} className={`admin-nav-item ${current.id === item.id ? 'active' : ''}`} aria-current={current.id === item.id ? 'page' : undefined} onClick={() => selectTab(item.id)}><item.icon size={18}/><span>{item.name}</span></button>)}</nav>
+      <nav aria-label={t('管理菜单', 'Administration menu')}>{[
+        { label: t('内容管理', 'Content'), ids: ['links', 'categories', 'bookmarks'] },
+        { label: t('当前空间', 'Current space'), ids: ['space', 'appearance', 'documents', 'integrations'] },
+        { label: t('站点管理', 'Site administration'), ids: ['access', 'network', 'members'] },
+        { label: '', ids: ['about'] },
+      ].map(group => { const items = group.ids.flatMap(id => menu.filter(item => item.id === id)); return items.length > 0 && <div className="admin-nav-group" key={group.ids[0]}>{group.label && <p className="admin-nav-group-label">{group.label}</p>}{items.map(item => <button key={item.id} className={`admin-nav-item ${current.id === item.id ? 'active' : ''}`} aria-current={current.id === item.id ? 'page' : undefined} onClick={() => selectTab(item.id)}><item.icon size={18}/><span>{item.name}</span></button>)}</div> })}</nav>
       <footer>Lingshu-Home <small>{bootstrap.version}</small></footer>
     </aside>
-    <main className="admin-main" id="main-content">
-      <div className="admin-page-heading"><h1>{current.name}</h1>{dashboard && standardMenu().some(item => item.id === current.id) && <Field label={t("当前空间", "Current space")} className="admin-space-picker"><StyledSelect className="lh-space-control" aria-label={t("当前空间", "Current space")} value={dashboard.space.id} onValueChange={id => { if (id !== dashboard.space.id) requestNavigation(() => onSwitchSpace(id)) }} options={bootstrap.spaces.map(space => ({ value: space.id, label: `${space.name} · ${space.kind === 'personal' ? t('个人', 'Personal') : t('共享', 'Shared')}` }))}/><SpacePreferenceMenu bootstrap={bootstrap}/></Field>}</div>
+    <main className="admin-main" id="main-content" aria-labelledby="admin-page-title">
       <ErrorMessage error={error}/>
-      <div className={`admin-page-body ${listTab ? 'admin-page-body-list' : current.id === 'appearance' ? 'admin-page-body-layout' : 'admin-page-body-scroll'}`} key={current.id}>
-        {contentTab && loading && !localDashboard ? <Loading text={t("正在读取本地导航…", "Loading local bookmarks…")}/> : contentTab && !localDashboard ? <Empty title={error ? t("无法读取当前空间内容", "Unable to load this space") : t("当前没有可访问的导航空间", "No accessible bookmark space")} detail={t("登录后可进入个人空间；管理员也可以维护共享内容。", "Sign in to access your personal space. Administrators can also manage shared content.")}><Button variant="outline" onClick={loadNavigation}>{t("重新读取", "Reload")}</Button>{!bootstrap.user && <Button onClick={onLogin}>{t("登录", "Sign in")}</Button>}</Empty> : current.id === 'links' && localDashboard ? <>
-          <div className="admin-content-toolbar"><div className="admin-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={t("搜索链接、标签、网址…", "Search links, tags, URLs…")} aria-label={t("搜索链接列表", "Search links")}/></div><span className="admin-muted admin-count">{t("{count} 个链接", "{count} links", { count: links.length })}</span><span className="grow"/><Button ref={listFocus} variant="outline" disabled={loading} onClick={() => { void loadNavigation() }} aria-label={t('刷新列表', 'Refresh list')}><RefreshCw size={15} className={loading ? 'admin-spin' : undefined}/>{t('刷新列表', 'Refresh list')}</Button>{localDashboard.space.canEdit && <><Button variant="outline" onClick={importBookmarks}><Upload size={16}/>{t("导入", "Import")}</Button><Button onClick={newLink}><Plus size={16}/>{t("添加链接", "Add link")}</Button></>}</div>
+      <div className={`admin-page-body ${listTab ? 'admin-page-body-list' : current.id === 'appearance' ? 'admin-page-body-layout' : 'admin-page-body-scroll'}`} key={inlineEditing && listTab ? contentScope : current.id}>
+        {contentTab && loading && !localDashboard ? <Loading text={t("正在读取本地导航…", "Loading local bookmarks…")}/> : contentTab && !localDashboard ? <Empty title={error ? t("无法读取当前空间内容", "Unable to load this space") : t("当前没有可访问的导航空间", "No accessible bookmark space")} detail={t("登录后可进入个人空间；管理员也可以维护共享内容。", "Sign in to access your personal space. Administrators can also manage shared content.")}><Button variant="outline" onClick={loadNavigation}>{t("重新读取", "Reload")}</Button>{!bootstrap.user && <Button onClick={onLogin}>{t("登录", "Sign in")}</Button>}</Empty> : inlineEditing && listTab && localDashboard && localData && canEditContent ? <NavigationInlineEditor key={contentScope} kind={current.id === 'categories' ? 'categories' : 'links'} identity={identity} bootstrap={bootstrap} dashboard={localDashboard} dataset={localData} onKindChange={selectTab} onExit={endInlineEditing} onSessionChanged={onSessionChanged} onNotice={onNotice} onCommitted={dataset => {
+          if (!spaceId) return
+          setLocalSnapshot({ spaceId, identity, dataset })
+          void onRefresh().catch(() => {})
+        }}/> : current.id === 'links' && localDashboard ? <>
+          <div className="admin-content-toolbar"><div className="admin-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={t("搜索链接、标签、网址…", "Search links, tags, URLs…")} aria-label={t("搜索链接列表", "Search links")}/></div><span className="admin-muted admin-count">{t("{count} 个链接", "{count} links", { count: links.length })}</span><span className="grow"/><Button ref={listFocus} variant="outline" disabled={loading} onClick={() => { void loadNavigation() }} aria-label={t('刷新列表', 'Refresh list')}><RefreshCw size={15} className={loading ? 'admin-spin' : undefined}/>{t('刷新列表', 'Refresh list')}</Button>{localDashboard.space.canEdit && <><Button variant="outline" data-start-inline onClick={startInlineEditing}><Pencil size={15}/>{t("编辑列表", "Edit list")}</Button><Button variant="outline" onClick={importBookmarks}><Upload size={16}/>{t("导入", "Import")}</Button><Button onClick={newLink}><Plus size={16}/>{t("添加链接", "Add link")}</Button></>}</div>
           {!localDashboard.space.canEdit && <p className="admin-info">{t("当前共享空间只读。", "This shared space is read-only. ")}{bootstrap.user ? t("切换到个人空间可维护自己的导航。", "Switch to a personal space to manage your bookmarks.") : t("管理员登录后可以维护共享内容。", "Administrators can sign in to manage shared content.")}</p>}
           {canEditContent && links.length > 0 && <div className="admin-bulk-toolbar" aria-label={t('链接批量操作', 'Bulk link actions')}>
             <span className="admin-selection-count" role="status">{t('已选 {count} 个', '{count} selected', { count: selectedIds.size })}</span>
@@ -285,7 +313,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
           </TableRow>)}</TableBody></Table></div> : <Empty title={query ? t("没有找到匹配的链接", "No matching links") : t("暂无链接", "No links yet")} detail={query ? t("试试其他关键词。", "Try different keywords.") : canEditContent ? t("添加链接或导入浏览器书签。", "Add a link or import browser bookmarks.") : undefined}/>}
           <Pagination total={links.length} page={currentPage} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} label={t("链接", "Links")}/>
         </> : current.id === 'categories' && localDashboard ? <>
-          <div className="admin-content-toolbar"><div className="admin-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={t("搜索分类…", "Search categories…")} aria-label={t("搜索分类列表", "Search categories")}/></div><span className="admin-muted admin-count">{t("{count} 个分类", "{count} categories", { count: filteredCategories.length })}</span><span className="grow"/>{localDashboard.space.canEdit && <Button ref={listFocus} onClick={newCategory}><Plus size={16}/>{t("添加分类", "Add category")}</Button>}</div>
+          <div className="admin-content-toolbar"><div className="admin-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={t("搜索分类…", "Search categories…")} aria-label={t("搜索分类列表", "Search categories")}/></div><span className="admin-muted admin-count">{t("{count} 个分类", "{count} categories", { count: filteredCategories.length })}</span><span className="grow"/>{localDashboard.space.canEdit && <><Button variant="outline" data-start-inline onClick={startInlineEditing}><Pencil size={15}/>{t("编辑列表", "Edit list")}</Button><Button ref={listFocus} onClick={newCategory}><Plus size={16}/>{t("添加分类", "Add category")}</Button></>}</div>
           {filteredCategories.length ? <div className="admin-table-scroll" ref={tableScroll} tabIndex={0} role="region" aria-label={t("分类列表", "Categories")}><Table className="admin-categories-table"><TableHeader><TableRow><TableHead>{t("分类", "Categories")}</TableHead><TableHead>{t("链接数", "Links")}</TableHead><TableHead>{t("排序", "Sort order")}</TableHead><TableHead className="admin-actions-cell">{t("操作", "Actions")}</TableHead></TableRow></TableHeader><TableBody>{filteredCategories.slice(pageStart, pageStart + pageSize).map(category => <TableRow key={category.id}>
             <TableCell><div className="admin-table-link"><span className="admin-link-icon"><BuiltinIcon name={category.icon}/></span><strong className="admin-category-path" title={categoryLabels.get(category.id)}>{categoryLabels.get(category.id)}</strong></div></TableCell><TableCell>{categoryCounts.get(category.id) || 0}</TableCell><TableCell>{category.sortOrder}</TableCell>
             <TableCell className="admin-actions-cell">{localDashboard.space.canEdit && <div className="admin-button-row"><Button variant="ghost" size="icon-sm" aria-label={t("编辑分类 {name}", "Edit category {name}", { name: category.name })} onClick={() => { setEditingCategory(category); setEditor('category') }}><Pencil size={15}/></Button><Button variant="ghost" size="icon-sm" aria-label={t("删除分类 {name}", "Delete category {name}", { name: category.name })} aria-haspopup="dialog" aria-expanded={deleting?.type === 'categories' && deleting.id === category.id} aria-controls={deleting?.type === 'categories' && deleting.id === category.id ? 'admin-confirm-delete' : undefined} onClick={event => askDelete('categories', category.id, category.name, event.currentTarget)}><Trash2 size={15}/></Button></div>}</TableCell>
@@ -294,8 +322,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
           <p className="admin-list-hint">{t("有链接或子分类的分类需先移出内容再删除；排序数字越小越靠前。", "Move a category's links and subcategories before deleting it. Lower sort values appear first.")}</p>
         </> : current.id === 'appearance' && dashboard ? <div className="admin-card admin-layout-card"><LayoutEditor key={`${dashboard.page.id}:${identity}:${dashboard.space.canEdit && bootstrap.spaces.some(space => space.id === dashboard.space.id && space.canEdit)}`} bootstrap={bootstrap} dashboard={dashboard} onSaved={async message => { onNotice(message); await onRefresh() }}/></div> : current.id === 'bookmarks' && localDashboard ? <>
           <div className="admin-transfer-grid"><section className="admin-card admin-transfer-card"><span className="admin-feature-icon"><Upload size={24}/></span><h2>{t("导入浏览器书签", "Import browser bookmarks")}</h2><p>{t("导入前预览文件夹层级，选择是否跳过重复网址。", "Preview the folder hierarchy and choose whether to skip duplicate URLs before importing.")}</p><Button disabled={!localDashboard.space.canEdit} onClick={importBookmarks}>{t("选择书签文件", "Choose bookmark file")}</Button></section><section className="admin-card admin-transfer-card"><span className="admin-feature-icon"><Download size={24}/></span><h2>{t("导出当前空间", "Export current space")}</h2><p>{t("HTML 用于浏览器；JSON 包含本地导航和页面配置。完整备份按部署文档操作。", "HTML is for browsers; JSON includes local bookmarks and page configuration. Follow the deployment guide for a full backup.")}</p><div className="admin-button-row"><Button variant="outline" onClick={() => exportData('html')}>{t("导出 HTML", "Export HTML")}</Button><Button variant="outline" onClick={() => exportData('json')}>{t("导出 JSON", "Export JSON")}</Button></div></section></div>
-          {localDashboard.space.canEdit && <SpaceSettings key={localDashboard.space.id} dashboard={localDashboard} bootstrap={bootstrap} onSaved={onSessionChanged} onNotice={onNotice}/>}
-        </> : current.id === 'documents' && dashboard && bootstrap.user ? <DocumentDirectories key={`${bootstrap.user.id}:${dashboard.space.id}`} bootstrap={bootstrap} spaceId={dashboard.space.id} onNotice={onNotice}/> : current.id === 'documents' ? <Empty title={t('登录后管理文档目录', 'Sign in to manage document directories')} detail={t('服务器文件目录只向授权账号开放。', 'Server directories are available only to authorized accounts.')}><Button onClick={onLogin}>{t('登录', 'Sign in')}</Button></Empty> : current.id === 'integrations' && dashboard ? <div className="admin-card"><IntegrationsPanel onMutationBusyChange={setBulkBusy} key={dashboard.space.id} bootstrap={bootstrap} dashboard={dashboard} onNotice={onNotice} onLogin={onLogin} onOpenAccounts={() => selectTab('access')} onRefresh={onRefresh}/></div> : current.id === 'network' && siteManager ? <NetworkSettings bootstrap={bootstrap} onSettingsSaved={onSessionChanged} onNotice={onNotice} onOpenAccounts={() => selectTab('access')}/> : current.id === 'access' && siteManager ? <div className="admin-card admin-narrow-card"><AccessSettings bootstrap={bootstrap} onLogin={onLogin} onSaved={async () => { onNotice(t("访问设置已保存", "Access settings saved")); await onSessionChanged() }}/></div> : current.id === 'members' && bootstrap.user?.role === 'Owner' && bootstrap.mode === 'private_multi' ? <div className="admin-card"><MembersPanel onNotice={onNotice}/></div> : current.id === 'about' ? <section className="admin-card admin-about"><span className="admin-brand-mark large"><ProjectLogo size={66}/></span><h2>Lingshu-Home</h2><dl><div><dt>{t("版本", "Version")}</dt><dd>{bootstrap.version}</dd></div><div><dt>{t("前端构建", "Frontend build")}</dt><dd>{__APP_VERSION__}</dd></div><div><dt>{t("管理组件", "Admin components")}</dt><dd>{t("REUI 公开组件 · MIT", "REUI public components · MIT")}</dd></div><div><dt>{t("项目许可证", "Project license")}</dt><dd>Apache-2.0</dd></div></dl><a href="https://github.com/zhigege666/Lingshu-Home" target="_blank" rel="noopener noreferrer" className="admin-project-link"><BookOpen size={16}/>{t("项目仓库", "Project repository")}<ArrowUpRight size={14}/></a></section> : <Empty title={t("当前没有可用的空间", "No space available")} detail={t("登录后进入自己的空间，再配置页面和数据源。", "Sign in to your space to configure its page and data sources.")}/>}
+        </> : current.id === 'space' && dashboard ? dashboard.space.canEdit ? <SpaceSettings key={dashboard.space.id} dashboard={dashboard} bootstrap={bootstrap} onSaved={onSessionChanged} onNotice={onNotice}/> : <section className="admin-card"><Empty title={t('此空间只读', 'This space is read-only')} detail={t('只有可维护此空间的账号能修改空间设置。', 'Only an account with edit access can change these space settings.')}/></section> : current.id === 'documents' && dashboard && bootstrap.user ? <DocumentDirectories key={`${bootstrap.user.id}:${dashboard.space.id}`} bootstrap={bootstrap} spaceId={dashboard.space.id} onNotice={onNotice}/> : current.id === 'documents' ? <Empty title={t('登录后管理文档目录', 'Sign in to manage document directories')} detail={t('服务器文件目录只向授权账号开放。', 'Server directories are available only to authorized accounts.')}><Button onClick={onLogin}>{t('登录', 'Sign in')}</Button></Empty> : current.id === 'profile' && bootstrap.user ? <ProfilePanel key={bootstrap.user.id} user={bootstrap.user} bootstrap={bootstrap} onSessionChanged={onSessionChanged} onCurrentSessionRevoked={onCurrentSessionRevoked} onNotice={onNotice}/> : current.id === 'integrations' && dashboard ? <div className="admin-card"><IntegrationsPanel onMutationBusyChange={setBulkBusy} key={dashboard.space.id} bootstrap={bootstrap} dashboard={dashboard} onNotice={onNotice} onLogin={onLogin} onOpenAccounts={() => selectTab('access')} onRefresh={onRefresh}/></div> : current.id === 'network' && siteManager ? <NetworkSettings bootstrap={bootstrap} onSettingsSaved={onSessionChanged} onNotice={onNotice} onOpenAccounts={() => selectTab('access')}/> : current.id === 'access' && siteManager ? <div className="admin-card admin-narrow-card"><AccessSettings bootstrap={bootstrap} onLogin={onLogin} onSessionChanged={onSessionChanged} onSaved={async () => { onNotice(t("访问设置已保存", "Access settings saved")); await onSessionChanged() }}/></div> : current.id === 'members' && bootstrap.user?.role === 'Owner' && bootstrap.mode === 'private_multi' ? <div className="admin-card"><MembersPanel onNotice={onNotice}/></div> : current.id === 'about' ? <section className="admin-card admin-about"><span className="admin-brand-mark large"><ProjectLogo size={66}/></span><h2>Lingshu-Home</h2><dl><div><dt>{t("版本", "Version")}</dt><dd>{bootstrap.version}</dd></div><div><dt>{t("前端构建", "Frontend build")}</dt><dd>{__APP_VERSION__}</dd></div><div><dt>{t("管理组件", "Admin components")}</dt><dd>{t("REUI 公开组件 · MIT", "REUI public components · MIT")}</dd></div><div><dt>{t("项目许可证", "Project license")}</dt><dd>Apache-2.0</dd></div></dl><a href="https://github.com/zhigege666/Lingshu-Home" target="_blank" rel="noopener noreferrer" className="admin-project-link"><BookOpen size={16}/>{t("项目仓库", "Project repository")}<ArrowUpRight size={14}/></a></section> : <Empty title={t("当前没有可用的空间", "No space available")} detail={t("登录后进入自己的空间，再配置页面和数据源。", "Sign in to your space to configure its page and data sources.")}/>}
       </div>
     </main>
     {bulkAction && canEditContent && localData && selectedLinks.length > 0 && dashboard && <BulkLinkDialog action={bulkAction} deleteAnchor={bulkDeleteAnchor.current} onBusyChange={setBulkBusy} getReturnFocus={() => bulkDeleteAnchor.current || listFocus.current} spaceId={dashboard.space.id} spaceName={dashboard.space.name} revision={localData.revision} links={selectedLinks} categories={categories} categoryLabels={categoryLabels} onClose={() => setBulkAction(null)} onReload={() => { clearSelection(); void loadNavigation().finally(focusListToolbar) }} onSaved={bulkSaved}/>}
@@ -312,7 +339,32 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
 }
 
 function SpaceSettings({ dashboard, bootstrap, onSaved, onNotice }: { dashboard: Dashboard; bootstrap: Bootstrap; onSaved: () => Promise<void>; onNotice: (message: string) => void }) {
-  const [name, setName] = useState(dashboard.space.name), [published, setPublished] = useState(dashboard.space.published), [busy, setBusy] = useState(false), [error, setError] = useState('')
-  async function save(event: FormEvent) { event.preventDefault(); setBusy(true); setError(''); try { await request(`/spaces/${dashboard.space.id}`, { method: 'PUT', body: { name: name.trim(), published } }); onNotice(t("空间设置已保存", "Space settings saved")); await onSaved() } catch (cause) { setError(messageOf(cause)) } finally { setBusy(false) } }
-  return <section className="admin-card admin-space-settings"><h2>{t("空间设置", "Space settings")}</h2><form onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}><Field label={t("空间名称", "Space name")}><Input required disabled={busy} maxLength={80} value={name} onChange={event => setName(event.target.value)}/></Field>{dashboard.space.kind === 'shared' && bootstrap.user?.role === 'Owner' && <label className="admin-check-line"><Checkbox checked={published} onCheckedChange={setPublished} disabled={busy}/>{t("在公开模式下允许免登录浏览此共享空间", "Allow visitors to browse this shared space in public modes")}</label>}<p className="admin-hint">{dashboard.space.kind === 'personal' ? t("个人空间只对自己的账号可见。", "A personal space is visible only to its own account.") : t("登录模式下，访问共享空间仍需要登录。", "Shared spaces still require sign-in in private modes.")}</p><ErrorMessage error={error}/><Button type="submit" variant="outline" disabled={busy}>{busy ? t("正在保存…", "Saving…") : t("保存空间设置", "Save space settings")}</Button></form></section>
+  const [name, setName] = useState(dashboard.space.name), [published, setPublished] = useState(dashboard.space.published)
+  const [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const dirty = name.trim() !== dashboard.space.name || published !== dashboard.space.published
+  async function save(event: FormEvent) {
+    event.preventDefault(); if (busy || !dirty || !dashboard.space.canEdit) return
+    setBusy(true); setError('')
+    try {
+      await request('/spaces/' + dashboard.space.id, { method: 'PUT', body: { name: name.trim(), published } })
+      onNotice(t('空间设置已保存', 'Space settings saved')); await onSaved()
+    } catch (cause) { setError(messageOf(cause)) } finally { setBusy(false) }
+  }
+  return <section className="admin-card admin-space-settings">
+    <h2>{t('基本信息', 'Basic information')}</h2>
+    <form onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}>
+      <fieldset className="admin-plain-fieldset" disabled={busy || !dashboard.space.canEdit}>
+        <Field label={t('空间名称', 'Space name')} className="admin-field-inline"
+          help={dashboard.space.kind === 'personal' ? t('这是你的个人空间，内容仅对当前账号可见。', 'This is your personal space. Only your account can see its content.') : t('修改此名称会同步显示在全局空间选择器中。', 'This name also appears in the global space selector.')}>
+          <Input required maxLength={80} value={name} onChange={event => setName(event.target.value)}/>
+        </Field>
+        {dashboard.space.kind === 'shared' && bootstrap.user?.role === 'Owner' && <div className="admin-button-row">
+          <label className="admin-check-line"><Checkbox aria-label={t('允许公开浏览', 'Allow public browsing')} checked={published} onCheckedChange={setPublished} disabled={busy}/>{t('允许公开浏览', 'Allow public browsing')}</label>
+          <FieldHelp label={t('共享空间访问', 'Shared space access')}>{t('开启后，免登录编辑或公开浏览模式下的访客可查看此空间。私密和多人模式仍要求登录。站点访问方式在“站点设置”中修改。', 'When enabled, visitors can read this space in open-edit or public-browsing modes. Private and multi-user modes still require sign-in. Change the site access mode in Site settings.')}</FieldHelp>
+        </div>}
+        <ErrorMessage error={error}/>
+        <div className="admin-form-footer"><Button type="submit" disabled={busy || !dirty}>{busy ? t('正在保存…', 'Saving…') : t('保存空间设置', 'Save space settings')}</Button></div>
+      </fieldset>
+    </form>
+  </section>
 }

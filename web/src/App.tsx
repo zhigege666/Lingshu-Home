@@ -1,3 +1,6 @@
+import { useSessionRenewal } from './core/useSessionRenewal'
+import { sessionVerifiedEvent } from './core/session-requests'
+import { clearInlineDrafts, inlineDraftResume, retainAccessibleInlineDrafts } from './core/navigation-inline'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Check, LoaderCircle, X } from 'lucide-react'
 import { ApiError, bootstrap, messageOf, request } from './core/api'
@@ -9,13 +12,16 @@ import { requestNavigation, routeCommittedEvent } from './core/navigation'
 import { browserSpaceStorage, clearRememberedSpace, forgetSpacePreference, readRememberedSpace, readSpacePreferences, rememberSpace, rememberSuccessfulSpace, selectAccessibleSpace, spaceSelectionKey } from './core/space-selection'
 import { Button } from './components/ui/button'
 import { ProjectLogo } from './components/ProjectLogo'
+import type { StorageBootstrap } from './components/StorageSetup'
 const AdminView = lazy(() => import('./admin/AdminView'))
 const LibraryView = lazy(() => import('./library/LibraryView'))
 const AuthScreen = lazy(() => import('./components/AuthScreen'))
+const StorageSetup = lazy(() => import('./components/StorageSetup'))
 // Route status must not import the admin form module (and its dialog dependencies).
 function AppLoading({ text = t('正在读取…', 'Loading…') }: { text?: string }) { return <div className="admin-loading" role="status"><LoaderCircle className="admin-spin" size={21}/>{text}</div> }
 function readRoute() { return window.location.hash.replace(/^#/, '') || (window.location.pathname.startsWith('/admin') ? '/admin' : window.location.pathname === '/login' ? '/login' : window.location.pathname === '/library' ? '/library' + window.location.search : '/') }
 export default function App() {
+  const [storage,setStorage] = useState<StorageBootstrap|null>(null)
   const [boot,setBoot] = useState<Bootstrap|null>(null); const [dashboard,setDashboard] = useState<Dashboard|null>(null)
   const [loading,setLoading] = useState(true); const [loadingSpace,setLoadingSpace] = useState(false); const [route,setRoute] = useState(readRoute)
   const [fatal,setFatal] = useState(''); const [error,setError] = useState(''); const [notice,setNotice] = useState('')
@@ -25,11 +31,18 @@ export default function App() {
   const libraryRoutePending = !!libraryTarget?.spaceId && !!boot && libraryRequest.current !== `${spaceSelectionKey(boot)}:${route}`
   const inaccessibleLibrarySpace = !!libraryTarget?.spaceId && !!boot && !accessibleLibrarySpace(libraryTarget, boot.spaces)
   const identityRef = useRef<string | null>(null)
+  const lastAccount = useRef<string | null>(null)
   const bootRef = useRef<Bootstrap | null>(null), dashboardRef = useRef<Dashboard | null>(null), manualSpaceRef = useRef(''), sessionRequest = useRef(0)
   const spaceRef = useRef(''); const controller = useRef<AbortController|null>(null)
+  const sessionCheck = useRef<Promise<void> | null>(null)
   const auth = !!boot && (!boot.initialized || !boot.user && (['private_single','private_multi'].includes(boot.mode) || route.startsWith('/login')))
   function showDashboard(value: Dashboard | null) { dashboardRef.current = value; setDashboard(value) }
   function applyBootstrap(value: Bootstrap) {
+    if (value.user) {
+      if (lastAccount.current && lastAccount.current !== value.user.id) clearInlineDrafts()
+      lastAccount.current = value.user.id
+      retainAccessibleInlineDrafts(value.user.id + ':' + value.mode, value.spaces.map(space => space.id))
+    }
     const identity = spaceSelectionKey(value)
     if (identityRef.current !== null && identityRef.current !== identity) {
       if (bootRef.current) clearRememberedSpace(bootRef.current, browserSpaceStorage('session'))
@@ -95,8 +108,18 @@ export default function App() {
   }
   async function loadSession(preferShared = false, verified?: Bootstrap) {
     const generation = ++sessionRequest.current
+    if (!bootRef.current) setLoading(true)
     setFatal(''); setError(''); controller.current?.abort()
     try {
+      const storageState = await request<StorageBootstrap>('/storage/bootstrap')
+      if (sessionRequest.current !== generation) return
+      if (!['required', 'ready', 'error'].includes(storageState.state)) throw new Error(t('无法读取存储状态，请重新连接。', 'Storage status could not be read. Reconnect to continue.'))
+      if (storageState.language) configureLanguage(storageState.language)
+      if (storageState.state !== 'ready') {
+        setStorage(storageState); setBoot(null); bootRef.current = null
+        showDashboard(null); spaceRef.current = ''; setLoadingSpace(false); return
+      }
+      setStorage(null)
       const value = verified || await bootstrap()
       if (sessionRequest.current !== generation) return
       const identity = spaceSelectionKey(value), sameIdentity = identityRef.current === identity
@@ -119,7 +142,18 @@ export default function App() {
       if (selected) await loadDashboard(selected, false, { manual: !!linkedSpace || preferShared || selected === manual, recover: !linkedSpace }); else { showDashboard(null); spaceRef.current = '' }
     } catch (cause) { if (sessionRequest.current === generation) setFatal(messageOf(cause)) } finally { if (sessionRequest.current === generation) setLoading(false) }
   }
-  async function authComplete(preferShared = false) { const next = readLibraryTarget(routeRef.current) ? routeRef.current : '/'; showDashboard(null); spaceRef.current=''; manualSpaceRef.current=''; navigate(next); await loadSession(preferShared) }
+  async function storageReady() { const value = await bootstrap(); await loadSession(false, value) }
+  async function authComplete(preferShared = false) {
+    const generation = ++sessionRequest.current
+    const value = await bootstrap()
+    if (sessionRequest.current !== generation) return
+    const linkedRoute = readLibraryTarget(routeRef.current) ? routeRef.current : null
+    const resume = !linkedRoute && value.user ? inlineDraftResume(value.user.id + ':' + value.mode) : null
+    showDashboard(null); spaceRef.current=''; manualSpaceRef.current=''
+    navigate(linkedRoute || (resume ? '/admin?tab=' + resume.kind : '/'))
+    await loadSession(preferShared, value)
+    if (resume && value.spaces.some(space => space.id === resume.spaceId && space.canEdit)) await loadDashboard(resume.spaceId, false, { manual: true })
+  }
   async function languageReady(value: Bootstrap) {
     if (value.initialized) { await loadSession(false, value); return }
     applyBootstrap(value)
@@ -143,8 +177,44 @@ export default function App() {
     if (readLibraryTarget(routeRef.current)) navigate('/library')
     void loadDashboard(id, false, { manual: true })
   }
-  async function logout() { try { await request('/auth/logout',{method:'POST',body:{}}); sessionRequest.current++; controller.current?.abort(); if (bootRef.current) clearRememberedSpace(bootRef.current, browserSpaceStorage('session')); showDashboard(null); spaceRef.current=''; manualSpaceRef.current=''; navigate('/'); await loadSession(); setNotice(t('已退出登录', 'Signed out')) } catch (cause) { setError(messageOf(cause)) } }
+  async function logout() { sessionRequest.current++; try { await request('/auth/logout',{method:'POST',body:{}}); clearInlineDrafts(); controller.current?.abort(); if (bootRef.current) clearRememberedSpace(bootRef.current, browserSpaceStorage('session')); showDashboard(null); spaceRef.current=''; manualSpaceRef.current=''; navigate('/'); await loadSession(); setNotice(t('已退出登录', 'Signed out')) } catch (cause) { setError(messageOf(cause)) } }
   async function sessionChanged() { controller.current?.abort(); showDashboard(null); await loadSession() }
+  async function currentSessionRevoked() { clearInlineDrafts(); await sessionChanged() }
+  async function recheckActiveSession() {
+    const generation = sessionRequest.current
+    const expected = bootRef.current
+    const value = await bootstrap()
+    const previous = bootRef.current
+    if (generation !== sessionRequest.current || previous?.user?.id !== expected?.user?.id || previous?.mode !== expected?.mode || previous?.csrfToken !== expected?.csrfToken) return
+    if (value.user && value.user.id === previous?.user?.id && value.mode === previous.mode) {
+      applyBootstrap(value)
+      const current = dashboardRef.current
+      if (current && !value.spaces.some(space => space.id === current.space.id)) await loadSession(false, value)
+    } else await loadSession(false, value)
+    // Focus refreshes must not read another tab's new identity into this tab's
+    // previous account cache. Identity or permission changes remount that scope.
+    const access = (state: Bootstrap | null) => state?.spaces.map(space => `${space.id}:${space.canEdit}`).sort().join(',')
+    if (generation === sessionRequest.current && bootRef.current === value && previous?.user?.id === value.user?.id && previous?.user?.role === value.user?.role && previous?.mode === value.mode && access(previous) === access(value)) {
+      window.dispatchEvent(new Event(sessionVerifiedEvent))
+    }
+  }
+  useSessionRenewal(boot, session => {
+    const current = bootRef.current
+    if (!current?.user) return
+    const value = { ...current, session }
+    bootRef.current = value; setBoot(value)
+  }, () => { void recheckActiveSession().catch(() => {}) })
+
+  useEffect(() => {
+    const resumed = () => {
+      if (document.visibilityState !== 'visible' || !bootRef.current || sessionCheck.current) return
+      const checking = recheckActiveSession().catch(() => {}).finally(() => { if (sessionCheck.current === checking) sessionCheck.current = null })
+      sessionCheck.current = checking
+    }
+    window.addEventListener('focus', resumed)
+    document.addEventListener('visibilitychange', resumed)
+    return () => { window.removeEventListener('focus', resumed); document.removeEventListener('visibilitychange', resumed) }
+  }, [])
   useEffect(() => {
     const changed = () => {
       const next = readRoute(); if (next === routeRef.current) return;
@@ -168,5 +238,5 @@ export default function App() {
     if (linkedSpace && dashboardRef.current?.space.id !== linkedSpace) void loadDashboard(linkedSpace, false, { manual: true, recover: false })
   }, [route, loading, boot, auth])
   useEffect(() => { if (!notice) return; const timer=setTimeout(()=>setNotice(''),6500); return()=>clearTimeout(timer) },[notice])
-  return <><a href="#main-content" className="app-skip-link" onClick={event=>{event.preventDefault();const target=document.getElementById('main-content')||document.querySelector('main');if(target instanceof HTMLElement){target.tabIndex=-1;target.focus();target.scrollIntoView()}}}>{t('跳到主要内容', 'Skip to main content')}</a>{loading ? <div className="admin-ui app-boot"><ProjectLogo size={48}/><h1>Lingshu-Home</h1><AppLoading/></div> : fatal ? <main className="admin-ui app-boot" id="main-content"><h1>{t('暂时无法打开 Home', 'Home is temporarily unavailable')}</h1><div role="alert" className="admin-error">{fatal}</div><Button onClick={()=>loadSession()}>{t('重新连接', 'Reconnect')}</Button></main> : boot && auth ? <Suspense fallback={<main className="admin-ui app-boot" id="main-content"><AppLoading text={t('正在加载登录页面…', 'Loading sign-in page…')}/></main>}><AuthScreen bootstrap={boot} onComplete={authComplete} onRecheckSetup={recheckSetup} onLanguageReady={languageReady} onBrowse={()=>navigate('/')}/></Suspense> : boot ? <>{error&&<div className="admin-ui app-error" role="alert"><span>{error}</span><Button variant="outline" onClick={()=>loadSession()}>{t('重新读取', 'Reload')}</Button><Button variant="ghost" size="icon-sm" aria-label={t('关闭提示', 'Dismiss notice')} onClick={()=>setError('')}><X size={16}/></Button></div>}{libraryTarget && (inaccessibleLibrarySpace || !dashboard || !!libraryTarget.spaceId && dashboard.space.id !== libraryTarget.spaceId) ? <main className="admin-ui app-boot" id="main-content">{!inaccessibleLibrarySpace && (loadingSpace || libraryRoutePending) ? <AppLoading text={t('正在读取资料库…', 'Loading library…')}/> : <><h1>{t('无法打开此资料库', 'This library could not be opened')}</h1><p role="alert">{inaccessibleLibrarySpace ? t('链接中的空间不存在，或当前账号没有访问权限。', 'The linked space does not exist or is not accessible to this account.') : error || t('当前没有可访问的资料库。', 'No library is available to this account.')}</p><div className="admin-button-row"><Button onClick={()=>navigate('/')}>{t('返回首页', 'Return home')}</Button>{!inaccessibleLibrarySpace && <Button variant="outline" onClick={()=>loadSession()}>{t('重新读取', 'Reload')}</Button>}</div></>}</main> : libraryTarget && dashboard ? <Suspense fallback={<div className="admin-ui app-boot"><AppLoading/></div>}><LibraryView key={`${boot.user?.id || 'visitor'}:${boot.user?.role || 'visitor'}:${boot.mode}:${dashboard.space.id}:${dashboard.space.canEdit}`} bootstrap={boot} dashboard={dashboard} documentId={libraryTarget.documentId} onHome={()=>navigate('/')} onManage={()=>navigate('/admin?tab=documents')} onLogin={()=>navigate('/login')} onLogout={logout} onSpaceChange={switchSpace}/></Suspense> : route.startsWith('/admin') ? <Suspense fallback={<div className="admin-ui app-boot"><AppLoading/></div>}><AdminView bootstrap={boot} dashboard={dashboard} onHome={()=>navigate('/')} onLogin={()=>navigate('/login')} onLogout={logout} onRefresh={()=>loadDashboard(undefined, true)} onSwitchSpace={switchSpace} onSessionChanged={sessionChanged} onNotice={setNotice}/></Suspense> : dashboard ? <HomeView bootstrap={boot} dashboard={dashboard} onRefresh={()=>loadDashboard(undefined, true)} onSpaceChange={switchSpace} onLogout={boot.user ? logout : undefined}/> : loadingSpace ? <div className="admin-ui app-boot"><AppLoading text={t('正在读取空间内容…', 'Loading workspace…')}/></div> : <main className="admin-ui app-boot" id="main-content"><ProjectLogo size={48}/><h1>{boot.siteName}</h1><p>{t('当前没有可访问的公开导航。', 'No public navigation is available.')}</p><div className="admin-button-row">{!boot.user&&<Button onClick={()=>navigate('/login')}>{t('登录', 'Sign in')}</Button>}<Button variant="outline" onClick={()=>navigate('/admin')}>{t('管理面板', 'Admin')}</Button>{boot.user&&<Button variant="ghost" onClick={logout}>{t('退出登录', 'Sign out')}</Button>}</div></main>}</> : null}{notice&&<div className="admin-ui app-toast" role="status"><Check size={17}/><p>{notice}</p><Button variant="ghost" size="icon-sm" aria-label={t('关闭操作提示', 'Dismiss confirmation')} onClick={()=>setNotice('')}><X size={16}/></Button></div>}</>
+  return <><a href="#main-content" className="app-skip-link" onClick={event=>{event.preventDefault();const target=document.getElementById('main-content')||document.querySelector('main');if(target instanceof HTMLElement){target.tabIndex=-1;target.focus();target.scrollIntoView()}}}>{t('跳到主要内容', 'Skip to main content')}</a>{loading ? <div className="admin-ui app-boot"><ProjectLogo size={48}/><h1>Lingshu-Home</h1><AppLoading/></div> : fatal ? <main className="admin-ui app-boot" id="main-content"><h1>{t('暂时无法打开 Home', 'Home is temporarily unavailable')}</h1><div role="alert" className="admin-error">{fatal}</div><Button onClick={()=>loadSession()}>{t('重新连接', 'Reconnect')}</Button></main> : storage ? <Suspense fallback={<main className="admin-ui app-boot" id="main-content"><AppLoading/></main>}><StorageSetup bootstrap={storage} onReady={storageReady}/></Suspense> : boot && auth ? <Suspense fallback={<main className="admin-ui app-boot" id="main-content"><AppLoading text={t('正在加载登录页面…', 'Loading sign-in page…')}/></main>}><AuthScreen bootstrap={boot} onComplete={authComplete} onRecheckSetup={recheckSetup} onLanguageReady={languageReady} onBrowse={()=>navigate('/')}/></Suspense> : boot ? <>{error&&<div className="admin-ui app-error" role="alert"><span>{error}</span><Button variant="outline" onClick={()=>loadSession()}>{t('重新读取', 'Reload')}</Button><Button variant="ghost" size="icon-sm" aria-label={t('关闭提示', 'Dismiss notice')} onClick={()=>setError('')}><X size={16}/></Button></div>}{libraryTarget && (inaccessibleLibrarySpace || !dashboard || !!libraryTarget.spaceId && dashboard.space.id !== libraryTarget.spaceId) ? <main className="admin-ui app-boot" id="main-content">{!inaccessibleLibrarySpace && (loadingSpace || libraryRoutePending) ? <AppLoading text={t('正在读取资料库…', 'Loading library…')}/> : <><h1>{t('无法打开此资料库', 'This library could not be opened')}</h1><p role="alert">{inaccessibleLibrarySpace ? t('链接中的空间不存在，或当前账号没有访问权限。', 'The linked space does not exist or is not accessible to this account.') : error || t('当前没有可访问的资料库。', 'No library is available to this account.')}</p><div className="admin-button-row"><Button onClick={()=>navigate('/')}>{t('返回首页', 'Return home')}</Button>{!inaccessibleLibrarySpace && <Button variant="outline" onClick={()=>loadSession()}>{t('重新读取', 'Reload')}</Button>}</div></>}</main> : libraryTarget && dashboard ? <Suspense fallback={<div className="admin-ui app-boot"><AppLoading/></div>}><LibraryView key={`${boot.user?.id || 'visitor'}:${boot.user?.role || 'visitor'}:${boot.mode}:${dashboard.space.id}:${dashboard.space.canEdit}`} bootstrap={boot} dashboard={dashboard} documentId={libraryTarget.documentId} onHome={()=>navigate('/')} onManage={()=>navigate('/admin?tab=documents')} onLogin={()=>navigate('/login')} onLogout={logout} onSpaceChange={switchSpace}/></Suspense> : route.startsWith('/admin') ? <Suspense fallback={<div className="admin-ui app-boot"><AppLoading/></div>}><AdminView bootstrap={boot} dashboard={dashboard} onHome={()=>navigate('/')} onLogin={()=>navigate('/login')} onLogout={logout} onRefresh={()=>loadDashboard(undefined, true)} onSwitchSpace={switchSpace} onSessionChanged={sessionChanged} onCurrentSessionRevoked={currentSessionRevoked} onNotice={setNotice}/></Suspense> : dashboard ? <HomeView bootstrap={boot} dashboard={dashboard} onRefresh={()=>loadDashboard(undefined, true)} onSpaceChange={switchSpace} onLogout={boot.user ? logout : undefined} onProfile={()=>navigate('/admin?tab=profile')}/> : loadingSpace ? <div className="admin-ui app-boot"><AppLoading text={t('正在读取空间内容…', 'Loading workspace…')}/></div> : <main className="admin-ui app-boot" id="main-content"><ProjectLogo size={48}/><h1>{boot.siteName}</h1><p>{t('当前没有可访问的公开导航。', 'No public navigation is available.')}</p><div className="admin-button-row">{!boot.user&&<Button onClick={()=>navigate('/login')}>{t('登录', 'Sign in')}</Button>}<Button variant="outline" onClick={()=>navigate('/admin')}>{t('管理面板', 'Admin')}</Button>{boot.user&&<Button variant="ghost" onClick={logout}>{t('退出登录', 'Sign out')}</Button>}</div></main>}</> : null}{notice&&<div className="admin-ui app-toast" role="status"><Check size={17}/><p>{notice}</p><Button variant="ghost" size="icon-sm" aria-label={t('关闭操作提示', 'Dismiss confirmation')} onClick={()=>setNotice('')}><X size={16}/></Button></div>}</>
 }

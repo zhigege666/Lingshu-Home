@@ -6,6 +6,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { iconPath } from '../core/presentation'
 import { parseIconAssetReference } from '../core/icon-assets'
 import { IconAsset } from './IconAsset'
+import { FieldHelp } from './FieldHelp'
 import './form-controls.css'
 import './modal-layout.css'
 export { authModes } from '../core/presentation'
@@ -13,7 +14,7 @@ export function BuiltinIcon({ name = 'lucide:link', className = '' }: { name?: s
   if (parseIconAssetReference(name)) return <IconAsset name={name} size={20} className={`admin-image-icon ${className}`} />
   return <span aria-hidden="true" className={`admin-mask-icon ${className}`} style={{ maskImage: `url(${iconPath(name)})`, WebkitMaskImage: `url(${iconPath(name)})` }} />
 }
-export function Field({ label, hint, children, className = '' }: { label: string; hint?: string; children: ReactNode; className?: string }) {
+export function Field({ label, hint, help, children, className = '' }: { label: string; hint?: string; help?: ReactNode; children: ReactNode; className?: string }) {
   const generatedId = useId()
   const [validation, setValidation] = useState('')
   let controlId = `field-${generatedId}`
@@ -37,7 +38,7 @@ export function Field({ label, hint, children, className = '' }: { label: string
   return <div className={`admin-field ${className}`} onInvalidCapture={event => {
     const control = event.target
     if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) setValidation(validationDetail(control))
-  }} onChange={recheck}><div className="admin-field-label"><label htmlFor={controlId}>{label}</label>{hint && <small id={`${controlId}-hint`}>{hint}</small>}</div>{controls}{validation && <small className="admin-field-validation" id={`${controlId}-validation`}>{validation}</small>}</div>
+  }} onChange={recheck}><div className="admin-field-label"><label htmlFor={controlId}>{label}</label>{help && <FieldHelp label={label}>{help}</FieldHelp>}{hint && <small id={`${controlId}-hint`}>{hint}</small>}</div>{controls}{validation && <small className="admin-field-validation" id={`${controlId}-validation`}>{validation}</small>}</div>
 }
 function validationDetail(first: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): string {
   const validity = first.validity

@@ -1,0 +1,19 @@
+.lh-field-help-trigger,.lh-field-help-close{display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;padding:0;border:0;border-radius:6px;background:transparent;color:#6a7e73;cursor:pointer;vertical-align:middle}
+.lh-field-help-trigger:hover,.lh-field-help-close:hover{background:#edf3ed;color:#256d59}
+.lh-field-help-trigger:focus-visible,.lh-field-help-close:focus-visible{outline:2px solid #318570;outline-offset:2px}
+/* Help must remain clickable above dialogs (1001) and the editor drawer (1301). */
+.admin-ui.lh-field-help{z-index:1600;width:min(360px,calc(100vw - 32px));max-height:min(360px,var(--radix-popover-content-available-height));overflow:auto;padding:14px 16px;border:1px solid #d9e4dc;border-radius:10px;background:#fff;color:#40554a;box-shadow:0 8px 30px #1b342622;font-size:12px;line-height:1.75;overflow-wrap:anywhere}
+.lh-field-help-heading{display:flex;align-items:center;gap:12px;justify-content:space-between;margin-bottom:6px}
+.lh-field-help-heading h2{margin:0;font-size:13px;font-weight:650;color:#243e31}
+.lh-field-help-copy p{margin:0}
+.lh-field-help-copy p+p{margin-top:8px}
+.admin-ui .admin-field-label:has(.lh-field-help-trigger){display:flex;align-items:center;gap:5px}
+.admin-ui .admin-field-inline{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;column-gap:12px;row-gap:5px}
+.admin-ui .admin-field-inline>.admin-field-label{margin:0;white-space:nowrap}
+.admin-ui .admin-field-inline>.admin-field-label>label{white-space:nowrap}
+.admin-ui .admin-field-inline>.admin-field-validation{grid-column:2}
+.admin-ui .admin-field-inline>input,.admin-ui .admin-field-inline>.lh-control-select{min-width:0;width:100%}
+.admin-ui.admin-category-dialog .admin-form-row.equal{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
+.admin-ui.admin-category-dialog .lh-icon-picker>legend{display:flex;align-items:center;gap:4px}
+@media(max-width:540px){.admin-ui.admin-category-dialog .admin-form-row.equal{grid-template-columns:minmax(0,1fr);gap:0}}
+@media(forced-colors:active){.lh-field-help-trigger:focus-visible,.lh-field-help-close:focus-visible{outline-color:Highlight}.admin-ui.lh-field-help{border-color:CanvasText}}

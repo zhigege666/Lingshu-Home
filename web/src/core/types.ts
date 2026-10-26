@@ -1,3 +1,9 @@
+export type SessionMode = 'temporary' | 'remember' | 'until_logout'
+export type SessionOptions = { defaultMode: SessionMode; defaultIdleDays: number; maxIdleDays: number; allowUntilLogout: boolean; rememberDays: number[] }
+export type SessionChoiceValue = { sessionMode: SessionMode; rememberDays?: number }
+export type SessionStatus = { mode: SessionMode; idleDays?: number; expiresAt?: string; renewAfterSeconds: number }
+export type SessionPolicy = { defaultMode: SessionMode; defaultIdleDays: number; maxIdleDays: number; allowUntilLogout: boolean; policyVersion: number }
+export type AccountSession = { id: string; current: boolean; mode: SessionMode; idleDays?: number; createdAt?: string; lastInteractiveAt?: string; expiresAt?: string; userAgent: string }
 export type AuthMode = 'open_edit' | 'public_read' | 'private_single' | 'private_multi'
 export type Role = 'Owner' | 'Member'
 export type User = { id: string; username: string; displayName: string; role: Role }
@@ -5,6 +11,7 @@ export type AdminUser = User & { isEnabled: boolean; modeSuspended?: boolean; cr
 export type Space = { id: string; name: string; kind: 'shared' | 'personal'; published: boolean; canEdit: boolean }
 export type Bootstrap = {
   version: string; language: 'zh-CN' | 'en'; languageSelectionRequired: boolean; initialized: boolean; siteName: string; mode: AuthMode; registrationEnabled: boolean; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean;
+  sessionOptions?: SessionOptions; session?: SessionStatus | null;
   user: User | null; spaces: Space[]; defaultSpaceId: string | null; csrfToken: string;
   capabilities: { sourceKinds: string[]; deliveryModes: string[]; datasetSchemas: { id: string; version: number }[];
     pageSchemaVersions: number[]; themePackages: string[]; pageThemes: string[]; panelThemes: string[];

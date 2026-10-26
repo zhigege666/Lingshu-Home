@@ -8,6 +8,7 @@ VERSION text eol=lf
 *.ico binary
 *.icns binary
 /design export-ignore
+/docs/SESSION_AND_INLINE_EDIT_DESIGN.md export-ignore
 /.runtime export-ignore
 /data export-ignore
 /uploads export-ignore

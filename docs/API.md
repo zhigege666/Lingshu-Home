@@ -1,6 +1,42 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.5 Go implementation in `server/`, including the file-backed library and direct HTTPS, plus the explicitly marked unreleased document-activity additions. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.6 Go implementation in `server/`, including storage selection, browser-session policy, profiles, atomic navigation editing, category folders, the file-backed library, direct HTTPS and document activity. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+
+## Storage bootstrap API
+
+Version 0.0.6 adds these endpoints for first-run storage selection and recovery. Responses are bare JSON objects. They run before the normal database-backed API.
+
+`GET /api/v1/storage/bootstrap` returns `state` (`required`, `error`, `ready`), `provider`, `source` (`default`, `cli`, `environment`, `file`, `legacy`), `language`, `csrfToken`, `version` and optional `error:{code,message}`. An empty language has not yet been fixed for the instance. No connection URL or password is returned. `ready` describes storage, not completed site/account setup. Check `/health` as well, since a later PostgreSQL lease failure can make a ready instance unavailable.
+
+Storage writes use `X-CSRF-Token` from that snapshot, same-origin protection and a shared limit of 40 mutation attempts per process per minute. Bearer authentication does not authorize this setup surface. Bodies contain exactly one JSON object and reject unknown fields. The token changes after process restart.
+
+| Endpoint | Request and result |
+| --- | --- |
+| `POST /api/v1/storage/test` | A proposed selection; success `{"ok":true}`. No config, tables, migrations or keys are written. |
+| `POST /api/v1/storage/configure` | The same selection; revalidates, atomically binds the target, initializes storage and returns its current snapshot. |
+| `POST /api/v1/storage/retry` | Empty body or `{}` only; retries the selected target and returns its snapshot. Cannot replace connection settings. |
+
+SQLite body: `{"provider":"sqlite"}`. PostgreSQL body:
+
+~~~json
+{
+  "provider": "postgres",
+  "postgres": {
+    "host": "db.internal",
+    "port": 5432,
+    "database": "lingshu_home",
+    "username": "lingshu_home",
+    "password": "<database-password>",
+    "sslMode": "require"
+  }
+}
+~~~
+
+The host is a single hostname or IP, without a URL or embedded port; port is 1–65535. Database and username are 1–128 characters, password at most 4096 characters, and TLS is `disable`, `require` or `verify-full`. Browser fields never write credentials to localStorage.
+
+A successful test does not reserve a target or bypass configure validation. Configuration is serialized; another in-flight operation receives 409. Once a target is bound, test/configure return 409 and only recovery of that target is possible. Inspect `state` after configure/retry: HTTP 200 may still contain `state:"error"`. After an ambiguous response, read state before another action. Public errors use `{code,message}`; configuration and recovery never return raw driver errors or passwords.
+
+Normal business API, MCP and health return 503 before storage is ready; static frontend and storage status remain available. Invalid local bootstrap files fail startup. A provisioned target missing its Home schema is refused instead of initialized again. See [storage setup and recovery](STORAGE.md#first-run-storage-setup).
 
 ## Requests, authentication and errors
 
@@ -12,9 +48,9 @@ The JSON API prefix is `/api/v1`. Names use camelCase. Requests must contain one
 
 Authentication failures return JSON with HTTP 401 or 403. An inaccessible private resource can return 404. The API does not redirect to the login page. JSON API and MCP responses use `Cache-Control: no-store`. Authorized image responses additionally support private ETag revalidation as described below.
 
-Browser clients call `GET /bootstrap` before a write. It sets an HttpOnly `Lingshu.Csrf` cookie and returns `csrfToken`. Send that value as `X-CSRF-TOKEN` on every write, including initialization, login, logout, registration and bookmark preview. The server binds the token to a random cookie nonce, the current session or anonymous context, and the permission epoch.
+Once storage is ready, browser clients call `GET /bootstrap` before a business-API write. That endpoint sets an HttpOnly `Lingshu.Csrf` cookie and returns `csrfToken`; storage setup uses its separate bootstrap token described above. Send that value as `X-CSRF-TOKEN` on every write, including initialization, login, logout, registration and bookmark preview. The server binds the token to a random cookie nonce, the current session or anonymous context, and the permission epoch.
 
-Read bootstrap again after login, logout or a settings change affecting access. Session cookies are named `Lingshu.Session`, are HttpOnly and SameSite=Lax, and have a 12-hour server-side lifetime. Cookies become Secure on direct TLS or when `LINGSHU_SECURE_COOKIES=true`; use that setting behind an HTTPS reverse proxy. Credentials and CSRF values should not be placed in URLs or browser persistent storage.
+Read bootstrap again after login, logout or a settings change affecting access. Session cookies are named `Lingshu.Session`, are HttpOnly and SameSite=Lax, and follow the selected [login-retention policy](#browser-session-retention); legacy/temporary sessions retain a fixed 12-hour server lifetime. Cookies become Secure on direct TLS or when `LINGSHU_SECURE_COOKIES=true`; use that setting behind an HTTPS reverse proxy. Credentials and CSRF values should not be placed in URLs or browser persistent storage.
 
 External callers can use `Authorization: Bearer <personal-access-token>` on supported JSON endpoints. Valid Bearer requests do not require a browser CSRF token. An empty, malformed or repeated Authorization header is rejected; it never falls back to the browser's Cookie identity. PAT scope restrictions apply in addition to account and space permissions. PATs cannot change global security settings or manage accounts.
 
@@ -40,13 +76,13 @@ Changing the access mode or registration policy revokes all browser sessions and
 | Method and path | Input / behavior |
 | --- | --- |
 | `GET /health` | `{status:"ok",version}`; also available at `/health` outside the API prefix |
-| `GET /bootstrap` | Version, `language`, `languageSelectionRequired`, initialized state, site name, mode, `autoFetchIcons`, `autoSelectEndpoint`, current user, accessible spaces, default space, CSRF token and actual capabilities |
+| `GET /bootstrap` | Version, `language`, `languageSelectionRequired`, initialized state, site name, mode, `autoFetchIcons`, `autoSelectEndpoint`, current user, accessible spaces, default space, `sessionOptions`, current browser `session`, CSRF token and actual capabilities |
 | `POST /setup/language` | `{language:"en"\|"zh-CN"}`; confirm an instance's language once, returning bootstrap |
 | `GET /starter-packs` | The saved language's single starter pack, or `[]` before language confirmation |
-| `POST /setup` | `{siteName,mode,username?,displayName?,password?,seedDemo,starterPack?}`; once only |
-| `POST /auth/login` | `{username,password}` |
+| `POST /setup` | `{siteName,mode,username?,displayName?,password?,seedDemo,starterPack?,sessionMode?,rememberDays?}`; once only |
+| `POST /auth/login` | `{username,password,sessionMode?,rememberDays?}` |
 | `POST /auth/logout` | `{}` |
-| `POST /auth/register` | `{username,displayName,password}`; creates a Member and session only when multi-user registration is enabled |
+| `POST /auth/register` | `{username,displayName,password,sessionMode?,rememberDays?}`; creates a Member and session only when multi-user registration is enabled |
 | `GET /settings` | `{siteName,mode,registrationEnabled,hasOwner,autoFetchIcons,autoSelectEndpoint}` for permitted administration |
 | `PUT /settings` | `{siteName,mode,registrationEnabled,owner?,autoFetchIcons?,autoSelectEndpoint?}`; omitted preferences retain their values |
 | `PUT /settings/navigation` | `{autoSelectEndpoint:boolean}` only; default on, Owner or ownerless open-edit, no PAT |
@@ -66,7 +102,7 @@ An ownerless instance supplies `owner:{username,displayName,password}` when swit
 
 Usernames contain 3–40 ASCII letters, digits, dots, underscores or hyphens, and are unique ignoring case. Passwords contain 10–128 characters and cannot be entirely whitespace. Display names and site names are limited to 80 characters. Passwords use Argon2id with 64 MiB memory, three iterations, one lane, a random 16-byte salt and a 32-byte derived hash.
 
-Bootstrap capabilities distinguish the built-in theme package (`builtin`), its full-page exports (`builtin/dashboard` and `builtin/ios`), and its panel exports (ten with the unreleased document-activity panel). Supported external delivery modes are `push` and `poll`. Local navigation and local document activity are application data, not external delivery adapters.
+Bootstrap capabilities distinguish the built-in theme package (`builtin`), its full-page exports (`builtin/dashboard` and `builtin/ios`), and its panel exports (ten, including the document-activity panel). Supported external delivery modes are `push` and `poll`. Local navigation and local document activity are application data, not external delivery adapters.
 
 ### Instance language
 
@@ -82,6 +118,54 @@ The Go-served HTML shell uses the effective `lang` before JavaScript mounts and 
 
 Published 0.0.1 reads language from each process startup, defaults to `zh-CN`, and does not provide `POST /setup/language`, `languageSelectionRequired` or migration 007.
 
+## Personal profile API
+
+`PUT /api/v1/account/profile` accepts `{displayName,expectedDisplayName}` for the current Cookie-authenticated user. The name must contain 1–80 characters after trimming. The expected value is the exact name originally read; a mismatch returns `409 profile_version_conflict`. Success returns the existing public user shape. Username, role, account enablement and security version cannot be changed through this endpoint. Renaming does not invalidate sessions or access tokens.
+
+`PUT /api/v1/account/password` accepts `{currentPassword,newPassword}`. It verifies the current password, validates a different new password with the existing 10–128 character policy, and preserves meaningful leading/trailing spaces. Incorrect current password returns `400 current_password_incorrect`. The transaction updates the password/security version, revokes old sessions and establishes a new session for this browser; existing PAT/MCP tokens become invalid through the user security-version check. Success is `{"success":true}`. Read `GET /bootstrap` again to refresh CSRF state before another write.
+
+Both endpoints require a valid browser session and CSRF token; PATs and anonymous users cannot use them. Password changes share the existing authentication limit of 20 attempts per direct remote IP per minute. Failed handlers or transaction commits do not send newly issued cookies. Responses never contain password hashes. These endpoints use existing columns and add no SQL migration. Password changes now retain the current permitted login mode; see the [session-retention contract](#browser-session-retention) below.
+
+## Browser session retention
+
+Version 0.0.6 adds explicit login choices and Owner-managed retention policy. Login, registration and account-creating setup accept `sessionMode` (`temporary`, `remember`, `until_logout`), with `rememberDays` of 7, 30 or 90 for remembered sessions. Omitted choices remain temporary with the existing fixed 12-hour server deadline. Temporary cookies omit Expires/Max-Age. New UI logins explicitly choose a mode; initial UI defaults and the site limit are 30 idle days, with `until_logout` disabled.
+
+Remembered sessions have a sliding idle deadline and matching persistent cookie. Until-sign-out sessions require the Owner to enable that mode, have no server idle deadline and use a renewable 365-day browser cookie. Browser storage limits or clearing cookies can still end access. Unsupported choices return `400 validation_error`; invalid registration rolls back account creation. Migration 010 preserves existing deadlines and leaves unknown legacy activity timestamps empty. Exact compatibility with the earlier unpublished session migration is described in [Storage](STORAGE.md#compatibility-with-an-unpublished-session-migration).
+
+`GET /api/v1/bootstrap` adds:
+
+~~~json
+{
+  "sessionOptions": {
+    "defaultMode": "remember", "defaultIdleDays": 30,
+    "maxIdleDays": 30, "allowUntilLogout": false, "rememberDays": [7, 30]
+  },
+  "session": {
+    "mode": "remember", "idleDays": 30,
+    "expiresAt": "2026-11-24T09:00:00Z", "renewAfterSeconds": 900
+  }
+}
+~~~
+
+`session` is null without an authenticated browser. `idleDays` is omitted outside `remember`; `expiresAt` is omitted for `until_logout`. UTC timestamps use RFC3339. `renewAfterSeconds` is the remaining server wait; temporary sessions report zero but do not renew.
+
+| Endpoint | Request / response |
+| --- | --- |
+| `POST /api/v1/auth/renew` | Accepts `{}`; returns `{session:...}`. Requires browser authentication and CSRF. |
+| `GET /api/v1/settings/session-policy` | Owner browser only. Returns `{defaultMode,defaultIdleDays,maxIdleDays,allowUntilLogout,policyVersion}`. |
+| `PUT /api/v1/settings/session-policy` | Same policy fields plus `expectedVersion` instead of `policyVersion`. Returns the new policy; stale versions return `409 session_policy_conflict` with `currentRevision`. |
+| `GET /api/v1/account/sessions` | Returns `{sessions:[...]}`, limited to the account's currently valid browser sessions. |
+| `POST /api/v1/account/sessions/revoke` | Accepts `{id}`; returns `{revoked:true,current:boolean}`. Revoking this browser clears its cookie. |
+| `POST /api/v1/account/sessions/revoke-others` | Accepts `{}`; returns `{revoked:number}`, the number of other stored records removed, including inactive records. |
+
+All these endpoints reject PAT authentication. Writes retain CSRF/origin checks. Session records expose opaque `id`, `current`, `mode`, `userAgent` and applicable `idleDays`, `createdAt`, `lastInteractiveAt` and `expiresAt` fields; legacy unknown timestamps are omitted. References cannot authenticate a request. Another account's or unknown references return 404; tokens and token hashes are never returned. Browser-session revocation does not revoke separately issued PATs; token revocation, expiry and account security-version checks remain separate.
+
+Renewal is driven by actual interaction in a visible page, with at most one database update per 15 minutes per session. Polling, bootstrap reads and PAT/MCP traffic do not renew browser logins. Early renew calls return the current summary without updating timestamps or Cookie. Expired/revoked sessions cannot be revived. Renewal keeps the token and CSRF binding. The frontend reconciles identity on authentication failure, backs off repeated failures, and orders Cookie-changing requests so a late renewal response cannot overwrite a newer login.
+
+`policyVersion` and `expectedVersion` are JSON integers; the conflict response uses a string `currentRevision`, consistent with other revision errors. Both policy duration fields accept 7/30/90, with `defaultIdleDays` at most `maxIdleDays`; `until_logout` as the default requires `allowUntilLogout`. Tightening a limit persists a clamp on existing remembered sessions. Relaxation does not restore old choices or revive expired sessions. Disabling `until_logout` revokes those sessions, possibly including the caller. Changing the default does not upgrade existing logins. Password changes preserve the caller's permitted mode while rotating its token and revoking prior sessions/PATs.
+
+Policy, renewal and revocation use transactions. Handler or commit failure rolls back database changes and suppresses pending Cookie writes/deletions. Clients must read back uncertain results before another write.
+
 ## Navigation and export
 
 | Method and path | Behavior |
@@ -96,6 +180,7 @@ Published 0.0.1 reads language from each process startup, defaults to `zh-CN`, a
 | `POST /spaces/{spaceId}/links/batch` | Atomically move, tag or favorite selected bookmarks (since 0.0.2), or delete them (since 0.0.4; see below) |
 | `PUT /spaces/{spaceId}/links/{id}` | Replace a bookmark's editable fields |
 | `DELETE /spaces/{spaceId}/links/{id}` | Delete that bookmark |
+| `POST /spaces/{spaceId}/navigation/batch-edit` | Atomically save 1–500 per-record category/link patches with `expectedRevision`; see [atomic editing](#atomic-category-and-link-editing) |
 | `GET /spaces/{spaceId}/export?format=json\|html` | Download local authorized navigation |
 
 Category input is `{name,icon,parentId,sortOrder}`. Returned categories also contain `id` and `spaceId`. Parent IDs are nullable and must belong to the same space. Hierarchies are acyclic and limited to 32 levels.
@@ -171,7 +256,7 @@ For `local-navigation`, `receivedAt` and `lastSuccessAt` describe the current su
 
 External snapshots use `datasetId:"source:<sourceId>"`. Their navigation records include `externalId` and `sourceId`, and rendered IDs are namespaced as `source:<sourceId>:<externalId>`. Snapshot freshness can be `fresh`, `stale` or `disabled`. Optional `meta.lastError` is a safe `{code,message,at}` from the latest failed refresh while successful data remains unchanged. Optional `meta.attribution` is adapter-owned `{name,url,license,licenseUrl}`; generic pushed weather does not receive an Open-Meteo attribution. A source without a snapshot does not inject a fake empty dataset; its alias can be absent from a dashboard while local navigation remains available.
 
-The unreleased `local-document-activity` binding uses `schemaId:"documents.activity"`, `schemaVersion:1`. Its dashboard envelope is only a renderer marker: `revision:"1"` and `data:{}`, with read-time metadata. It contains no activity counts, dates, document titles or directory details, including in public dashboards. This revision/freshness does not represent activity freshness. The component obtains authorized records through the separate [document-activity endpoint](#document-activity-unreleased); adding a binding does not grant permission to those records.
+The `local-document-activity` binding added in 0.0.6 uses `schemaId:"documents.activity"`, `schemaVersion:1`. Its dashboard envelope is only a renderer marker: `revision:"1"` and `data:{}`, with read-time metadata. It contains no activity counts, dates, document titles or directory details, including in public dashboards. This revision/freshness does not represent activity freshness. The component obtains authorized records through the separate [document-activity endpoint](#document-activity); adding a binding does not grant permission to those records.
 
 ## Batch bookmark organization
 
@@ -203,6 +288,26 @@ A successful response is `{"selectedCount":30,"updatedCount":24,"revision":"13"}
 For `delete`, send only `operation`, `linkIds` and `expectedRevision`; `categoryId`, `tags` and `isFavorite` are rejected even when explicitly null or empty. All selected IDs must exist in this space before any row is removed. Success returns `{"selectedCount":30,"updatedCount":0,"deletedCount":30,"revision":"13"}`. The transaction removes the selected links, prunes current-space automatic-icon jobs only for origins no longer referenced, and advances navigation once. Categories, unselected links, shared-origin jobs and other spaces are preserved. A failure in deletion, queue cleanup or revision update rolls back the whole operation. Deletion is immediate and has no undo/recycle bin.
 
 A stale revision returns HTTP 409 with `code:"navigation_version_conflict"`. Reload and select again; never automatically retry against a new revision. Missing or foreign link IDs are indistinguishable (404 when the revision is current); invalid categories/inputs return 400. Existing space/account permissions, browser CSRF and PAT `navigation:write` scope all apply. This is a JSON API operation; the MCP tool catalog is unchanged.
+
+## Atomic category and link editing
+
+`POST /api/v1/spaces/{spaceId}/navigation/batch-edit` edits different fields on different records in one transaction. It accepts 1–500 category/link patches combined; either array may be omitted. It retains the existing space permissions, scoped `navigation:write` PAT rules and Cookie CSRF checks.
+
+~~~json
+{
+  "expectedRevision": "42",
+  "categories": [{"id":"category-id","patch":{"name":"Tools","parentId":null}}],
+  "links": [{"id":"link-id","patch":{"title":"Portal","isFavorite":false,"sortOrder":0,"tags":[]}}]
+}
+~~~
+
+Category patch fields: `name`, `parentId`, `icon`, `sortOrder`. Link patch fields: `categoryId`, `title`, `url`, `description`, `icon`, `iconMode`, `tags`, `isFavorite`, `sortOrder`, `endpoints`. Omitted fields are retained. Only nullable category references accept null; false, zero and empty arrays are explicit values. Empty patches, unknown fields, duplicate IDs and references outside the space are rejected. Entity/row/field details accompany validation errors when applicable.
+
+The final merged category tree must have same-space parents, no cycles and at most 32 levels. Valid simultaneous reparenting is checked against that final tree. A stale navigation revision returns `409 navigation_version_conflict` with `currentRevision`. Any validation, authorization or commit failure rolls back the entire batch.
+
+Success returns `{updatedCount,revision,categories,links}`; the arrays contain only normalized changed rows. Actual changes advance the dataset revision once. A normalized no-op leaves revision, timestamps and icon jobs unchanged. Existing automatic-icon behavior is preserved for URL/icon changes; ordinary title/tag edits do not reset an icon or schedule a fetch. Existing `contextMarkdown` usage notes are retained and remain editable through the dedicated bookmark-context endpoint.
+
+The frontend retains drafts across both lists, filters and pages. More settings apply locally to the draft. Network uncertainty and conflicts require a fresh read and explicit conflict resolution, without automatic retries. Successfully committed fields detected on readback are removed from the draft. Drafts are memory-only and scoped to the account and space.
 
 ## Pages, bindings and layouts
 
@@ -238,7 +343,7 @@ There are at most 32 bindings and 32 views. Empty bindings, views and placements
 
 ### Built-in page themes and link appearance
 
-Both bundled page themes accept Schema 2, the regions-grid layout, all built-in panels (including the unreleased document-activity panel), light/dark/system color modes, both content densities, and header/footer content with all three alignments. Bootstrap advertises the supported page themes. No remote theme URL or executable package is accepted.
+Both bundled page themes accept Schema 2, the regions-grid layout, all built-in panels (including the document-activity panel), light/dark/system color modes, both content densities, and header/footer content with all three alignments. Bootstrap advertises the supported page themes. No remote theme URL or executable package is accepted.
 
 | Theme ID | Interface name | Default `linkAppearance` |
 | --- | --- | --- |
@@ -279,9 +384,15 @@ This content-setting group is available only for navigation and favorites. Categ
 
 The homepage path is **Edit page → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
 
+### Category folder presentation
+
+Only the `builtin/navigation` panel accepts `settings.groupPreviewCount`. Valid numeric values are 0 (all), 4, 6, 8, 12 and 24. Missing settings render a six-bookmark preview without rewriting stored JSON. Favorites do not accept this category-only setting.
+
+The folder dialog uses the complete current category dataset, including current global filters, with local search and 24 items per page. The setting changes presentation only: API navigation datasets, exports and administration still include every authorized record. It uses the existing page revision/save contract and leaves navigation revision untouched.
+
 ### Panels and bindings
 
-Built-in panels are category navigation, search, favorites, navigation, GitHub Traffic, calendar, weather, metrics, service status and the unreleased document activity. Navigation/category/favorites require `collection`; Traffic uses `traffic`, calendar uses `events`, weather uses `weather`, metrics uses `metrics`, status uses `status`, and `builtin/document-activity` uses `activity` with `documents.activity@1`; search has no dataset input. Renderer/schema mappings, component settings, template preview and source limits are specified in [COMPONENTS.md](COMPONENTS.md). Every alias must exist and expose the panel's supported dataset schema. The same authorized dataset can feed multiple instances. `interactionScope` connects frontend filtering interactions and grants no additional data access. When provided, it is a nonempty string of at most 80 characters. An omitted scope is independent and falls back to that view’s ID.
+Built-in panels are category navigation, search, favorites, navigation, GitHub Traffic, calendar, weather, metrics, service status and document activity. Navigation/category/favorites require `collection`; Traffic uses `traffic`, calendar uses `events`, weather uses `weather`, metrics uses `metrics`, status uses `status`, and `builtin/document-activity` uses `activity` with `documents.activity@1`; search has no dataset input. Renderer/schema mappings, component settings, template preview and source limits are specified in [COMPONENTS.md](COMPONENTS.md). Every alias must exist and expose the panel's supported dataset schema. The same authorized dataset can feed multiple instances. `interactionScope` connects frontend filtering interactions and grants no additional data access. When provided, it is a nonempty string of at most 80 characters. An omitted scope is independent and falls back to that view’s ID.
 
 Binding `datasetId` is `local-navigation`, `local-document-activity`, or `source:<sourceId>`. Local activity requires `space:"current-page-space"` and `query:{}`; each activity instance keeps filters in its own settings. A PAT saving this binding through the page API/MCP needs `documents:read` in addition to its page-write grant. Existing anonymous `open_edit` page composition remains available but cannot read working-document activity.
 
@@ -465,7 +576,7 @@ Every tool invocation reloads the current account, permission epoch and token sc
 
 ## File-backed library API
 
-The file-backed library is available since 0.0.5 and requires migration 008, applied on first startup. The unreleased activity endpoint additionally requires migration 009. All paths below have the `/api/v1` prefix and retain the existing CSRF/PAT rules. Read responses use `Cache-Control: no-store`.
+The file-backed library is available since 0.0.5 and requires migration 008, applied on first startup. The activity endpoint added in 0.0.6 requires migration 009, also applied automatically on first startup. All paths below have the `/api/v1` prefix and retain the existing CSRF/PAT rules. Read responses use `Cache-Control: no-store`.
 
 ### Bookmark usage context
 
@@ -515,7 +626,7 @@ Writes return their resulting document and therefore require both PAT actions `d
 
 Filesystem reads/scans are separated from database transactions; original-file mutations are serialized independently of ordinary navigation updates. File bytes and SQL metadata cannot form one atomic transaction. After a file has been created, replaced, linked or removed, a later operation/finalization failure returns `503 document_index_pending`; inspect the original path and rescan before retrying. File effects are not automatically rolled back; recovery copies retained before destructive changes remain available. Content conflicts return `409 document_version_conflict`; metadata conflicts return `409 document_metadata_conflict`; source-setting conflicts return `409 document_source_version_conflict`, with `currentRevision` where relevant. Metadata saves check the current original's revision and update its index, so an external edit followed by a reload does not require waiting for the next scan before tagging.
 
-### Document activity (unreleased)
+### Document activity
 
 `GET /spaces/{spaceId}/document-activity` returns persisted activity for the current space without opening original files or triggering a scan. It requires a signed-in user with access to working documents; a PAT additionally needs `documents:read` and the same space grant. A read-only directory remains readable to an otherwise authorized working-document reader. Access to a public document snapshot does not grant access to draft counts, titles or directory names. A signed-in snapshot-only reader receives `403 document_activity_forbidden`; missing PAT actions receive `403 forbidden`. Anonymous access is rejected. Inaccessible spaces and unknown, disconnected or cross-space source IDs return 404 under the normal resource-hiding rules.
 
@@ -546,12 +657,12 @@ Origins are server-assigned: `web` for browser operations, `api` for ordinary Be
 
 The first successful complete scan of a newly connected or upgraded directory establishes a baseline without backfilling its existing files as new activity. Explicit Home changes already recorded before that scan remain visible. Treat dates before `recordedFrom` as unrecorded rather than zero activity, and inspect per-source baselines when combining directories that began recording on different dates. Failed/incomplete scans do not advance a new baseline or fabricate removals. Disconnecting retains stored history; reconnecting unchanged files does not create fresh edits.
 
-Invalid parameters return `400 validation_error`. A query whose selected range, perspective and directories contain more than 250,000 events returns `422 document_activity_window_too_large`, with no partial aggregate. Reduce the date range or selected directories; changing only `date`, `limit` or `offset` does not reduce the full-range aggregation work. The 367-day and 250,000-event limits bound a query, not stored history retention. See [document activity](DOCUMENT_ACTIVITY.md) for component configuration and [activity storage](STORAGE.md#document-activity-storage-unreleased) for persistence and recovery.
+Invalid parameters return `400 validation_error`. A query whose selected range, perspective and directories contain more than 250,000 events returns `422 document_activity_window_too_large`, with no partial aggregate. Reduce the date range or selected directories; changing only `date`, `limit` or `offset` does not reduce the full-range aggregation work. The 367-day and 250,000-event limits bound a query, not stored history retention. See [document activity](DOCUMENT_ACTIVITY.md) for component configuration and [activity storage](STORAGE.md#document-activity-storage) for persistence and recovery.
 
 ### MCP
 
 `bookmarks_context_update` takes `spaceId,id,input:{contextMarkdown,expectedUpdatedAt}`. The document tools are `documents_list`, `documents_get`, `documents_create`, `documents_update`, `documents_rename`, `documents_delete` and `documents_metadata_update`. Their `spaceId`/`id` arguments and `input` objects follow the HTTP contracts; `documents_list` uses an input object for its filters, and `documents_delete` puts `expectedRevision` in input. Results contain metadata or body as appropriate. Directory grants and publication are deliberately not exposed as agent tools.
 
-The unreleased `documents_activity_list` requires `spaceId` and an `input` object whose optional fields are `from,to,timezone,perspective,sourceIds,date,limit,offset`; use `input:{}` for all defaults. `sourceIds` is an array, not a comma-separated string. It runs the same read handler, permissions, defaults, aggregation, pagination and limits as the HTTP activity endpoint. It returns the same result fields and cannot request another user's `mine` perspective or assign an event origin.
+`documents_activity_list`, added in 0.0.6, requires `spaceId` and an `input` object whose optional fields are `from,to,timezone,perspective,sourceIds,date,limit,offset`; use `input:{}` for all defaults. `sourceIds` is an array, not a comma-separated string. It runs the same read handler, permissions, defaults, aggregation, pagination and limits as the HTTP activity endpoint. It returns the same result fields and cannot request another user's `mine` perspective or assign an event origin.
 
 The same HTTPS listener or trusted reverse proxy protects `/api/v1`, `/mcp` and attachment routes. Configure clients with the HTTPS URL directly; do not send a bearer token to HTTP and rely on a redirect. See [transport encryption](TRANSPORT_SECURITY.md) and the [document guide](DOCUMENT_LIBRARY.md).

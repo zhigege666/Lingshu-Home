@@ -141,7 +141,7 @@ export default function NetworkSettings({ bootstrap, onSettingsSaved, onNotice, 
     <section className="admin-card">
       <h2 className="network-section-heading"><Globe size={20}/>{t('服务端代理', 'Server proxy')}</h2>
       <p className="admin-hint">{t('仅影响 Home 服务器获取网页图标、组件模板和数据源。浏览器打开书签仍使用自己的网络。', 'Applies only when the Home server fetches website icons, component templates and data sources. Your browser continues opening bookmarks through its own network.')}</p>
-      {!owner ? <div className="network-owner-note"><Shield size={20}/><p>{t('服务端代理只能由已登录的管理员配置。请先在访问与账号中创建或登录管理员账号。', 'Server proxy settings require a signed-in owner. Create or sign in to an owner account in Access and accounts first.')}</p><Button variant="outline" onClick={onOpenAccounts}>{t('访问与账号', 'Access and accounts')}</Button></div> : <>
+      {!owner ? <div className="network-owner-note"><Shield size={20}/><p>{t('服务端代理只能由已登录的管理员配置。请先在站点设置中创建或登录管理员账号。', 'Server proxy settings require a signed-in owner. Create or sign in to an owner account in Site settings first.')}</p><Button variant="outline" onClick={onOpenAccounts}>{t('站点设置', 'Site settings')}</Button></div> : <>
         <ErrorMessage error={proxyError}/>
         {!proxy ? proxyLoading ? <Loading/> : <Button variant="outline" onClick={() => { void loadProxy() }}><RefreshCw size={15}/>{t('重新读取代理配置', 'Reload proxy configuration')}</Button> : <form onSubmit={saveProxy} onInvalidCapture={event => handleFormInvalid(event, setProxyError)}>
           <fieldset className="admin-plain-fieldset" disabled={busy || proxyLoading}>

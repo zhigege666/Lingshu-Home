@@ -1,8 +1,30 @@
 # Storage, migration and recovery
 
-The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Version 0.0.2 application and Docker artifacts target Linux amd64 (x86-64). Browser access from Windows or macOS does not imply a native desktop client has been delivered.
+The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Version 0.0.6 application and Docker artifacts target Linux amd64 (x86-64). Browser access from Windows or macOS does not imply a native desktop client has been delivered.
 
-Version **0.0.2** introduced persisted instance language and migration **007**; **0.0.5** added the document library in **008**. The unreleased document-activity changes add **009**. Follow the upgrade and restore rules below for each schema boundary; replacing the executable alone does not downgrade a database.
+Version **0.0.2** introduced persisted instance language and migration **007**; **0.0.5** added the document library in **008**. Version **0.0.6** adds document activity in **009** and browser-session retention in **010**, applied automatically on first startup. Follow the upgrade and restore rules below for each schema boundary; replacing the executable alone does not downgrade a database.
+
+## First-run storage setup
+
+Version 0.0.6 uses the same storage initialization for Docker, the Linux executable and source runs. An unconfigured new instance selects storage before language and account setup; explicit or existing configuration continues to select the original target.
+
+Selection follows explicit CLI options, explicit environment configuration, `<data-dir>/storage.json`, a valid existing SQLite instance, then the first-run page. CLI values override matching environment values. An explicit storage target skips the page and is not copied to `storage.json`. Invalid configuration is an error, not permission to initialize another database.
+
+A fresh instance without a selected target serves the storage page before creating an application database or keys. The process still holds the data-directory lock. Choose SQLite or external PostgreSQL; MySQL/MariaDB are not supported. PostgreSQL fields are host, port, database, username, password and TLS mode (`require`, `verify-full` or `disable`). The browser defaults to encrypted transport. Use `verify-full` with a trusted certificate and matching hostname; install the trusted CA in the application environment when needed. `disable` is an explicit option for a network where plaintext database traffic is acceptable.
+
+Connection testing is read-only: it does not save credentials, create application tables, migrate or initialize keys. PostgreSQL needs a dedicated database and permissions to connect, use the schema and apply migrations. Confirmation validates again, saves a private atomic configuration without overwriting a concurrent selection, and performs the existing migrations.
+
+### Saved configuration and recovery
+
+`storage.json` has schema version 1 and contains `provider`, a PostgreSQL `databaseUrl` when applicable, and a `provisioned` completion marker. The file is private mode `0600` and can contain a password. Do not commit it, include it in images or serve it as a frontend asset.
+
+`provisioned` means migrations and key initialization completed. It does not mean that site/account setup has finished. An interrupted first initialization can retry the same bound target. After provisioning, a missing database or Home schema is a recovery error; Home refuses to create an empty replacement. Deleting the marker is not a supported reset procedure.
+
+Malformed or unsafe local configuration and invalid legacy SQLite files fail startup. A selected PostgreSQL connection that cannot be opened instead serves a recovery page with `/health` returning HTTP 503. Correct the connection problem and retry that same target; the page does not offer database switching or silently fall back to SQLite. A lost running PostgreSQL advisory lease still requires the controlled restart described below.
+
+When storage is ready, normal language confirmation and site/account setup continue if needed. Existing valid SQLite instances are detected without a storage prompt, preserving accounts, language and data. No new SQL migration is introduced for this bootstrap feature.
+
+Back up `storage.json` when present, the database, and matching `csrf.key` and `integrations.key` together. For explicit startup configuration, retain the private environment separately. PostgreSQL still requires the local data volume. Changing connection settings does not convert, copy or migrate existing data.
 
 ## Runtime configuration
 
@@ -10,7 +32,7 @@ Version **0.0.2** introduced persisted instance language and migration **007**; 
 | --- | --- | --- |
 | `LINGSHU_LISTEN` | `--listen` | `127.0.0.1:5180` |
 | `LINGSHU_DATA_DIR` | `--data-dir` | `data`, resolved to an absolute path |
-| `LINGSHU_STORAGE_PROVIDER` | `--storage-provider` | `sqlite`; alternatively `postgres` |
+| `LINGSHU_STORAGE_PROVIDER` | `--storage-provider` | Explicit `sqlite` or `postgres`; omit to reuse saved/legacy storage or open first-run selection for a new instance |
 | `LINGSHU_DATABASE_URL` | `--database-url` | Required PostgreSQL connection URL for that provider |
 | `LINGSHU_WEB_DIR` | `--web-dir` | `web/dist`, the built frontend directory |
 | `LINGSHU_VERSION_FILE` | `--version-file` | `VERSION`, required and nonempty |
@@ -21,7 +43,7 @@ Use environment or a private environment file for a PostgreSQL connection URL in
 
 For a new database, a valid explicit language is saved at startup. Without one, the language-confirmation page saves it before setup. The chosen language belongs to the database rather than browser storage or container metadata. Restarting with a conflicting valid language logs a warning and retains the saved value. Existing initialized databases upgrading from 0.0.1 use the explicit language supplied on their first upgraded start, or the old default `zh-CN` when none is supplied; keep the original English startup configuration when upgrading an English instance. No post-setup language-change endpoint is provided.
 
-The supplied Docker image listens on `0.0.0.0:8080` inside the container. The README Docker command and both Compose files publish it only on the Docker host at `127.0.0.1:5180`. The standalone executable defaults to `127.0.0.1:5180`. Configure the published interface or reverse proxy for access from another computer; that computer's `127.0.0.1` refers to itself. The built frontend, API, icons and MCP endpoint share one origin. An HTTPS reverse proxy supplies TLS; `LINGSHU_SECURE_COOKIES=true` requires HTTPS cookies but does not enable a TLS listener in Home.
+The supplied Docker image listens on `0.0.0.0:8080` inside the container. The README Docker command and both Compose files publish it only on the Docker host at `127.0.0.1:5180`. The standalone executable defaults to `127.0.0.1:5180`. Configure the published interface or reverse proxy for access from another computer; that computer's `127.0.0.1` refers to itself. The built frontend, API, icons and MCP endpoint share one origin. Use Home's optional direct TLS listener or an HTTPS reverse proxy for encrypted access. `LINGSHU_SECURE_COOKIES=true` requires HTTPS cookies but does not enable a TLS listener by itself.
 
 The Linux release includes the executable, `web/dist` and `VERSION`; run it from the extracted release directory unless you set those paths explicitly. Its default `data/` is relative to that working directory. The README uses `--data-dir "$HOME/.local/share/lingshu-home"` to keep persistence outside the versioned release directory. Continue using the same data directory when replacing the executable or extracting a later release.
 
@@ -33,6 +55,7 @@ The README image command mounts the named volume `lingshu-home-data` at `/data`.
 
 | File | Purpose |
 | --- | --- |
+| `storage.json` | Web-selected provider/connection and provisioning marker; private mode 0600; explicit CLI/environment targets are not written to this file |
 | `lingshu-home.db` | SQLite database; not used by the PostgreSQL provider |
 | `lingshu-home.db-wal`, `lingshu-home.db-shm` | Active SQLite WAL state; may be absent after a clean shutdown |
 | `csrf.key` | Independent random 32-byte key for browser CSRF authentication |
@@ -51,7 +74,7 @@ Imported icon images, pack metadata and cached website icons live in the selecte
 
 ## SQLite
 
-SQLite is the default for a single personal instance. It enables foreign keys, a 15-second busy timeout and WAL. The application uses one open connection and serializes writes before authorization and transaction creation. Bookmark import is one atomic write transaction; page revisions are compared inside their write transaction.
+SQLite is the embedded option for a single personal instance. It enables foreign keys, a 15-second busy timeout and WAL. The application uses one open connection and serializes writes before authorization and transaction creation. Bookmark import is one atomic write transaction; page revisions are compared inside their write transaction.
 
 The database is fixed at `<data-dir>/lingshu-home.db`. The service acquires a process-lifetime OS file lock. Starting another instance with the same directory fails, even when it uses a different HTTP port. The lock uses Unix flock or Windows LockFileEx according to the compiled target.
 
@@ -59,7 +82,7 @@ WAL provides local database concurrency; it is not a multi-host deployment proto
 
 ## PostgreSQL
 
-Set `LINGSHU_STORAGE_PROVIDER=postgres` and provide `LINGSHU_DATABASE_URL`. The provider uses native booleans, JSONB and timestamp columns, with a normal connection pool of up to six connections. A dedicated connection holds a database advisory lock for the lifetime of the application.
+Choose external PostgreSQL on the first-run storage page, or explicitly set `LINGSHU_STORAGE_PROVIDER=postgres` and provide `LINGSHU_DATABASE_URL`. The provider uses native booleans, JSONB and timestamp columns, with a normal connection pool of up to six connections. A dedicated connection holds a database advisory lock for the lifetime of the application.
 
 The service generates new local navigation modification timestamps at microsecond precision for both providers. This matches PostgreSQL `TIMESTAMPTZ` storage and keeps a write response equal to later stored reads. Existing data is not rewritten to apply this precision rule; no database migration is required for it.
 
@@ -89,7 +112,8 @@ Migration files are embedded from `server/internal/home/migrations/sqlite/` and 
 | `006_network_routing.sql` | Default-on browser selection and a singleton, versioned outbound proxy configuration with encrypted credentials |
 | `007_instance_language.sql` (0.0.2) | `settings.language`, initially empty until the instance's first language is determined; allowed saved values `zh-CN` and `en` |
 | `008_document_library.sql` (0.0.5) | Bookmark usage notes, registered document directories, stable document IDs, metadata/search caches and explicit publication/attachment snapshots |
-| `009_document_activity.sql` (unreleased) | Directory recording baselines and persistent, indexed document activity events; existing files are not backfilled as edits |
+| `009_document_activity.sql` (0.0.6) | Directory recording baselines and persistent, indexed document activity events; existing files are not backfilled as edits |
+| `010_session_retention.sql` (0.0.6) | Versioned Owner session policy, remembered/until-sign-out modes, browser-session activity timestamps and device descriptions |
 
 Migration 003 is additive for SQLite and PostgreSQL. Image bytes use SQLite BLOB / PostgreSQL BYTEA; normalized hashes and pack entries are scoped to a space. It does not rewrite existing links, category ownership, pages or access modes. The new homepage themes and visual editor continue to use page Schema 2 and do not need a separate database migration.
 
@@ -101,7 +125,9 @@ Migration 006 adds `settings.auto_select_endpoint` (default true) and `network_p
 
 Migration 007 is additive for both providers and leaves migration 001–006 checksums unchanged. It adds `settings.language` with an empty default and a constraint allowing only empty, `zh-CN` or `en`. Startup then saves a configured language or preserves an initialized legacy instance's previous default. New unconfigured databases keep the empty state until the first successful language confirmation. The migration and confirmation do not rename existing site, account, space, page, category or bookmark content, and need no new key or volume. A full database backup includes the chosen language. Navigation exports are not a language-setting backup or reset mechanism.
 
-Migrations 008 and 009 are additive and leave earlier migration files/checksums unchanged. The [document-library](#document-library-storage) and [activity](#document-activity-storage-unreleased) sections below describe their authoritative data, recording baselines and original-file backup requirements. Migration 009 adds a column, table and indexes; it does not rewrite existing document bodies, metadata, publications or page layouts.
+Migrations 008 and 009 are additive and leave earlier migration files/checksums unchanged. The [document-library](#document-library-storage) and [activity](#document-activity-storage) sections below describe their authoritative data, recording baselines and original-file backup requirements. Migration 009 adds a column, table and indexes; it does not rewrite existing document bodies, metadata, publications or page layouts.
+
+Migration 010 is additive for SQLite and PostgreSQL. It adds the retention policy and session fields while preserving existing session deadlines; those sessions remain temporary until the user signs in with a new choice. Legacy timestamps that were never recorded remain unknown. The initial policy selects 30 idle days for new UI logins, limits remembered logins to 30 days and disables until-sign-out. No additional key or external authentication service is introduced. The profile and atomic navigation-editing endpoints reuse existing data columns.
 
 Startup first verifies all known applied migration checksums and refuses unknown newer versions or out-of-order history. It then applies each pending file and its ledger entry in one transaction. A failed migration rolls back that file and prevents startup; it does not mark a partial migration complete.
 
@@ -111,12 +137,20 @@ Before an upgrade, retain the previous executable/image, its VERSION, and a reco
 
 **After migration 007, the published 0.0.1 binary cannot open the upgraded database.** The same rule applies to earlier migration boundaries. To roll back, stop Home and restore the matching pre-upgrade database and key backup with the previous binary/image. Replacing only the application, removing ledger rows or dropping columns is not a supported downgrade. Keep the newer backup too if it contains changes made after the upgrade.
 
+### Compatibility with an unpublished session migration
+
+Some unpublished builds applied `008_session_retention.sql` before the document-library release used the official 008 slot. Version 0.0.6 recognizes only that exact legacy layout: the complete 001–007 ledger must have the expected checksums, its sole later entry must be the known session-migration checksum at 008, and the settings/session schema must match. SQLite checks the complete settings/session DDL and both session indexes; PostgreSQL checks column types, defaults, nullability, constraints and indexes.
+
+For an exact match, one transaction applies the official `008_document_library.sql` and `009_document_activity.sql` and records the already-applied session migration at 010. The session migration's original checksum and application time are preserved, its `ALTER` statements are not rerun, and existing session policy, sessions and other data remain in place. The canonical 010 SQL is byte-for-byte the same as that recognized unpublished session SQL. Official 008/009 files and checksums are unchanged.
+
+An unknown checksum, incomplete ledger, unexpected schema or failed DDL prevents the bridge and leaves the previous database state intact. This is a narrowly recognized upgrade, not a general checksum-repair or migration-renumbering mechanism. Keep a recoverable backup with the exact prior executable/source and keys before starting it; on refusal, restore or inspect that matching version rather than editing migration rows. Returning to an unpublished build requires its own matching pre-upgrade restore set, not the published 0.0.5 backup described below.
+
 ## Backups
 
 ### SQLite: straightforward stopped-instance backup
 
 1. Stop Home cleanly and ensure its process has released the data directory lock.
-2. Copy the complete data directory, including both key files and any remaining SQLite WAL files, to a private backup destination.
+2. Copy the complete data directory, including `storage.json` when present, both key files, document recovery history and any remaining SQLite WAL files, to a private backup destination.
 3. Record the product version and retain the matching release artifact.
 4. Restart Home and check `/health`.
 
@@ -126,13 +160,13 @@ SQLite's official [Online Backup API](https://sqlite.org/backup.html) and [WAL d
 
 ### PostgreSQL
 
-Use a PostgreSQL-aware backup such as `pg_dump` for the dedicated Home database, and back up the complete local Home data directory containing its key files. Keep the database dump and matching key backup together as one restore set. A coordinated maintenance window is the simplest way to avoid source-credential changes between those copies.
+Use a PostgreSQL-aware backup such as `pg_dump` for the dedicated Home database, and back up the complete local Home data directory containing its key files, `storage.json` when present and document recovery history. Keep the database dump and matching local backup together as one restore set. A coordinated maintenance window is the simplest way to avoid source-credential changes between those copies.
 
 Use the PostgreSQL version's supported backup tooling and verify restore permissions. The official [pg_dump reference](https://www.postgresql.org/docs/18/app-pgdump.html) describes its snapshot and format behavior. The application does not manage your database administrator credentials or provide an automatic PostgreSQL dump scheduler.
 
 ### Restore
 
-Restore into a stopped instance with a dedicated destination. Restore the database, both key files and the matching application version before starting it. Preserve private file ownership and permissions. Start one instance and verify health, initialization state, saved instance language, account access, expected spaces/navigation, source credential availability, saved page theme/layout and imported icon rendering. Test a restore periodically; the existence of backup files does not establish that they can be used successfully.
+Restore into a stopped instance with a dedicated destination. Restore the database, both key files, any saved `storage.json` and the matching application version before starting it. Preserve the selected target and deployment settings; do not remove the provisioning marker to create a new empty replacement. Preserve private file ownership and permissions. Start one instance and verify health, initialization state, saved instance language, account access, expected spaces/navigation, source credential availability, saved page theme/layout and imported icon rendering. Test a restore periodically; the existence of backup files does not establish that they can be used successfully.
 
 Keep backups private: exports can contain private links and configuration, and full backups contain password hashes, session/PAT hashes and encrypted source credentials. The corresponding integration key enables credential decryption.
 
@@ -146,11 +180,11 @@ Canonical custom icon bytes are content-addressed and deduplicated within each s
 
 Website icon cache entries retain their origin, last successful image and refresh status. Positive results have a 24-hour freshness window; initial failures may retry after 30 minutes, and a failed refresh keeps the previous successful image. Expiry permits the next eligible automatic-mode save/import or explicit lookup; it does not schedule work or delete the image. Limits are 32 packs, 1,024 image hashes, 32 MiB of canonical bytes and 512 distinct cached/pending origins per space, with at most 2,048 queued origins per instance. A new remote lookup or refresh also requires fewer than 1,024 retained image hashes and at least 256 KiB remaining in that image-byte budget; cached images remain readable when new acquisition is blocked by capacity. An empty queue has no periodic timer. The database holds the authoritative image copy; browsers use private HTTP revalidation and never trigger a favicon lookup. Format and outbound policies are in [ICONS.md](ICONS.md).
 
-Cookie sessions expire after 12 hours. Permission epochs and per-account versions invalidate old sessions and PATs immediately after supported security changes. These checks occur against current database state; an old frontend or MCP connection cannot retain a previous authorization decision.
+Legacy and temporary Cookie sessions expire after 12 hours. Version 0.0.6 adds explicit remembered and until-sign-out modes through migration 010, preserving existing session deadlines. See [session retention](API.md#browser-session-retention) for activity renewal, revocation and Owner policy. Permission epochs and per-account versions invalidate old sessions and PATs immediately after supported security changes. These checks occur against current database state; an old frontend or MCP connection cannot retain a previous authorization decision.
 
 ## Provider validation
 
-Run `go test ./...` from `server/` for the local SQLite, integration, page-theme, icon and component suites. PostgreSQL execution is explicit and requires **eight different fresh disposable databases**:
+Run `go test ./...` from `server/` for the local SQLite, integration, page-theme, icon and component suites. PostgreSQL execution is explicit and requires **nine different fresh disposable databases**:
 
 - `LINGSHU_TEST_POSTGRES_URL` for the core provider test.
 - `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL` for the integration provider test.
@@ -160,19 +194,20 @@ Run `go test ./...` from `server/` for the local SQLite, integration, page-theme
 - `LINGSHU_TEST_NAVIGATION_POSTGRES_URL` for atomic navigation batches, unchanged operations, authorization, revision conflicts, rollback and persistence.
 - `LINGSHU_TEST_DOCUMENT_POSTGRES_URL` for document directories, original-file operations, authorization, publication, document activity and migrations 008/009 preservation/failure rollback. Activity runtime and document migration cases create and clean up their own randomly named schemas, so they require schema-creation permission and do not consume the original library suite's application schema.
 - `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` for optional bookmark usage notes, backward-compatible updates and optimistic concurrency.
+- `LINGSHU_TEST_STORAGE_POSTGRES_URL` for storage bootstrap and profile cases in owned random schemas; schema-creation permission is required.
 
-Application suites fail rather than erase an initialized application schema. Do not point any variable at a user instance or reuse one database between the eight configured provider groups. Core coverage includes permissions, optimistic page concurrency and failing closed after the advisory-lock connection disappears. Integration coverage exercises PAT/MCP authorization, snapshot writes and GitHub Traffic persistence with synthetic HTTP responses. Icon coverage exercises BYTEA persistence, pack import/deletion and rollback, same-space references, current mode/CSRF/PAT/MCP authorization, external snapshot references, private conditional image GETs and storage reopen. Automatic-icon lifecycle and migration 005 cases reuse the dedicated icon database through randomly named schemas. They require permission to create schemas, clean up only their own schema, and cover queue admission/rollback, origin deduplication, obsolete-result rejection, disable/restart behavior and migration preservation/rollback.
+Application suites fail rather than erase an initialized application schema. Do not point any variable at a user instance or reuse one database between the nine configured provider groups. Core coverage includes permissions, optimistic page concurrency and failing closed after the advisory-lock connection disappears. Integration coverage exercises PAT/MCP authorization, snapshot writes and GitHub Traffic persistence with synthetic HTTP responses. Icon coverage exercises BYTEA persistence, pack import/deletion and rollback, same-space references, current mode/CSRF/PAT/MCP authorization, external snapshot references, private conditional image GETs and storage reopen. Automatic-icon lifecycle and migration 005 cases reuse the dedicated icon database through randomly named schemas. They require permission to create schemas, clean up only their own schema, and cover queue admission/rollback, origin deduplication, obsolete-result rejection, disable/restart behavior and migration preservation/rollback.
 
 Component coverage adds push/import receipt replay and retention, credential projection and origin-change protection, stale-job rejection and source/page reference boundaries. The component migration suite also requires permission to create schemas in its separate database; it creates and cleans up only its own randomly named schemas, comparing all original columns in the six integration tables after successful upgrades and injected failures. The SQLite migration cases also assert that foreign keys remain enabled without violations. Tests that skip an unset PostgreSQL variable do not establish PostgreSQL runtime verification.
 
 The separate HTTP acceptance runner in `tests/` supports disposable server instances and persistence checks across real process restarts. Record provider-specific results with the release; a source-level build alone does not verify a running deployment.
 
-The application CI configuration creates `lingshu_core`, `lingshu_integrations`, `lingshu_icons`, `lingshu_components`, `lingshu_component_migration`, `lingshu_navigation`, `lingshu_documents` and `lingshu_bookmark_context` for the eight Go provider suites, plus distinct `lingshu_http` / `lingshu_ownerless` databases for HTTP acceptance. The PostgreSQL test step requires all eight Go variables and uses verbose, uncached execution so each provider subtest is visible. The existing race, HTTP restart and Docker gates remain. Updating or locally checking this workflow is not evidence that the revised workflow has run successfully on GitHub. Actual execution results belong in [tests/README.md](../tests/README.md).
+The application CI configuration creates `lingshu_core`, `lingshu_integrations`, `lingshu_icons`, `lingshu_components`, `lingshu_component_migration`, `lingshu_navigation`, `lingshu_documents`, `lingshu_bookmark_context` and `lingshu_storage` for the nine Go provider suites, plus distinct `lingshu_http` / `lingshu_ownerless` databases for HTTP acceptance. The PostgreSQL test step requires all nine Go variables and uses verbose, uncached execution so each provider subtest is visible. The existing race, HTTP restart and Docker gates remain. Updating or locally checking this workflow is not evidence that the revised workflow has run successfully on GitHub. Actual execution results belong in [tests/README.md](../tests/README.md).
 
 
 ## Document-library storage
 
-Version **0.0.5** adds separately maintained migration **008** to SQLite and PostgreSQL. Version 0.0.4 ends at migration 007; the new application applies 008 on first startup while preserving existing data. With the old environment unchanged, document roots remain disabled and direct TLS remains off.
+Version **0.0.5** introduced separately maintained migration **008** to SQLite and PostgreSQL. Version 0.0.4 ends at migration 007; the new application applies 008 on first startup while preserving existing data. With the old environment unchanged, document roots remain disabled and direct TLS remains off.
 
 Migration 008 adds optional bookmark usage notes (`links.context_markdown`, empty for old rows), directory registrations, durable document records, tags/relationships, searchable body caches and explicit publication/attachment snapshots. It does not rewrite existing links, categories, ownership or document files. Working document bodies remain authoritative in their mounted source directories. The database still contains irreplaceable manual metadata and public snapshots; it is not a disposable cache.
 
@@ -192,9 +227,9 @@ File operations and database transactions are coordinated but are not one cross-
 
 Direct HTTPS adds `LINGSHU_TLS_CERT_FILE` / `--tls-cert-file` and `LINGSHU_TLS_KEY_FILE` / `--tls-key-file`. Both must be present; certificate-load errors fail before opening business storage and never cause HTTP fallback. The private key is mounted separately from document roots. `LINGSHU_SECURE_COOKIES` still does not enable a TLS listener by itself. HTTPS does not encrypt document/history/database files at rest or a host-to-NAS mount; see [transport encryption](TRANSPORT_SECURITY.md).
 
-## Document-activity storage (unreleased)
+## Document-activity storage
 
-Migration **009_document_activity.sql** is maintained separately for SQLite and PostgreSQL. It adds `document_sources.activity_started_at` with an empty default, and the `document_activity` table with indexes for space/time, actor/space/time and source/time queries. Each event stores its ID, document/source/space IDs, optional actor ID, action, origin, occurrence/observation instants, and before/after content-revision hashes. Instants use fixed-precision UTC text consistently in both providers. The table contains event metadata and hashes, not another copy of the document body.
+Upgrading from **0.0.5 to 0.0.6** automatically applies migration **009_document_activity.sql**, maintained separately for SQLite and PostgreSQL, followed by session-retention migration 010. Direct upgrades from 0.0.4 apply 008 first, then 009 and 010. Retain the same SQLite data directory or PostgreSQL database, instance keys, recovery history, document/certificate mounts, allowed roots, runtime identity and saved language. No new volume or environment setting is required; existing document roots and HTTP/TLS configuration retain their behavior. It adds `document_sources.activity_started_at` with an empty default, and the `document_activity` table with indexes for space/time, actor/space/time and source/time queries. Each event stores its ID, document/source/space IDs, optional actor ID, action, origin, occurrence/observation instants, and before/after content-revision hashes. Instants use fixed-precision UTC text consistently in both providers. The table contains event metadata and hashes, not another copy of the document body.
 
 Actions are `create`, `update`, `restore`, `rename`, `delete` and `metadata`; origins are `web`, `api`, `mcp` and `external`. A known browser/API/MCP change records the authenticated account. An external observation has a null actor and uses the time Home observed the change. File mtime, the person pressing Scan and a user saving tags are not evidence of authorship. Multiple external changes between observations may be invisible or combined into one observed transition; this is an activity record, not a complete filesystem audit history.
 
@@ -206,4 +241,4 @@ Activity is durable database data. Rescanning unchanged content, changing mtime,
 
 Before applying 009, stop Home and retain the matching executable/image, complete database backup, local data directory/keys/history, source-file backups and deployment configuration. These are the same restore-set requirements as the document library; no new key file or mounted volume is introduced. A navigation JSON export or a fresh file scan is not an activity backup. Keep the newer backup as well if it contains post-upgrade activity or document changes.
 
-A failed pending migration and its ledger entry roll back transactionally and prevent startup. A successfully applied 009 has no automatic down migration: a 0.0.5 binary that only knows migrations through 008 refuses the upgraded database. To return to that version, stop Home and restore its matching pre-009 database/data backup and executable/image. Do not delete ledger entries, change checksums or drop the new table/column as a substitute. Restoring the database does not undo later Markdown edits; restore or reconcile the corresponding original-file backups separately. See the [API contract](API.md#document-activity-unreleased) for the recording boundary and permission-filtered aggregation returned to clients.
+A failed pending migration and its ledger entry roll back transactionally and prevent startup. A successfully applied 009 has no automatic down migration: a 0.0.5 binary that only knows migrations through 008 refuses the upgraded database. To return to that version, stop Home and restore its matching pre-009 database/data backup and executable/image. Do not delete ledger entries, change checksums or drop the new table/column as a substitute. Restoring the database does not undo later Markdown edits; restore or reconcile the corresponding original-file backups separately. See the [API contract](API.md#document-activity) for the recording boundary and permission-filtered aggregation returned to clients.

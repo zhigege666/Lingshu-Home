@@ -1,3 +1,6 @@
+import { useRef as useAccessSettingsRef } from 'react'
+import { beforeNavigationEvent as accessSettingsNavigationEvent } from '../core/navigation'
+import { SessionPolicyPanel } from './SessionPolicyPanel'
 import { t } from '../core/i18n'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Pencil, Plus } from 'lucide-react'
@@ -8,15 +11,40 @@ import { Input } from '../components/ui/input'
 import { Checkbox } from '../components/ui/checkbox'
 import { Table,TableHeader,TableBody,TableRow,TableHead,TableCell } from '../components/ui/table'
 import { authModes,BuiltinIcon,ErrorMessage,Field,handleFormInvalid,Loading,Modal } from '../components/Shared'
-export function AccessSettings({ bootstrap, onSaved, onLogin }: { bootstrap: Bootstrap; onSaved: () => Promise<void>; onLogin: () => void }) {
+export function AccessSettings({ bootstrap, onSaved, onLogin, onSessionChanged }: { bootstrap: Bootstrap; onSaved: () => Promise<void>; onLogin: () => void; onSessionChanged?: () => Promise<void> }) {
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [settingsBaseline, setSettingsBaseline] = useState<Settings | null>(null)
+  const [policyDirty, setPolicyDirty] = useState(false)
+  const [accessLeave, setAccessLeave] = useState<(() => void) | null>(null)
+  const accessNavigationAllowed = useAccessSettingsRef(false)
   const [owner, setOwner] = useState({ username: '', displayName: '', password: '' })
   const [createOwner, setCreateOwner] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('')
-  useEffect(() => { let active = true; request<Settings>('/settings').then(value => { if (active) setSettings(value) }).catch(cause => { if (active) setError(messageOf(cause)) }); return () => { active = false } }, [])
+  useEffect(() => { let active = true; request<Settings>('/settings').then(value => { if (active) { setSettings(value); setSettingsBaseline(value) } }).catch(cause => { if (active) setError(messageOf(cause)) }); return () => { active = false } }, [])
   const editable = bootstrap.user?.role === 'Owner' || !!settings && !settings.hasOwner && bootstrap.mode === 'open_edit'
   const needsOwner = !!settings && !settings.hasOwner && (settings.mode !== 'open_edit' || createOwner)
+  const accessDirty = !!settings && !!settingsBaseline && (JSON.stringify(settings) !== JSON.stringify(settingsBaseline) || createOwner || Object.values(owner).some(value => value !== ''))
+  useEffect(() => {
+    const before = (event: Event) => {
+      if (event.defaultPrevented || accessNavigationAllowed.current || (!accessDirty && !busy)) return
+      event.preventDefault()
+      if (busy) return
+      const proceed = (event as CustomEvent<{ proceed: () => void }>).detail?.proceed
+      if (proceed) setAccessLeave(() => proceed)
+    }
+    const unload = (event: BeforeUnloadEvent) => {
+      if (!accessNavigationAllowed.current && (accessDirty || busy)) { event.preventDefault(); event.returnValue = '' }
+    }
+    window.addEventListener(accessSettingsNavigationEvent, before); window.addEventListener('beforeunload', unload)
+    return () => { window.removeEventListener(accessSettingsNavigationEvent, before); window.removeEventListener('beforeunload', unload) }
+  }, [accessDirty, busy])
+  function cancelAccessChanges(proceed?: () => void) {
+    if (busy || !settingsBaseline) return
+    setSettings(settingsBaseline); setOwner({ username: '', displayName: '', password: '' }); setCreateOwner(false); setError(''); setAccessLeave(null)
+    if (proceed) { accessNavigationAllowed.current = true; try { proceed() } finally { accessNavigationAllowed.current = false } }
+  }
+
   async function save(event: FormEvent) {
-    event.preventDefault(); if (!settings || !editable || busy) return
+    event.preventDefault(); if (!settings || !editable || busy || policyDirty) return
     setBusy(true); setError('')
     try {
       const saved = await request<Settings>('/settings', { method: 'PUT', body: {
@@ -27,22 +55,22 @@ export function AccessSettings({ bootstrap, onSaved, onLogin }: { bootstrap: Boo
       // The response establishes whether an Owner now exists. Keep that result
       // even if the subsequent session refresh fails, so a retry cannot create
       // the same account again or retain its password in the form.
-      setSettings(saved); setOwner({ username: '', displayName: '', password: '' }); setCreateOwner(false)
+      setSettings(saved); setSettingsBaseline(saved); setOwner({ username: '', displayName: '', password: '' }); setCreateOwner(false); accessNavigationAllowed.current = true
       try { await onSaved() }
       catch { setError(t('访问设置已保存，但会话重新读取失败。请刷新页面后继续。', 'Access settings were saved, but the session could not be reloaded. Refresh the page to continue.')) }
     } catch (cause) { setError(messageOf(cause)) }
-    finally { setBusy(false) }
+    finally { accessNavigationAllowed.current = false; setBusy(false) }
   }
   if (!settings) return <><ErrorMessage error={error}/>{!error && <Loading/>}</>
   return <>
     {!editable && <div className="admin-info"><p>{t('本站已有管理员。请登录管理员账号后修改访问设置。', 'This site already has an administrator. Sign in to that account to change access settings.')}</p><Button type="button" variant="outline" onClick={onLogin}>{t('管理员登录', 'Administrator sign-in')}</Button></div>}
-    <form onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}><fieldset disabled={busy || !editable} className="admin-plain-fieldset">
+    <form onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}><fieldset disabled={busy || !editable || policyDirty} className="admin-plain-fieldset">
       <Field label={t('站点名称', 'Site name')}><Input required maxLength={80} value={settings.siteName} onChange={event => setSettings({ ...settings, siteName: event.target.value })}/></Field>
-      <section className="admin-settings-section"><h3>{t('网页图标', 'Website icons')}</h3><label className="admin-check-line"><Checkbox aria-label={t('自动获取网页图标', 'Automatically fetch website icons')} checked={settings.autoFetchIcons !== false} disabled={busy || !editable} onCheckedChange={checked => setSettings({ ...settings, autoFetchIcons: checked })}/>{t('自动获取网页图标', 'Automatically fetch website icons')}</label><p className="admin-hint">{t('保存或导入自动模式链接时获取并缓存网页图标。关闭后停止后台获取，保留已有图标及手动操作；重新启用不会扫描旧链接。', 'Website icons are fetched and cached when links in automatic mode are saved or imported. Turning this off stops background fetching while keeping saved icons and manual controls; turning it back on does not scan existing links.')}</p></section>
+      <section className="admin-settings-section"><h3>{t('网页图标', 'Website icons')}</h3><label className="admin-check-line"><Checkbox aria-label={t('自动获取网页图标', 'Automatically fetch website icons')} checked={settings.autoFetchIcons !== false} disabled={busy || !editable || policyDirty} onCheckedChange={checked => setSettings({ ...settings, autoFetchIcons: checked })}/>{t('自动获取网页图标', 'Automatically fetch website icons')}</label><p className="admin-hint">{t('保存或导入自动模式链接时获取并缓存网页图标。关闭后停止后台获取，保留已有图标及手动操作；重新启用不会扫描旧链接。', 'Website icons are fetched and cached when links in automatic mode are saved or imported. Turning this off stops background fetching while keeping saved icons and manual controls; turning it back on does not scan existing links.')}</p></section>
       <fieldset className="admin-mode-options"><legend>{t('访问方式', 'Access mode')}</legend>{authModes.map(mode => <label className={`admin-mode-option ${settings.mode === mode.id ? 'selected' : ''}`} key={mode.id}><input type="radio" name="access-mode" checked={settings.mode === mode.id} onChange={() => setSettings({ ...settings, mode: mode.id as AuthMode, registrationEnabled: mode.id === 'private_multi' && settings.registrationEnabled })}/><BuiltinIcon name={mode.icon}/><span><strong>{mode.title}</strong><small>{mode.detail}</small></span></label>)}</fieldset>
-      {settings.mode === 'private_multi' && <label className="admin-check-line"><Checkbox checked={settings.registrationEnabled} disabled={busy || !editable} onCheckedChange={checked => setSettings({ ...settings, registrationEnabled: checked })}/>{t('允许访客自行注册 Member 账号', 'Allow visitors to register member accounts')}</label>}
+      {settings.mode === 'private_multi' && <label className="admin-check-line"><Checkbox checked={settings.registrationEnabled} disabled={busy || !editable || policyDirty} onCheckedChange={checked => setSettings({ ...settings, registrationEnabled: checked })}/>{t('允许访客自行注册 Member 账号', 'Allow visitors to register member accounts')}</label>}
       {!settings.hasOwner && settings.mode === 'open_edit' && <section className="admin-settings-section">
-        <label className="admin-check-line"><Checkbox aria-label={t('同时创建首个管理员（可选）', 'Also create the first administrator (optional)')} checked={createOwner} disabled={busy || !editable} onCheckedChange={checked => { setCreateOwner(checked); if (!checked) setOwner({ username: '', displayName: '', password: '' }) }}/>{t('同时创建首个管理员（可选）', 'Also create the first administrator (optional)')}</label>
+        <label className="admin-check-line"><Checkbox aria-label={t('同时创建首个管理员（可选）', 'Also create the first administrator (optional)')} checked={createOwner} disabled={busy || !editable || policyDirty} onCheckedChange={checked => { setCreateOwner(checked); if (!checked) setOwner({ username: '', displayName: '', password: '' }) }}/>{t('同时创建首个管理员（可选）', 'Also create the first administrator (optional)')}</label>
         <p className="admin-hint">{t('可以继续免账号维护导航。创建管理员后仍保留当前免账号编辑模式，并登录此账号，可配置数据源、访问令牌和服务器代理；无需切换访问模式。', 'You can continue managing bookmarks without an account. Creating an administrator keeps account-free editing enabled and signs you in, so you can configure sources, access tokens and the server proxy. No access-mode change is required.')}</p>
       </section>}
       {needsOwner && <section className="admin-settings-section"><h3>{t('创建首个管理员', 'Create the first administrator')}</h3>
@@ -51,8 +79,11 @@ export function AccessSettings({ bootstrap, onSaved, onLogin }: { bootstrap: Boo
         <Field label={t('密码', 'Password')}><Input required type="password" minLength={10} maxLength={128} autoComplete="new-password" value={owner.password} onChange={event => setOwner({ ...owner, password: event.target.value })}/></Field>
       </section>}
       <p className="admin-info">{t('切换访问模式会使旧会话失效，请重新登录。个人空间不会自动公开；成员数据会保留。', 'Changing the access mode signs out existing sessions. Personal spaces stay private and member data is retained.')}</p>
-      <ErrorMessage error={error}/><div className="admin-form-footer"><Button type="submit">{busy ? t('正在保存…', 'Saving…') : t('保存访问设置', 'Save access settings')}</Button></div>
+      <ErrorMessage error={error}/><div className="admin-form-footer"><Button type="submit">{busy ? t('正在保存…', 'Saving…') : t('保存访问设置', 'Save access settings')}</Button><Button type="button" variant="outline" disabled={busy || !accessDirty} onClick={() => cancelAccessChanges()}>{t('取消修改', 'Cancel changes')}</Button></div>
     </fieldset></form>
+    {policyDirty && <p className="session-muted">{t('请先保存或取消下方登录策略的修改。', 'Save or cancel the login-policy edits below before changing access settings.')}</p>}
+    {bootstrap.user?.role === 'Owner' && <SessionPolicyPanel disabled={busy || accessDirty} onDirtyChange={setPolicyDirty} onSessionChanged={onSessionChanged || onSaved}/>}
+    {accessLeave && <Modal title={t('放弃未保存的访问设置？', 'Discard unsaved access settings?')} busy={busy} onClose={() => setAccessLeave(null)}><p>{t('离开后将放弃当前访问设置的修改。', 'Leaving will discard the current access-setting edits.')}</p><div className="session-form-actions"><Button type="button" variant="outline" onClick={() => setAccessLeave(null)}>{t('继续编辑', 'Keep editing')}</Button><Button type="button" onClick={() => cancelAccessChanges(accessLeave)}>{t('放弃并离开', 'Discard and leave')}</Button></div></Modal>}
   </>
 }
 export function MembersPanel({onNotice}:{onNotice:(message:string)=>void}) {

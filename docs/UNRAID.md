@@ -2,9 +2,9 @@
 
 **English** | [简体中文](UNRAID.zh-CN.md)
 
-Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template selects the **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:latest`, following published stable releases with embedded SQLite. No external database is required. Exact version tags such as `0.0.5` remain available.
+Lingshu-Home provides a Docker template for Unraid's Docker Manager and Community Applications. The template selects the **Linux amd64 (x86-64)** image `ghcr.io/zhigege666/lingshu-home:latest`, following published stable releases. Embedded SQLite needs no external database; a new unconfigured instance confirms its storage selection in the browser. Use the exact `0.0.6` tag to pin this version.
 
-These instructions target **0.0.5**, which adds a file-backed Markdown library, bookmark usage notes and optional direct HTTPS. Existing HTTP installations can retain their configuration: document access defaults to disabled and both direct-TLS fields default to empty. Version 0.0.5 applies migration **008**, so back up before upgrading. The language is chosen once and saved in the database; an existing 0.0.1 instance must also follow the language and migration-007 requirements below.
+These instructions target **0.0.6**, which adds repeatable document activity components, configurable login retention, personal profiles, inline category/link editing, category folders and first-run storage selection. The file-backed library, bookmark usage notes and direct HTTPS introduced in 0.0.5 remain available. Existing installations retain their Appdata, document mounts, allowed roots and HTTP/TLS settings; activity needs no new mount or environment variable. Upgrading from 0.0.5 automatically applies migrations **009** and **010**, so back up first. Add components through **Edit page → Add** after upgrading; existing page arrangements are preserved. Navigation without a saved category-preview setting now shows six bookmarks per category, with a folder for the remainder. The language remains saved in the database; an existing 0.0.1 instance must also follow the language and migration-007 requirements below.
 
 ## Install
 
@@ -27,7 +27,7 @@ Open **Docker → Add Container**, select **Lingshu-Home** from the template lis
 | Repository | `ghcr.io/zhigege666/lingshu-home:latest` | Highest published stable version; updates still require pulling and recreating the container. |
 | Network | `bridge` | Publishes Home through a host port. |
 | WebUI port | Host `5180` → container `8080/tcp` | Change the host port if it is already used; keep the container port at `8080`. |
-| Appdata | `/mnt/user/appdata/lingshu-home` → `/data` | Database, saved icons, document metadata, recovery history and instance keys. Retain this mapping during container replacement. |
+| Appdata | `/mnt/user/appdata/lingshu-home` → `/data` | Database, saved `storage.json`, icons, document metadata, recovery history and instance keys. Retain this mapping during container replacement. |
 | Interface language | `en` | Choose `en` or `zh-CN` before the first start or first upgrade from 0.0.1. A saved instance language takes precedence on later starts. |
 | Allowed document roots | `[]` | Advanced, optional `LINGSHU_DOCUMENT_ROOTS` JSON array of container paths. The empty array disables access to document files. Add the corresponding Path mappings separately. |
 | TLS certificate file / TLS private key file | Both empty | Advanced, optional container paths to a matching PEM certificate chain and key. Set both to enable direct HTTPS, or leave both empty for HTTP and HTTPS terminated by a reverse proxy. |
@@ -49,13 +49,17 @@ The template sets Docker's default stop timeout to 30 seconds, drops Linux capab
 
 Open the container's **WebUI** action or visit `http://<Unraid-IP>:5180` using the host port you selected. Unlike the README's loopback-only Docker example, this bridge port mapping makes the service reachable through the Unraid host's network interfaces.
 
+The template leaves the database provider unset. On a fresh instance, select **SQLite** or external **PostgreSQL** before language/account setup. For PostgreSQL, supply the host, port, database, username, password and TLS mode; test the connection, then confirm. Testing writes no application tables or saved credentials. Existing valid SQLite instances and explicit/saved database configuration continue directly. The same `/data` mapping is required with either provider.
+
+The browser-selected target is saved privately in `storage.json`. Keep it with the database and keys when backing up. A selected PostgreSQL connection error opens recovery for that same target; repairing connectivity and retrying does not switch databases. Invalid local configuration or an incomplete legacy SQLite instance stops startup. Choosing a different provider does not copy data. See [storage setup and recovery](STORAGE.md#first-run-storage-setup).
+
 Complete the setup wizard on your trusted network. Choose a site name and access mode, then create an Owner when that mode requires one. There is no default administrator account or password. The default public-browsing mode requires an Owner for changes and keeps personal spaces private. Open editing can be account-free.
 
 For a new Simplified Chinese instance, set **Interface language** to `zh-CN` before the first start. The template defaults to `en`, so its explicit language skips the browser's language-selection page. After the language is saved, changing this field cannot switch it.
 
 ### One-time language and upgrading from 0.0.1
 
-A new instance with an explicit container language saves it once and skips language selection. Without a configured language, its first page asks for English or Simplified Chinese before setup. The interface and optional starter collection use that same language; there is no independent example-language dropdown or later in-page switch.
+After storage is ready, a new instance with an explicit container language saves it once and skips language selection. Without a configured language, its first page asks for English or Simplified Chinese before setup. The interface and optional starter collection use that same language; there is no independent example-language dropdown or later in-page switch.
 
 An initialized 0.0.1 instance saves the language supplied on its first upgraded start, or the old `zh-CN` default if none is supplied. Keep **Interface language** set to the original value during the first 0.0.2 start, especially `en` for an English instance. Once saved in the database, the language survives container replacement with the same Appdata. A conflicting startup value is ignored with a warning while the service keeps running; editing the Unraid field later is not a supported language-change mechanism.
 
@@ -99,13 +103,13 @@ HTTPS protects browser/Agent traffic. It does not encrypt original files at rest
 
 ## Back up, recreate and upgrade
 
-Upgrading an existing 0.0.4 installation to 0.0.5 applies additive migration **008** to SQLite or PostgreSQL. Keep the existing Appdata mapping, runtime identity, language and HTTP/reverse-proxy configuration; neither document mounts nor direct-TLS fields are required for the upgrade. Existing navigation and settings remain in the same database. Older 0.0.1 installations also apply migration 007 and its one-time language rules.
+Upgrading **0.0.5 → 0.0.6** automatically applies additive migrations **009** (activity) and **010** (session retention) to SQLite or PostgreSQL. Upgrading directly from 0.0.4 applies 008 (introduced in 0.0.5), then 009 and 010. Keep the existing Appdata mapping, runtime identity, private `storage.json` or explicit database environment, saved language, document/certificate mounts, allowed roots and HTTP/TLS/reverse-proxy configuration. Navigation, page layouts, document metadata and publication state remain in the same database. No new volume or credentials are needed for the activity components. Older 0.0.1 installations also apply migration 007 and its one-time language rules.
 
 The `/data` directory contains `lingshu-home.db`, `csrf.key` and `integrations.key`, along with SQLite runtime files, the instance lock and `document-history` after document editing. Saved icons, document tags/relations and published snapshots are stored in the database. Back up the **complete dedicated data directory** after stopping Home so the database, history and matching keys stay together. Also back up every mounted original directory and its attachments; appdata does not contain those originals. If you configured PostgreSQL, back up that external database as well. A database-only export or a rescan of the Markdown files cannot replace this combined backup.
 
 To recreate the same version, retain the same Appdata host path, user setting and other configuration. Removing a container does not require removing its appdata.
 
-This template uses `latest`, which follows the highest successfully published stable SemVer release. Drafts and prereleases never become `latest`; fixed tags such as `0.0.5` remain available. An installation pinned to an older exact tag needs a one-time **Repository** change to `ghcr.io/zhigege666/lingshu-home:latest` to follow stable releases. Moving `latest` does not itself update a running container. Use Unraid's update action, or your configured update automation, to pull and recreate it after reviewing the upgrade requirements.
+This template uses `latest`, which follows the highest successfully published stable SemVer release. Drafts and prereleases never become `latest`; exact tags allow version pinning. An installation pinned to an older exact tag needs a one-time **Repository** change to `ghcr.io/zhigege666/lingshu-home:latest` to follow stable releases. Moving `latest` does not itself update a running container. Use Unraid's update action, or your configured update automation, to pull and recreate it after reviewing the upgrade requirements.
 
 An installed container has its own saved template. Updating this repository's template does not replace your configured host paths, language or Repository choice. New optional fields may not appear in that saved configuration; use **Edit** to add the exact Variables and Path mappings above when enabling the new features. There is no need to reinstall Home, delete appdata or replace the complete saved template just to upgrade the image. Check the resulting settings before applying any template refresh.
 
@@ -113,11 +117,11 @@ For a new release:
 
 1. Read its [release notes](https://github.com/zhigege666/Lingshu-Home/releases) and migration requirements.
 2. Stop Home and back up its complete data directory, any external database, and mounted original documents/attachments. Keep the previous image and, for a first upgrade from 0.0.1, retain the original **Interface language** value.
-3. Use `ghcr.io/zhigege666/lingshu-home:latest` in **Repository** to follow stable releases, or a published exact tag such as `ghcr.io/zhigege666/lingshu-home:0.0.5` to pin a version. Retain `/data`, the same Appdata host path, any existing document/certificate mappings and the `--user=99:100` setting.
+3. Use `ghcr.io/zhigege666/lingshu-home:latest` in **Repository** to follow stable releases, or a published exact tag such as `ghcr.io/zhigege666/lingshu-home:0.0.6` to pin a version. Retain `/data`, the same Appdata host path, any existing document/certificate mappings and the `--user=99:100` setting.
 4. Apply a Repository change, or use **Check for Updates → Update** for an existing `latest` installation, so Docker Manager pulls the image and recreates the container.
 5. Check the logs, open the WebUI, sign in and confirm your existing links and settings.
 
-To roll back from 0.0.5 to 0.0.4, stop Home and restore the matching pre-upgrade database/data backup with the old image. Restoring the database does not undo edits to externally mounted files; restore their matching backups separately. Do not point the older image at the migrated database or delete migration-ledger entries. See [storage and rollback](STORAGE.md).
+To roll back from 0.0.6 to 0.0.5, stop Home and restore its matching pre-009/010 database/data, keys and storage/deployment configuration with the 0.0.5 image. Returning farther to 0.0.4 requires its pre-008 backup. Restoring the database does not undo edits to externally mounted files; restore their matching backups separately. Do not point the older image at the migrated database or delete migration-ledger entries. See [storage and rollback](STORAGE.md).
 
 ## Troubleshooting and support
 
