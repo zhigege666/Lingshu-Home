@@ -113,6 +113,8 @@ HTTPS 保护浏览器／Agent 流量，不会加密磁盘上的 Markdown，也�
 
 已安装容器有自己保存的模板。本仓库模板更新不会替换你配置好的宿主机路径、语言或 Repository 选择，新可选字段也可能尚未出现在这份本地配置中。需要启用新功能时，在 **Edit** 中按上文增加准确的 Variable 和 Path 映射即可。只升级镜像不需要重新安装 Home、删除 appdata 或替换整份已保存模板；如果刷新模板，应用前先核对最终配置。
 
+Apps 应用简介或已保存模板可能仍保留旧版文字，它们不代表正在运行的容器版本。升级后，请在管理界面的**关于 Home**页面确认应用版本。如果 Home 仍显示旧版本，检查已安装容器的 **Repository** 和镜像更新结果。仅刷新模板简介不会拉取镜像或重建容器。
+
 升级到新版本时：
 
 1. 阅读该版本的[发行说明](https://github.com/zhigege666/Lingshu-Home/releases)和迁移要求。
@@ -140,6 +142,8 @@ HTTPS 保护浏览器／Agent 流量，不会加密磁盘上的 Markdown，也�
 ## 模板维护
 
 公开安装模板为 [templates/lingshu-home.xml](../templates/lingshu-home.xml)，仓库资料为 [ca_profile.xml](../ca_profile.xml)，均适用仓库的 [Apache-2.0 许可证](../LICENSE)。
+
+模板简介以已支持功能和安装要求为主；当前版本号与迁移步骤统一维护在本指南和发行说明中。模板仓库推送成功仅说明源文件已更新，不能据此认定 Apps 目录或已安装容器保存的模板已刷新。
 
 发布仓库与 Community Applications 收录是两个步骤。通过[官方提交入口](https://ca.unraid.net/submit)提交公开仓库，并按[官方模板文档](https://ca.unraid.net/submit/help/repository-xml)依次执行 **Validate** 和 **Scan**。只有确认商店条目后，才应描述为已经收录。
 

@@ -4,6 +4,11 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+### Unraid template maintenance
+
+- Refresh the installation overview for composable document activity and first-run SQLite/PostgreSQL selection. Replace the stale 0.0.5/migration-008 text with a link to release-specific upgrade guidance, and include external databases in the backup requirements.
+- Clarify in both Unraid guides how to distinguish Apps/saved-template descriptions from the running Home version, and repository publication from catalog refresh. Template runtime settings and published images are unchanged; existing installations can update their image without replacing the complete saved template.
+
 ## [0.0.6] - 2026-10-27
 
 ### Composable document activity

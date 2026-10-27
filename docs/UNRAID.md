@@ -113,6 +113,8 @@ This template uses `latest`, which follows the highest successfully published st
 
 An installed container has its own saved template. Updating this repository's template does not replace your configured host paths, language or Repository choice. New optional fields may not appear in that saved configuration; use **Edit** to add the exact Variables and Path mappings above when enabling the new features. There is no need to reinstall Home, delete appdata or replace the complete saved template just to upgrade the image. Check the resulting settings before applying any template refresh.
 
+An Apps description or saved template may still contain older release text; it does not report the running container's version. Confirm the application version on the management interface's **About Home** page after upgrading. If Home still reports an older version, check the installed container's **Repository** and image-update result. Refreshing the template description alone does not pull an image or recreate the container.
+
 For a new release:
 
 1. Read its [release notes](https://github.com/zhigege666/Lingshu-Home/releases) and migration requirements.
@@ -140,6 +142,8 @@ Report installation questions and reproducible bugs in [GitHub Issues](https://g
 ## Template maintenance
 
 The public installation template is [templates/lingshu-home.xml](../templates/lingshu-home.xml); repository metadata is [ca_profile.xml](../ca_profile.xml). Both are covered by the repository's [Apache-2.0 license](../LICENSE).
+
+Keep the template overview focused on supported features and installation requirements; maintain current version numbers and migration instructions in this guide and the release notes. A push to the template repository confirms the source update, not that the Apps catalog or an installed container's saved template has refreshed.
 
 Repository publication and Community Applications approval are separate steps. Submit the public repository through [the official submission portal](https://ca.unraid.net/submit) and run **Validate**, then **Scan**, as required by the [official template guide](https://ca.unraid.net/submit/help/repository-xml). Only describe an app as listed after checking its catalog entry.
 
