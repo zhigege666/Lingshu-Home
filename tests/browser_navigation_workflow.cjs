@@ -65,7 +65,7 @@ async function applyDialog() {
   await page.waitForFunction(() => document.querySelector('.admin-content-toolbar button[aria-label]')?.disabled === false);
 }
 async function home() { await page.goto(base.origin + '/#/'); await page.locator('.lh-home:not([data-composing])').waitFor(); }
-async function enter() { await button('编辑页面', 'Edit page').click(); await page.locator('.lh-composer-sidebar.is-inspector').waitFor(); await settle(); }
+async function enter() { await page.locator('.lh-edit-menu summary').click(); await button('调整布局', 'Adjust layout').click(); await page.locator('.lh-composer-sidebar.is-inspector').waitFor(); await settle(); }
 async function blurToToolbar() { await toolbar().locator('strong').first().click(); }
 async function saveHome() {
   const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/spaces/' + space.id + '/page' && r.request().method() === 'PUT');
@@ -272,7 +272,7 @@ async function main() {
     await page.route('**/api/v1/dashboard*',delayRead);
     const readStarted=page.waitForRequest(r=>new URL(r.url()).pathname==='/api/v1/dashboard');
     await button('取消','Cancel',toolbar()).click();await readStarted;await page.locator('.lh-composer').waitFor({state:'hidden'});
-    assert.equal(await button('编辑页面','Edit page').isDisabled(),true,'cancel readback blocks immediate editor re-entry');
+    assert.equal(await button('编辑','Edit').isDisabled(),true,'cancel readback blocks immediate editor re-entry');
     const readComplete=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/dashboard');
     releaseRead();assert.equal((await readComplete).status(),200);await page.unroute('**/api/v1/dashboard*',delayRead);
   });

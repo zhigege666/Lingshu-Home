@@ -432,7 +432,7 @@ async function gridInteraction() {
   let failure, saved, restored;
   try {
     step('Enter homepage editing and resize the real favorites panel narrower with the mouse');
-    await page.getByRole('button', { name: '编辑页面', exact: true }).click();
+    await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: '调整布局', exact: true }).click();
     await page.locator('.lh-edit-bar').waitFor({ state: 'visible', timeout: STEP });
     await settle();
     const frame = panel(view.id);

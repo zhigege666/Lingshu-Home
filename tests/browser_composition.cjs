@@ -114,7 +114,7 @@ async function layout() {
   await idle();
 }
 async function editHomepage() {
-  await page.getByRole('button', { name: l('编辑页面', 'Edit page'), exact: true }).click();
+  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   const editor = page.locator('.lh-page-editor[aria-label]');
   await editor.locator('.lh-editor-controls').waitFor({ state: 'visible', timeout: STEP });
   return editor;

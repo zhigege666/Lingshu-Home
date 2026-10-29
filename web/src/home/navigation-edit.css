@@ -1,0 +1,88 @@
+/* Content editing keeps the saved page/theme structure. Controls only exist in
+   this mode; layout handles and external link navigation stay separate. */
+.lh-home .lh-nav-drag-handle,
+.lh-home .lh-nav-edit-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 28px; width: 28px; height: 28px; min-width: 28px;
+  padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--lh-muted); line-height: 1; cursor: pointer;
+}
+.lh-home .lh-nav-drag-handle { cursor: grab; touch-action: none; }
+.lh-home .lh-nav-drag-handle:active,
+.lh-home .lh-nav-drag-handle.is-dragging { cursor: grabbing; color: var(--lh-accent); }
+.lh-home .lh-nav-drag-handle:hover:not(:disabled),
+.lh-home .lh-nav-edit-button:hover:not(:disabled) { color: var(--lh-accent); background: var(--lh-tint); }
+.lh-home .lh-nav-drag-handle:disabled,
+.lh-home .lh-nav-edit-button:disabled { opacity: .4; cursor: default; }
+.lh-home .lh-nav-drag-handle:focus-visible,
+.lh-home .lh-nav-edit-button:focus-visible,
+.lh-home .lh-category-rename:focus-visible { outline: 2px solid var(--lh-accent); outline-offset: 2px; }
+.lh-category-row.is-content-editable { position: relative; border-radius: 7px; }
+.lh-categories[data-content-editing] .lh-category-select { padding-left: 5px; padding-right: 5px; }
+.lh-categories[data-content-editing] .lh-category-node:not(.lh-category-shortcut) .lh-category-name { overflow: hidden; text-overflow: ellipsis; }
+.lh-categories[data-content-editing].is-icons .lh-category-select { padding: 8px; }
+.lh-link-group.is-content-editable { position: relative; }
+.lh-link-group.is-content-editable > .lh-group-heading { min-width: 0; gap: 5px; }
+.lh-link-group.is-content-editable > .lh-group-heading > h2 { min-width: 0; flex: 1; }
+.lh-home .lh-category-rename {
+  display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 0;
+  border: 0; border-radius: 3px; background: transparent; color: inherit;
+  font: inherit; line-height: inherit; text-align: left; cursor: text;
+  overflow-wrap: anywhere;
+}
+.lh-category-rename > svg { flex: none; color: var(--lh-muted); opacity: 0; }
+.lh-category-rename:hover > svg,
+.lh-category-rename:focus-visible > svg { opacity: 1; }
+.lh-home .lh-category-name-input {
+  width: 100%; max-width: 440px; min-width: 0; height: 30px; margin: 0;
+  padding: 3px 6px; border: 1px solid var(--lh-accent); border-radius: 5px;
+  background: var(--lh-surface); color: var(--lh-ink); font: inherit;
+  box-shadow: 0 0 0 2px color-mix(in srgb,var(--lh-accent) 12%,transparent);
+  outline: none;
+}
+.lh-home .lh-category-more { margin-left: auto; }
+.lh-home .lh-navigation-panel[data-link-appearance] .lh-bookmark.is-content-editable:not(.is-directory):hover { transform: none; }
+.lh-home .lh-bookmark.is-content-editable > .lh-nav-drag-handle {
+  position: absolute; z-index: 3; top: 5px; right: 4px;
+  width: 24px; min-width: 24px; height: 25px;
+}
+.lh-home .lh-bookmark.is-content-editable .lh-favorite-indicator {
+  top: auto; bottom: 7px; right: 9px; pointer-events: none;
+}
+.lh-home .lh-bookmark .lh-bookmark-edit-title {
+  width: 100%; padding: 0; border: 0; background: transparent;
+  color: var(--lh-ink); text-align: left; cursor: pointer;
+}
+.lh-bookmark-edit-title::after {
+  content: ''; position: absolute; z-index: 1; inset: 0; border-radius: inherit;
+}
+.lh-bookmark-edit-title:focus-visible { outline: none; }
+.lh-bookmark-edit-title:focus-visible::after { outline: 2px solid var(--lh-accent); outline-offset: -2px; }
+.lh-bookmark-edit-title:disabled { cursor: default; }
+.lh-home .lh-bookmark.is-content-selected { outline: 2px solid var(--lh-accent); outline-offset: -2px; }
+.lh-home .lh-edit-endpoint { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: var(--lh-muted); font-size: 10px; }
+.lh-home .lh-empty-category-target {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  grid-column: 1 / -1; width: 100%; min-height: 64px; padding: 12px;
+  border: 1px dashed var(--lh-line); border-radius: 8px;
+  color: var(--lh-muted); font-size: 12px;
+}
+.lh-link-group.is-content-editable[data-drop-side="inside"] { outline: 2px solid var(--lh-accent); outline-offset: 4px; border-radius: 8px; }
+.lh-home .lh-folder-dialog[data-drop-side="inside"] { outline: 2px solid var(--lh-accent); outline-offset: -2px; }
+.lh-category-row.is-content-editable[data-drop-side="inside"] { background: var(--lh-tint); box-shadow: inset 0 0 0 2px var(--lh-accent); }
+.lh-home .lh-navigation-panel .lh-link-group.is-content-editable[data-drop-side="before"],
+.lh-category-row[data-drop-side="before"],
+.lh-home .lh-navigation-panel .lh-bookmark.is-content-editable[data-drop-axis="y"][data-drop-side="before"] { box-shadow: inset 0 3px 0 var(--lh-accent); }
+.lh-home .lh-navigation-panel .lh-link-group.is-content-editable[data-drop-side="after"],
+.lh-category-row[data-drop-side="after"],
+.lh-home .lh-navigation-panel .lh-bookmark.is-content-editable[data-drop-axis="y"][data-drop-side="after"] { box-shadow: inset 0 -3px 0 var(--lh-accent); }
+.lh-home .lh-navigation-panel .lh-bookmark.is-content-editable[data-drop-axis="x"][data-drop-side="before"],
+.lh-categories.is-horizontal .lh-category-row[data-drop-side="before"] { box-shadow: inset 3px 0 0 var(--lh-accent); }
+.lh-home .lh-navigation-panel .lh-bookmark.is-content-editable[data-drop-axis="x"][data-drop-side="after"],
+.lh-categories.is-horizontal .lh-category-row[data-drop-side="after"] { box-shadow: inset -3px 0 0 var(--lh-accent); }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark.is-content-editable:not(.is-directory) > .lh-nav-drag-handle { top: 2px; right: 2px; }
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-bookmark.is-content-editable:not(.is-directory) .lh-favorite-indicator { bottom: auto; top: 8px; left: 7px; right: auto; }
+@media (forced-colors: active) {
+  .lh-home [data-drop-side], .lh-home .lh-bookmark.is-content-selected { outline: 2px solid Highlight; outline-offset: -2px; }
+  .lh-home .lh-empty-category-target { border-color: CanvasText; }
+}

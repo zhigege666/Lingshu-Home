@@ -146,7 +146,7 @@ async function footer(label) {
   check(value.x > value.viewportWidth * .7 && value.brandCount === 1, `${label}: default project branding is in the bottom-right slot`); details.geometry[label] = value;
 }
 async function enterEditor() {
-  await page.getByRole('button', { name: l('编辑页面', 'Edit page'), exact: true }).click();
+  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   const root = page.locator('.lh-page-editor'); await root.locator('.lh-editor-controls').waitFor({ state: 'visible', timeout: STEP }); await settle(); return root;
 }
 async function fitDraft(root) {

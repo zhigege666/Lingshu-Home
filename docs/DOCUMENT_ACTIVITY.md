@@ -1,12 +1,12 @@
 # Document activity components / 文档活动组件
 
-**Document activity is included in version 0.0.6.** Use its image/executable or build the matching source. The activity store uses migration 009; this release also applies session-retention migration 010 on first start while retaining existing data and document mounts. Existing pages are preserved; upgrading does not automatically add a component or replace the homepage.
+**Document activity has been available since version 0.0.6.** Use the current release's image/executable or build its matching source; the homepage entry below reflects 0.0.7. The activity store uses migration 009; version 0.0.6 also introduced session-retention migration 010. Retain existing data and document mounts when upgrading. Existing pages are preserved; upgrading does not automatically add a component or replace the homepage.
 
-**文档活动从 0.0.6 起提供。** 使用该版本镜像／程序或对应源码构建，活动数据使用迁移 009，本版本首次启动还会执行登录保持迁移 010；保留原数据和文档挂载。已有首页不会自动添加组件或套用固定布局。
+**文档活动从 0.0.6 起提供。** 使用当前发布版本的镜像／程序或对应源码构建，下文首页入口按 0.0.7 说明。活动数据使用迁移 009，0.0.6 同时引入登录保持迁移 010；升级时保留原数据和文档挂载。已有首页不会自动添加组件或套用固定布局。
 
 ## 1 用户体验 / User experience
 
-在首页的**编辑页面 → 添加组件 → 文档活动**中选择一个预设，也可通过管理中心的页面积木编辑器添加。三种入口属于同一组件，可重复添加，每个实例分别保存自己的显示、目录和时间范围设置。
+在首页的**更多编辑选项 → 调整布局 → 添加组件 → 文档活动**中选择一个预设，也可通过管理中心的页面积木编辑器添加。三种入口属于同一组件，可重复添加，每个实例分别保存自己的显示、目录和时间范围设置。
 
 | 添加入口 / Preset | 展示 / Presentation | 默认宽度 / Width |
 | --- | --- | --- |
@@ -14,7 +14,7 @@
 | 热力图与记录 / Heatmap and records | 热力图与所选日期明细 / Heatmap with selected-day details | 24 / 24 列 |
 | 文档月历 / Document calendar | 月历，点击日期查看明细 / Monthly calendar with day details | 12 / 24 列 |
 
-The homepage editor and admin layout editor offer these three repeatable presets. Each instance can change presentation later and keeps its own filters. Width, fit-content/fixed height, position, visibility and locking use the existing layout controls. The defaults above are starting sizes, not fixed layouts. Save the page to persist configuration; ordinary date selection, month navigation and opened details remain temporary. The normal draft Undo/Redo, preview, cancel and revision-checked save still apply.
+Open **More editing options → Adjust layout → Add component → Document activity** on the homepage, or use the admin layout editor, to add one of these three repeatable presets. Each instance can change presentation later and keeps its own filters. Width, fit-content/fixed height, position, visibility and locking use the existing layout controls. The defaults above are starting sizes, not fixed layouts. Save the page to persist configuration; ordinary date selection, month navigation and opened details remain temporary. The normal draft Undo/Redo, preview, cancel and revision-checked save still apply.
 
 悬停日期可查看篇数及新建/更新分类；使用方向键移动日期焦点，Enter 打开明细，Escape 关闭后返回原日期。跨年范围会显示两端年份。窄组件保留原时间范围，通过内部横向滚动显示热力图；固定高度通过内部滚动容纳记录。组件继承当前页面的浅色、深色与主题配色。
 

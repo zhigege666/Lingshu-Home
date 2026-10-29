@@ -4,6 +4,23 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-10-29
+
+### Homepage content editing
+
+- Make **Edit** on the homepage open a content draft for local navigation. Rename categories inline, edit link/category fields in a compact side panel, and use Undo/Redo, cancel or one explicit revision-checked save. Retain drafts on validation failures, concurrent changes and uncertain responses; read back before retrying and recognize already committed changes.
+- Add handle-based sibling category ordering, link ordering and cross-category moves, including empty/uncategorized targets. Preserve complete hidden/paginated link sequences, folder search and paging; keep category subtrees together. Favorites edit original links without creating a separate order.
+- Keep the existing page composer at **More editing options → Adjust layout**. Guard unsaved transitions and retain separate content/page revisions and save histories. Existing creation, deletion, imports and bookmark usage notes remain available through management.
+- Extend atomic navigation editing with stable-ID moves after field patches. Limit requests to 500 operations while returning every normalized affected row, including large sibling groups. Expose `navigation_get` and `navigation_batch_edit` through the existing scoped MCP transport.
+
+### Link click statistics
+
+- Record local bookmark activation counts, first/last click timestamps and daily UTC aggregates independently of navigation and page revisions. Cover ordinary, keyboard, modified/middle and explicit alternate-entry clicks; editing, previews, folder browsing and external snapshots do not create counts. A click records an opening action, not successful remote loading or a unique visitor.
+- Add a signed-in statistics dialog with date/category filters, rankings, zero-click links and pagination, plus a read-only link summary in the content inspector. Expose the same authorized aggregate data through HTTP and `navigation_click_stats` for Agent analysis.
+- Add additive SQLite/PostgreSQL migration `011_link_clicks.sql`. Preserve existing business records and mark the recording baseline; dates before it and in the future are untracked. Group history by current link categories and remove a deleted link's counters with that link.
+- Use server timestamps and 24-hour idempotency receipts without storing visitor identities, IP addresses, user agents or referrers. Browser reporting requires current space read access and CSRF; bearer reporting is rejected. Reading aggregates requires a signed-in account and readable space, with `navigation:read` for PAT/MCP.
+- Keep existing data paths, keys, mounts, storage choices and HTTP/TLS settings. Upgrade counts start at zero without fabricated history. Back up the matching database/data, keys, originals and deployment configuration before upgrading; returning to 0.0.6 requires its pre-011 backup.
+
 ### Unraid template maintenance
 
 - Refresh the installation overview for composable document activity and first-run SQLite/PostgreSQL selection. Replace the stale 0.0.5/migration-008 text with a link to release-specific upgrade guidance, and include external databases in the backup requirements.

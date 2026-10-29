@@ -77,7 +77,7 @@ async function home(reload = false) {
   await page.waitForFunction(() => document.querySelectorAll('.lh-home .lh-bookmark').length > 0, null, { timeout: STEP }); await settle();
 }
 async function enter() {
-  await page.getByRole('button', { name: l('编辑页面', 'Edit page'), exact: true }).click();
+  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   await editor().waitFor({ state: 'visible' }); await toolbar().waitFor({ state: 'visible' }); await settle();
 }
 async function cancel() {

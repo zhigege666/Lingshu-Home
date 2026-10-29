@@ -69,7 +69,7 @@ async function main(){
  assert(auth.ok(),'Fixture login HTTP '+auth.status());
  page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(redact(error.message)));
  page.on('request',request=>{if(request.url().startsWith(BASE+'/api/v1/')&&!['GET','HEAD','OPTIONS'].includes(request.method()))writes.push({method:request.method(),path:new URL(request.url()).pathname})});
- await page.goto(BASE+'/#/',{waitUntil:'domcontentloaded'});await page.locator('.lh-edit-trigger').click();await page.locator('.lh-composer').waitFor();
+ await page.goto(BASE+'/#/',{waitUntil:'domcontentloaded'});await page.locator('.lh-edit-menu summary').click();await page.getByRole('button',{name:/^(调整布局|Adjust layout)$/,exact:true}).click();await page.locator('.lh-composer').waitFor();
  for(const [width,height]of sizes)await check('library_layout_'+width+'x'+height,async()=>{const rail=await openLibrary(width,height);await layout(rail,width,height)});
  for(const [width,height]of [[1600,900],[1000,900],[390,844]])await check('library_help_'+width,async()=>{await help(await openLibrary(width,height))});
  for(const [width,height]of [[1600,900],[1000,900]])for(const kind of ['preset','import'])await check(kind+'_dialog_focus_'+width,()=>dialogFlow(kind,width,height));

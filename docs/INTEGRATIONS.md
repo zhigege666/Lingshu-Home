@@ -1,6 +1,6 @@
 # Integrations, external snapshots, MCP, and GitHub Traffic
 
-This document describes the integration contracts in version 0.0.6. It does not claim that a user's GitHub repository has already been connected. The first successful authorized GitHub synchronization establishes that source's traffic baseline.
+This document describes the integration contracts in version 0.0.7. It does not claim that a user's GitHub repository has already been connected. The first successful authorized GitHub synchronization establishes that source's traffic baseline.
 
 ## Supported sources
 
@@ -26,8 +26,8 @@ Personal access tokens are the intersection of an active account, one space, sel
 
 | Action | Permitted integration operations |
 | --- | --- |
-| `navigation:read` | Read local categories and bookmarks |
-| `navigation:write` | Maintain local categories and bookmarks |
+| `navigation:read` | Read local categories, bookmarks, their navigation revision and aggregate link click statistics |
+| `navigation:write` | Maintain local categories and bookmarks, including atomic field patches and stable-ID moves |
 | `sources:read` | Read source configuration and snapshots; resolve external page bindings |
 | `sources:write` | Create or edit source configuration; rotate a source credential; queue polling |
 | `datasets:write` | Push an external snapshot |
@@ -66,7 +66,7 @@ The `201` response contains `{ "token": "lhp_...", "credential": {...} }`. The c
 
 Home stores only the token's SHA-256 digest. Later GETs do not return the secret or its digest. Mode changes invalidate all existing tokens. Disabling a user or resetting their password invalidates that user's existing tokens. Revocation takes effect at authentication, including queued MCP operations after they acquire the write gate.
 
-Browser login retention does not renew or extend a personal access token. Session-policy, profile/password and browser-session endpoints accept browser authentication only; a PAT cannot use them. Revoking browser sessions leaves separately issued PATs intact, while a password/security-version change invalidates the account's existing PATs. The authorized HTTP `POST /api/v1/spaces/{spaceId}/navigation/batch-edit` endpoint can apply up to 500 per-record category/link patches with `navigation:write`, a matching space and `expectedRevision`; use the [atomic editing contract](API.md#atomic-category-and-link-editing), including readback after an uncertain response.
+Browser login retention does not renew or extend a personal access token. Session-policy, profile/password and browser-session endpoints accept browser authentication only; a PAT cannot use them. Revoking browser sessions leaves separately issued PATs intact, while a password/security-version change invalidates the account's existing PATs. The authorized HTTP `POST /api/v1/spaces/{spaceId}/navigation/batch-edit` endpoint and MCP `navigation_batch_edit` can apply up to 500 category/link patches and moves combined with `navigation:write`, a matching space and `expectedRevision`; use the [atomic editing contract](API.md#atomic-category-and-link-editing), including readback after an uncertain response.
 
 ## Source configuration
 
@@ -262,6 +262,9 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 
 | Tools | Arguments |
 | --- | --- |
+| `navigation_get` | `spaceId`; complete local navigation dataset and revision |
+| `navigation_batch_edit` | `spaceId`, `input` with `expectedRevision` and category/link patches or stable-ID moves |
+| `navigation_click_stats` | `spaceId`, `input` containing optional date, category, link, sort and pagination filters; `{}` uses defaults |
 | `bookmarks_list`, `categories_list` | `spaceId` |
 | `bookmarks_get`, `categories_get` | `spaceId`, `id` |
 | `bookmarks_create`, `categories_create` | `spaceId`, `input` containing the normal CRUD body |
@@ -276,6 +279,56 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 MCP calls invoke the same business handlers and validation as HTTP, in database transactions after acquiring the common write gate. There is no loopback HTTP proxy or unrestricted administrative tool.
 
 New credential creation/expiry timestamps and push receipt `receivedAt` values use UTC microsecond precision, matching both SQLite and PostgreSQL reads. Previously stored immutable request receipts keep their original values.
+
+### Complete navigation and atomic edits
+
+Since 0.0.7, `navigation_get` accepts `{"spaceId":"<space-id>"}` and requires `navigation:read` plus the token account's current read access to that space. Its `structuredContent` is the complete `local-navigation` Dataset: `schemaId:"navigation.collection"`, `schemaVersion:1`, a string `revision`, `data:{categories,links}` and `meta`. It is not an `items` list or a filtered dashboard projection. Read IDs, ownership and the revision from this dataset before preparing an edit; external snapshot IDs are not local navigation IDs.
+
+`navigation_batch_edit` requires `navigation:write` and current write access to the same space. A token used for the complete read/edit workflow needs both navigation actions; existing tokens gain no scopes automatically. Its arguments are:
+
+```json
+{
+  "spaceId": "<space-id>",
+  "input": {
+    "expectedRevision": "42",
+    "categories": [{"id":"<category-id>","patch":{"name":"Tools"}}],
+    "links": [{"id":"<link-id>","patch":{"title":"Portal","categoryId":"<category-id>"}}],
+    "moves": [
+      {"kind":"category","id":"<category-id>","beforeId":null},
+      {"kind":"link","id":"<link-id>","beforeId":"<anchor-link-id>","categoryId":"<category-id>"}
+    ]
+  }
+}
+```
+
+Use the revision actually read and replace every placeholder with an authorized local ID. Unused arrays may be omitted. Category patches allow `name`, `parentId`, `icon` and `sortOrder`; link patches allow `categoryId`, `title`, `url`, `description`, `icon`, `iconMode`, `tags`, `isFavorite`, `sortOrder` and `endpoints`. Omitted fields are retained. This tool does not create/delete rows or edit bookmark usage notes; `contextMarkdown` remains unchanged and has its own revision-checked bookmark tool.
+
+- Apply all field patches first, validate the final category tree, then apply moves in array order. Category moves stay among siblings under the patched `parentId`; use a field patch to change that parent and omit `categoryId` from a category move.
+- Every move requires explicit `beforeId`: a same-group anchor ID places the row immediately before that anchor, while `null` appends. Link moves also require explicit `categoryId`; `null` targets Uncategorized. Anchors must exist in the target group after the field patches and preceding moves. For several dependent moves into one group, arrange the later anchors first, for example by sending the desired sequence from right to left.
+- Submit 1–500 operations across all three arrays. A row may have one patch and one move, counting as two operations; repeated patches or repeated moves for the same entity are rejected. Missing/foreign IDs, self anchors and invalid group references fail the whole batch.
+- Moves operate on complete sibling groups, including hidden or paginated rows. Untouched siblings keep their relative order. A changed group's sort values are normalized, so the response may contain more than 500 affected records even though the request has at most 500 operations.
+
+Success returns `structuredContent:{updatedCount,revision,categories,links}` with every normalized changed row. Merge all returned rows into the next baseline. Actual changes advance the navigation revision once; a normalized no-op leaves the revision and link timestamps unchanged. Page composition has a separate revision and save operation.
+
+A stale revision yields `navigation_version_conflict`, `httpStatus:409` and `currentRevision` in the MCP application error. Any validation, authorization or commit failure rolls back the transaction, including earlier moves. After a timeout or uncertain response, call `navigation_get`, compare the complete result with the intended changes and review any remaining edit before resubmitting. Do not substitute a fresh revision and blindly replay the original request. See the [shared HTTP/MCP atomic contract](API.md#atomic-category-and-link-editing) for validation details.
+
+### Read-only link click statistics
+
+`navigation_click_stats` requires `navigation:read` and the token account's current read access to its scoped space. The equivalent browser read requires a signed-in account even when the homepage is public. This tool returns aggregate local bookmark activations; it has no click-reporting operation, and browser reporting rejects bearer credentials.
+
+Call with `{"spaceId":"<space-id>","input":{}}` for the default last 30 UTC days, or set these optional `input` fields:
+
+| Field | Contract |
+| --- | --- |
+| `from`, `to` | Inclusive `YYYY-MM-DD` UTC dates, spanning 1–366 days. Omitted `to` is today; omitted `from` is 29 days before the selected `to`. |
+| `categoryId` | Omit for all categories; `""` selects Uncategorized; a same-space ID selects that exact current category, without descendants. |
+| `linkId` | Optional local bookmark ID in the same space; combined with any category filter. |
+| `sort` | `clicks` (default, descending count in the range) or `lastClicked` (descending lifetime last-click time), with title/ID ties. |
+| `limit`, `offset` | Default 50 and 0; limit 1–200, offset 0–1,000,000. |
+
+The result is a structured object containing `from`, `to`, `timezone:"UTC"`, `recordedFrom`, `summary`, `days`, `categories`, `items`, `total`, `limit`, `offset` and `hasMore`. Items include zero-click links and their `linkId`, `title`, `url`, current category, `periodClicks`, `totalClicks`, and nullable lifetime `firstClickedAt`/`lastClickedAt`. Only `items` is paginated: summary, daily totals and category aggregates cover the full filtered population. `summary.activeLinks` counts links clicked in the requested range; `summary.neverClickedLinks` counts links with no clicks since recording began.
+
+History starts at `recordedFrom`; its first UTC day can be partial. Daily rows before that baseline or after today have `tracked:false`, not observed zero activity. Counts follow a link's current category, and deleting a link removes its counts. An activation does not establish that the destination loaded or count unique people; no visitor identity, IP, user agent or referrer is collected in these statistics. Editing, previews, hover and external snapshot links do not add counts. Statistics do not change navigation/page revisions or bookmark edit timestamps. See [the complete statistics contract](API.md#link-click-statistics) for result fields and recording semantics.
 
 ## Verification
 

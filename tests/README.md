@@ -4,7 +4,7 @@
 
 本文记录 HTTP、Go 集成、Docker、开发启动器与发布边界的不同验证范围。正式标签打包、GitHub 托管工作流和浏览器交互的状态单独说明；已经通过的服务测试不替代这些检查。
 
-**当前源码 `VERSION` 为 0.0.6，本轮整合文档活动、登录保持、行内编辑、分类文件夹和存储初始化。** 导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
+**当前源码 `VERSION` 为 0.0.7，本轮新增首页分类／链接内容编辑、拖动排序与链接点击统计。** 0.0.6 的文档活动、登录保持、行内编辑、分类文件夹和存储初始化记录保留在对应章节。导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
 
 **0.0.4 开发轮次为分类图标、链接删除、内网获取、弹窗、空间偏好和组件内容设置。** 这些变更已整理到 0.0.4 的日期版本记录；开发时的源码与独立浏览器结果见文末“2026-10-24 开发验收：导航内容与管理交互”，不计入 0.0.2 的既有发布记录。
 
@@ -15,6 +15,81 @@
 `http_smoke.py` 使用 Python 3.10+ 标准库向真实运行的服务发送 HTTP 请求，不导入后端实现。测试会创建随机账号、空间内容、书签和布局，并切换访问模式；**只能对空的、可丢弃的测试数据库执行**。不要使用演示实例或个人正在使用的数据目录。
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
+
+## 首页内容编辑与点击统计：0.0.7
+
+这一轮只针对新内容草稿、原子排序和点击统计的影响范围补充核心、后端与真实浏览器检查。导航修订号、页面修订号和点击统计分别验证；原有历史验收结果继续保留，不合并为一次新的全量通过记录。
+
+### 纯核心与后端定向入口
+
+使用 [README 的源码工具链](../README.md#build-from-source)，从仓库根目录运行两个新增核心脚本：
+
+```bash
+node --test tests/home_content_draft_core.test.mjs tests/link_clicks_core.test.mjs
+```
+
+`home_content_draft_core.test.mjs` 覆盖完整隐藏序列、1001 条同组链接的单次稳定 ID 移动、跨分类／空分类／未分类目标、同级分类与子树、撤销重做、多个移动的锚点顺序、并发读回与已提交识别、删除冲突，以及同排序值重命名和限量组件投影。`link_clicks_core.test.mjs` 覆盖主按钮／键盘／中键激活识别与 UTC 日期范围，两个脚本均不启动服务或写业务数据。
+
+后端从 `server/` 运行以下定向测试：
+
+```bash
+go test ./internal/home -run '^Test(NavigationBatchEditHTTP|NavigationBatchMovesHTTPAndMCP|LinkClicksHTTP|LinkClickStatsInput|LinkClickMigrationPreservesAndRollsBack|SessionMigrationUpgradeChains)$' -count=1
+```
+
+其中导航测试检查补丁先于移动、完整同组排序、跨分类与未分类、500 次请求操作边界、归一化返回超过 500 行、无变化保存、HTTP/MCP 权限、旧修订号和晚失败整体回滚。点击测试检查上报与读取权限、重复回执、日期／分类／分页口径、零点击、记录基线、删除和导航修订号隔离；迁移测试检查 011 的原数据保留与失败回滚，并复核旧正式版本及未发布会话迁移的升级链。
+
+SQLite 分支使用测试自行创建的临时数据库；真实 PostgreSQL 分支分别使用以下专用变量，均不得指向业务库或浏览器 fixture 的数据库：
+
+| 环境变量 | 本轮使用的测试 |
+| --- | --- |
+| `LINGSHU_TEST_STORAGE_POSTGRES_URL` | `TestNavigationBatchEditHTTP`、`TestNavigationBatchMovesHTTPAndMCP`、`TestLinkClicksHTTP` |
+| `LINGSHU_TEST_DOCUMENT_POSTGRES_URL` | `TestLinkClickMigrationPreservesAndRollsBack`、`TestSessionMigrationUpgradeChains` |
+
+这些测试在各自专用数据库内创建随机 schema，账号需要创建 schema 的权限，退出时只清理自己创建的 schema。`TestLinkClickStatsInput` 是输入边界检查，不需要数据库。未配置变量时对应 PostgreSQL 分支明确跳过，不能记录为 PostgreSQL 通过。
+
+### 首页内容与点击统计浏览器脚本
+
+`browser_home_content_edit.cjs` 与 `browser_link_clicks.cjs` 只用于专用、可丢弃的 loopback HTTP fixture。`UI_FIXTURES` 指向私有 JSON 对象，其 `sqlite`／`postgres` 项分别提供 `url`、随机 Owner `username`／`password` 和测试共享空间 ID `shared`。URL 使用 `http://127.0.0.1:<port>` 或 `http://localhost:<port>`，不带凭据、查询或片段。实例 `siteName` 必须精确为 `Release UI fixture sqlite` 或 `Release UI fixture postgres`，并使用 `private_multi` 或 `public_read` 模式；不能仅给个人实例改名后复用。先用本轮构建启动、初始化对应独立数据目录／数据库，再执行脚本。
+
+安装 Playwright、Chromium 和中文字体后，从仓库根目录顺序运行：
+
+```bash
+export UI_FIXTURES=/absolute/path/to/private-fixtures.json
+export PLAYWRIGHT_MODULE=/absolute/path/to/playwright
+export CHROMIUM_PATH=/absolute/path/to/chromium
+
+OUTPUT_DIR=/absolute/path/to/private-results/home-content \
+node tests/browser_home_content_edit.cjs
+
+OUTPUT_DIR=/absolute/path/to/private-results/link-clicks \
+node tests/browser_link_clicks.cjs
+```
+
+`UI_FIXTURES` 和 `OUTPUT_DIR` 必填；`PLAYWRIGHT_MODULE` 默认解析 `playwright`，`CHROMIUM_PATH` 未设置时使用 Playwright 安装的浏览器。默认遍历 fixture 对象中的提供方，也可用 `UI_PROVIDER=sqlite` 或 `UI_PROVIDER=postgres` 限定一次定向运行。**两个脚本必须顺序执行，前一个结束后才启动后一个：它们都会创建自己的导航样例并替换测试共享空间的页面布局，不能并发操作同一个 fixture。** 脚本保留样例和最终页面供复查，不自动恢复或清理；报告、截图、凭据文件均不提交到源码或发行包。
+
+首页内容脚本检查真实编辑入口、分类重命名、链接字段和键盘操作、撤销重做、显式原子保存、拖动手柄、文件夹分页和过滤隐藏项、跨分类及空目标、400／409／响应丢失和已成功提交后的刷新失败、离开保护及独立布局编辑、四种桌面尺寸和深色界面、只读用户拒绝。拖动使用真实鼠标触发原生 draggable 手柄，不通过注入 drag/drop 事件或直接改 DOM 状态代替交互。
+
+点击脚本使用同一测试实例的 `/health` 作为目标，检查真实主按钮、Enter、修饰键、中键和显式备用入口的单次计数，以及悬停／焦点／右键／文件夹／编辑／预览／外部快照不计数。还检查统计失败不阻止打开、不自动重试、日期与分类筛选、零点击和最近点击、未记录／未来日期展示、四种桌面尺寸，以及匿名统计拒绝。匿名公开点击只有 `public_read` fixture 会实际执行；`private_multi` 的拒绝记录不能代替这一分支。
+
+分别查看 `OUTPUT_DIR/home-content-edit-report.json`、`OUTPUT_DIR/link-clicks-report.json` 及真实截图，按报告中的提供方、检查组、条件分支和实际源码记录结果。脚本存在、断言数量或成功构建均不等于浏览器验收完成。
+
+### 2026-10-29 定向开发验证记录（UTC）
+
+以下只记录本轮已经实际完成的检查，后续修正与未完成场景按新证据补记，不外推为 GitHub CI、正式镜像或 Release 已通过。
+
+| 范围 | 已有实际结果与边界 |
+| --- | --- |
+| 新增纯核心 | 两个脚本共 18 项通过：首页内容草稿 16 项、点击识别与日期 2 项 |
+| 构建 | TypeScript 检查、Vite 生产构建和 Go 构建通过 |
+| SQLite 定向后端 | 上述导航批量编辑／移动、点击统计输入与 HTTP、011 迁移保留／回滚和旧版本升级链通过 |
+| PostgreSQL 定向后端 | 在真实专用 PostgreSQL 中执行相应运行与迁移分支通过，未将缺少变量的跳过计作通过 |
+| 首页内容浏览器 | SQLite 独立 fixture 的 10 组全部通过，涵盖原子保存、真实鼠标跨组拖动、子树与隐藏项、键盘与历史、400／409、请求及响应丢失、提交后刷新失败恢复、离开保护、独立布局编辑与只读拒绝；应用未捕获异常为 0 |
+| 点击浏览器 | SQLite `public_read` 独立 fixture 的 7 组全部通过，普通点击、Enter、纯 Ctrl 点击、中键及三类备用入口每次真实打开且只计一次；匿名公开点击分支实际执行，统计失败仍能打开，编辑／预览／外部快照不计数 |
+| 统计日期与最终样式 | 另做 4 项精准浏览器检查：未来区间为未知、切回已观测的零点击仍为 0、加载既有布局编辑样式后的浅色／深色内容面板文字与摘要边距；累计次数未变且没有业务写请求 |
+| 四种桌面尺寸 | 首页编辑和统计页均检查 2560×1440、1920×1080、1600×900、2560×1080；真实截图、无横向溢出及操作区域边界通过，另检查深色内容面板 |
+| 点击统计真实进程重启 | 停止并重启自建 SQLite fixture，13 次累计点击及完整统计响应保留；183 条链接的内容、导航修订号、页面配置／修订号与登录会话保留。导航比较排除每次读取都会更新的 `receivedAt`／`lastSuccessAt` 信封元数据 |
+
+浏览器脚本初次运行暴露了懒加载空间选择、后台页焦点与拖动前滚动的自动化准备问题，原失败报告保留。拖动检查最终使用真实鼠标先触发 `dragstart` 再滚动至目标，不合成拖放事件，也不跳过纯 Ctrl／中键开页断言。截图复核另外修正了深色面板文字被全局管理样式覆盖、点击摘要贴边的问题，并只追加对应的精准复核。以上开发证据不代替发布标签工作流、实际产物校验和匿名镜像拉取。
 
 ## 文档活动组件：0.0.6
 

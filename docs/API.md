@@ -180,7 +180,7 @@ Policy, renewal and revocation use transactions. Handler or commit failure rolls
 | `POST /spaces/{spaceId}/links/batch` | Atomically move, tag or favorite selected bookmarks (since 0.0.2), or delete them (since 0.0.4; see below) |
 | `PUT /spaces/{spaceId}/links/{id}` | Replace a bookmark's editable fields |
 | `DELETE /spaces/{spaceId}/links/{id}` | Delete that bookmark |
-| `POST /spaces/{spaceId}/navigation/batch-edit` | Atomically save 1–500 per-record category/link patches with `expectedRevision`; see [atomic editing](#atomic-category-and-link-editing) |
+| `POST /spaces/{spaceId}/navigation/batch-edit` | Atomically save 1–500 category/link patches and stable-ID moves with `expectedRevision`; see [atomic editing](#atomic-category-and-link-editing) |
 | `GET /spaces/{spaceId}/export?format=json\|html` | Download local authorized navigation |
 
 Category input is `{name,icon,parentId,sortOrder}`. Returned categories also contain `id` and `spaceId`. Parent IDs are nullable and must belong to the same space. Hierarchies are acyclic and limited to 32 levels.
@@ -291,7 +291,7 @@ A stale revision returns HTTP 409 with `code:"navigation_version_conflict"`. Rel
 
 ## Atomic category and link editing
 
-`POST /api/v1/spaces/{spaceId}/navigation/batch-edit` edits different fields on different records in one transaction. It accepts 1–500 category/link patches combined; either array may be omitted. It retains the existing space permissions, scoped `navigation:write` PAT rules and Cookie CSRF checks.
+`POST /api/v1/spaces/{spaceId}/navigation/batch-edit` edits different fields on different records in one transaction. It accepts 1–500 operations combined across `categories`, `links` and optional `moves`; unused arrays may be omitted. It retains the existing space permissions, scoped `navigation:write` PAT rules and Cookie CSRF checks.
 
 ~~~json
 {
@@ -303,11 +303,72 @@ A stale revision returns HTTP 409 with `code:"navigation_version_conflict"`. Rel
 
 Category patch fields: `name`, `parentId`, `icon`, `sortOrder`. Link patch fields: `categoryId`, `title`, `url`, `description`, `icon`, `iconMode`, `tags`, `isFavorite`, `sortOrder`, `endpoints`. Omitted fields are retained. Only nullable category references accept null; false, zero and empty arrays are explicit values. Empty patches, unknown fields, duplicate IDs and references outside the space are rejected. Entity/row/field details accompany validation errors when applicable.
 
+Since 0.0.7, `moves` supports stable anchors without sending every hidden or paginated sibling:
+
+```json
+{
+  "expectedRevision": "42",
+  "links": [{"id":"link-id","patch":{"title":"Portal","categoryId":"category-id"}}],
+  "moves": [
+    {"kind":"category","id":"category-id","beforeId":null},
+    {"kind":"link","id":"link-id","beforeId":"anchor-link-id","categoryId":"category-id"}
+  ]
+}
+```
+
+Apply all field patches first, then moves in array order. Each move requires `kind`, `id` and explicit `beforeId` (`null` appends). Link moves also require explicit `categoryId` (`null` means Uncategorized); their anchor must be in that category after previous moves. Category moves must omit `categoryId` and use an anchor sharing their final `parentId`; change a parent through its field patch. Reject self anchors, unknown/foreign IDs, missing required fields and repeated moves of the same entity. A row can have both one patch and one move; those count as two request operations.
+
+Moves operate on complete same-space sibling groups. Existing untouched siblings retain relative order, and a changed group's sort values are normalized to distinct integers. A true no-op preserves old sort values, timestamps and revision. Responses can include more than 500 affected records when one move normalizes a large group; the 500 limit is on submitted operations. Clients must merge every returned row into their new baseline. The hierarchy and link ownership remain independent from page composition.
+
+MCP `navigation_get` returns the same complete local dataset/revision; `navigation_batch_edit` accepts `{spaceId,input:{expectedRevision,categories?,links?,moves?}}` and invokes this same atomic handler. Never derive write IDs or missing sibling order from a filtered dashboard or external snapshot. A late validation error or stale revision cannot partially apply earlier moves.
+
 The final merged category tree must have same-space parents, no cycles and at most 32 levels. Valid simultaneous reparenting is checked against that final tree. A stale navigation revision returns `409 navigation_version_conflict` with `currentRevision`. Any validation, authorization or commit failure rolls back the entire batch.
 
 Success returns `{updatedCount,revision,categories,links}`; the arrays contain only normalized changed rows. Actual changes advance the dataset revision once. A normalized no-op leaves revision, timestamps and icon jobs unchanged. Existing automatic-icon behavior is preserved for URL/icon changes; ordinary title/tag edits do not reset an icon or schedule a fetch. Existing `contextMarkdown` usage notes are retained and remain editable through the dedicated bookmark-context endpoint.
 
 The frontend retains drafts across both lists, filters and pages. More settings apply locally to the draft. Network uncertainty and conflicts require a fresh read and explicit conflict resolution, without automatic retries. Successfully committed fields detected on readback are removed from the draft. Drafts are memory-only and scoped to the account and space.
+
+## Link click statistics
+
+Available since 0.0.7 with additive migration `011_link_clicks.sql` on SQLite and PostgreSQL. Statistics are separate from navigation content, link timestamps and page revisions. A click means a browser activated a local bookmark or explicit alternate entry, not that the destination loaded, that a unique person visited it, or that an external system used it.
+
+| Operation | Contract |
+| --- | --- |
+| `POST /api/v1/spaces/{spaceId}/links/{linkId}/clicks` | Browser Cookie/anonymous request with current space read permission and CSRF; `{eventId,entry}`; returns `{recorded:true}` or `{recorded:false}` for a duplicate |
+| `GET /api/v1/spaces/{spaceId}/navigation/click-stats` | Signed-in, current space read access; PAT additionally requires `navigation:read`; returns aggregate statistics below |
+| MCP `navigation_click_stats` | `{spaceId,input:{...filters}}`, same read-only authorization and result; `input:{}` selects defaults |
+
+Reporting rejects Bearer/PAT credentials and has no MCP write tool. Ordinary click, keyboard Enter, Ctrl/Meta click and middle click count once; explicit internal/external/additional entrances count for their parent link. Right click, hover, prefetch/probes, folder browsing, content/layout editing and all previews do not count. External navigation snapshot links are not local reporting targets. A reporting failure does not block opening a bookmark and is not automatically retried.
+
+`eventId` is a random 16–128 character string matching `[A-Za-z0-9][A-Za-z0-9_-]{15,127}`; the UI uses a random UUID. `entry` is `primary`, `internal`, `external` or `additional`. Server UTC time determines the day. Within 24 hours, a repeated `(spaceId,eventId)` for the same link and entry is a no-op; reusing it for another activation returns 409. Expired receipts are cleaned on subsequent valid reporting. This is a bounded idempotency window, not permanent event replay protection. Requests validate link membership in the authorized space and atomically increment counters; no visitor IDs, IPs, user agents, referrers or client timestamps are stored in these tables.
+
+Read filters:
+
+| Field | Meaning |
+| --- | --- |
+| `from`, `to` | Inclusive UTC dates `YYYY-MM-DD`; default 30 days through today; 1–366 days |
+| `categoryId` | Omit for all; empty string for Uncategorized; a same-space ID for that exact current category |
+| `linkId` | Optional same-space local link ID |
+| `sort` | `clicks` (descending range count, default) or `lastClicked` (descending all-time last click); deterministic title/ID ties |
+| `limit`, `offset` | Default 50; limit 1–200; offset 0–1,000,000 |
+
+Repeated or unknown HTTP query parameters are rejected. Categories are exact, not recursive; clients can aggregate a subtree explicitly. Read responses use `Cache-Control: no-store` and contain:
+
+```text
+{
+  from, to, timezone: "UTC", recordedFrom,
+  summary: {periodClicks,totalClicks,links,activeLinks,neverClickedLinks},
+  days: [{date,count,tracked}],
+  categories: [{categoryId,categoryName,periodClicks,totalClicks,links}],
+  items: [{linkId,title,url,categoryId,categoryName,periodClicks,totalClicks,
+           firstClickedAt,lastClickedAt}],
+  total,limit,offset,hasMore
+}
+```
+
+`items` includes links with zero clicks; `summary`, `days` and `categories` cover the complete filtered population, not just the current page. `activeLinks` counts links with a positive range count; `neverClickedLinks` counts links with no recorded lifetime clicks. Lifetime timestamps are `null` until the first recorded click and are not restricted to the requested date range. Empty/unknown category names are represented by an empty string for Uncategorized.
+
+`recordedFrom` is the migration's exact start instant. Days before that baseline or after today have `tracked:false`; their numeric zero is not an observation. The first day and current day may be partial. No historical clicks are inferred from link timestamps. Counters follow stable link IDs when links are renamed or moved, and category aggregates use current membership, not historical membership. Deleting a link cascades its aggregates/receipts; results describe surviving links. JSON/HTML bookmark export does not include these statistics; the matching database backup preserves them. Aggregate access is unavailable to anonymous users even when anonymous clicks on a published shared space are counted.
 
 ## Pages, bindings and layouts
 
@@ -382,7 +443,7 @@ Each `builtin/navigation` or `builtin/favorites` view accepts the following opti
 
 This content-setting group is available only for navigation and favorites. Category navigation retains its separate `showCounts` setting described below; the other content keys are not accepted on that panel, search or unrelated panels. The current page Schema 2 and database schema remain unchanged.
 
-The homepage path is **Edit page → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
+The homepage path is **More editing options → Adjust layout → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
 
 ### Category folder presentation
 

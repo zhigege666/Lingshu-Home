@@ -80,7 +80,7 @@ async function geometry(label) {
   equal(value.cards.length, 4, `${label}: four data cards render`);
   for (const card of value.cards) { check(card.width > 150 && card.height > 60, `${label}: usable card bounds`); check(!card.overflow, `${label}: card content stays within its width`); }
 }
-async function enterEditor() { await page.getByRole('button', { name: l('编辑页面', 'Edit page'), exact: true }).click(); await page.locator('.lh-composer').waitFor({ timeout }); }
+async function enterEditor() { await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); await page.locator('.lh-composer').waitFor({ timeout }); }
 async function library() { await page.locator('.lh-composer-library-toggle').click(); await page.locator('.lh-composer-library-items').first().waitFor({ timeout }); }
 async function importTemplate() {
   await library(); await page.getByRole('button', { name: l('导入组件模板', 'Import template'), exact: true }).click();

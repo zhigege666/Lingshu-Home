@@ -138,7 +138,7 @@ async function home(reload = false) {
   await page.locator('.lh-bookmark-title').filter({ hasText: prefix + ' 保留的导航书签' }).first().waitFor();
   await settle();
 }
-async function enterEditor() { await button('编辑页面', 'Edit page').click(); await editor().waitFor(); await inspector().waitFor(); await settle(); }
+async function enterEditor() { await page.locator('.lh-edit-menu summary').click(); await button('调整布局', 'Adjust layout').click(); await editor().waitFor(); await inspector().waitFor(); await settle(); }
 async function layerIds() { return library().locator('[data-composer-layer]').evaluateAll(nodes => nodes.map(node => node.dataset.composerLayer)); }
 async function addPreset(presentation) {
   const before = await layerIds();

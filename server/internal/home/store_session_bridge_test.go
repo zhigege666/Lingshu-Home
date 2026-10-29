@@ -152,8 +152,12 @@ func TestSessionMigrationUpgradeChains(t *testing.T) {
 					}
 				}
 				var total, legacy int
-				if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&total); err != nil || total != 10 {
-					t.Fatalf("expected the complete ten-migration chain: %d %v", total, err)
+				migrations, err := migrationFiles.ReadDir("migrations/" + store.Provider)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&total); err != nil || total != len(migrations) {
+					t.Fatalf("expected the complete migration chain: %d of %d %v", total, len(migrations), err)
 				}
 				if err := db.QueryRow(store.Query("SELECT COUNT(*) FROM schema_migrations WHERE version=?"), legacySessionMigration).Scan(&legacy); err != nil || legacy != 0 {
 					t.Fatal("unpublished ledger entry was not reconciled", err)

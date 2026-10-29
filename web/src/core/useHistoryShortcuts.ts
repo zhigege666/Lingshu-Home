@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-type Options = { enabled: boolean; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; ownerWindow?: Window }
+type Options = { enabled: boolean; undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; ownerWindow?: Window; allowNonModalDialogs?: boolean }
 export function useHistoryShortcuts(options: Options) {
   const latest = useRef(options)
   latest.current = options
@@ -15,7 +15,7 @@ export function useHistoryShortcuts(options: Options) {
       if (key !== 'z' && !redo) return
       const target = event.target as Element | null
       if (target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"],[role="spinbutton"]')) return
-      if ([...ownerWindow.document.querySelectorAll('[role="dialog"],[role="alertdialog"]')].some(dialog => dialog.getClientRects().length)) return
+      if ([...ownerWindow.document.querySelectorAll('[role="dialog"],[role="alertdialog"]')].some(dialog => dialog.getClientRects().length && !(current.allowNonModalDialogs && dialog.getAttribute('aria-modal') === 'false'))) return
       event.preventDefault()
       if (redo ? current.canRedo : current.canUndo) (redo ? current.redo : current.undo)()
     }

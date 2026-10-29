@@ -18,9 +18,10 @@ type navigationEditRow struct {
 	Patch json.RawMessage `json:"patch"`
 }
 type navigationEditInput struct {
-	ExpectedRevision string              `json:"expectedRevision"`
-	Categories       []navigationEditRow `json:"categories"`
-	Links            []navigationEditRow `json:"links"`
+	ExpectedRevision string               `json:"expectedRevision"`
+	Categories       []navigationEditRow  `json:"categories"`
+	Links            []navigationEditRow  `json:"links"`
+	Moves            []navigationEditMove `json:"moves"`
 }
 type navigationEditLink struct {
 	Old        Link
@@ -39,9 +40,9 @@ func (a *App) batchEditNavigation(r *Request) (*Response, error) {
 	if err = r.decode(&input); err != nil {
 		return nil, err
 	}
-	count := len(input.Categories) + len(input.Links)
+	count := len(input.Categories) + len(input.Links) + len(input.Moves)
 	if count == 0 || count > maxBatchLinks {
-		return nil, invalid(fmt.Sprintf("A batch must contain between 1 and %d rows.", maxBatchLinks))
+		return nil, invalid(fmt.Sprintf("A batch must contain between 1 and %d field patches and moves combined.", maxBatchLinks))
 	}
 	revision := strconv.FormatInt(space.DataRevision, 10)
 	if input.ExpectedRevision == "" {
@@ -65,6 +66,7 @@ func (a *App) batchEditNavigation(r *Request) (*Response, error) {
 	changedCategories := make([]Category, 0)
 	changedLinks := make([]Link, 0)
 	drafts := make([]navigationEditLink, 0)
+	canonicalByID := map[string]string{}
 	edited := map[string]bool{}
 	seenLinks := map[string]bool{}
 	for _, row := range input.Categories {
@@ -116,9 +118,6 @@ func (a *App) batchEditNavigation(r *Request) (*Response, error) {
 		next := old
 		next.Name, next.Icon, next.ParentID, next.SortOrder = in.Name, in.Icon, in.ParentID, in.SortOrder
 		categories[row.ID] = next
-		if old.Name != next.Name || old.Icon != next.Icon || old.SortOrder != next.SortOrder || !navigationEditSameID(old.ParentID, next.ParentID) {
-			changedCategories = append(changedCategories, next)
-		}
 	}
 	if err = navigationEditCategoryTree(categories, edited); err != nil {
 		return nil, err
@@ -192,9 +191,33 @@ func (a *App) batchEditNavigation(r *Request) (*Response, error) {
 		next.CategoryID, next.Title, next.URL, next.Description = in.CategoryID, in.Title, in.URL, in.Description
 		next.Icon, next.IconMode, next.Tags = in.Icon, string(in.IconMode), in.Tags
 		next.IsFavorite, next.SortOrder, next.Endpoints = in.IsFavorite, in.SortOrder, in.Endpoints
-		if !navigationEditSameLink(old, next) {
-			drafts = append(drafts, navigationEditLink{Old: old, Next: next, Canonical: canonical, IconIntent: old.URL != next.URL || old.Icon != next.Icon || old.IconMode != next.IconMode})
+		links[row.ID] = next
+		canonicalByID[row.ID] = canonical
+	}
+	if err = navigationEditMoves(input.Moves, categories, links, r.Settings.Language); err != nil {
+		return nil, err
+	}
+	// Compare only the final state. Moves can normalize a complete sibling group,
+	// including records outside the client's visible page, without a full write payload.
+	for _, old := range data.Categories {
+		next := categories[old.ID]
+		if old.Name != next.Name || old.Icon != next.Icon || old.SortOrder != next.SortOrder || !navigationEditSameID(old.ParentID, next.ParentID) {
+			changedCategories = append(changedCategories, next)
 		}
+	}
+	for _, old := range data.Links {
+		next := links[old.ID]
+		if navigationEditSameLink(old, next) {
+			continue
+		}
+		canonical, exists := canonicalByID[old.ID]
+		if !exists {
+			canonical, err = canonicalURL(next.URL)
+			if err != nil {
+				return nil, err
+			}
+		}
+		drafts = append(drafts, navigationEditLink{Old: old, Next: next, Canonical: canonical, IconIntent: old.URL != next.URL || old.Icon != next.Icon || old.IconMode != next.IconMode})
 	}
 	for _, c := range changedCategories {
 		result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE categories SET parent_id=?,name=?,icon=?,sort_order=? WHERE id=? AND space_id=?"), nullableID(c.ParentID), c.Name, c.Icon, c.SortOrder, c.ID, space.ID)

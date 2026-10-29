@@ -264,6 +264,7 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 			tools, _ := anonymous.mcp(full, "tools/list", map[string]any{}, 200)
 			expectedTools := map[string]bool{}
 			for _, name := range []string{
+				"navigation_get", "navigation_batch_edit", "navigation_click_stats",
 				"bookmarks_list", "bookmarks_get", "bookmarks_create", "bookmarks_update", "bookmarks_context_update", "bookmarks_delete",
 				"categories_list", "categories_get", "categories_create", "categories_update", "categories_delete",
 				"dashboard_get", "sources_list", "sources_get", "sources_create", "sources_update", "sources_snapshot_get", "sources_snapshot_push", "sources_sync",

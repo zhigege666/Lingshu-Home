@@ -373,6 +373,8 @@ func (a *App) registerRoutes() {
 	a.route("PUT /api/v1/admin/users/{id}", true, a.updateUser)
 	a.route("GET /api/v1/dashboard", false, a.dashboard)
 	a.route("GET /api/v1/spaces/{spaceId}/navigation", false, a.getNavigation)
+	a.route("GET /api/v1/spaces/{spaceId}/navigation/click-stats", false, a.getLinkClickStats)
+	a.route("POST /api/v1/spaces/{spaceId}/links/{linkId}/clicks", true, a.recordLinkClick)
 	a.route("POST /api/v1/spaces/{spaceId}/navigation/batch-edit", true, a.batchEditNavigation)
 	a.route("PUT /api/v1/spaces/{spaceId}", true, a.updateSpace)
 	a.route("PUT /api/v1/spaces/{spaceId}/page", true, a.updatePage)

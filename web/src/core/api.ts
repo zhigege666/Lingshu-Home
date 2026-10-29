@@ -5,7 +5,7 @@ let csrf = ''
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details: Record<string, unknown> = {}) { super(message); this.name = 'ApiError' }
 }
-export type RequestOptions = { method?: string; body?: unknown; signal?: AbortSignal }
+export type RequestOptions = { method?: string; body?: unknown; signal?: AbortSignal; keepalive?: boolean }
 const sessionRequest = createSessionRequestQueue()
 const sessionRead = createSessionReadGuard()
 export function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -20,7 +20,7 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) headers['X-CSRF-TOKEN'] = csrf
-  const response = await fetch('/api/v1' + path, { method, credentials: 'same-origin', headers, signal: options.signal, body: options.body === undefined ? undefined : JSON.stringify(options.body) })
+  const response = await fetch('/api/v1' + path, { method, credentials: 'same-origin', headers, signal: options.signal, keepalive: options.keepalive, body: options.body === undefined ? undefined : JSON.stringify(options.body) })
   const data = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) throw new ApiError(response.status, data?.code || 'request_failed', data?.message || t("请求失败（{status}）", "Request failed ({status})", { status: response.status }), data || {})
   return data as T

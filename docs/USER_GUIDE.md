@@ -2,9 +2,9 @@
 
 **English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
 
-This guide covers **Lingshu-Home 0.0.6**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.6/tests/README.md).
+This guide covers **Lingshu-Home 0.0.7**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.7/tests/README.md).
 
-The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.6/tests/README.md).
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.7/tests/README.md).
 
 ## 1. Start and initialize an instance
 
@@ -128,6 +128,26 @@ Link and category lists start at **25 rows per page**. Select 25, 50 or 100 at t
 This is pagination of the authorized navigation snapshot already loaded by the browser. It limits mounted table rows; it is not server-side paging, streaming or an infinite “load more” list. Link-list search covers title, main URL, description and tags. Category search includes the parent path. Reload the page to read changes made elsewhere.
 
 ## 3. Maintain categories and links
+
+### Edit categories and links on the homepage
+
+Since 0.0.7, the homepage **Edit** action opens a content draft for readers with maintenance permission:
+
+1. Click a category name to rename it inline, or use its settings button for its icon/parent. Handles reorder sibling categories; the whole subtree follows a parent.
+2. Click a link name to open a compact inspector for title, URL, category, tags and favorite state. Expand additional fields for description, icons and alternate URLs. The inspector also shows recorded lifetime clicks and last-click time.
+3. Drag link handles within a category or into another, empty or Uncategorized group. Search and page through folders without truncating hidden records or losing their relative order. Favorite cards edit the same original link without a separate favorite order.
+4. Keep all changes in one memory draft, then Undo/Redo, Cancel or **Save**. Ctrl/Cmd+S uses the same save. Enter/Shift+Enter moves between fields without interfering with IME composition. Position buttons provide a non-drag alternative.
+5. One save submits fields and order atomically. Validation retains input; conflicts or an uncertain response require **Read latest and compare**. Explicitly choose conflicts; already committed changes are not replayed. A successful save with failed refresh keeps the confirmed result visible and offers another read.
+
+A draft accepts 500 patch/move operations; editing fields and moving one record can consume two operations. Creation, deletion, imports and bookmark usage notes keep their established management paths. Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **More editing options → Adjust layout**. Content editing does not save layout, theme or component placement.
+
+### View click statistics
+
+Signed-in readers can select **Statistics** on Home, choose the last 7/30/90 days or a custom UTC range, filter categories and sort by range clicks or last click. The table includes period/lifetime counts and last-click times, including zero-click links. Summaries cover the full filtered population, independently of pagination. Link inspectors read the same statistics.
+
+Counts represent local bookmark activations, including alternate entrances, keyboard Enter and modified/middle clicks; they are not proof of a successful destination load or unique visitors. Editing, previews, hover, probes and folder browsing do not count, and external snapshots are excluded. Reporting failures do not block navigation. Recording begins at the upgrade baseline; earlier usage is unknown and the first/current day may be partial. Categories describe current membership; deleting a link removes its counters.
+
+Agents with this space's `navigation:read` scope can use `navigation_click_stats` for date comparisons, category analysis and zero-click records. Preserve the returned recording baseline and tracked-day flags when interpreting results. Aggregate reads require sign-in and space read permission; anonymous public-shared browsing can report clicks but cannot read statistics. The statistics tables store no visitor identities, IPs, browser identifiers or referrers. See the [API counting contract](API.md#link-click-statistics).
 
 ### Categories
 
@@ -256,7 +276,7 @@ The page is composed from source bindings, components and placements. Changing l
 
 ### Edit directly on the homepage
 
-With edit permission, select **Edit page** on the homepage. The ordinary site header is replaced by a dedicated editing toolbar, so the workspace is available for composition:
+With edit permission, choose **More editing options → Adjust layout** on the homepage. The ordinary site header is replaced by a dedicated editing toolbar, so the workspace is available for composition:
 
 | Part | Use |
 | --- | --- |
@@ -337,7 +357,7 @@ For exact X/Y, grid dimensions, region order or sticky behavior, the admin's **L
 
 ### Add document activity components
 
-In **Edit page → Add → Document activity**, choose **Document heatmap**, **Heatmap and records** or **Document calendar**. Add any preset repeatedly and arrange it with the existing grid controls; the admin layout editor offers the same presets and settings. Existing pages are preserved until you explicitly add and save components.
+In **More editing options → Adjust layout → Add → Document activity**, choose **Document heatmap**, **Heatmap and records** or **Document calendar**. Add any preset repeatedly and arrange it with the existing grid controls; the admin layout editor offers the same presets and settings. Existing pages are preserved until you explicitly add and save components.
 
 Each instance selects its own time range, directories, My edits/Library changes perspective, summary, recent records and time zone. Use an explicit **Date linking group** to share date selection; otherwise instances work independently, and a duplicate starts independent. Browsing dates/months and opened details is temporary. A day shows distinct documents changed that day and opens its records; available documents link to Library in their authorized space.
 
@@ -345,7 +365,7 @@ Activity requires a signed-in working-document reader. Public pages do not expos
 
 ### Adjust navigation and favorites content
 
-On the homepage, choose **Edit page**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
+On the homepage, choose **More editing options → Adjust layout**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
 
 | Control | Choices and default | Effect |
 | --- | --- | --- |
@@ -646,7 +666,7 @@ Open **Admin → Integrations** and add a data source before binding a calendar,
 
 For weather, choose a city shortcut or enter coordinates and an IANA timezone, then select the free non-commercial provider or the commercial provider with its API key as appropriate. Saving an enabled polling source queues collection; **Sync** queues another attempt. Its success/error status reports the actual result. The homepage's **Refresh data** reads stored data and does not force an upstream request. Disabling a source stops collection while preserving its last successful snapshot. Hiding a component only changes the page.
 
-In **Edit page → Add**, add the compatible component, or choose **Import template** and paste an HTTP/HTTPS component URL / JSON (reachable LAN hosts and custom ports are supported since 0.0.4). Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
+In **More editing options → Adjust layout → Add**, add the compatible component, or choose **Import template** and paste an HTTP/HTTPS component URL / JSON (reachable LAN hosts and custom ports are supported since 0.0.4). Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
 
 The complete data schemas, provider limits, replay/storage policy, supported template format and currently deferred connectors are in [COMPONENTS.md](COMPONENTS.md). Setup previews the website pack matching the saved instance language; leaving examples off starts with no bookmarks.
 
@@ -667,7 +687,7 @@ Select **Import a component template** in the homepage editor and enter a page o
 
 ## Start with a dashboard preset
 
-Open **Edit page → Add → Dashboard presets**. **Personal overview** combines weather, an agenda and bookmarks. **Service operations** combines service status, resource metrics and operational links. **Data summary** combines two metric groups with optional GitHub Traffic and reference links. The layout preview uses component labels, without adding sample values or starting collection.
+Open **More editing options → Adjust layout → Add → Dashboard presets**. **Personal overview** combines weather, an agenda and bookmarks. **Service operations** combines service status, resource metrics and operational links. **Data summary** combines two metric groups with optional GitHub Traffic and reference links. The layout preview uses component labels, without adding sample values or starting collection.
 
 For each selected component, choose an enabled source with its matching data format. A component marked **Needs a source** must be bound or deselected before applying. A source without a first snapshot is allowed and displays the usual waiting-for-data state. Bookmarks and favorites retain their existing compatible source, filters and interaction group; a new or changed source starts without the old source's filters. Selecting the same source for both metrics groups displays the complete group twice, and the dialog explains this.
 

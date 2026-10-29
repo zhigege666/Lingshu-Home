@@ -1,5 +1,7 @@
+import { useHomeContentEditor } from './useHomeContentEditor';
+import { projectContentNavigation } from '../core/home-content-draft';
 import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowUpRight, BookOpen, ChevronDown, Compass, LayoutGrid, List, LoaderCircle, Moon, Pencil, RefreshCw, Settings2, Sun, X } from 'lucide-react';
+import { ArrowUpRight, BarChart3, BookOpen, ChevronDown, Compass, LayoutGrid, List, LoaderCircle, Moon, Pencil, RefreshCw, Settings2, Sun, X } from 'lucide-react';
 import { HomeGrid, type GridPosition } from './HomeGrid';
 import { CategoryPanel, EMPTY_FILTER, NavigationPanel, SearchPanel, readNavigation, type NavigationCollection, type NavigationFilter, type NavigationLink } from './NavigationPanels';
 import { ApiError, request as apiRequest } from '../core/api';
@@ -21,17 +23,20 @@ import { HomeEnvironment } from './HomeEnvironment';
 import { DocumentActivityProvider } from './DocumentActivityProvider';
 import { useHomeEndpointRouting } from './useEndpointRouting';
 import { PageChromeArea } from './PageChrome';
-import type { Bootstrap, Dashboard, Page, PageConfig, Placement, Region, View } from '../core/types';
+import type { Bootstrap, Dashboard, Dataset, NavigationData, Page, PageConfig, Placement, Region, View } from '../core/types';
 import './homepage.css';
 import './ios-theme.css';
 import './link-appearance.css';
 import './composer-canvas.css';
 import './endpoint-routing.css';
 
-type HomeProps = { bootstrap: Bootstrap; dashboard: Dashboard; onRefresh: () => Promise<void>; onSpaceChange: (spaceId: string) => void; onLogout?: () => Promise<void>; onProfile?: () => void; preview?: boolean; viewportWindow?: Window };
+type HomeProps = { bootstrap: Bootstrap; dashboard: Dashboard; onRefresh: () => Promise<void>; onSessionChanged?: () => Promise<void>; onSpaceChange: (spaceId: string) => void; onLogout?: () => Promise<void>; onProfile?: () => void; preview?: boolean; viewportWindow?: Window };
 type EditDraft = { pageId: string; spaceId: string; identity: string; revision: string; history: DraftHistory<PageConfig>; original: PageConfig };
 const SpaceSelect = lazy(() => import('./SpaceSelect'));
 const HomeEditor = lazy(() => import('./HomeEditor'));
+const HomeContentEditor = lazy(() => import('./HomeContentEditor'));
+const LinkClickStats = lazy(() => import('./LinkClickStats'));
+import './home-content-editor.css';
 const DataPanel = lazy(() => import('./DataPanels'));
 const DocumentActivityPanel = lazy(() => import('./DocumentActivityPanel'));
 const TrafficPanel = lazy(() => import('./TrafficPanel').then(module => ({ default: module.TrafficPanel })));
@@ -64,7 +69,7 @@ function readCategoryCollapses(pageId: string): Record<string, boolean> {
   } catch { return {}; }
 }
 
-export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLogout, onProfile, preview = false, viewportWindow }: HomeProps) {
+export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, onSpaceChange, onLogout, onProfile, preview = false, viewportWindow }: HomeProps) {
   const ownerWindow = viewportWindow || (typeof window === 'undefined' ? undefined : window);
   const viewportNarrow = useMedia('(max-width: 900px)', ownerWindow);
   const [canvasElement, setCanvasElement] = useState<HTMLDivElement | null>(null);
@@ -79,6 +84,8 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   const identity = `${bootstrap.user?.id || 'visitor'}:${bootstrap.mode}`;
   const canEdit = dashboard.space.canEdit && bootstrap.spaces.some(space => space.id === dashboard.space.id && space.canEdit);
   const editContext = `${identity}:${dashboard.space.id}:${dashboard.page.id}`;
+  const [clickStatsContext, setClickStatsContext] = useState<string | null>(null);
+  useEffect(() => { setClickStatsContext(null); }, [editContext]);
   const currentContext = useRef(editContext); currentContext.current = editContext;
   const [filters, setFilters] = useState<Record<string, NavigationFilter>>({});
   const [temporaryVariant, setTemporaryVariant] = useState<'cards' | 'directory' | null>(null);
@@ -95,14 +102,27 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   const activeDraft = !preview && canEdit && draft?.identity === identity && draft.pageId === dashboard.page.id && draft.spaceId === dashboard.space.id ? draft : null;
   const config = activeDraft?.history.present || dashboard.page.config;
   const editing = activeDraft !== null;
+  const [committedContent, setCommittedContent] = useState<{ context: string; dashboard: Dashboard; data: NavigationData } | null>(null);
+  useEffect(() => { setCommittedContent(null); }, [editContext]);
+  const acceptCommittedContent = useCallback((base: Dataset<NavigationData>) => setCommittedContent({ context: editContext, dashboard, data: base.data }), [editContext, dashboard]);
+  const contentEditor = useHomeContentEditor({ identity, spaceId: dashboard.space.id, pageId: dashboard.page.id, enabled: !preview && canEdit && !editing, onRefresh, onSessionChanged, onCommitted: acceptCommittedContent });
+  const contentEditing = contentEditor.active;
   const inspecting = editing && !editorPreview;
   const narrow = canvasWidth > 0 ? canvasWidth <= 900 : viewportNarrow;
-  const endpointRouting = useHomeEndpointRouting(bootstrap, dashboard.space.id, preview || editing, ownerWindow);
-  const environment = useMemo(() => ({ preview: preview || editing, viewportWindow: ownerWindow, endpointRouting }), [preview, editing, ownerWindow, endpointRouting]);
+  const endpointRouting = useHomeEndpointRouting(bootstrap, dashboard.space.id, preview || editing || contentEditing, ownerWindow);
+  const environment = useMemo(() => ({ preview: preview || editing || contentEditing, viewportWindow: ownerWindow, endpointRouting }), [preview, editing, contentEditing, ownerWindow, endpointRouting]);
   const sources = sourceState.spaceId === dashboard.space.id ? sourceState.items : NO_SOURCES;
   const updateSources = useCallback((items: ComposerSource[]) => setSourceState({ spaceId: dashboard.space.id, items }), [dashboard.space.id]);
   const { preview: resolvedDashboard, loading: loadingData, incomplete: incompleteData, failed: failedData, retry: retryData } = useDraftDashboard(dashboard, dashboard.page.name, config, sources);
-  const datasets = resolvedDashboard.datasets;
+  const datasets = useMemo(() => {
+    const content = contentEditor.navigation || (!preview && committedContent?.context === editContext && committedContent.dashboard === dashboard ? committedContent.data : null);
+    if (!content) return resolvedDashboard.datasets;
+    return Object.fromEntries(Object.entries(resolvedDashboard.datasets).map(([alias, dataset]) => {
+      const binding = config.bindings[alias];
+      return [alias, dataset.datasetId === 'local-navigation' && binding?.datasetId === 'local-navigation'
+        ? { ...dataset, data: projectContentNavigation(content, binding.query) } : dataset];
+    }));
+  }, [resolvedDashboard.datasets, config.bindings, contentEditor.navigation, committedContent, editContext, dashboard, preview]);
   useLayoutEffect(() => {
     if (!canvasElement) return;
     const measure = () => setCanvasWidth(previous => { const width = canvasElement.getBoundingClientRect().width; return Math.abs(previous - width) < .5 ? previous : width; });
@@ -186,7 +206,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
     setDraft({ pageId: dashboard.page.id, spaceId: dashboard.space.id, identity, revision: dashboard.page.revision, original, history: createDraftHistory(original) });
   };
   const favorite = useCallback(async (link: NavigationLink) => {
-    if (preview || editing || !dashboard.space.canEdit || favoriting.current) return;
+    if (preview || editing || contentEditing || !dashboard.space.canEdit || favoriting.current) return;
     favoriting.current = true; setPendingFavorite(link.id); setNotice(null);
     try {
       await request(`/spaces/${encodeURIComponent(dashboard.space.id)}/links/${encodeURIComponent(link.id)}`, { title: link.title, url: link.url, categoryId: link.categoryId, description: link.description,
@@ -194,7 +214,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
       await onRefresh();
     } catch (error) { setNotice({ kind: 'error', text: error instanceof Error ? error.message : t('收藏修改失败。', 'Updating the favorite failed.') }); }
     finally { favoriting.current = false; setPendingFavorite(undefined); }
-  }, [preview, editing, request, onRefresh, dashboard.space.id, dashboard.space.canEdit]);
+  }, [preview, editing, contentEditing, request, onRefresh, dashboard.space.id, dashboard.space.canEdit]);
 
   const scopeData = useMemo(() => {
     const scopes = new Map<string, { categories: Map<string, NavigationCollection['categories'][number]>; links: Map<string, NavigationLink> }>();
@@ -215,11 +235,11 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   const hasExternalPanels = positions.some(({ view }) => Object.values(view.inputs).some(alias => config.bindings[alias]?.datasetId.startsWith('source:')));
   useEffect(() => { lastDataRead.current = Date.now(); }, [dashboard]);
   const readSavedData = useCallback(async () => {
-    if (preview || editing || dataRefreshRunning.current) return;
+    if (preview || editing || contentEditing || dataRefreshRunning.current) return;
     dataRefreshRunning.current = true; lastDataRead.current = Date.now(); setRefreshingData(true);
-    try { await onRefresh(); } catch { setNotice({ kind: 'error', text: t('读取已保存内容失败，请稍后重试。', 'Could not read saved content. Try again later.') }); }
+    try { await onRefresh(); } catch { setNotice({ kind: 'error', text: t('读取已保存内容失败，请稍后重试。', 'Could not read saved contentEditor. Try again later.') }); }
     finally { dataRefreshRunning.current = false; setRefreshingData(false); }
-  }, [preview, editing, onRefresh]);
+  }, [preview, editing, contentEditing, onRefresh]);
   useEffect(() => {
     if (preview || editing || !hasExternalPanels || !ownerWindow) return;
     const resumed = () => { if (ownerWindow.document.visibilityState === 'visible' && Date.now() - lastDataRead.current > 60000) void readSavedData(); };
@@ -257,8 +277,9 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
     const dataset = datasets[alias];
     const binding = config.bindings[alias];
     const localNavigation = dataset?.datasetId === 'local-navigation' && binding?.datasetId === 'local-navigation';
-    const canMaintainNavigation = !preview && !editing && dashboard.space.canEdit && bootstrap.spaces.some(space => space.id === dashboard.space.id && space.canEdit) && localNavigation;
+    const canMaintainNavigation = !preview && !editing && !contentEditing && dashboard.space.canEdit && bootstrap.spaces.some(space => space.id === dashboard.space.id && space.canEdit) && localNavigation;
     const collection = readNavigation(dataset?.data);
+    const navigationEditor = localNavigation ? contentEditor.editor : undefined;
     const scope = view.interactionScope || view.id;
     const filter = Object.hasOwn(filters, scope) ? filters[scope] : EMPTY_FILTER;
     const update = (next: NavigationFilter) => setFilters(previous => ({ ...previous, [scope]: next }));
@@ -267,13 +288,13 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
     if (view.panel.id === 'builtin/search') content = <SearchPanel filter={filter} onChange={update} />;
     else if (view.panel.id === 'builtin/category-navigation') content = <CategoryPanel data={collection || scopeData.get(scope) || { categories: [], links: [] }} filter={filter} onChange={update}
       orientation={narrow || (placement.kind !== 'hidden' && ['top', 'bottom'].includes(placement.region)) ? 'horizontal' : 'vertical'} settings={readCategoryNavigationSettings(view.settings)}
-      collapsed={categoryCollapsed(view)} onCollapsedChange={collapsed => changeCategoryCollapse(view.id, collapsed)} stateKey={`${dashboard.page.id}:${view.id}${editing ? ':draft' : ''}`} persistState={!preview && !editing} theme={color} />;
+      editor={navigationEditor} collapsed={categoryCollapsed(view)} onCollapsedChange={collapsed => changeCategoryCollapse(view.id, collapsed)} stateKey={`${dashboard.page.id}:${view.id}${editing ? ':draft' : ''}`} persistState={!preview && !editing} theme={color} />;
     else if (view.panel.id === 'builtin/document-activity') content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在读取…', 'Loading…')}</section>}><DocumentActivityPanel view={view}/></Suspense>;
     else if (view.panel.id === 'builtin/github-traffic') content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在加载流量组件…', 'Loading traffic component…')}</section>}><TrafficPanel dataset={dataset} title={heading} /></Suspense>;
     else if (['builtin/calendar', 'builtin/weather', 'builtin/metrics', 'builtin/status'].includes(view.panel.id)) content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在加载组件…', 'Loading component…')}</section>}><DataPanel view={view} dataset={dataset} loading={!dataset && loadingData} failed={!dataset && failedData} /></Suspense>;
     else if (['builtin/navigation', 'builtin/favorites'].includes(view.panel.id)) content = collection ? <NavigationPanel data={collection} filter={filter} title={heading} settings={view.settings}
       variant={temporaryVariant || (view.settings.variant === 'directory' ? 'directory' : 'cards')} linkAppearance={readLinkAppearance(view.settings, config.pageTheme.id)} favorites={view.panel.id === 'builtin/favorites'}
-      canEdit={canMaintainNavigation} onFavorite={favorite} pending={pendingFavorite} onClear={() => update(EMPTY_FILTER)}
+      editor={navigationEditor} clickSpaceId={localNavigation && !preview && !editing && !contentEditing ? dashboard.space.id : undefined} canEdit={canMaintainNavigation} onFavorite={favorite} pending={pendingFavorite} onClear={() => update(EMPTY_FILTER)}
       emptyActions={canMaintainNavigation && binding && !Object.keys(binding.query).length ? {
         scope: dashboard.space.kind === 'personal'
           ? t('添加或导入到个人空间「{name}」，仅自己可见。', 'Add or import into your personal space “{name}”, visible only to you.', { name: dashboard.space.name })
@@ -303,22 +324,27 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSpaceChange, onLog
   const number = useMemo(() => new Intl.NumberFormat(getLocale()), [bootstrap.language]);
   const managementLabel = dashboard.space.canEdit || bootstrap.user ? t('管理中心', 'Admin') : t('登录管理', 'Admin sign in');
   const noticeElement = notice && <div role={notice.kind === 'error' ? 'alert' : 'status'} className={`lh-notice is-${notice.kind}`}><span>{notice.text}</span><button type="button" aria-label={t('关闭提示', 'Dismiss message')} onClick={() => setNotice(null)}><X size={15} /></button></div>;
-  const canvas = <div ref={setCanvasElement} className="lh-home" data-preview={preview || editing || undefined} data-page-theme={config.pageTheme.id} data-composing={inspecting || undefined} data-canvas-narrow={narrow || undefined} data-canvas-compact={canvasWidth > 0 && canvasWidth <= 1280 || undefined} data-theme={color} data-density={config.appearance.density} style={{ '--lh-gap': `${config.layout.gap}px` } as CSSProperties}>
+  const canvas = <div ref={setCanvasElement} className={`lh-home${contentEditing ? ' is-content-editing' : ''}${contentEditing && contentEditor.selection ? ' has-content-inspector' : ''}`} data-preview={preview || editing || undefined} data-page-theme={config.pageTheme.id} data-composing={inspecting || undefined} data-canvas-narrow={narrow || undefined} data-canvas-compact={canvasWidth > 0 && canvasWidth <= 1280 || undefined} data-theme={color} data-density={config.appearance.density} style={{ '--lh-gap': `${config.layout.gap}px` } as CSSProperties}>
     <a className="lh-skip" href="#home-links" onClick={event => { event.preventDefault(); const target = event.currentTarget.ownerDocument.getElementById('home-links'); target?.focus(); target?.scrollIntoView({ block: 'start' }); }}>{t('跳到链接区域', 'Skip to links')}</a>
     {(!editing || editorPreview) && <header className="lh-header"><div className="lh-header-identity"><a className="lh-brand" href={preview || editing ? undefined : '#/'} aria-label={t('{name} 首页', '{name} home', { name: bootstrap.siteName || 'Lingshu-Home' })}><span><ProjectLogo /></span><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
         <div className="lh-home-heading"><h1>{dashboard.page.name || t('我的导航', 'My bookmarks')}</h1><p className="lh-home-summary">{t('{count} 个链接', '{count} links', { count: number.format(totals.links) })}<span>·</span>{t('{count} 个分类', '{count} categories', { count: number.format(totals.categories) })}{dashboard.space.kind === 'personal' && <><span>·</span>{t('仅自己可见', 'Private')}</>}</p></div></div>
       <div className="lh-header-search">{renderRegion(topSearch)}</div>
       <div className="lh-header-actions">
-        {!editing && <><div className="lh-segmented" aria-label={t('链接展示方式', 'Link presentation')}><button aria-label={t('卡片模式', 'Card view')} title={t('卡片模式', 'Card view')} aria-pressed={mainVariant === 'cards'} onClick={() => setTemporaryVariant('cards')}><LayoutGrid size={16} /></button><button aria-label={t('目录模式', 'Directory view')} title={t('目录模式', 'Directory view')} aria-pressed={mainVariant === 'directory'} onClick={() => setTemporaryVariant('directory')}><List size={17} /></button></div>
+        {!editing && !contentEditing && <><div className="lh-segmented" aria-label={t('链接展示方式', 'Link presentation')}><button aria-label={t('卡片模式', 'Card view')} title={t('卡片模式', 'Card view')} aria-pressed={mainVariant === 'cards'} onClick={() => setTemporaryVariant('cards')}><LayoutGrid size={16} /></button><button aria-label={t('目录模式', 'Directory view')} title={t('目录模式', 'Directory view')} aria-pressed={mainVariant === 'directory'} onClick={() => setTemporaryVariant('directory')}><List size={17} /></button></div>
         <button className="lh-icon-button" onClick={() => setTemporaryColor(color === 'dark' ? 'light' : 'dark')} title={t('切换深浅色', 'Toggle light or dark')} aria-label={t('切换深浅色', 'Toggle light or dark')}>{color === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></>}
-        {!preview && !editing && <button type="button" className="lh-quiet-button" disabled={refreshingData} aria-label={hasExternalPanels ? t('读取最新组件快照', 'Read latest component snapshots') : t('刷新内容', 'Refresh content')} title={t('读取已保存内容，不触发外部获取', 'Read saved content without starting external requests')} onClick={() => { void readSavedData(); }}><RefreshCw size={14} className={refreshingData ? 'lh-spin' : undefined} /><span>{hasExternalPanels ? t('更新数据', 'Refresh data') : t('刷新内容', 'Refresh content')}</span></button>}
-        {!preview && dashboard.space.canEdit && !editing && <button className="lh-quiet-button lh-edit-trigger" title={t('编辑页面', 'Edit page')} aria-label={t('编辑页面', 'Edit page')} disabled={busy} onClick={startEditing}><Pencil size={14} /><span>{t('编辑页面', 'Edit page')}</span></button>}
-        {!preview && !editing && <a className="lh-admin-link" href="#/library"><BookOpen size={16}/><span>{t('资料库', 'Library')}</span></a>}
-        {!preview && !editing && <a className="lh-admin-link" href="#/admin" aria-label={managementLabel} title={managementLabel}><Settings2 size={16} /><span>{managementLabel}</span></a>}
-        {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing} theme={color} onChange={onSpaceChange} bootstrap={bootstrap}/></Suspense></div>}
-        {!preview && !editing && bootstrap.user && onLogout && <AccountMenu user={bootstrap.user} onProfile={() => onProfile?.()} onLogout={() => { void onLogout(); }}/>}
+        {!preview && !editing && !contentEditing && <button type="button" className="lh-quiet-button" disabled={refreshingData} aria-label={hasExternalPanels ? t('读取最新组件快照', 'Read latest component snapshots') : t('刷新内容', 'Refresh content')} title={t('读取已保存内容，不触发外部获取', 'Read saved content without starting external requests')} onClick={() => { void readSavedData(); }}><RefreshCw size={14} className={refreshingData ? 'lh-spin' : undefined} /><span>{hasExternalPanels ? t('更新数据', 'Refresh data') : t('刷新内容', 'Refresh content')}</span></button>}
+        {!preview && !!bootstrap.user && !editing && !contentEditing && <button type="button" className="lh-quiet-button lh-click-stats-trigger" aria-label={t('点击统计', 'Click statistics')} title={t('点击统计', 'Click statistics')} onClick={() => setClickStatsContext(editContext)}><BarChart3 size={15}/><span>{t('统计', 'Statistics')}</span></button>}
+        {!preview && canEdit && !editing && !contentEditing && <button className="lh-quiet-button lh-edit-trigger" title={t('编辑分类与链接', 'Edit categories and links')} aria-label={t('编辑', 'Edit')} disabled={busy || contentEditor.busy} onClick={() => { void contentEditor.start(); }}><Pencil size={14} /><span>{contentEditor.busy ? t('正在读取…', 'Loading…') : t('编辑', 'Edit')}</span></button>}
+        {!preview && canEdit && !editing && <details className="lh-edit-menu"><summary className="lh-icon-button" aria-label={t('更多编辑选项', 'More editing options')}><ChevronDown size={16}/></summary><div className="lh-edit-menu-body"><button type="button" disabled={busy || contentEditor.busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); contentEditor.requestLeave(startEditing); }}><LayoutGrid size={15}/>{t('调整布局', 'Adjust layout')}</button></div></details>}
+        {!preview && !editing && !contentEditing && <a className="lh-admin-link" href="#/library"><BookOpen size={16}/><span>{t('资料库', 'Library')}</span></a>}
+        {!preview && !editing && !contentEditing && <a className="lh-admin-link" href="#/admin" aria-label={managementLabel} title={managementLabel}><Settings2 size={16} /><span>{managementLabel}</span></a>}
+        {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing || contentEditor.busy} theme={color} onChange={id => contentEditor.requestLeave(() => onSpaceChange(id))} bootstrap={bootstrap}/></Suspense></div>}
+        {!preview && !editing && bootstrap.user && onLogout && <AccountMenu user={bootstrap.user} onProfile={() => onProfile?.()} onLogout={() => contentEditor.requestLeave(() => { void onLogout(); })}/>}
       </div>
     </header>}
+    {contentEditing && <Suspense fallback={<div className="lh-content-toolbar" role="status">{t('正在加载编辑工具…', 'Loading edit controls…')}</div>}><HomeContentEditor controller={contentEditor} spaceId={dashboard.space.id} spaceName={dashboard.space.name} autoFetchIcons={bootstrap.autoFetchIcons} autoSelectEndpoint={bootstrap.autoSelectEndpoint} showClickStats={!!bootstrap.user}/></Suspense>}
+    {clickStatsContext === editContext && !!bootstrap.user && !preview && !editing && !contentEditing && <Suspense fallback={null}><LinkClickStats key={editContext} spaceId={dashboard.space.id} spaceName={dashboard.space.name} onClose={() => setClickStatsContext(null)}/></Suspense>}
+    {!contentEditing && contentEditor.error && <div className="lh-content-feedback" role="alert">{contentEditor.error}</div>}
     <PageChromeArea area={chrome.header} placement="header" version={bootstrap.version} editing={inspecting} selectedSlot={selection.kind === 'chrome' && selection.area === 'header' ? selection.alignment || 'left' : undefined} onSelect={alignment => setSelection({ kind: 'chrome', area: 'header', alignment })} />
     {inspecting && !!topSearch.length && <div className="lh-top-region lh-editor-search-region">{renderRegion(topSearch)}</div>}
     {!!topOther.length && <div className="lh-top-region">{renderRegion(topOther)}</div>}

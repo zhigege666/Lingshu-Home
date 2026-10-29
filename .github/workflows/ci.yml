@@ -114,6 +114,8 @@ jobs:
           node tests/document_activity_core.test.mjs
           node tests/navigation_folder_core.test.mjs
           node tests/navigation_inline_core.test.mjs
+          node tests/home_content_draft_core.test.mjs
+          node tests/link_clicks_core.test.mjs
           node tests/session_requests_core.test.mjs
       - name: Original Go license and verified fallback regressions
         working-directory: server
