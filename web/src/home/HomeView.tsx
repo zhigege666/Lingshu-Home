@@ -1,8 +1,9 @@
 import { useHomeContentEditor } from './useHomeContentEditor';
 import { projectContentNavigation } from '../core/home-content-draft';
 import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowUpRight, BarChart3, BookOpen, ChevronDown, Compass, LayoutGrid, List, LoaderCircle, Moon, Pencil, RefreshCw, Settings2, Sun, X } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, Compass, LoaderCircle, Pencil, X } from 'lucide-react';
 import { HomeGrid, type GridPosition } from './HomeGrid';
+import { HomeActions } from './HomeActions';
 import { CategoryPanel, EMPTY_FILTER, NavigationPanel, SearchPanel, readNavigation, type NavigationCollection, type NavigationFilter, type NavigationLink } from './NavigationPanels';
 import { ApiError, request as apiRequest } from '../core/api';
 import { readCategoryNavigationSettings } from '../core/presentation';
@@ -73,6 +74,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
   const ownerWindow = viewportWindow || (typeof window === 'undefined' ? undefined : window);
   const viewportNarrow = useMedia('(max-width: 900px)', ownerWindow);
   const [canvasElement, setCanvasElement] = useState<HTMLDivElement | null>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(0);
   const [selection, setSelection] = useState<HomeSelection>({ kind: 'page' });
   const [editorPreview, setEditorPreview] = useState(false);
@@ -129,6 +131,23 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
     measure(); const observer = new ResizeObserver(measure); observer.observe(canvasElement);
     return () => observer.disconnect();
   }, [canvasElement]);
+  useLayoutEffect(() => {
+    if (!scrollElement) return;
+    // Sidebars use the room left by the actual header, editing tools and footer.
+    // This also measures the smaller canvas in the editor or an iframe preview.
+    const measure = () => {
+      scrollElement.style.setProperty('--lh-body-height', `${scrollElement.clientHeight}px`);
+      const shell = scrollElement.closest<HTMLElement>('.lh-home'), win = scrollElement.ownerDocument.defaultView;
+      if (shell && win) {
+        const bounds = scrollElement.getBoundingClientRect();
+        shell.style.setProperty('--lh-body-top', `${bounds.top}px`);
+        shell.style.setProperty('--lh-body-bottom', `${Math.max(0, win.innerHeight - bounds.bottom)}px`);
+      }
+    };
+    measure(); const observer = new ResizeObserver(measure); observer.observe(scrollElement);
+    return () => observer.disconnect();
+  }, [scrollElement]);
+  useLayoutEffect(() => { scrollElement?.scrollTo({ top: 0, left: 0 }); }, [scrollElement, editContext]);
   useEffect(() => { if (selection.kind === 'view' && !config.views.some(view => view.id === selection.id)) setSelection({ kind: 'page' }); }, [config.views, selection]);
   const dirty = useMemo(() => !!activeDraft && JSON.stringify(activeDraft.history.present) !== JSON.stringify(activeDraft.original), [activeDraft]);
   const leaveGuard = useUnsavedChanges(dirty && !preview, busy, () => {
@@ -325,27 +344,30 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
   const managementLabel = dashboard.space.canEdit || bootstrap.user ? t('管理中心', 'Admin') : t('登录管理', 'Admin sign in');
   const noticeElement = notice && <div role={notice.kind === 'error' ? 'alert' : 'status'} className={`lh-notice is-${notice.kind}`}><span>{notice.text}</span><button type="button" aria-label={t('关闭提示', 'Dismiss message')} onClick={() => setNotice(null)}><X size={15} /></button></div>;
   const canvas = <div ref={setCanvasElement} className={`lh-home${contentEditing ? ' is-content-editing' : ''}${contentEditing && contentEditor.selection ? ' has-content-inspector' : ''}`} data-preview={preview || editing || undefined} data-page-theme={config.pageTheme.id} data-composing={inspecting || undefined} data-canvas-narrow={narrow || undefined} data-canvas-compact={canvasWidth > 0 && canvasWidth <= 1280 || undefined} data-theme={color} data-density={config.appearance.density} style={{ '--lh-gap': `${config.layout.gap}px` } as CSSProperties}>
-    <a className="lh-skip" href="#home-links" onClick={event => { event.preventDefault(); const target = event.currentTarget.ownerDocument.getElementById('home-links'); target?.focus(); target?.scrollIntoView({ block: 'start' }); }}>{t('跳到链接区域', 'Skip to links')}</a>
+    <a className="lh-skip" href="#home-links" onClick={event => {
+      event.preventDefault(); const target = event.currentTarget.ownerDocument.getElementById('home-links');
+      target?.focus({ preventScroll: true });
+      if (target && scrollElement) scrollElement.scrollTo({ top: scrollElement.scrollTop + target.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top });
+    }}>{t('跳到链接区域', 'Skip to links')}</a>
     {(!editing || editorPreview) && <header className="lh-header"><div className="lh-header-identity"><a className="lh-brand" href={preview || editing ? undefined : '#/'} aria-label={t('{name} 首页', '{name} home', { name: bootstrap.siteName || 'Lingshu-Home' })}><span><ProjectLogo /></span><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
-        <div className="lh-home-heading"><h1>{dashboard.page.name || t('我的导航', 'My bookmarks')}</h1><p className="lh-home-summary">{t('{count} 个链接', '{count} links', { count: number.format(totals.links) })}<span>·</span>{t('{count} 个分类', '{count} categories', { count: number.format(totals.categories) })}{dashboard.space.kind === 'personal' && <><span>·</span>{t('仅自己可见', 'Private')}</>}</p></div></div>
+        <div className="lh-home-heading"><h1>{dashboard.page.name || t('我的导航', 'My bookmarks')}</h1><p className="lh-home-summary">{t('{count} 个链接', '{count} links', { count: number.format(totals.links) })}<span>·</span>{t('{count} 个分类', '{count} categories', { count: number.format(totals.categories) })}{dashboard.space.kind === 'personal' && <><span>·</span>{t('仅自己可见', 'Private')}</>}</p></div>
+        {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing || contentEditor.busy} theme={color} onChange={id => contentEditor.requestLeave(() => onSpaceChange(id))} bootstrap={bootstrap}/></Suspense></div>}
+      </div>
       <div className="lh-header-search">{renderRegion(topSearch)}</div>
       <div className="lh-header-actions">
-        {!editing && !contentEditing && <><div className="lh-segmented" aria-label={t('链接展示方式', 'Link presentation')}><button aria-label={t('卡片模式', 'Card view')} title={t('卡片模式', 'Card view')} aria-pressed={mainVariant === 'cards'} onClick={() => setTemporaryVariant('cards')}><LayoutGrid size={16} /></button><button aria-label={t('目录模式', 'Directory view')} title={t('目录模式', 'Directory view')} aria-pressed={mainVariant === 'directory'} onClick={() => setTemporaryVariant('directory')}><List size={17} /></button></div>
-        <button className="lh-icon-button" onClick={() => setTemporaryColor(color === 'dark' ? 'light' : 'dark')} title={t('切换深浅色', 'Toggle light or dark')} aria-label={t('切换深浅色', 'Toggle light or dark')}>{color === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></>}
-        {!preview && !editing && !contentEditing && <button type="button" className="lh-quiet-button" disabled={refreshingData} aria-label={hasExternalPanels ? t('读取最新组件快照', 'Read latest component snapshots') : t('刷新内容', 'Refresh content')} title={t('读取已保存内容，不触发外部获取', 'Read saved content without starting external requests')} onClick={() => { void readSavedData(); }}><RefreshCw size={14} className={refreshingData ? 'lh-spin' : undefined} /><span>{hasExternalPanels ? t('更新数据', 'Refresh data') : t('刷新内容', 'Refresh content')}</span></button>}
-        {!preview && !!bootstrap.user && !editing && !contentEditing && <button type="button" className="lh-quiet-button lh-click-stats-trigger" aria-label={t('点击统计', 'Click statistics')} title={t('点击统计', 'Click statistics')} onClick={() => setClickStatsContext(editContext)}><BarChart3 size={15}/><span>{t('统计', 'Statistics')}</span></button>}
-        {!preview && canEdit && !editing && !contentEditing && <button className="lh-quiet-button lh-edit-trigger" title={t('编辑分类与链接', 'Edit categories and links')} aria-label={t('编辑', 'Edit')} disabled={busy || contentEditor.busy} onClick={() => { void contentEditor.start(); }}><Pencil size={14} /><span>{contentEditor.busy ? t('正在读取…', 'Loading…') : t('编辑', 'Edit')}</span></button>}
-        {!preview && canEdit && !editing && <details className="lh-edit-menu"><summary className="lh-icon-button" aria-label={t('更多编辑选项', 'More editing options')}><ChevronDown size={16}/></summary><div className="lh-edit-menu-body"><button type="button" disabled={busy || contentEditor.busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); contentEditor.requestLeave(startEditing); }}><LayoutGrid size={15}/>{t('调整布局', 'Adjust layout')}</button></div></details>}
-        {!preview && !editing && !contentEditing && <a className="lh-admin-link" href="#/library"><BookOpen size={16}/><span>{t('资料库', 'Library')}</span></a>}
-        {!preview && !editing && !contentEditing && <a className="lh-admin-link" href="#/admin" aria-label={managementLabel} title={managementLabel}><Settings2 size={16} /><span>{managementLabel}</span></a>}
-        {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing || contentEditor.busy} theme={color} onChange={id => contentEditor.requestLeave(() => onSpaceChange(id))} bootstrap={bootstrap}/></Suspense></div>}
-        {!preview && !editing && bootstrap.user && onLogout && <AccountMenu user={bootstrap.user} onProfile={() => onProfile?.()} onLogout={() => contentEditor.requestLeave(() => { void onLogout(); })}/>}
+        <HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} preview={preview} editing={editing} contentEditing={contentEditing}
+          busy={busy} loadingContent={contentEditor.busy} refreshing={refreshingData} hasExternalPanels={hasExternalPanels} managementLabel={managementLabel}
+          onEdit={() => { void contentEditor.start(); }} onLayout={() => contentEditor.requestLeave(startEditing)} onRefresh={() => { void readSavedData(); }}
+          onStatistics={() => setClickStatsContext(editContext)} onVariantChange={setTemporaryVariant} onThemeChange={setTemporaryColor}
+          onNavigate={href => contentEditor.requestLeave(() => requestNavigation(() => { window.location.hash = href; }))}/>
+        {!preview && !editing && bootstrap.user && onLogout && <AccountMenu user={bootstrap.user} onProfile={() => contentEditor.requestLeave(() => onProfile?.())} onLogout={() => contentEditor.requestLeave(() => { void onLogout(); })}/>}
       </div>
     </header>}
     {contentEditing && <Suspense fallback={<div className="lh-content-toolbar" role="status">{t('正在加载编辑工具…', 'Loading edit controls…')}</div>}><HomeContentEditor controller={contentEditor} spaceId={dashboard.space.id} spaceName={dashboard.space.name} autoFetchIcons={bootstrap.autoFetchIcons} autoSelectEndpoint={bootstrap.autoSelectEndpoint} showClickStats={!!bootstrap.user}/></Suspense>}
     {clickStatsContext === editContext && !!bootstrap.user && !preview && !editing && !contentEditing && <Suspense fallback={null}><LinkClickStats key={editContext} spaceId={dashboard.space.id} spaceName={dashboard.space.name} onClose={() => setClickStatsContext(null)}/></Suspense>}
     {!contentEditing && contentEditor.error && <div className="lh-content-feedback" role="alert">{contentEditor.error}</div>}
     <PageChromeArea area={chrome.header} placement="header" version={bootstrap.version} editing={inspecting} selectedSlot={selection.kind === 'chrome' && selection.area === 'header' ? selection.alignment || 'left' : undefined} onSelect={alignment => setSelection({ kind: 'chrome', area: 'header', alignment })} />
+    <div ref={setScrollElement} className="lh-home-scroll" role="region" aria-label={t('首页内容', 'Homepage content')} tabIndex={0}>
     {inspecting && !!topSearch.length && <div className="lh-top-region lh-editor-search-region">{renderRegion(topSearch)}</div>}
     {!!topOther.length && <div className="lh-top-region">{renderRegion(topOther)}</div>}
     <div className={`lh-workspace ${left.length ? 'has-left' : ''} ${right.length ? 'has-right' : ''}${compactLeft ? ' has-compact-left' : ''}${compactRight ? ' has-compact-right' : ''}`}>
@@ -360,6 +382,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
       {!!right.length && <aside className="lh-side-region lh-right-region"><div className="lh-side-content">{renderRegion(right)}</div></aside>}
     </div>
     {!!bottom.length && <div className="lh-bottom-region">{renderRegion(bottom)}</div>}
+    </div>
     <PageChromeArea area={chrome.footer} placement="footer" version={bootstrap.version} editing={inspecting} selectedSlot={selection.kind === 'chrome' && selection.area === 'footer' ? selection.alignment || 'right' : undefined} onSelect={alignment => setSelection({ kind: 'chrome', area: 'footer', alignment })} />
   </div>;
   return <HomeEnvironment.Provider value={environment}><DocumentActivityProvider key={`${identity}:${dashboard.space.id}:${bootstrap.mode}:${bootstrap.user?.role || 'visitor'}:${canEdit}:${preview || editing}`} spaceId={dashboard.space.id} userKey={bootstrap.user?.id || 'visitor'} enabled={!!bootstrap.user && canEdit}>{editing ? <Suspense fallback={<div className="lh-home lh-composer-loading"><LoaderCircle className="lh-spin" size={20} /><span>{t('正在加载页面编辑器', 'Loading the page editor')}</span><button className="lh-quiet-button" onClick={() => { void cancel(); }}><X size={14}/>{t('取消', 'Cancel')}</button></div>}>

@@ -264,18 +264,18 @@ async function searchInteraction() {
   check(!(await search.evaluate(node => node === document.activeElement)), 'Escape dismisses search focus');
 
   step('Switch temporary cards/directory and light/dark appearance without saving the page');
-  await page.getByRole('button', { name: '目录模式', exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitemradio', { name: '目录模式', exact: true }).click();
   await settle();
   equal(await page.locator('.lh-bookmark.is-directory').count(), originalCardCount, 'Temporary directory mode affects every rendered bookmark');
-  equal(await page.getByRole('button', { name: '目录模式', exact: true }).getAttribute('aria-pressed'), 'true', 'Directory selection is exposed accessibly');
-  await page.getByRole('button', { name: '切换深浅色', exact: true }).click();
+  equal(await page.getByRole('menuitemradio', { name: '目录模式', exact: true }).getAttribute('aria-checked'), 'true', 'Directory selection is exposed accessibly');
+  await page.getByRole('menuitem', { name: '切换深浅色', exact: true }).click();
   await settle();
   equal(await page.locator('.lh-home').getAttribute('data-theme'), color === 'light' ? 'dark' : 'light', 'Temporary color changes to the other appearance');
   await capture('interaction-directory-temporary');
-  await page.getByRole('button', { name: '卡片模式', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: '卡片模式', exact: true }).click();
   await settle();
   equal(await page.locator('.lh-bookmark.is-directory').count(), 0, 'Temporary cards mode restores card rendering');
-  await page.getByRole('button', { name: '切换深浅色', exact: true }).click();
+  await page.getByRole('menuitem', { name: '切换深浅色', exact: true }).click(); await page.keyboard.press('Escape');
   await settle();
   equal(await page.locator('.lh-home').getAttribute('data-theme'), color, 'Color toggles back to its original appearance');
   equal(await readPage(), original, 'Search and temporary presentation leave the full page DTO and revision unchanged');
@@ -347,7 +347,7 @@ async function choose(control, label) {
 const panelNames = { 'builtin/category-navigation': '分类导航', 'builtin/search': '搜索框', 'builtin/favorites': '常用收藏', 'builtin/navigation': '导航链接', 'builtin/github-traffic': 'GitHub Traffic' };
 async function adminLayout() {
   await home({ reload: true });
-  await page.getByRole('link', { name: '管理中心', exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: '管理中心', exact: true }).click();
   await page.locator('.admin-shell').waitFor({ state: 'visible', timeout: STEP });
   await page.getByRole('button', { name: '布局与主题', exact: true }).click();
   await page.getByRole('heading', { name: '布局与主题', level: 1, exact: true }).waitFor({ state: 'visible', timeout: STEP });
@@ -432,7 +432,7 @@ async function gridInteraction() {
   let failure, saved, restored;
   try {
     step('Enter homepage editing and resize the real favorites panel narrower with the mouse');
-    await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: '调整布局', exact: true }).click();
+    await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: '调整布局', exact: true }).click();
     await page.locator('.lh-edit-bar').waitFor({ state: 'visible', timeout: STEP });
     await settle();
     const frame = panel(view.id);

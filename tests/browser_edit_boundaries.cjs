@@ -75,7 +75,7 @@ async function home() {
   await page.waitForFunction(() => document.querySelectorAll('.lh-bookmark').length > 0, null, { timeout: STEP }); await settle();
 }
 async function editor() {
-  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: 'Adjust layout', exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: 'Adjust layout', exact: true }).click();
   const root = page.locator('.lh-page-editor[aria-label="Edit homepage"]');
   await root.locator('.lh-editor-controls').waitFor({ state: 'visible', timeout: STEP }); await settle(); return root;
 }

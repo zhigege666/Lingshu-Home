@@ -40,15 +40,22 @@ function activeDrag(editor: NavigationEditor | undefined, element: HTMLElement) 
   return editor && !editor.busy && navigationDrag?.spaceId === editor.spaceId && navigationDrag.ownerDocument === element.ownerDocument ? navigationDrag : null;
 }
 function dragScroll(element: HTMLElement, clientY: number) {
-  const scrollable = element.closest<HTMLElement>('.lh-folder-body,.lh-category-list,.lh-side-content,.lh-grid-scroll');
-  if (scrollable && scrollable.scrollHeight > scrollable.clientHeight) {
-    const box = scrollable.getBoundingClientRect();
-    if (clientY < box.top + 32) scrollable.scrollBy({ top: -18 });
-    else if (clientY > box.bottom - 32) scrollable.scrollBy({ top: 18 });
-  }
   const win = element.ownerDocument.defaultView;
-  if (win && clientY < 48) win.scrollBy({ top: -18 });
-  else if (win && clientY > win.innerHeight - 48) win.scrollBy({ top: 18 });
+  if (!win) return;
+  const selectors = '.lh-folder-body,.lh-category-list,.lh-side-content,.lh-grid-scroll,.lh-home-scroll';
+  const viewport = element.closest<HTMLElement>('.lh-home-scroll,.lh-folder-body')?.getBoundingClientRect();
+  let scrollable = element.closest<HTMLElement>(selectors);
+  while (scrollable) {
+    if (scrollable.scrollHeight > scrollable.clientHeight && ['auto', 'scroll'].includes(win.getComputedStyle(scrollable).overflowY)) {
+      const box = scrollable.getBoundingClientRect();
+      const top = Math.max(box.top, viewport?.top || 0), bottom = Math.min(box.bottom, viewport?.bottom || win.innerHeight);
+      const delta = clientY < top + 32 ? -18 : clientY > bottom - 32 ? 18 : 0;
+      if (delta && (delta < 0 ? scrollable.scrollTop > 0 : scrollable.scrollTop + scrollable.clientHeight < scrollable.scrollHeight - 1)) {
+        scrollable.scrollBy({ top: delta }); return;
+      }
+    }
+    scrollable = scrollable.parentElement?.closest<HTMLElement>(selectors) || null;
+  }
 }
 function NavigationDragHandle({ kind, id, name, editor }: { kind: 'link' | 'category'; id: string; name: string; editor: NavigationEditor }) {
   const [dragging, setDragging] = useState(false);

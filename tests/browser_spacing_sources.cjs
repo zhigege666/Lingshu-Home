@@ -107,7 +107,7 @@ async function screenshot(side, label) {
   await side.page.screenshot({ path: path.join(options.outputDir, file), fullPage: false, mask: [side.page.locator('input[type="password"]')] });
   report.screenshots.push({ context: side.label, phase: currentPhase, file });
 }
-async function openAdmin(side) { await side.page.getByRole('link', { name: '管理中心', exact: true }).click(); await side.page.locator('.admin-shell').waitFor(); await settle(side); }
+async function openAdmin(side) { await side.page.locator('.lh-more-trigger').click(); await side.page.getByRole('menuitem', { name: '管理中心', exact: true }).click(); await side.page.locator('.admin-shell').waitFor(); await settle(side); }
 async function tab(side, label) { await side.page.locator('.admin-sidebar').getByRole('button', { name: label, exact: true }).click(); await side.page.locator('.admin-page-heading').getByRole('heading', { name: label, exact: true }).waitFor(); await settle(side); }
 async function select(side, locator, label) { await locator.click(); await side.page.getByRole('option', { name: label, exact: true }).click(); await settle(side); }
 async function feedback(side, locator, label, internal = false) {

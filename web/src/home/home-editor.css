@@ -27,15 +27,15 @@
 .lh-composer-sidebar{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;background:var(--hc-surface);color:var(--hc-ink)}
 .lh-composer-sidebar.is-library{border-right:1px solid var(--hc-line)}
 .lh-composer-sidebar.is-inspector{border-left:1px solid var(--hc-line)}
-.lh-composer-stage{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;isolation:isolate}
+.lh-composer-stage{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;isolation:isolate}
 .lh-composer-canvas-bar{min-height:32px;padding:7px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--hc-muted);background:var(--hc-bg);font-size:10px;flex:0 0 auto;border-bottom:1px solid var(--hc-line)}
 .lh-composer-canvas-bar>span{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .lh-composer-canvas-bar>small{font-size:10px;text-align:right}
-.lh-composer-canvas{min-width:0;flex:1;display:flex;flex-direction:column;color:var(--lh-ink);background:var(--lh-bg);font-size:14px;line-height:1.5;letter-spacing:.005em;color-scheme:light}
-.lh-composer-canvas>.lh-home{min-height:100%;flex:1}
+.lh-composer-canvas{min-width:0;min-height:0;flex:1;display:flex;flex-direction:column;overflow:hidden;color:var(--lh-ink);background:var(--lh-bg);font-size:14px;line-height:1.5;letter-spacing:.005em;color-scheme:light}
+.lh-composer-canvas>.lh-home{height:100%;min-height:0;flex:1}
 .lh-home[data-theme=dark] .lh-composer-canvas{color-scheme:dark}
 .lh-composer-canvas :is(.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome){max-width:none;padding-left:28px;padding-right:28px}
-.lh-composer-canvas .lh-side-content{top:12px;max-height:calc(100dvh - 140px)}
+.lh-composer-canvas .lh-side-content{top:12px;max-height:max(0px,calc(var(--lh-body-height,100dvh) - 24px))}
 .lh-composer-canvas .lh-workspace{padding-top:20px;padding-bottom:24px;gap:24px;--lh-left-width:190px;--lh-right-width:200px}
 .lh-composer-canvas .lh-workspace.has-compact-left{--lh-left-width:72px}
 .lh-composer-canvas .lh-workspace.has-compact-right{--lh-right-width:72px}

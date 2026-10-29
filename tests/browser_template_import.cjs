@@ -73,7 +73,7 @@ async function home() {
   }
 }
 async function enterImport() {
-  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   await page.locator('.lh-composer').waitFor();
   await page.locator('.lh-composer-library-toggle').click();
   await page.getByRole('button', { name: l('导入组件模板', 'Import template'), exact: true }).click();

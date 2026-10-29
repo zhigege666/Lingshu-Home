@@ -146,7 +146,7 @@ async function footer(label) {
   check(value.x > value.viewportWidth * .7 && value.brandCount === 1, `${label}: default project branding is in the bottom-right slot`); details.geometry[label] = value;
 }
 async function enterEditor() {
-  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   const root = page.locator('.lh-page-editor'); await root.locator('.lh-editor-controls').waitFor({ state: 'visible', timeout: STEP }); await settle(); return root;
 }
 async function fitDraft(root) {
@@ -164,7 +164,7 @@ async function readonlyChecks() {
   equal(await page.locator('html').getAttribute('lang'), bootstrap.language, 'Document language follows the fixed instance setting');
   await logos(page, 'home-light', 2, [36,18]); await noHorizontalOverflow('2K home'); await cardGeometry(); await footer('footer-light'); await capture('home-light'); await favicons();
   step('Dark homepage keeps the project logo colors');
-  await page.getByRole('button', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('.lh-home')?.dataset.theme === 'dark', null, { timeout: STEP }); await settle();
   await logos(page, 'home-dark', 2, [36,18]); await capture('home-dark');
   step('Homepage edit controls use the full row and Fit content remains a draft');

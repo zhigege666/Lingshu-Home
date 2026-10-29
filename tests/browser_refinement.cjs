@@ -55,7 +55,7 @@ async function home(reload = false) {
 async function admin(label) {
   if (!(await page.locator('.admin-shell').isVisible())) {
     await home();
-    await page.getByRole('link', { name: '管理中心', exact: true }).click();
+    await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: '管理中心', exact: true }).click();
     await page.locator('.admin-shell').waitFor({ state: 'visible', timeout: STEP });
   }
   await page.getByRole('navigation', { name: '管理菜单', exact: true }).getByRole('button', { name: label, exact: true }).click();

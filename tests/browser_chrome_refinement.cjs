@@ -77,7 +77,7 @@ async function adminControl(control, label) {
 }
 async function admin(label) {
   if (!(await page.locator('.admin-shell').isVisible())) {
-    await page.locator('.lh-home a[href^="#/admin"]').first().click();
+    await page.locator('.lh-more-trigger').click(); await page.locator('.lh-home-actions-menu a[href="#/admin"]').click();
     await page.locator('.admin-shell').waitFor({ state: 'visible', timeout: STEP });
   }
   await page.getByRole('navigation', { name: l('管理菜单', 'Administration menu'), exact: true }).getByRole('button', { name: label, exact: true }).click();

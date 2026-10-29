@@ -70,7 +70,7 @@ async function check(name, run) { const started = Date.now(); try { await run();
         await page.goto(base + '/#/'); await shared();
         const panel = page.locator('[data-activity-view="' + id + '"]');
         await panel.getByText(document.title, { exact: true }).waitFor();
-        await page.locator('.lh-edit-menu summary').click();await page.getByRole('button',{name:/^(调整布局|Adjust layout)$/,exact:true}).click(); await page.locator('.lh-composer').waitFor();
+        await page.locator('.lh-more-trigger').click();await page.getByRole('menuitem',{name:/^(调整布局|Adjust layout)$/,exact:true}).click(); await page.locator('.lh-composer').waitFor();
         await page.locator('.lh-composer-sidebar.is-library').getByRole('tab', { name: '添加组件', exact: true }).click();
         await page.locator('[data-activity-preset="month"]').click();
         assert.equal(await page.locator('.lh-document-activity').count(), 2, 'The first tab owns an unsaved component draft');

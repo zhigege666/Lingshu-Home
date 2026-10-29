@@ -427,7 +427,8 @@ async function signIn(st, side, identity) {
   await writeUI(st, side, 'POST', '/auth/login', 200, () => button(st, side, '登录', 'Sign in').click(), 'Sign in through the login form');
 }
 async function signOut(st, side) {
-  await writeUI(st, side, 'POST', '/auth/logout', 200, () => button(st, side, '退出登录', 'Sign out').click(), 'Sign out through the current UI');
+  await side.page.locator('.home-account-trigger').click();
+  await writeUI(st, side, 'POST', '/auth/logout', 200, () => side.page.getByRole('menuitem', { name: l(st, '退出登录', 'Sign out'), exact: true }).click(), 'Sign out through the current UI');
   await settle(st, side);
   equal(st, (await readBoot(st, side)).user, null, 'Sign-out removes the authenticated identity');
 }
@@ -531,11 +532,13 @@ async function responsive(st, side, label, controls) {
       check(st, Math.abs(measured.setupSpacing.notice.left - measured.setupSpacing.submit.left) <= 1 && Math.abs(measured.setupSpacing.notice.right - measured.setupSpacing.submit.right) <= 1, label + ': final notice and submit button keep their aligned horizontal edges');
     }
     for (const control of controls()) {
+      if (control.open) await control.open();
       await control.locator.scrollIntoViewIfNeeded();
       await control.locator.click({ trial: true });
       const box = await control.locator.boundingBox();
       entry.controls.push({ name: control.name, box });
       check(st, !!box && box.x >= -1 && box.x + box.width <= viewport.width + 1 && box.y >= -1 && box.y + box.height <= viewport.height + 1, label + ': ' + control.name + ' is reachable inside the viewport');
+      if (control.close) await control.close();
     }
     if (measured.setupSpacing) await screenshot(st, side, label + '-actions-' + viewport.width + 'x' + viewport.height);
     await side.page.evaluate(() => window.scrollTo(0, 0));
@@ -551,7 +554,7 @@ async function visitAnonymous(st, label = 'visitor') {
   return side;
 }
 async function enterAccessSettings(st, side) {
-  await side.page.getByRole('link', { name: l(st, '管理中心', 'Admin'), exact: true }).click();
+  await side.page.locator('.lh-more-trigger').click(); await side.page.getByRole('menuitem', { name: l(st, '管理中心', 'Admin'), exact: true }).click();
   await side.page.locator('.admin-shell').waitFor();
   await button(st, side, '访问与账号', 'Access and accounts').click();
   await button(st, side, '保存访问设置', 'Save access settings').waitFor();
@@ -604,8 +607,8 @@ async function seedScenario(st, side, identity) {
   equal(st, await side.page.locator('.lh-home article.lh-bookmark[data-link-id]').count(), 15, 'Natural reload retains the rendered seeded content without a helper space switch');
   await responsive(st, side, 'seeded-home', () => [
     { name: 'space selector', locator: side.page.getByRole('combobox', { name: l(st, '选择空间', 'Choose a space'), exact: true }) },
-    { name: 'admin entry', locator: side.page.getByRole('link', { name: l(st, '管理中心', 'Admin'), exact: true }) },
-    { name: 'sign out', locator: button(st, side, '退出登录', 'Sign out') }
+    { name: 'admin entry', locator: side.page.getByRole('menuitem', { name: l(st, '管理中心', 'Admin'), exact: true }), open: () => side.page.locator('.lh-more-trigger').click(), close: () => side.page.keyboard.press('Escape') },
+    { name: 'sign out', locator: side.page.getByRole('menuitem', { name: l(st, '退出登录', 'Sign out'), exact: true }), open: () => side.page.locator('.home-account-trigger').click(), close: () => side.page.keyboard.press('Escape') }
   ]);
   await selectSpace(st, side, configured.personal);
   await naturalReload(st, side, configured.personal, 'Explicit personal selection');
@@ -616,7 +619,7 @@ async function seedScenario(st, side, identity) {
   equal(st, anonymous.spaces.map(space => space.id), [configured.shared.id], 'Anonymous identity can access only the published shared space');
   equal(st, await button(st, side, '添加第一个链接', 'Add your first link').count(), 0, 'Anonymous public visitor is not offered editing actions');
   await naturalReload(st, side, configured.shared, 'Anonymous identity after sign-out');
-  await side.page.getByRole('link', { name: l(st, '登录管理', 'Admin sign in'), exact: true }).click();
+  await side.page.locator('.lh-more-trigger').click(); await side.page.getByRole('menuitem', { name: l(st, '登录管理', 'Admin sign in'), exact: true }).click();
   await side.page.locator('.admin-shell').waitFor();
   await settle(st, side);
   await side.page.locator('.admin-topbar').getByRole('button', { name: l(st, '管理员登录', 'Administrator sign-in'), exact: true }).click();

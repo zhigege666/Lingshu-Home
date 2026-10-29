@@ -85,7 +85,13 @@ function PreviewFrame({ bootstrap, dashboard, resolution, onEscape }: { bootstra
       if (target?.closest?.('a')) event.preventDefault()
     }
     const stopSubmit = (event: Event) => event.preventDefault()
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && onEscape) { event.preventDefault(); event.stopPropagation(); onEscape() } }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !onEscape || event.defaultPrevented) return
+      // An iframe menu owns its first Escape. Check the live layer as well as
+      // defaultPrevented so this does not depend on native listener order.
+      if (documentState.querySelector('[data-state="open"]:is([role="menu"],[role="listbox"],[role="dialog"])')) return
+      event.preventDefault(); event.stopPropagation(); onEscape()
+    }
     documentState.addEventListener('click', stopNavigation, true)
     documentState.addEventListener('auxclick', stopNavigation, true)
     documentState.addEventListener('submit', stopSubmit, true)

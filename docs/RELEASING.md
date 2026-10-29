@@ -50,7 +50,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.7` uses `ghcr.io/zhigege666/lingshu-home:0.0.7`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.8` uses `ghcr.io/zhigege666/lingshu-home:0.0.8`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 

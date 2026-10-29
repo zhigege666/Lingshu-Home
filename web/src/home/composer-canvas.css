@@ -1,7 +1,7 @@
 /* Editing chrome is neutral; page skins continue to own the canvas content. */
-.lh-composer-canvas > .lh-home { min-height: 100%; width: 100%; }
+.lh-composer-canvas > .lh-home { height: 100%; min-height: 0; width: 100%; }
 .lh-home[data-composing] { --lh-editor-accent: #426bd1; }
-.lh-home[data-composing] > :is(.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 28px; padding-right: 28px; }
+.lh-home[data-composing] :is(.lh-workspace,.lh-top-region,.lh-bottom-region), .lh-home[data-composing] > .lh-page-chrome { padding-left: 28px; padding-right: 28px; }
 .lh-home[data-composing] > .lh-custom-header { padding-top: 22px; padding-bottom: 22px; }
 .lh-home[data-composing] .lh-region-item.is-editable { position: relative; min-width: 0; border: 1px dashed color-mix(in srgb,var(--lh-ink) 20%,transparent); border-radius: 10px; padding: 34px 8px 8px; }
 .lh-home[data-composing] .lh-region-item.is-editable:hover { border-color: var(--lh-editor-accent); }
@@ -12,7 +12,7 @@
 .lh-home[data-composing] .lh-region-edit-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lh-home[data-composing] .is-selected > .lh-region-edit-label { color: var(--lh-editor-accent); }
 .lh-home .lh-grid-select { min-width: 0; padding: 3px 0; background: transparent; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: inherit; }
-.lh-home[data-composing] .lh-side-content { overflow-x: clip; padding: 3px; top: 12px; max-height: calc(100dvh - 105px); }
+.lh-home[data-composing] .lh-side-content { overflow-x: clip; padding: 3px; top: 12px; max-height: max(0px,calc(var(--lh-body-height,100dvh) - 40px)); }
 .lh-home[data-composing] .lh-editor-search-region { flex-flow: row wrap; justify-content: flex-end; padding-bottom: 20px; }
 .lh-home[data-composing] .lh-editor-search-region .lh-type-search { max-width: min(100%,360px); }
 .lh-home .lh-page-chrome.is-editing { gap: 12px; }
@@ -43,7 +43,7 @@
 .lh-home[data-canvas-narrow] :is(.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 20px; padding-right: 20px; }
 .lh-home[data-canvas-narrow] .lh-main-flow { gap: 22px; }
 @media (max-width: 560px) {
-  .lh-home[data-canvas-narrow] > :is(.lh-header,.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 12px; padding-right: 12px; }
+  .lh-home[data-canvas-narrow] :is(.lh-header,.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 12px; padding-right: 12px; }
   .lh-home[data-composing] .lh-page-chrome { gap: 5px; }
   .lh-home[data-composing] .lh-chrome-slot { min-height: 84px; padding-left: 7px; padding-right: 7px; }
   .lh-home .lh-page-chrome .lh-chrome-slot-label { left: 7px; display: block; }

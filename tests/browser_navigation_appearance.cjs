@@ -61,7 +61,7 @@ async function setDensity(value) { await choose(label(contentFields(), '内容�
 async function assertVisible(locator, expected, message) { assert.equal(await locator.isVisible(), expected, message); }
 async function home() { const target = base.origin + '/#/'; if (page.url() === target) await page.reload({ waitUntil: 'domcontentloaded' }); else await page.goto(target, { waitUntil: 'domcontentloaded' }); await panel().waitFor(); await settle(); }
 async function enter() {
-  await page.locator('.lh-edit-menu summary').click(); await button(page, '调整布局', 'Adjust layout').click(); await toolbar().waitFor();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); await toolbar().waitFor();
   const layer = page.locator('[data-composer-layer="' + viewId + '"]:visible');
   if (!await layer.count()) {
     await button(toolbar(), '组件与页面结构', 'Components and layers').click();

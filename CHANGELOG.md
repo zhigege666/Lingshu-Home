@@ -4,6 +4,15 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-10-29
+
+### Homepage controls and persistent page chrome
+
+- Reduce the top-right controls to Edit, More and the account menu; place space selection beside the title. Group Library, click statistics, layout editing, refresh and temporary display choices in an accessible, themed menu. Preserve permission checks, native new-tab links and unsaved-draft guards.
+- Keep the site header, enabled custom header and footer in view while the page body scrolls. Apply the same bounded layout to content editing and composer previews, keep editor controls available, and reserve space rather than cover the first or last links. Existing header/footer visibility settings remain authoritative.
+- Size sticky category areas to the actual content viewport and route category/link drag scrolling through its scrollable ancestors. Bound long custom chrome and conflict feedback so their content remains reachable without pushing the page body out of view.
+- Keep the 0.0.7 database schema, click recording baseline, API/MCP contracts and deployment settings unchanged. Earlier releases apply only missing existing migrations; retain the original data, keys, mounts and storage configuration when updating the container.
+
 ## [0.0.7] - 2026-10-29
 
 ### Homepage content editing

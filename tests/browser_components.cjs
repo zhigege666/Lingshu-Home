@@ -80,7 +80,7 @@ async function geometry(label) {
   equal(value.cards.length, 4, `${label}: four data cards render`);
   for (const card of value.cards) { check(card.width > 150 && card.height > 60, `${label}: usable card bounds`); check(!card.overflow, `${label}: card content stays within its width`); }
 }
-async function enterEditor() { await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); await page.locator('.lh-composer').waitFor({ timeout }); }
+async function enterEditor() { await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); await page.locator('.lh-composer').waitFor({ timeout }); }
 async function library() { await page.locator('.lh-composer-library-toggle').click(); await page.locator('.lh-composer-library-items').first().waitFor({ timeout }); }
 async function importTemplate() {
   await library(); await page.getByRole('button', { name: l('导入组件模板', 'Import template'), exact: true }).click();
@@ -127,7 +127,9 @@ async function main() {
   await home();
   const cold = await page.evaluate(() => performance.getEntriesByType('resource').map(entry => ({ name: entry.name, bytes: entry.transferSize })));
   check(!cold.some(entry => /DataPanels-|TrafficPanel-|WidgetImportDialog-/.test(entry.name)), 'Navigation-only home does not load optional component/import bundles');
-  check(!(await page.getByRole('button', { name: l('读取最新组件快照', 'Read latest component snapshots'), exact: true }).count()), 'Navigation-only home has no component refresh action');
+  await page.locator('.lh-more-trigger').click();
+  check(!(await page.getByRole('menuitem', { name: l('读取最新组件快照', 'Read latest component snapshots'), exact: true }).count()), 'Navigation-only home has no component refresh action');
+  await page.keyboard.press('Escape');
   measurements.navigationResources = cold;
 
   step('Authenticated component snapshots and actual persisted page bindings');
@@ -162,7 +164,7 @@ async function main() {
   check((await page.locator('.lh-metrics-panel').innerText()).includes('Unknown fixture'), 'Unknown metric is rendered');
   check(!(await page.locator('.lh-weather-panel').innerText()).includes('Open-Meteo'), 'Pushed weather is not falsely attributed to a provider');
   const beforeRefresh = requests.length;
-  await page.getByRole('button', { name: l('读取最新组件快照', 'Read latest component snapshots'), exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('读取最新组件快照', 'Read latest component snapshots'), exact: true }).click();
   await page.waitForLoadState('networkidle');
   const refreshRequests = requests.slice(beforeRefresh).filter(item => item.url.includes('/api/'));
   equal(refreshRequests.filter(item => item.method === 'GET' && item.url.includes('/dashboard?')).length, 1, 'One shared dashboard refresh');

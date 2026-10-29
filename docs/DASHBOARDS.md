@@ -2,7 +2,7 @@
 
 The dashboard presets arrange Home's existing components into three reusable layouts. Their static catalogue and page-draft compiler live in `web/src/home/dashboard-presets.ts`. The producer handoff examples live in `examples/dashboard-data/`; they describe the existing version-1 data contracts and are not dashboard import payloads. Acceptance results belong to [tests/README.md](../tests/README.md).
 
-Open **More editing options → Adjust layout → Add component → Dashboard presets** on the homepage to choose a preset. Applying it changes the page draft; use the layout editor's explicit save to persist it. The homepage **Edit** action opens category and link editing with its own draft and save.
+Open **More → Adjust layout → Add component → Dashboard presets** on the homepage to choose a preset. Applying it changes the page draft; use the layout editor's explicit save to persist it. The homepage **Edit** action opens category and link editing with its own draft and save.
 
 The layouts do not create sources, enable polling, install plugins, fabricate live values, or add historical storage. They arrange the same authorized datasets already supported by Home. A current-value card is not a time-series chart, and a service-status list only displays status supplied by its source.
 

@@ -151,7 +151,7 @@ const addDays = (date, days) => new Date(Date.parse(date + 'T00:00:00Z') + days 
       const saved = page.waitForResponse(response => response.request().method() === 'POST' && response.url() === BASE + '/api/v1' + navPath + '/batch-edit');
       await button('保存', 'Save', page.locator('.lh-content-toolbar')).click(); assert((await saved).ok()); await page.locator('.lh-content-toolbar').waitFor({ state: 'hidden' });
       assert.equal(clickRequests.length, requests); assert.equal(await count(main.id), before);
-      const content = await baseline(); await page.locator('.lh-edit-menu summary').click(); await button('调整布局', 'Adjust layout', page.locator('.lh-edit-menu')).click(); await page.locator('.lh-composer').waitFor();
+      const content = await baseline(); await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); await page.locator('.lh-composer').waitFor();
       await button('预览', 'Preview', page.locator('.lh-composer-toolbar')).click(); await page.locator('.lh-composer.is-previewing').waitFor();
       const inert = panel().locator('article[data-link-id="' + main.id + '"] .lh-bookmark-title'); assert.equal(await inert.getAttribute('href'), null); assert.equal(await inert.getAttribute('aria-disabled'), 'true');
       await inert.scrollIntoViewIfNeeded(); const box = await inert.boundingBox(); assert(box && box.width && box.height);
@@ -160,7 +160,7 @@ const addDays = (date, days) => new Date(Date.parse(date + 'T00:00:00Z') + days 
       await button('取消', 'Cancel', page.locator('.lh-composer-toolbar')).click(); await page.locator('.lh-composer').waitFor({ state: 'hidden' }); await unchanged(content);
     });
     await check(provider + '/statistics_filters_zero_links_recent_click_and_desktop_geometry', async () => {
-      const trigger = button('点击统计', 'Click statistics'); if (!(await trigger.isVisible())) await page.locator('.lh-edit-menu summary').click(); await trigger.click();
+      await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('点击统计', 'Click statistics'), exact: true }).click();
       const dialog = page.locator('.lh-click-stats-dialog'); await dialog.waitFor();
       const ready = () => dialog.locator('.lh-click-stats-table-wrap[aria-busy=false]').waitFor(); await ready();
       const refreshed = async action => {
@@ -218,7 +218,10 @@ const addDays = (date, days) => new Date(Date.parse(date + 'T00:00:00Z') + days 
         await api(statsPath, 'GET', undefined, 401, anonymous);
         if (initial.mode === 'public_read') {
           const visitor = await anonymous.newPage(); visitor.setDefaultTimeout(15000); const before = await count(main.id), requests = clickRequests.length, content = await baseline();
-          await home(visitor, anonymous); assert.equal(await visitor.getByRole('button', { name: l('点击统计', 'Click statistics'), exact: true }).count(), 0, 'Anonymous visitor sees the analytics entry');
+          await home(visitor, anonymous); await visitor.locator('.lh-more-trigger').click();
+          assert.equal(await visitor.getByRole('menuitem', { name: l('点击统计', 'Click statistics'), exact: true }).count(), 0, 'Anonymous visitor sees the analytics entry');
+          assert.equal(await visitor.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).count(), 0, 'Public read visitor sees layout editing');
+          await visitor.keyboard.press('Escape');
           await open(primary(main.id, visitor), main.url, undefined, anonymous, visitor); await until(() => count(main.id).then(value => value === before + 1), 'Public visitor activation was not counted'); assert.equal(clickRequests.length, requests + 1); await unchanged(content); await visitor.close();
           report.conditionalChecks.push({ provider, mode: initial.mode, anonymousActivation: 'passed' });
         } else {

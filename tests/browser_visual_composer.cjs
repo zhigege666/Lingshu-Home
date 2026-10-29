@@ -77,7 +77,7 @@ async function home(reload = false) {
   await page.waitForFunction(() => document.querySelectorAll('.lh-home .lh-bookmark').length > 0, null, { timeout: STEP }); await settle();
 }
 async function enter() {
-  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   await editor().waitFor({ state: 'visible' }); await toolbar().waitFor({ state: 'visible' }); await settle();
 }
 async function cancel() {
@@ -114,9 +114,9 @@ async function unsavedChecks() {
     assert.equal(await editor().locator('.lh-composer-sidebar').count(), 2, 'Both desktop tool panels are visible');
     assert.equal(await canvas().getAttribute('data-page-theme'), originalPage.config.pageTheme.id);
     assert.equal(await toolbar().getByRole('button', { name: l('保存页面', 'Save page'), exact: true }).isDisabled(), true);
-    const before = await toolbar().boundingBox(); await page.locator('.lh-composer-stage').evaluate(node => { node.scrollTop = node.scrollHeight; }); await settle();
+    const before = await toolbar().boundingBox(); await page.locator('.lh-composer-canvas .lh-home-scroll').evaluate(node => { node.scrollTop = node.scrollHeight; }); await settle();
     const after = await toolbar().boundingBox(); assert.ok(Math.abs(after.y - before.y) < 1, 'Save toolbar stays visible while the canvas scrolls');
-    await page.locator('.lh-composer-stage').evaluate(node => { node.scrollTop = 0; });
+    await page.locator('.lh-composer-canvas .lh-home-scroll').evaluate(node => { node.scrollTop = 0; });
     details.editorGeometry = await noOverflow('2K editor'); await capture('editor-classic-2k');
   });
   await group('Category component can be selected on the canvas and moved/styled without saving', async () => {
@@ -259,7 +259,7 @@ async function saveOnce() {
     assert.deepEqual(records(await readNavigation()), records(originalNavigation));
     details.saved = { pageId: saved.id, initialRevision: originalPage.revision, savedRevision: saved.revision, addedViewId: newId, addedChromeItemId: newItems[0], configSha256: digest(saved.config), businessSha256: digest(records(originalNavigation)) };
     await noOverflow('Saved iOS 2K'); await capture('ios-saved-light-2k');
-    await page.getByRole('button', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await settle();
+    await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape'); await settle();
     assert.equal(await page.locator('.lh-home').getAttribute('data-theme'), 'dark'); await capture('ios-saved-dark-2k');
     assert.deepEqual(await readPage(), saved, 'Temporary viewing color control sends no second write');
     await enter(); await capture('editor-saved-ios-2k'); await cancel();

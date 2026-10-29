@@ -121,7 +121,7 @@ async function restoreOriginalLayout() {
 }
 async function adminTab(label) {
   if (!(await page.locator('.admin-shell').isVisible())) {
-    await page.getByRole('link', { name: '管理中心', exact: true }).click();
+    await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: '管理中心', exact: true }).click();
     await page.locator('.admin-main').waitFor({ state: 'visible', timeout: STEP_TIMEOUT });
   }
   await page.getByRole('button', { name: label, exact: true }).click();

@@ -183,7 +183,8 @@ async function run() {
   await page.locator('.lh-home').waitFor();
   const img = page.locator(`img[src="${asset.url}"]`).first(); await img.waitFor();
   check(await img.evaluate(element => element.complete && element.naturalWidth > 0), 'Home renders the persisted same-origin image after reload');
-  const [homeRefresh] = await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/dashboard' && response.request().method() === 'GET'), page.getByRole('button', { name: l('刷新内容', 'Refresh content'), exact: true }).click()]);
+  await page.locator('.lh-more-trigger').click();
+  const [homeRefresh] = await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/dashboard' && response.request().method() === 'GET'), page.getByRole('menuitem', { name: l('刷新内容', 'Refresh content'), exact: true }).click()]);
   equal(homeRefresh.status(), 200, 'Refresh content is an explicit dashboard read');
   await page.waitForLoadState('networkidle'); await layout('homepage-2560');
   const idleStart = browserRequests.length; const idleMS = Number(process.env.IDLE_MS || '15000');

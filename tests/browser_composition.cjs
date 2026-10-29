@@ -114,7 +114,7 @@ async function layout() {
   await idle();
 }
 async function editHomepage() {
-  await page.locator('.lh-edit-menu summary').click(); await page.getByRole('button', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
+  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   const editor = page.locator('.lh-page-editor[aria-label]');
   await editor.locator('.lh-editor-controls').waitFor({ state: 'visible', timeout: STEP });
   return editor;
@@ -264,7 +264,12 @@ async function previewPhase() {
     const geometry = await settledGeometry(preview.frame); noHorizontalOverflow(geometry, `Preview ${width} × ${height}`);
     equal(await preview.frame.locator('.lh-home-heading h1').textContent(), draftName, 'The unsaved title survives resolution changes');
     equal(await preview.frame.locator('.lh-home').getAttribute('data-theme'), draftColor, 'The unsaved color survives resolution changes');
-    equal(await preview.frame.locator('.lh-edit-trigger,.lh-admin-link,.lh-space-holder').count(), 0, 'Preview omits management and space-changing actions');
+    equal(await preview.frame.locator('.lh-edit-trigger,.lh-space-holder').count(), 0, 'Preview omits editing and space-changing actions');
+    await preview.frame.locator('.lh-more-trigger').click();
+    equal(await preview.frame.locator('.lh-home-actions-menu a[href="#/admin"],.lh-home-actions-menu a[href="#/library"]').count(), 0, 'Preview menu omits management navigation');
+    equal(await preview.frame.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).count(), 0, 'Preview menu omits layout editing');
+    equal(await preview.frame.getByRole('menuitem', { name: l('点击统计', 'Click statistics'), exact: true }).count(), 0, 'Preview menu omits statistics');
+    await page.keyboard.press('Escape');
     check(await preview.frame.locator('.lh-bookmark').count() > 0, 'Preview contains actual loaded navigation content');
     measured.push({ width, height, geometry, bookmarks: await preview.frame.locator('.lh-bookmark').count() });
   }

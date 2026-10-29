@@ -443,7 +443,7 @@ Each `builtin/navigation` or `builtin/favorites` view accepts the following opti
 
 This content-setting group is available only for navigation and favorites. Category navigation retains its separate `showCounts` setting described below; the other content keys are not accepted on that panel, search or unrelated panels. The current page Schema 2 and database schema remain unchanged.
 
-The homepage path is **More editing options → Adjust layout → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
+The homepage path is **More → Adjust layout → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
 
 ### Category folder presentation
 
@@ -542,6 +542,8 @@ Example property within a complete page configuration:
 The renderer treats text as text. It does not parse HTML, Markdown, script or style content. Links with `newTab` omitted behave as `true`; new-tab links use `noopener noreferrer`. Switching item types must remove fields that the new type does not accept. An empty slot is valid; a disabled area retains its configured items.
 
 A missing `chrome` uses this compatible default: the header is disabled with three empty arrays; the footer is enabled with empty left/center arrays and `[{"id":"home-branding","type":"branding"}]` on the right. Branding can be moved or removed. It is not required content and is not silently reinserted into an explicitly configured empty footer.
+
+From 0.0.8, the homepage reserves viewport space for the site header, enabled custom header and enabled footer; the main content scrolls between them. Composer previews use the same bounded layout, while layout editing retains its dedicated toolbar. A disabled area remains disabled. Long chrome content can scroll inside its own bounded area. This rendering change does not rewrite `config.chrome`, change revisions, alter API fields or add a database migration.
 
 In normal browsing, the custom header renders as an extra content row below the host header. In visual editing, a dedicated editor toolbar replaces that ordinary header, and the search component appears as a selectable canvas component. Preview restores the ordinary header presentation while keeping account changes and write controls unavailable. Configurable chrome does not supply authentication or management controls. The footer uses normal document flow: at the bottom of a short page, after the content of a long page, without an overlay that hides links. These areas are separate from `layout.placements`; they are not additional panel instances or category regions.
 
