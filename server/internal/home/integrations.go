@@ -618,6 +618,15 @@ func validateIntegrationConfiguration(name, kind, schema string, version int, co
 	}
 	return nil
 }
+// A writer needs the source ID and revision for its next guarded update.
+// Reading stored connection details and sync history requires sources:read.
+func (r *Request) sourceWriteResult(s IntegrationSource) any {
+	if r.Bearer && !r.AllowedActions["sources:read"] {
+		return map[string]string{"id": s.ID, "configRevision": s.ConfigRevision}
+	}
+	return s
+}
+
 func (a *App) createIntegrationSource(r *Request) (*Response, error) {
 	if r.User == nil {
 		return nil, unauthorized()
@@ -682,7 +691,7 @@ func (a *App) createIntegrationSource(r *Request) (*Response, error) {
 		return nil, err
 	}
 	r.WakeIntegrations = true
-	return &Response{Status: 201, Data: s}, nil
+	return &Response{Status: 201, Data: r.sourceWriteResult(s)}, nil
 }
 func (a *App) updateIntegrationSource(r *Request) (*Response, error) {
 	if r.User == nil {
@@ -773,7 +782,7 @@ func (a *App) updateIntegrationSource(r *Request) (*Response, error) {
 		return nil, err
 	}
 	r.WakeIntegrations = true
-	return ok(s), nil
+	return ok(r.sourceWriteResult(s)), nil
 }
 func (a *App) queueIntegrationSync(r *Request) (*Response, error) {
 	if r.User == nil {
@@ -800,7 +809,7 @@ func (a *App) queueIntegrationSync(r *Request) (*Response, error) {
 	}
 	s.NextSyncAt = &now
 	r.WakeIntegrations = true
-	return &Response{Status: 202, Data: map[string]any{"queued": true, "source": s}}, nil
+	return &Response{Status: 202, Data: map[string]any{"queued": true, "source": r.sourceWriteResult(s)}}, nil
 }
 
 func (a *App) integrationTransaction(ctx context.Context, fn func(Queryer) error) error {

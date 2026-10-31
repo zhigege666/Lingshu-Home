@@ -311,7 +311,7 @@ An Owner can configure an HTTP, HTTPS or SOCKS5 proxy with encrypted, write-only
 
 ### External writes and MCP
 
-On the development branch, MCP uses the space bound to the personal access token when a client omits `spaceId`. For example, call `documents_list` with `{"input":{}}`. If the client needs the space name or ID, call `space_current` with `{}`. After upgrading Home, refresh the tool catalog in your MCP gateway.
+On the development branch, MCP uses the space bound to the personal access token when a client omits `spaceId`. For example, call `documents_list` with `{}`. To create a note in a space without a default write directory, call `document_sources_list` and choose an authorized destination with `canWrite:true`. If the client needs the space name or ID, call `space_current` with `{}`. After upgrading Home, refresh the tool catalog in your MCP gateway.
 
 Use scoped personal access tokens for external clients. `external-push` sources accept complete validated navigation, calendar, weather, metric or status snapshots with a request ID and an expected revision or monotonic sequence. Replaying the same request is idempotent; conflicting or stale updates are rejected. External snapshots do not overwrite the local navigation dataset.
 

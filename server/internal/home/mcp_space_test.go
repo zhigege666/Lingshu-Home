@@ -29,7 +29,7 @@ func TestMCPBoundSpace(t *testing.T) {
 		if integrationObject(t, dashboard["space"])["id"] != id {
 			t.Fatal("dashboard did not use the token-bound space")
 		}
-		list := agent.tool(token, "documents_list", map[string]any{"input": map[string]any{}}, "")
+		list := agent.tool(token, "documents_list", map[string]any{}, "")
 		items := list["items"].([]any)
 		filename := map[string]string{f.shared: "team.md", f.personal: "mine.md"}[id]
 		if len(items) != 1 || integrationObject(t, items[0])["relativePath"] != filename {
@@ -59,6 +59,8 @@ func TestMCPBoundSpace(t *testing.T) {
 		{"categories_list", map[string]any{"spaceId": nil}},
 		{"categories_list", map[string]any{"spaceId": 42}},
 		{"categories_get", map[string]any{}},
+		{"documents_list", map[string]any{"input": nil}},
+		{"categories_create", map[string]any{}},
 	} {
 		wire, _ := agent.mcp(token, "tools/call", map[string]any{"name": tc.name, "arguments": tc.args}, http.StatusOK)
 		// The SDK can reject the arguments before the application handler.
@@ -82,5 +84,34 @@ func TestMCPBoundSpace(t *testing.T) {
 				t.Fatalf("optional document filters published invalid required member: %#v", v)
 			}
 		}
+	}
+}
+
+func TestMCPDefaultFiltersAndBatchErrorDetails(t *testing.T) {
+	f := newDocumentFixture(t, false)
+	owner := &integrationTestBrowser{t: t, base: f.server.URL, client: f.owner.client, csrf: f.owner.csrf}
+	agent := integrationBrowser(t, f.server.URL)
+	token, _ := owner.token(f.shared, "", "documents:read", "navigation:read", "navigation:write")
+	for _, name := range []string{"documents_activity_list", "navigation_click_stats"} {
+		implicit := agent.tool(token, name, map[string]any{}, "")
+		explicit := agent.tool(token, name, map[string]any{"input": map[string]any{}}, "")
+		if !reflect.DeepEqual(implicit, explicit) {
+			t.Errorf("%s returned different results for omitted and empty filters", name)
+		}
+	}
+
+	nav := agent.tool(token, "navigation_get", map[string]any{}, "")
+	input := map[string]any{
+		"expectedRevision": nav["revision"],
+		"categories":       []map[string]any{{"id": "absent-category", "patch": map[string]any{"name": "A"}}},
+	}
+	httpErr := integrationObject(t, owner.call("POST", "/api/v1/spaces/"+f.shared+"/navigation/batch-edit", input, http.StatusNotFound, token))
+	mcpErr := agent.tool(token, "navigation_batch_edit", map[string]any{"input": input}, "not_found")
+	if mcpErr["httpStatus"] != float64(http.StatusNotFound) || mcpErr["entity"] != "category" || mcpErr["id"] != "absent-category" || mcpErr["field"] != "id" {
+		t.Fatalf("missing MCP batch error details: %v", mcpErr)
+	}
+	delete(mcpErr, "httpStatus")
+	if !reflect.DeepEqual(httpErr, mcpErr) {
+		t.Fatalf("REST and MCP error details differ: %v / %v", httpErr, mcpErr)
 	}
 }

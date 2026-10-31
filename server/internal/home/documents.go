@@ -27,6 +27,7 @@ type Document struct {
 	UpdatedAt             string             `json:"updatedAt"`
 	Status                string             `json:"status"`
 	ReadOnly              bool               `json:"readOnly"`
+	CanRestore            bool               `json:"canRestore,omitempty"`
 	Published             bool               `json:"published"`
 	HasUnpublishedChanges bool               `json:"hasUnpublishedChanges"`
 	Tags                  []string           `json:"tags"`
@@ -330,13 +331,17 @@ func (a *App) addDocumentLinkDetails(r *Request, d *documentRecord) error {
 	return rows.Err()
 }
 
+func (a *App) getDocumentBody(r *Request) (*Response, error) {
+	return a.documentResponse(r, 200, true)
+}
+
 func (a *App) getDocument(r *Request) (*Response, error) {
-	return a.documentResponse(r, 200)
+	return a.documentResponse(r, 200, false)
 }
 
 // Load authorization and related bookmarks while the database snapshot is open.
 // Reading the original file is deferred until that transaction has been released.
-func (a *App) documentResponse(r *Request, status int) (*Response, error) {
+func (a *App) documentResponse(r *Request, status int, requireBody bool) (*Response, error) {
 	d, _, edit, err := a.loadDocument(r, false)
 	if err != nil {
 		return nil, err
@@ -353,38 +358,57 @@ func (a *App) documentResponse(r *Request, status int) (*Response, error) {
 		if err := r.HTTP.Context().Err(); err != nil {
 			return nil, err
 		}
-		content := ""
-		root, e := a.openDocumentRoot(d.sourcePath)
-		if e != nil {
-			d.ReadOnly = true
-			d.UnavailableReason = "source_unavailable"
-		} else {
-			body, info, e := readDocumentFile(root, d.RelativePath, maxDocumentBytes)
-			root.Close()
-			if errors.Is(e, fs.ErrNotExist) {
-				d.Status = "missing"
-			} else if e != nil {
-				d.ReadOnly = true
-				d.UnavailableReason = "file_unavailable"
-			} else if validateDocumentContent(string(body)) != nil {
-				d.ReadOnly = true
-				d.UnavailableReason = "unsupported_content"
-			} else {
-				content = string(body)
-				d.Revision = documentHash(body)
-				d.Title = documentTitle(d.RelativePath, body)
-				d.Size = int64(len(body))
-				d.UpdatedAt = info.ModTime().UTC().Format(time.RFC3339Nano)
-				d.Status = "ready"
-				d.HasUnpublishedChanges = d.Published && (d.HasUnpublishedChanges || d.Revision != d.publishedRevision)
-			}
-		}
+		bodyErr := a.readWorkingDocument(d)
 		if err := r.HTTP.Context().Err(); err != nil {
 			return nil, err
 		}
-		d.Content = &content
+		if bodyErr != nil {
+			d.ReadOnly = true
+			if requireBody {
+				return nil, bodyErr
+			}
+		}
 		return &Response{Status: status, Data: d.Document}, nil
 	}}, nil
+}
+
+// A missing original can still have recoverable history. The HTTP detail keeps
+// metadata for the history dialog; MCP body reads return the same read error.
+func (a *App) readWorkingDocument(d *documentRecord) error {
+	root, err := a.openDocumentRoot(d.sourcePath)
+	if err != nil {
+		d.UnavailableReason = "source_unavailable"
+		return &APIError{Status: 503, Code: "document_source_unavailable", Message: "The document directory is unavailable."}
+	}
+	defer root.Close()
+	body, info, err := readDocumentFile(root, d.RelativePath, maxDocumentBytes)
+	if errors.Is(err, fs.ErrNotExist) {
+		d.Status = "missing"
+		d.CanRestore = !d.ReadOnly
+		d.UnavailableReason = "file_missing"
+		return documentFileError(err)
+	}
+	if err != nil {
+		var api *APIError
+		if !errors.As(err, &api) || api.Status != 400 {
+			d.UnavailableReason = "file_unavailable"
+			return &APIError{Status: 503, Code: "document_file_unavailable", Message: "The original file could not be read."}
+		}
+	}
+	content := string(body)
+	if err != nil || validateDocumentContent(content) != nil {
+		d.UnavailableReason = "unsupported_content"
+		return &APIError{Status: 422, Code: "document_unsupported_content", Message: "The original must be a supported regular UTF-8 Markdown file, up to 1 MiB."}
+	}
+	d.Content = &content
+	d.CanRestore = !d.ReadOnly
+	d.Revision = documentHash(body)
+	d.Title = documentTitle(d.RelativePath, body)
+	d.Size = int64(len(body))
+	d.UpdatedAt = info.ModTime().UTC().Format(time.RFC3339Nano)
+	d.Status = "ready"
+	d.HasUnpublishedChanges = d.Published && (d.HasUnpublishedChanges || d.Revision != d.publishedRevision)
+	return nil
 }
 
 func (a *App) createDocument(r *Request) (*Response, error) {
@@ -404,7 +428,7 @@ func (a *App) createDocument(r *Request) (*Response, error) {
 	if useDefault {
 		err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT id FROM document_sources WHERE space_id=? AND enabled=? AND default_write=?"), space.ID, true, true).Scan(&in.SourceID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, invalid("Choose a writable directory or configure the space's default write directory.")
+			return nil, &APIError{Status: 409, Code: "document_write_destination_required", Message: "No default write directory is configured. Select a writable sourceId from document_sources_list, or configure a default directory."}
 		}
 		if err != nil {
 			return nil, err
@@ -418,7 +442,7 @@ func (a *App) createDocument(r *Request) (*Response, error) {
 		return nil, missing()
 	}
 	if source.ReadOnly {
-		return nil, forbidden()
+		return nil, &APIError{Status: 403, Code: "document_source_read_only", Message: "This directory is configured as read-only."}
 	}
 	if _, err = cleanDocumentPath(in.RelativePath, false); err != nil {
 		return nil, err
@@ -442,7 +466,7 @@ func (a *App) createDocument(r *Request) (*Response, error) {
 		}
 		root, err := a.openDocumentRoot(source.Path)
 		if err != nil {
-			return nil, documentFileError(err)
+			return nil, &APIError{Status: 503, Code: "document_source_unavailable", Message: "The document directory is unavailable."}
 		}
 		defer root.Close()
 		if err = r.HTTP.Context().Err(); err != nil {
@@ -472,7 +496,7 @@ func (a *App) createDocument(r *Request) (*Response, error) {
 				return nil, err
 			}
 			rr.Params = map[string]string{"spaceId": space.ID, "id": id}
-			return a.documentResponse(rr, 201)
+			return a.documentResponse(rr, 201, false)
 		})
 	}}, nil
 }

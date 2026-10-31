@@ -241,7 +241,7 @@ The endpoint is `/mcp`, implemented with the official [MCP Go SDK v1.8.0](https:
 
 Every transport request, including discovery and tool listing, requires a Home bearer token. Browser cookies do not authenticate MCP. Responses enforce `Cache-Control: no-store`; cacheable protocol metadata uses `ttlMs: 0` and `cacheScope: "private"`. This implementation supplies personal access tokens, not an OAuth authorization server; configure a client that can send an Authorization header.
 
-In the development version after 0.0.8, omit `spaceId` on space-scoped MCP calls. Home uses the single space of the bearer token authenticated for that request. Start a new session with a business call such as `documents_list` with `{"input":{}}`. To display the connection’s space, call `space_current` with `{}` for `{spaceId, name, kind}`. An explicit ID still goes through the existing access checks. A source-specific token keeps its source and action limits. After upgrading Home, refresh any gateway tool catalog and publish the updated tool definitions.
+In the development version after 0.0.8, omit `spaceId` on space-scoped MCP calls. Home uses the single space of the bearer token authenticated for that request. Start a new session with a business call such as `documents_list` with `{}`. To display the connection’s space, call `space_current` with `{}` for `{spaceId, name, kind}`. An explicit ID still goes through the existing access checks. A source-specific token keeps its source and action limits. After upgrading Home, refresh any gateway tool catalog and publish the updated tool definitions.
 
 A 2026 tool call sends `Content-Type: application/json`, `Accept: application/json, text/event-stream`, `Mcp-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`, and `Mcp-Name: bookmarks_list`, with:
 
@@ -260,11 +260,13 @@ A 2026 tool call sends `Content-Type: application/json`, `Accept: application/js
 }
 ```
 
-Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list endpoints return arrays; MCP list tools return `structuredContent: { "items": [...] }`, preserving object output compatibility. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and optional `currentRevision`. Transport authentication failures remain HTTP `401`.
+Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list endpoints return arrays; MCP list tools return `structuredContent: { "items": [...] }`, preserving object output compatibility. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and the applicable `currentRevision`, `entity`, `id` and `field` details. Write-only batch errors identify submitted rows only. Transport authentication failures remain HTTP `401`.
 
 | Tools | Arguments (`spaceId` is optional wherever listed) |
 | --- | --- |
 | `space_current` | No arguments |
+| `document_sources_list` | No required arguments. Returns permitted working-document directories and whether the caller can write to each. |
+| `documents_list`, `documents_activity_list` | Optional `spaceId` and `input` filters. Omit both to use the defaults. |
 | `navigation_get` | `spaceId`; complete local navigation dataset and revision |
 | `navigation_batch_edit` | `spaceId`, `input` with `expectedRevision` and category/link patches or stable-ID moves |
 | `navigation_click_stats` | `spaceId`, `input` containing optional date, category, link, sort and pagination filters; `{}` uses defaults |
@@ -279,9 +281,13 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 | `sources_get`, `sources_snapshot_get` | `id` |
 | `sources_update`, `sources_snapshot_push`, `sources_sync` | `id`, `input`; sync input is `{}` |
 
+If the gateway exposes fewer tools than the installed Home version, compare Home’s authenticated `tools/list` against the gateway catalog for the same connection. A tool present only downstream needs a gateway discovery/publication or caller-grant check. A tool missing downstream needs an instance-version or endpoint check. After refreshing, describe the tool again to get its current schema revision, then test an authorized read such as `documents_list {}`. A catalog count alone does not verify downstream version or business permissions.
+
 MCP calls invoke the same business handlers and validation as HTTP, in database transactions after acquiring the common write gate. There is no loopback HTTP proxy or unrestricted administrative tool.
 
 New credential creation/expiry timestamps and push receipt `receivedAt` values use UTC microsecond precision, matching both SQLite and PostgreSQL reads. Previously stored immutable request receipts keep their original values.
+
+A PAT with only `navigation:write` can still edit. Creating or updating a bookmark returns `id` and `updatedAt`, category writes return the ID, and batch edits return `updatedCount` and `revision`. To display stored fields, the client also needs `navigation:read`. For data sources, PATs with `sources:write` alone receive only `id` and `configRevision` on creation and update. Queuing a sync returns `queued:true` with that same receipt under `source`. The complete stored source requires `sources:read` and still excludes credential secrets.
 
 ### Complete navigation and atomic edits
 
@@ -311,7 +317,7 @@ Use the revision actually read and replace every placeholder with an authorized 
 - Submit 1–500 operations across all three arrays. A row may have one patch and one move, counting as two operations; repeated patches or repeated moves for the same entity are rejected. Missing/foreign IDs, self anchors and invalid group references fail the whole batch.
 - Moves operate on complete sibling groups, including hidden or paginated rows. Untouched siblings keep their relative order. A changed group's sort values are normalized, so the response may contain more than 500 affected records even though the request has at most 500 operations.
 
-Success returns `structuredContent:{updatedCount,revision,categories,links}` with every normalized changed row. Merge all returned rows into the next baseline. Actual changes advance the navigation revision once; a normalized no-op leaves the revision and link timestamps unchanged. Page composition has a separate revision and save operation.
+With navigation read access, success returns `structuredContent:{updatedCount,revision,categories,links}` with every normalized changed row. Merge all returned rows into the next baseline. Actual changes advance the navigation revision once; a normalized no-op leaves the revision and link timestamps unchanged. Page composition has a separate revision and save operation.
 
 A stale revision yields `navigation_version_conflict`, `httpStatus:409` and `currentRevision` in the MCP application error. Any validation, authorization or commit failure rolls back the transaction, including earlier moves. After a timeout or uncertain response, call `navigation_get`, compare the complete result with the intended changes and review any remaining edit before resubmitting. Do not substitute a fresh revision and blindly replay the original request. See the [shared HTTP/MCP atomic contract](API.md#atomic-category-and-link-editing) for validation details.
 

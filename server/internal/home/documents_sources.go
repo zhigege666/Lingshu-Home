@@ -143,6 +143,44 @@ func (a *App) listDocumentSources(r *Request) (*Response, error) {
 	return ok(map[string]any{"items": items, "roots": roots, "canManage": canManage}), nil
 }
 
+// This projection never includes server paths, errors or disconnected sources.
+func (a *App) listDocumentDestinations(r *Request) (*Response, error) {
+	space, working, err := r.documentSpace(false)
+	if err != nil {
+		return nil, err
+	}
+	if !working {
+		return nil, forbidden()
+	}
+	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT id,name,read_only,default_write,default_folder,status FROM document_sources WHERE space_id=? AND enabled=? ORDER BY name,id"), space.ID, true)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type destination struct {
+		ID            string `json:"id"`
+		Name          string `json:"name"`
+		ReadOnly      bool   `json:"readOnly"`
+		CanWrite      bool   `json:"canWrite"`
+		DefaultWrite  bool   `json:"defaultWrite"`
+		DefaultFolder string `json:"defaultFolder"`
+		Status        string `json:"status"`
+	}
+	items := []destination{}
+	for rows.Next() {
+		var d destination
+		if err := rows.Scan(&d.ID, &d.Name, &d.ReadOnly, &d.DefaultWrite, &d.DefaultFolder, &d.Status); err != nil {
+			return nil, err
+		}
+		d.CanWrite = !d.ReadOnly && d.Status != "offline" && r.AllowedActions["documents:write"]
+		items = append(items, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return ok(map[string]any{"items": items}), nil
+}
+
 func (a *App) validateDocumentSource(in *documentSourceInput) error {
 	var err error
 	in.Name, err = required(in.Name, "name", 100)

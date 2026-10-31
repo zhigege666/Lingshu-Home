@@ -197,7 +197,7 @@ def run(base):
     require(set(discovered["supportedVersions"]) == {"2026-07-28", "2025-11-25"}, "MCP supported versions differ from the contract.")
     require(discovered["cacheScope"] == "private" and discovered["ttlMs"] == 0, "MCP discovery must be private and uncached.")
     tools = {tool["name"] for tool in anon.mcp(full, "tools/list")["result"]["tools"]}
-    require(len(tools) == 33 and {"space_current", "dashboard_get", "categories_create", "documents_list"} <= tools, "Missing required MCP tools.")
+    require(len(tools) == 34 and {"space_current", "document_sources_list", "dashboard_get", "categories_create", "documents_list"} <= tools, "Missing required MCP tools.")
     require(anon.tool(full, "space_current", {})["spaceId"] == shared, "MCP returned the wrong token space.")
     anon.tool(readonly, "dashboard_get", {"spaceId": shared}, error="forbidden")
     category = anon.tool(full, "categories_create", {"input": {"name": "Local fixture", "icon": "lucide:folder"}})

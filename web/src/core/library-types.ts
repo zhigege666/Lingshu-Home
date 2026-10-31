@@ -13,7 +13,7 @@ export type LibraryDocument = {
   readOnly: boolean; unavailableReason?: string; published: boolean; hasUnpublishedChanges: boolean; tags: string[];
   linkedBookmarkIds: string[];
 }
-export type DocumentDetail = LibraryDocument & { content: string; links: { id: string; title: string; url: string }[] }
+export type DocumentDetail = LibraryDocument & { content?: string; canRestore?: boolean; links: { id: string; title: string; url: string }[] }
 export type DocumentPage = { items: LibraryDocument[]; total: number; limit: number; offset: number }
 export type LibraryBookmark = NavLink & { contextMarkdown?: string }
 export type LibraryItem = { kind: 'document'; document: LibraryDocument } | { kind: 'bookmark'; bookmark: LibraryBookmark }

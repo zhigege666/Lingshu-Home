@@ -4,6 +4,9 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+- Limit write-only navigation and source responses to operational receipts. Batch navigation errors retain the same permitted row and field details through HTTP and MCP.
+- Add `document_sources_list` so agents can discover available directories in their authorized space. Missing or unreadable originals return distinct MCP errors. The library retains metadata and offers history recovery for eligible missing files. Read-only list and statistics tools accept an empty call, and document search advertises its supported range.
+
 - MCP clients can omit `spaceId` to use their token’s authorized space, including on the first call of a new session. The read-only `space_current` tool reports the bound space ID, name and kind. Explicit space IDs still undergo the usual authorization checks. Optional filter objects now emit valid JSON Schema for validating gateways.
 
 ## [0.0.8] - 2026-10-29

@@ -264,7 +264,7 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 			tools, _ := anonymous.mcp(full, "tools/list", map[string]any{}, 200)
 			expectedTools := map[string]bool{}
 			for _, name := range []string{
-				"space_current",
+				"space_current", "document_sources_list",
 				"navigation_get", "navigation_batch_edit", "navigation_click_stats",
 				"bookmarks_list", "bookmarks_get", "bookmarks_create", "bookmarks_update", "bookmarks_context_update", "bookmarks_delete",
 				"categories_list", "categories_get", "categories_create", "categories_update", "categories_delete",
@@ -559,6 +559,42 @@ func integrationTestTraffic(t *testing.T, app *App, owner *integrationTestBrowse
 	owner.call("PUT", "/api/v1/sources/"+id, update, 200, "")
 	owner.call("PUT", "/api/v1/sources/"+id, update, 409, "")
 	owner.call("POST", "/api/v1/sources/"+id+"/sync", map[string]any{}, 409, "")
+}
+
+func TestIntegrationSourceWriteOnlyReceipts(t *testing.T) {
+	f := newDocumentFixture(t, false)
+	f.app.cancel()
+	f.app.workers.Wait() // Never contact the configured example upstream.
+	owner := &integrationTestBrowser{t: t, base: f.server.URL, client: f.owner.client, csrf: f.owner.csrf}
+	agent := integrationBrowser(t, f.server.URL)
+	writer, _ := owner.token(f.personal, "", "sources:write")
+	both, _ := owner.token(f.personal, "", "sources:read", "sources:write")
+	input := map[string]any{
+		"name": "Example", "kind": "github-traffic", "schemaId": "github.traffic", "schemaVersion": 1,
+		"connection": map[string]any{"owner": "example", "repo": "fixture-private-repo"},
+		"sync":       map[string]any{"mode": "poll", "intervalSeconds": 21600, "staleAfterSeconds": 43200},
+		"enabled":    true, "secret": map[string]any{"token": "synthetic-fixture-only"},
+	}
+	created := agent.tool(writer, "sources_create", map[string]any{"input": input}, "")
+	id, ok := created["id"].(string)
+	if !ok || id == "" || len(created) != 2 || created["configRevision"] != "1" {
+		t.Fatalf("expected a create receipt with ID and revision, got %v", created)
+	}
+	agent.tool(writer, "sources_get", map[string]any{"id": id}, "forbidden")
+	queued := agent.tool(writer, "sources_sync", map[string]any{"id": id, "input": map[string]any{}}, "")
+	if queued["queued"] != true || !reflect.DeepEqual(queued["source"], created) {
+		t.Fatalf("sync returned more than the write receipt: %v", queued)
+	}
+	update := map[string]any{"name": "Renamed", "expectedConfigRevision": "1", "enabled": true, "connection": input["connection"], "sync": input["sync"]}
+	receipt := owner.object("PUT", "/api/v1/sources/"+id, update, http.StatusOK, writer)
+	if !reflect.DeepEqual(receipt, map[string]any{"id": id, "configRevision": "2"}) {
+		t.Fatalf("unexpected write-only update receipt: %v", receipt)
+	}
+	full := agent.tool(both, "sources_sync", map[string]any{"id": id, "input": map[string]any{}}, "")
+	source := integrationObject(t, full["source"])
+	if source["name"] != "Renamed" || integrationObject(t, source["connection"])["repo"] != "fixture-private-repo" {
+		t.Fatal("read/write token lost its authorized source response")
+	}
 }
 
 func TestIntegrationTrafficRejectsMissingMetrics(t *testing.T) {

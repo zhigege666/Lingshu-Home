@@ -40,6 +40,40 @@ func (a *App) batchEditNavigation(r *Request) (*Response, error) {
 	if err = r.decode(&input); err != nil {
 		return nil, err
 	}
+	response, err := a.applyNavigationEdits(r, space, input)
+	if err != nil && r.navigationWriteOnly() {
+		return nil, input.writeOnlyError(err)
+	}
+	return response, err
+}
+
+// Normalization and tree validation can encounter records outside the submitted
+// patch. Only identify a failed row to a write-only token if it supplied the ID.
+func (input navigationEditInput) writeOnlyError(err error) error {
+	var api *APIError
+	if !errors.As(err, &api) || api.ID == "" {
+		return err
+	}
+	rows := input.Links
+	if api.Entity == "category" {
+		rows = input.Categories
+	}
+	for _, row := range rows {
+		if row.ID == api.ID {
+			return err
+		}
+	}
+	for _, move := range input.Moves {
+		if move.Kind == api.Entity && move.ID == api.ID {
+			return err
+		}
+	}
+	redacted := *api
+	redacted.Entity, redacted.ID, redacted.Field = "", "", ""
+	return &redacted
+}
+
+func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEditInput) (*Response, error) {
 	count := len(input.Categories) + len(input.Links) + len(input.Moves)
 	if count == 0 || count > maxBatchLinks {
 		return nil, invalid(fmt.Sprintf("A batch must contain between 1 and %d field patches and moves combined.", maxBatchLinks))
@@ -286,7 +320,12 @@ func (a *App) batchEditNavigation(r *Request) (*Response, error) {
 		}
 		revision = strconv.FormatInt(space.DataRevision+1, 10)
 	}
-	return ok(map[string]any{"updatedCount": updatedCount, "revision": revision, "categories": changedCategories, "links": changedLinks}), nil
+	receipt := map[string]any{"updatedCount": updatedCount, "revision": revision}
+	if !r.navigationWriteOnly() {
+		receipt["categories"] = changedCategories
+		receipt["links"] = changedLinks
+	}
+	return ok(receipt), nil
 }
 func navigationEditPatch(raw json.RawMessage, allowed []string) (map[string]json.RawMessage, error) {
 	raw = bytes.TrimSpace(raw)

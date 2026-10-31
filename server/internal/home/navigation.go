@@ -198,6 +198,23 @@ func (a *App) dashboard(r *Request) (*Response, error) {
 	return ok(dashboard), nil
 }
 
+// A write-only token can use the identity and concurrency token of its write,
+// but returning the complete stored entity would grant navigation read access.
+func (r *Request) navigationWriteOnly() bool {
+	return r.Bearer && !r.AllowedActions["navigation:read"]
+}
+
+func (r *Request) navigationWriteResult(status int, id, updatedAt string, entity any) *Response {
+	if r.navigationWriteOnly() {
+		receipt := map[string]string{"id": id}
+		if updatedAt != "" {
+			receipt["updatedAt"] = updatedAt
+		}
+		entity = receipt
+	}
+	return &Response{Status: status, Data: entity}
+}
+
 func (a *App) updateSpace(r *Request) (*Response, error) {
 	space, err := r.navigationSpace(r.param("spaceId"), true)
 	if err != nil {
@@ -228,7 +245,7 @@ func (a *App) updateSpace(r *Request) (*Response, error) {
 	}
 	space.Name = name
 	space.Published = in.Published
-	return ok(space), nil
+	return r.navigationWriteResult(200, space.ID, "", space), nil
 }
 
 func (a *App) validateCategory(r *Request, spaceID, id string, in *categoryInput) error {
@@ -304,7 +321,7 @@ func (a *App) createCategory(r *Request) (*Response, error) {
 	if err = a.touchNavigation(r, space.ID); err != nil {
 		return nil, err
 	}
-	return &Response{Status: 201, Data: category}, nil
+	return r.navigationWriteResult(201, category.ID, "", category), nil
 }
 
 func (a *App) updateCategory(r *Request) (*Response, error) {
@@ -334,7 +351,8 @@ func (a *App) updateCategory(r *Request) (*Response, error) {
 	if err = a.touchNavigation(r, space.ID); err != nil {
 		return nil, err
 	}
-	return ok(Category{ID: id, SpaceID: space.ID, ParentID: in.ParentID, Name: in.Name, Icon: in.Icon, SortOrder: in.SortOrder}), nil
+	category := Category{ID: id, SpaceID: space.ID, ParentID: in.ParentID, Name: in.Name, Icon: in.Icon, SortOrder: in.SortOrder}
+	return r.navigationWriteResult(200, id, "", category), nil
 }
 
 func (a *App) deleteCategory(r *Request) (*Response, error) {
@@ -497,7 +515,7 @@ func (a *App) createLink(r *Request) (*Response, error) {
 	if err = a.touchNavigation(r, space.ID); err != nil {
 		return nil, err
 	}
-	return &Response{Status: 201, Data: link}, nil
+	return r.navigationWriteResult(201, link.ID, link.UpdatedAt, link), nil
 }
 
 func (a *App) updateLink(r *Request) (*Response, error) {
@@ -566,7 +584,7 @@ func (a *App) updateLink(r *Request) (*Response, error) {
 	if err = a.touchNavigation(r, space.ID); err != nil {
 		return nil, err
 	}
-	return ok(link), nil
+	return r.navigationWriteResult(200, link.ID, link.UpdatedAt, link), nil
 }
 
 // updateLinkContext edits only usage notes, preserving navigation and icon fields.
@@ -613,9 +631,13 @@ func (a *App) updateLinkContext(r *Request) (*Response, error) {
 		if err != nil {
 			return nil, err
 		}
+		updated.Time = next
 		if err = a.touchNavigation(r, space.ID); err != nil {
 			return nil, err
 		}
+	}
+	if r.navigationWriteOnly() {
+		return r.navigationWriteResult(200, r.param("id"), updated.String(), nil), nil
 	}
 	data, err := a.readNavigation(r, space.ID)
 	if err != nil {

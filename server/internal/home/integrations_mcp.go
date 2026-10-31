@@ -56,7 +56,9 @@ func (a *App) registerIntegrationRoutes() {
 		}
 		if tool.input != nil {
 			props["input"] = tool.input
-			required = append(required, "input")
+			if !tool.acceptsDefaultFilters() {
+				required = append(required, "input")
+			}
 		}
 		schema["required"] = required
 		destructive := tool.write && !strings.HasSuffix(tool.name, "_create")
@@ -164,6 +166,10 @@ type integrationTool struct {
 	handler           handlerFunc
 }
 
+func (tool integrationTool) acceptsDefaultFilters() bool {
+	return !tool.write && tool.input != nil && tool.input["required"] == nil
+}
+
 func integrationObjectSchema(properties map[string]any, required ...string) map[string]any {
 	schema := map[string]any{"type": "object", "properties": properties, "additionalProperties": false}
 	if len(required) > 0 {
@@ -260,6 +266,9 @@ func (a *App) callIntegrationTool(ctx context.Context, request *mcp.CallToolRequ
 	if tool.input != nil {
 		allowed["input"] = true
 		input = args["input"]
+		if input == nil && tool.acceptsDefaultFilters() {
+			input = json.RawMessage(`{}`)
+		}
 		var body map[string]json.RawMessage
 		if err := json.Unmarshal(input, &body); err != nil || body == nil {
 			return nil, invalid("input must be an object")
@@ -342,10 +351,10 @@ func integrationMCPError(err error) *mcp.CallToolResult {
 	if !errors.As(err, &api) {
 		api = &APIError{Status: 500, Code: "internal_error", Message: "The operation could not be completed."}
 	}
-	value := map[string]any{"code": api.Code, "message": api.Message, "httpStatus": api.Status}
-	if api.CurrentRevision != "" {
-		value["currentRevision"] = api.CurrentRevision
-	}
+	value := struct {
+		*APIError
+		HTTPStatus int `json:"httpStatus"`
+	}{api, api.Status}
 	data, _ := json.Marshal(value)
 	return &mcp.CallToolResult{IsError: true, StructuredContent: value, Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}
 }

@@ -91,8 +91,12 @@ func TestBookmarkContextAndAgentScopes(t *testing.T) {
 			writeToken, _ := owner.token(shared, "", "navigation:write")
 			agent := integrationBrowser(t, server.URL)
 			patched = agent.tool(writeToken, "bookmarks_context_update", map[string]any{"spaceId": shared, "id": id, "input": map[string]any{"contextMarkdown": notes, "expectedUpdatedAt": cleared["updatedAt"]}}, "")
-			if patched["contextMarkdown"] != notes {
-				t.Fatal("MCP context update lost Markdown")
+			if len(patched) != 2 || patched["id"] != id || patched["updatedAt"] == nil {
+				t.Fatal("write-only context update should return only the ID and updatedAt")
+			}
+			readBack := agent.tool(readToken, "bookmarks_get", map[string]any{"spaceId": shared, "id": id}, "")
+			if readBack["contextMarkdown"] != notes || readBack["updatedAt"] != patched["updatedAt"] {
+				t.Fatal("MCP context update did not save the reported revision")
 			}
 			agent.tool(readToken, "bookmarks_context_update", map[string]any{"spaceId": shared, "id": id, "input": map[string]any{"contextMarkdown": "unauthorized", "expectedUpdatedAt": patched["updatedAt"]}}, "forbidden")
 			agent.tool(writeToken, "bookmarks_context_update", map[string]any{"spaceId": personal, "id": id, "input": map[string]any{"contextMarkdown": "wrong space", "expectedUpdatedAt": patched["updatedAt"]}}, "not_found")

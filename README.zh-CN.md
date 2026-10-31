@@ -309,7 +309,7 @@ Owner 可指定 HTTP、HTTPS 或 SOCKS5 服务端代理，凭证加密保存且�
 
 ### 外部写入与 MCP
 
-当前开发版中，Agent 省略 `spaceId` 就会使用访问令牌绑定的空间。新会话可以直接用 `{"input":{}}` 调用 `documents_list`，需要确认空间名称或编号时才用 `{}` 调用 `space_current`。升级 Home 后，在 MCP 网关刷新工具目录即可获取新参数定义。
+当前开发版中，Agent 省略 `spaceId` 就会使用访问令牌绑定的空间。新会话可以直接用 `{}` 调用 `documents_list`。若没有默认写入目录，Agent 可调用 `document_sources_list` 查找 `canWrite:true` 的目录。需要确认空间名称或编号时才用 `{}` 调用 `space_current`。升级 Home 后，在 MCP 网关刷新工具目录即可获取新参数定义。
 
 外部客户端使用限制范围的个人访问令牌。`external-push` 数据源接收经过校验的导航、日程、天气、指标或状态完整快照，同时要求请求 ID，以及预期版本或递增序号。同一请求可幂等重放；冲突或过期更新会被拒绝。外部快照不会覆盖本地导航。
 
