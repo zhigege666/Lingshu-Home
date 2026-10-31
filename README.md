@@ -311,6 +311,8 @@ An Owner can configure an HTTP, HTTPS or SOCKS5 proxy with encrypted, write-only
 
 ### External writes and MCP
 
+On the development branch, MCP uses the space bound to the personal access token when a client omits `spaceId`. For example, call `documents_list` with `{"input":{}}`. If the client needs the space name or ID, call `space_current` with `{}`. After upgrading Home, refresh the tool catalog in your MCP gateway.
+
 Use scoped personal access tokens for external clients. `external-push` sources accept complete validated navigation, calendar, weather, metric or status snapshots with a request ID and an expected revision or monotonic sequence. Replaying the same request is idempotent; conflicting or stale updates are rejected. External snapshots do not overwrite the local navigation dataset.
 
 MCP is served at **`/mcp`** using Streamable HTTP and calls the same authorization and business logic as the HTTP API. Tools cover authorized navigation, bookmarks, pages, data sources, and synchronization. See [API reference](docs/API.md) and [integration guide](docs/INTEGRATIONS.md) for scopes, request formats, and client examples.

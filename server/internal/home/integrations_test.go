@@ -264,6 +264,7 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 			tools, _ := anonymous.mcp(full, "tools/list", map[string]any{}, 200)
 			expectedTools := map[string]bool{}
 			for _, name := range []string{
+				"space_current",
 				"navigation_get", "navigation_batch_edit", "navigation_click_stats",
 				"bookmarks_list", "bookmarks_get", "bookmarks_create", "bookmarks_update", "bookmarks_context_update", "bookmarks_delete",
 				"categories_list", "categories_get", "categories_create", "categories_update", "categories_delete",
@@ -315,6 +316,10 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 			second := owner.source(shared, "Second fixture")
 			private := owner.source(personal, "Private fixture")
 			scoped, scopedID := owner.token(shared, sourceID, "sources:read", "datasets:write")
+			sources := anonymous.tool(scoped, "sources_list", map[string]any{}, "")["items"].([]any)
+			if len(sources) != 1 || integrationObject(t, sources[0])["id"] != sourceID {
+				t.Fatal("implicit space selection lost the token's source restriction")
+			}
 			anonymous.call("GET", "/api/v1/sources/"+second["id"].(string), nil, 404, scoped)
 			anonymous.call("GET", "/api/v1/sources/"+private["id"].(string), nil, 404, full)
 			anonymous.call("GET", "/api/v1/sources/"+sourceID+"/snapshot", nil, 404, scoped)

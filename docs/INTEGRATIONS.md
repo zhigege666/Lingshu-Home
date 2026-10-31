@@ -241,6 +241,8 @@ The endpoint is `/mcp`, implemented with the official [MCP Go SDK v1.8.0](https:
 
 Every transport request, including discovery and tool listing, requires a Home bearer token. Browser cookies do not authenticate MCP. Responses enforce `Cache-Control: no-store`; cacheable protocol metadata uses `ttlMs: 0` and `cacheScope: "private"`. This implementation supplies personal access tokens, not an OAuth authorization server; configure a client that can send an Authorization header.
 
+In the development version after 0.0.8, omit `spaceId` on space-scoped MCP calls. Home uses the single space of the bearer token authenticated for that request. Start a new session with a business call such as `documents_list` with `{"input":{}}`. To display the connection’s space, call `space_current` with `{}` for `{spaceId, name, kind}`. An explicit ID still goes through the existing access checks. A source-specific token keeps its source and action limits. After upgrading Home, refresh any gateway tool catalog and publish the updated tool definitions.
+
 A 2026 tool call sends `Content-Type: application/json`, `Accept: application/json, text/event-stream`, `Mcp-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`, and `Mcp-Name: bookmarks_list`, with:
 
 ```json
@@ -248,7 +250,7 @@ A 2026 tool call sends `Content-Type: application/json`, `Accept: application/js
   "jsonrpc": "2.0", "id": 1, "method": "tools/call",
   "params": {
     "name": "bookmarks_list",
-    "arguments": { "spaceId": "<space-id>" },
+    "arguments": {},
     "_meta": {
       "io.modelcontextprotocol/protocolVersion": "2026-07-28",
       "io.modelcontextprotocol/clientCapabilities": {},
@@ -260,8 +262,9 @@ A 2026 tool call sends `Content-Type: application/json`, `Accept: application/js
 
 Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list endpoints return arrays; MCP list tools return `structuredContent: { "items": [...] }`, preserving object output compatibility. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and optional `currentRevision`. Transport authentication failures remain HTTP `401`.
 
-| Tools | Arguments |
+| Tools | Arguments (`spaceId` is optional wherever listed) |
 | --- | --- |
+| `space_current` | No arguments |
 | `navigation_get` | `spaceId`; complete local navigation dataset and revision |
 | `navigation_batch_edit` | `spaceId`, `input` with `expectedRevision` and category/link patches or stable-ID moves |
 | `navigation_click_stats` | `spaceId`, `input` containing optional date, category, link, sort and pagination filters; `{}` uses defaults |

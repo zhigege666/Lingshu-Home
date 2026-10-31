@@ -4,6 +4,8 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+- MCP clients can omit `spaceId` to use their token’s authorized space, including on the first call of a new session. The read-only `space_current` tool reports the bound space ID, name and kind. Explicit space IDs still undergo the usual authorization checks. Optional filter objects now emit valid JSON Schema for validating gateways.
+
 ## [0.0.8] - 2026-10-29
 
 ### Homepage controls and persistent page chrome
