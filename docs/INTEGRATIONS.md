@@ -33,7 +33,7 @@ Personal access tokens are the intersection of an active account, one space, sel
 | `datasets:write` | Push an external snapshot |
 | `pages:read` | Read saved page configuration |
 | `pages:write` | Save a page using its expected revision |
-| `documents:read` | Read authorized documents; activity queries additionally require working-document access |
+| `documents:read` | Read authorized documents; directory discovery and activity queries additionally require working-document access |
 | `documents:write` | Maintain authorized documents using the separate document contracts; writes also require `documents:read` |
 
 Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source, and `documents:read` for a local activity binding. Reading a dashboard with an activity binding does not require activity access because that projection contains only an empty schema marker; the dedicated activity query enforces working-document permission separately. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
@@ -241,7 +241,7 @@ The endpoint is `/mcp`, implemented with the official [MCP Go SDK v1.8.0](https:
 
 Every transport request, including discovery and tool listing, requires a Home bearer token. Browser cookies do not authenticate MCP. Responses enforce `Cache-Control: no-store`; cacheable protocol metadata uses `ttlMs: 0` and `cacheScope: "private"`. This implementation supplies personal access tokens, not an OAuth authorization server; configure a client that can send an Authorization header.
 
-In the development version after 0.0.8, omit `spaceId` on space-scoped MCP calls. Home uses the single space of the bearer token authenticated for that request. Start a new session with a business call such as `documents_list` with `{}`. To display the connection’s space, call `space_current` with `{}` for `{spaceId, name, kind}`. An explicit ID still goes through the existing access checks. A source-specific token keeps its source and action limits. After upgrading Home, refresh any gateway tool catalog and publish the updated tool definitions.
+Since 0.0.9, omit `spaceId` on space-scoped MCP calls. Home uses the single space of the bearer token authenticated for that request. Start a new session with a business call such as `documents_list` with `{}`. To display the connection’s space, call `space_current` with `{}` for `{spaceId, name, kind}`. An explicit ID still goes through the existing access checks. A source-specific token keeps its source and action limits. Read-only tools with all-optional filters (`documents_list`, `documents_activity_list`, `navigation_click_stats`) also accept an omitted `input`. Explicit `null`, required resource IDs and mutation inputs retain their validation; this does not make write bodies optional.
 
 A 2026 tool call sends `Content-Type: application/json`, `Accept: application/json, text/event-stream`, `Mcp-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`, and `Mcp-Name: bookmarks_list`, with:
 
@@ -265,11 +265,11 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 | Tools | Arguments (`spaceId` is optional wherever listed) |
 | --- | --- |
 | `space_current` | No arguments |
-| `document_sources_list` | No required arguments. Returns permitted working-document directories and whether the caller can write to each. |
+| `document_sources_list` | Optional `spaceId`. Returns enabled working-document directories, including empty ones, with IDs, names, configured read-only mode, caller write availability, defaults and last observed status; no absolute paths. Requires `documents:read` and working-document access. |
 | `documents_list`, `documents_activity_list` | Optional `spaceId` and `input` filters. Omit both to use the defaults. |
 | `navigation_get` | `spaceId`; complete local navigation dataset and revision |
 | `navigation_batch_edit` | `spaceId`, `input` with `expectedRevision` and category/link patches or stable-ID moves |
-| `navigation_click_stats` | `spaceId`, `input` containing optional date, category, link, sort and pagination filters; `{}` uses defaults |
+| `navigation_click_stats` | Optional `spaceId` and optional `input` containing date, category, link, sort and pagination filters; `{}` uses defaults |
 | `bookmarks_list`, `categories_list` | `spaceId` |
 | `bookmarks_get`, `categories_get` | `spaceId`, `id` |
 | `bookmarks_create`, `categories_create` | `spaceId`, `input` containing the normal CRUD body |
@@ -281,13 +281,19 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 | `sources_get`, `sources_snapshot_get` | `id` |
 | `sources_update`, `sources_snapshot_push`, `sources_sync` | `id`, `input`; sync input is `{}` |
 
-If the gateway exposes fewer tools than the installed Home version, compare Home’s authenticated `tools/list` against the gateway catalog for the same connection. A tool present only downstream needs a gateway discovery/publication or caller-grant check. A tool missing downstream needs an instance-version or endpoint check. After refreshing, describe the tool again to get its current schema revision, then test an authorized read such as `documents_list {}`. A catalog count alone does not verify downstream version or business permissions.
+After upgrading Home, refresh the connection in Gate or another MCP gateway in this order:
+
+1. Confirm the running Home version and endpoint, then read its authenticated `tools/list`. Version 0.0.9 includes `space_current` and `document_sources_list`; publishing an existing gateway catalog cannot add tools absent from that Home instance.
+2. Rediscover that same connection in the gateway, publish the newly discovered tools to the intended callers, and check their caller grants. Do not assume every discovered tool is already published.
+3. Refresh or describe the tools in the client to load their current schemas. Call `space_current {}` and, with document read scope and working-document access, `document_sources_list {}` or `documents_list {}`.
+
+If Home lists a tool but the caller cannot find it, inspect discovery, publication and caller grants in the gateway. If Home itself omits it, inspect the running version and endpoint. A catalog count alone does not verify version, permissions or a successful business call.
 
 MCP calls invoke the same business handlers and validation as HTTP, in database transactions after acquiring the common write gate. There is no loopback HTTP proxy or unrestricted administrative tool.
 
 New credential creation/expiry timestamps and push receipt `receivedAt` values use UTC microsecond precision, matching both SQLite and PostgreSQL reads. Previously stored immutable request receipts keep their original values.
 
-A PAT with only `navigation:write` can still edit. Creating or updating a bookmark returns `id` and `updatedAt`, category writes return the ID, and batch edits return `updatedCount` and `revision`. To display stored fields, the client also needs `navigation:read`. For data sources, PATs with `sources:write` alone receive only `id` and `configRevision` on creation and update. Queuing a sync returns `queued:true` with that same receipt under `source`. The complete stored source requires `sources:read` and still excludes credential secrets.
+Since 0.0.9, a PAT with only `navigation:write` can still edit and receives operational receipts rather than stored readable fields. Creating or updating a bookmark returns `id` and `updatedAt`, category writes return the ID, and batch edits return `updatedCount` and `revision`. To display stored fields, the client also needs `navigation:read`. For data sources, PATs with `sources:write` alone receive only `id` and `configRevision` on creation and update. Queuing a sync returns `queued:true` with that same receipt under `source`. The complete stored source requires `sources:read` and still excludes credential secrets.
 
 ### Complete navigation and atomic edits
 

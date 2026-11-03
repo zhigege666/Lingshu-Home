@@ -50,7 +50,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.8` uses `ghcr.io/zhigege666/lingshu-home:0.0.8`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.9` uses `ghcr.io/zhigege666/lingshu-home:0.0.9`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 
@@ -115,6 +115,16 @@ sha256sum --check SHA256SUMS
 ```
 
 The packaging command builds and validates files locally; it does not authenticate to a registry, push an image or create a GitHub Release. Online publication is a separate workflow stage.
+
+## Version 0.0.9 upgrade and evidence
+
+Version 0.0.9 adds per-request PAT-bound MCP space defaults, `space_current`, `document_sources_list`, optional read-only filter objects, permission-scoped write receipts and explicit errors for unavailable document originals. Directory discovery requires working-document access and does not expose mount paths; write bodies and existing account/space/source/action checks remain in force. Library metadata and recovery history remain available for eligible missing originals.
+
+There is no new database migration or deployment parameter from 0.0.8. Retain the existing database and provider selection, private `storage.json`, instance keys, document roots and mounts, recovery history, runtime identity, language, ports and HTTP/TLS settings. Keep matching backups of the database/data, mounted originals and attachments, and deployment configuration. Earlier releases apply their missing existing migrations, including 011 when needed; the original click recording baseline remains intact.
+
+After replacing the running Home instance, confirm its actual version and authenticated `tools/list` before refreshing a gateway. In Gate or another gateway, rediscover the existing connection, publish the new tools to the intended callers, then refresh client definitions and make an authorized read. The exact discovery names are `space_current` and `document_sources_list`. Gateway publication alone does not update Home or extend a PAT’s actions. Follow the [MCP checks](INTEGRATIONS.md#mcp-transport).
+
+Record the actual candidate test results in [the test guide](../tests/README.md). A prepared version/changelog, local test success or a refreshed catalog does not establish hosted CI, completed release publication or deployment. The tagged run, exact-image artifacts and public availability checks above remain the release evidence; verify the running instance separately after deployment.
 
 ## Version 0.0.4 upgrade and evidence
 

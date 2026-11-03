@@ -4,10 +4,23 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
-- Limit write-only navigation and source responses to operational receipts. Batch navigation errors retain the same permitted row and field details through HTTP and MCP.
-- Add `document_sources_list` so agents can discover available directories in their authorized space. Missing or unreadable originals return distinct MCP errors. The library retains metadata and offers history recovery for eligible missing files. Read-only list and statistics tools accept an empty call, and document search advertises its supported range.
+## [0.0.9] - 2026-11-04
 
-- MCP clients can omit `spaceId` to use their token’s authorized space, including on the first call of a new session. The read-only `space_current` tool reports the bound space ID, name and kind. Explicit space IDs still undergo the usual authorization checks. Optional filter objects now emit valid JSON Schema for validating gateways.
+### MCP space and directory discovery
+
+- Let space-scoped MCP calls omit `spaceId` and use the space of the PAT authenticated for each request, including the first call. Add read-only `space_current` to return that space's ID, name and kind. Explicit IDs retain account, space, source and action checks; existing tokens gain no actions.
+- Add `document_sources_list` to discover enabled directories, including empty ones, within authorized working-document access. Return directory IDs, names, read/write availability, defaults and last observed status without absolute mount paths. Document creation uses a configured default or an explicit discovered destination; a missing default and a read-only target return distinct recoverable errors.
+- Let read-only list and statistics tools omit optional filter `input` objects. Required resource IDs and mutation inputs remain validated, and explicit `null` is rejected. Optional filter objects emit valid JSON Schema, and document search advertises its supported range.
+
+### Read failures and permission-safe responses
+
+- Make MCP `documents_get` distinguish a genuinely empty file from a missing, unavailable or unsupported original. Retain authorized HTTP library metadata without inventing an empty body; keep history available and offer restoration for eligible missing files. Published readers continue to receive the frozen snapshot.
+- Limit write-only navigation and source responses to operational receipts. Read/write callers retain their authorized fields. HTTP and MCP batch errors preserve permitted row/field details while withholding targets not submitted by a write-only caller.
+
+### Upgrade
+
+- Add no database migration or deployment setting. Preserve existing data, keys, storage selection, document roots/mounts, publication choices and click recording history; older installations apply only their missing existing migrations.
+- After updating the running Home instance, rediscover its MCP schemas and publish the newly discovered tools to the intended callers in Gate or another gateway. Refresh client definitions and verify authorized calls; publishing a gateway catalog alone does not upgrade Home.
 
 ## [0.0.8] - 2026-10-29
 

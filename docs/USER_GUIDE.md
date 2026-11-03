@@ -2,9 +2,9 @@
 
 **English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
 
-This guide covers **Lingshu-Home 0.0.8**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.8/tests/README.md).
+This guide covers **Lingshu-Home 0.0.9**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/tests/README.md).
 
-The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.8/tests/README.md).
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/tests/README.md).
 
 ## 1. Start and initialize an instance
 
@@ -555,6 +555,10 @@ Open **MCP and access tokens → Create token**. Name the client, choose current
 
 Configure an MCP client that supports **Streamable HTTP** with the displayed `/mcp` address and `Authorization: Bearer <Home token>`. This token is issued by Home and is separate from a GitHub source token. The client must support sending the header; an OAuth-only setup is not provided by Home. Discover the tool schemas through the client, then use actions allowed by that token.
 
+Since 0.0.9, omit `spaceId` to use the space bound to the token, or call `space_current {}` to read its ID, name and kind. With document read permission and access to working documents, call `document_sources_list {}` to find enabled directories, including empty ones. New documents use a configured default directory or an explicitly selected `canWrite:true` destination; writing also requires `documents:write`. Read-only list/statistics calls can omit filter `input`, while required IDs and write inputs remain mandatory.
+
+After updating Home, rediscover the existing connection in Gate or your MCP gateway, publish the newly discovered tools to the intended callers, and refresh client definitions. If the tools are still missing, compare the authenticated Home `tools/list` with the gateway catalog and check the running version, endpoint and caller grants. A write-only token receives an ID/revision receipt after a navigation or source change; viewing the saved fields additionally requires the corresponding read action.
+
 The token can be viewed only at creation. Revoke it from the token list to stop a client. Changing access mode invalidates existing sessions and tokens; password resets or disabling a Member invalidate that Member's access. Tokens cannot create accounts, change global security settings or issue more tokens. Detailed scopes, protocol negotiation and examples are in [MCP transport](INTEGRATIONS.md#mcp-transport).
 
 ## 8. Manage members and access
@@ -576,6 +580,8 @@ Use **Import and export → Export HTML** for a browser-compatible bookmark file
 For a complete backup, follow [STORAGE.md](STORAGE.md#backups). For SQLite, the straightforward procedure is to stop Home cleanly and back up the complete persistent directory/volume, including both keys, any private `storage.json`, document recovery history and any WAL files. For PostgreSQL, back up the dedicated database, matching local keys and saved storage configuration together. Back up externally mounted document originals/attachments separately, with their deployment mappings. Restore with the appropriate application version before starting one instance.
 
 Custom icon images, library metadata, website caches, the automatic switch and pending jobs are included in the database, with no extra upload directory to copy. Version 0.0.1 includes automatic-icon **migration 005** and network-setting **migration 006**. Version 0.0.2 adds **migration 007** for the fixed instance language; a database backup retains that choice too. Version 0.0.5 introduced the document library in **008**; 0.0.6 adds document activity in **009** and session retention in **010**, applied on first start. Preserve the same database, keys, allowed document roots and existing mounts. An older binary that does not recognize an applied migration refuses that database. Rolling back requires the matching pre-upgrade database and keys as well as the older binary/image.
+
+Version 0.0.7 adds migration 011 for link click statistics; 0.0.8 and 0.0.9 add no further migration. An upgrade from 0.0.8 to 0.0.9 retains the existing data, storage selection, document roots/mounts, publication choices, keys, click recording baseline and HTTP/TLS configuration. Earlier versions apply only their missing existing migrations. Refresh MCP discovery/publication after updating the service; no new deployment variable is required.
 
 The README image command uses the **`lingshu-home-data`** named volume; source Compose uses its project-scoped **`home-data`** volume. Retain the original volume and Compose project identity when restarting or replacing a container. Switching installation methods does not transfer data automatically. For a Linux release, reuse the original `--data-dir` instead of a new empty `data/` beneath the next version directory. Removing a volume discards persistent data; do not use volume-removal commands as a restart procedure. Keep exports, full backups and credential files private.
 
@@ -650,6 +656,7 @@ The Linux development helper permits an immediate restart while closed connectio
 | “Default collapsed” does not change the current tab | Manual tab-session choices take priority. Toggle the panel yourself or inspect the default in a new session without that preference. |
 | Source has no data | Open its configuration/status and snapshot. A push source needs its first successful push; Traffic needs authorized GitHub collection and compatible component binding. |
 | Token/client stopped working | Check expiry, revocation, account status, mode changes and token scope. Create a replacement from a signed-in account when appropriate. |
+| `space_current` or `document_sources_list` is missing | Confirm the running Home is 0.0.9 or later and the endpoint is correct. Compare its authenticated `tools/list` with the same gateway connection, then rediscover, publish and refresh client definitions as needed. |
 | Copy button fails | Select and copy the displayed value manually; clipboard access depends on the browser's origin/security rules. |
 | Login repeatedly fails or shows a request limit | Check credentials and the active mode. Wait for the indicated retry interval after rate limiting; do not bypass it with an alternate route. |
 | Service reports storage unavailable or cannot start | Check logs, data ownership, database connectivity and singleton locks. PostgreSQL lease loss requires a controlled restart after connectivity is restored; do not start competing instances against the same database. |
@@ -665,6 +672,8 @@ Use [API.md](API.md) for field contracts and limits, [INTEGRATIONS.md](INTEGRATI
 ## File-backed document library
 
 Open **Library** beside Home to read authorized bookmarks and Markdown documents. The Owner connects existing directories through **Admin → Document directories** using the deployment's allowed roots; connections start read-only. Editing originals, publication, recovery history, attachments, bookmark usage notes and API/MCP access follow the [document-library guide](DOCUMENT_LIBRARY.md). Document activity is configured separately as a repeatable homepage component.
+
+If an original becomes unavailable, Library retains its metadata and history and shows the unavailable state; it does not display a fabricated empty body. For a missing file with a saved revision, **History → Restore** is available when you have write permission for its directory. Reconnect an unavailable directory before restoring, and keep external backups. MCP `documents_get` reports distinct missing/unavailable/unsupported errors; a readable empty file returns an empty string. Published readers continue to see the frozen snapshot.
 
 ## Calendar, weather and other data components
 
