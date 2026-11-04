@@ -47,7 +47,7 @@ function bindingFor(config: PageConfig, source: ComposerSource): string {
   if (Object.keys(config.bindings).length >= 32) throw new Error(t('数据绑定已达到上限，请在管理中心整理后重试。', 'The data binding limit has been reached. Review bindings in admin before trying again.'))
   const preferred = source.datasetId === 'local-navigation' ? 'navigation' : 'binding-' + viewId()
   const alias = config.bindings[preferred] ? 'binding-' + viewId() : preferred
-  config.bindings[alias] = { datasetId: source.datasetId, space: 'current-page-space', query: {} }
+  config.bindings[alias] = { datasetId: source.datasetId, space: 'current-page-space', query: {}, auto: true }
   return alias
 }
 
@@ -123,11 +123,21 @@ export function addDocumentActivityPanel(config: PageConfig, presentation: 'heat
   return added
 }
 
+// Only release explicit editor-owned aliases that this edit detached. Old or
+// manually reserved bindings have no ownership marker and remain round-trippable.
+function releaseInputs(config: PageConfig, aliases: string[]) {
+  for (const alias of aliases) {
+    const binding = config.bindings[alias]
+    if (binding?.auto && !config.views.some(view => Object.values(view.inputs).includes(alias))) delete config.bindings[alias]
+  }
+}
+
 export function removePagePanel(config: PageConfig, id: string): PageConfig {
   if (panelLocked(config, id) || !config.views.some(view => view.id === id)) return config
   const next = structuredClone(config)
   next.views = next.views.filter(view => view.id !== id)
   delete next.layout.placements[id]
+  releaseInputs(next, Object.values(config.views.find(view => view.id === id)!.inputs))
   return next
 }
 
@@ -200,8 +210,13 @@ export function bindPagePanel(config: PageConfig, id: string, source: ComposerSo
   const view = config.views.find(item => item.id === id)
   if (!view || view.panel.id === 'builtin/search') return config
   requireSource(view.panel.id, source)
-  const next = structuredClone(config), alias = bindingFor(next, source)
-  next.views.find(item => item.id === id)!.inputs = { [panelContracts[view.panel.id]!.input]: alias }
+  const input = panelContracts[view.panel.id]!.input
+  const current = config.bindings[view.inputs[input] || '']
+  if (current?.datasetId === source.datasetId && !Object.keys(current.query).length) return config
+  const next = structuredClone(config), changed = next.views.find(item => item.id === id)!
+  changed.inputs = {}
+  releaseInputs(next, Object.values(view.inputs))
+  changed.inputs = { [input]: bindingFor(next, source) }
   return next
 }
 

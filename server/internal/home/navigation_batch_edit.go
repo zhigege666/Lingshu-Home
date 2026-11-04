@@ -18,10 +18,12 @@ type navigationEditRow struct {
 	Patch json.RawMessage `json:"patch"`
 }
 type navigationEditInput struct {
-	ExpectedRevision string               `json:"expectedRevision"`
-	Categories       []navigationEditRow  `json:"categories"`
-	Links            []navigationEditRow  `json:"links"`
-	Moves            []navigationEditMove `json:"moves"`
+	ExpectedRevision string                     `json:"expectedRevision"`
+	CreateCategories []navigationCreateCategory `json:"createCategories"`
+	CreateLinks      []navigationCreateLink     `json:"createLinks"`
+	Categories       []navigationEditRow        `json:"categories"`
+	Links            []navigationEditRow        `json:"links"`
+	Moves            []navigationEditMove       `json:"moves"`
 }
 type navigationEditLink struct {
 	Old        Link
@@ -58,6 +60,16 @@ func (input navigationEditInput) writeOnlyError(err error) error {
 	if api.Entity == "category" {
 		rows = input.Categories
 	}
+	for _, row := range input.CreateLinks {
+		if api.Entity == "link" && row.ID == api.ID {
+			return err
+		}
+	}
+	for _, row := range input.CreateCategories {
+		if api.Entity == "category" && row.ID == api.ID {
+			return err
+		}
+	}
 	for _, row := range rows {
 		if row.ID == api.ID {
 			return err
@@ -74,9 +86,9 @@ func (input navigationEditInput) writeOnlyError(err error) error {
 }
 
 func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEditInput) (*Response, error) {
-	count := len(input.Categories) + len(input.Links) + len(input.Moves)
+	count := len(input.CreateCategories) + len(input.CreateLinks) + len(input.Categories) + len(input.Links) + len(input.Moves)
 	if count == 0 || count > maxBatchLinks {
-		return nil, invalid(fmt.Sprintf("A batch must contain between 1 and %d field patches and moves combined.", maxBatchLinks))
+		return nil, invalid(fmt.Sprintf("A batch must contain between 1 and %d creates, field patches and moves combined.", maxBatchLinks))
 	}
 	revision := strconv.FormatInt(space.DataRevision, 10)
 	if input.ExpectedRevision == "" {
@@ -84,6 +96,11 @@ func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEdi
 	}
 	if input.ExpectedRevision != revision {
 		return nil, &APIError{Status: 409, Code: "navigation_version_conflict", Message: "The bookmark list changed. Reload it and review your edits.", CurrentRevision: revision}
+	}
+	// All inserts, field changes and moves share the route transaction and one revision.
+	createdCategories, createdLinks, err := a.createNavigationRows(r, space.ID, input)
+	if err != nil {
+		return nil, err
 	}
 	data, err := a.readNavigation(r, space.ID)
 	if err != nil {
@@ -311,6 +328,23 @@ func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEdi
 			if err = a.queueAutomaticIcon(r, space.ID, origin); err != nil {
 				return nil, err
 			}
+		}
+	}
+	// Newly inserted rows also belong in the receipt if a later move did not change them.
+	for _, row := range changedCategories {
+		delete(createdCategories, row.ID)
+	}
+	for _, row := range changedLinks {
+		delete(createdLinks, row.ID)
+	}
+	for _, row := range input.CreateCategories {
+		if createdCategories[row.ID] {
+			changedCategories = append(changedCategories, categories[row.ID])
+		}
+	}
+	for _, row := range input.CreateLinks {
+		if createdLinks[row.ID] {
+			changedLinks = append(changedLinks, links[row.ID])
 		}
 	}
 	updatedCount := len(changedCategories) + len(changedLinks)

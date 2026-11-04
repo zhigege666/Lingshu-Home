@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.9/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home logo" width="80" height="80">
+<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.0.10/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home logo" width="80" height="80">
 
 # Lingshu-Home
 
@@ -10,17 +10,19 @@ Maintain your links, import browser bookmarks, and compose your homepage from da
 
 The jade folded-house logo is shared throughout the Web interface. [Brand assets, usage and provenance](docs/BRANDING.md) cover the scalable SVG, browser icons and touch icon.
 
-## New in 0.0.9
+## New in 0.0.10
 
-Version 0.0.9 lets agents discover their authorized space and document destinations directly:
+- **Create bookmarks where they belong.** In homepage **Edit**, choose **Add** for a category or link, or add a link inside its group. New and existing rows share one draft, Undo/Redo and one atomic Save. A concurrent insertion no longer turns an unrelated rename into a sort conflict; real conflicts retain the draft. Bookmark URL editors accept up to 4,096 UTF-8 bytes.
+- **Write to the intended document directory.** A failed or offline scan pauses original-file writes in the browser, API and MCP until a healthy rescan. A newly registered, healthy empty directory remains usable. Creating a note in a writable subfolder starts there; a read-only selection does not silently switch to a different directory. Refreshing Library preserves the starting revision of bookmark notes being edited.
+- **Count actual opens from Library.** Opening a bookmark, its alternate entry or a document’s related bookmark contributes to existing click statistics. A preview or agent read does not. Zero means no recorded clicks; earlier unobserved activity is not reconstructed. The all-resources list already sorts by update time, so the duplicate recent view is removed.
+- **Add components with fewer detours.** A single compatible enabled source is selected automatically; choose among several or create one in place when authorized. Display dashboards omit unused snapshots. The editor releases unused bindings it created, preserving shared and manually configured bindings and the sources themselves.
+- **Keep access narrow.** A token limited to an external push source can read it, submit snapshots, or do both; choosing a source starts with read access. New PostgreSQL setups can validate and save directly, with a separate connection test available for diagnosis.
 
-- **Use the token's space**: omit `spaceId` on space-scoped MCP calls, including the first call. `space_current` returns the bound space ID, name and kind when needed. Explicit IDs still undergo authorization checks.
-- **Discover document directories**: call `document_sources_list` with `{}` to find enabled directories, including empty ones, and their write availability. Create in the configured default or select an authorized writable destination. Read-only list/statistics filters can be omitted; required IDs and write inputs remain validated.
-- **Recognize unavailable originals**: MCP returns distinct errors for missing, inaccessible or unsupported files. Library retains metadata and offers history restoration for eligible missing files; a real empty file still has an empty body. Published snapshots retain their frozen content.
-- **Respect write-only access**: navigation and source mutations return minimal receipts when the token lacks read scope. Batch errors do not expose unrelated record IDs; callers with read permission retain their authorized response fields.
-- **Keep existing installations**: no new database migration, mount or deployment setting is required. Preserve data, keys, document roots and storage configuration. After updating Home, rediscover and publish the new tools in the gateway, then refresh client definitions.
+See the [0.0.10 changelog](CHANGELOG.md#0010---2026-11-04) and [upgrade and rollback instructions](#keep-data-and-stop-safely). For a fixed Docker/Unraid installation use `0.0.10`; `latest` follows the highest verified published stable release.
 
-See the [0.0.9 changelog](CHANGELOG.md#009---2026-11-04), [MCP instructions](docs/INTEGRATIONS.md#mcp-transport) and [upgrade instructions](#keep-data-and-stop-safely). Docker/Unraid `latest` follows the highest verified published stable release; pin `0.0.9` for this version.
+### Included from 0.0.9
+
+Space-scoped MCP tools can use the current PAT’s bound space. Use `space_current` for its identity, `document_sources_list` to discover permitted document directories and `documents_list` for the documents. Writes retain their scope and revision checks. See the [0.0.9 changelog](CHANGELOG.md#009---2026-11-04) and [MCP connection instructions](docs/INTEGRATIONS.md#mcp-transport).
 
 ### Included from 0.0.8
 
@@ -59,7 +61,7 @@ Version 0.0.2 restores the spacing around shared form notices and explains the f
 
 ## Quick start
 
-These instructions target **[0.0.9](VERSION)** and **Linux amd64 (x86-64)**. Use **[Release v0.0.9](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.9)** for the Linux executable, Docker image archive, source and checksums. Choose one installation below; all support embedded SQLite without an external database or other Home service. A new unconfigured instance confirms its storage choice in the browser.
+These instructions target **[0.0.10](VERSION)** and **Linux amd64 (x86-64)**. Use **[Release v0.0.10](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.0.10)** for the Linux executable, Docker image archive, source and checksums. Choose one installation below; all support embedded SQLite without an external database or other Home service. A new unconfigured instance confirms its storage choice in the browser.
 
 ### Docker image
 
@@ -77,17 +79,17 @@ docker run -d --name lingshu-home \
   ghcr.io/zhigege666/lingshu-home:latest
 ```
 
-`latest` follows the highest verified stable release; prereleases are excluded. To stay on this specific release, use `ghcr.io/zhigege666/lingshu-home:0.0.9` instead. A moving tag does not update a running container: review the release notes, back up data, then pull and recreate it to upgrade.
+`latest` follows the highest verified stable release; prereleases are excluded. To stay on this specific release, use `ghcr.io/zhigege666/lingshu-home:0.0.10` instead. A moving tag does not update a running container: review the release notes, back up data, then pull and recreate it to upgrade.
 
 Open **http://127.0.0.1:5180** on the Docker host. The named volume `lingshu-home-data` retains the database, saved storage selection, instance keys and assets when the container is replaced. The image runs as UID/GID `10001:10001`; a custom bind mount at `/data` must be writable by that identity. To check startup, run `docker logs --tail=100 lingshu-home`.
 
 ### Linux amd64 release
 
-Download `Lingshu-Home-0.0.9-linux-amd64.tar.gz` from the release, then extract and run it from its directory. Go and Node.js are not required:
+Download `Lingshu-Home-0.0.10-linux-amd64.tar.gz` from the release, then extract and run it from its directory. Go and Node.js are not required:
 
 ```bash
-tar -xzf Lingshu-Home-0.0.9-linux-amd64.tar.gz
-cd Lingshu-Home-0.0.9-linux-amd64
+tar -xzf Lingshu-Home-0.0.10-linux-amd64.tar.gz
+cd Lingshu-Home-0.0.10-linux-amd64
 ./lingshu-home --language en --data-dir "$HOME/.local/share/lingshu-home"
 ```
 
@@ -101,7 +103,7 @@ Use the [Unraid template and installation guide](docs/UNRAID.md) for Docker Mana
 
 ### First-run setup
 
-A new instance without explicit or saved storage first asks for **SQLite** or **PostgreSQL**. SQLite needs no separate database service. For PostgreSQL, enter the connection fields and TLS mode, test the connection, then confirm. Testing does not write application tables or save credentials; confirmation validates again and initializes the selected target. Existing valid SQLite instances and explicit/saved targets continue without a storage prompt. See [storage selection and recovery](docs/STORAGE.md#first-run-storage-setup).
+A new instance without explicit or saved storage first asks for **SQLite** or **PostgreSQL**. SQLite needs no separate database service. For PostgreSQL, enter the connection fields and TLS mode, then validate and save. A separate connection test is optional and does not write application tables or save credentials. Saving always revalidates the target before initialization. Existing valid SQLite instances and explicit/saved targets continue without a storage prompt. See [storage selection and recovery](docs/STORAGE.md#first-run-storage-setup).
 
 The commands above explicitly choose English. After storage is ready, setup uses that language; if none was supplied, first select English or 简体中文 and confirm. A successful confirmation saves the choice before the account form opens; an existing saved choice skips this page.
 
@@ -117,13 +119,13 @@ Setup, sign-in, the homepage, Admin and the optional example bookmarks share the
 
 For the Docker command above, use `docker stop lingshu-home` and `docker start lingshu-home`; its stop timeout is 30 seconds. For the Linux foreground process, press `Ctrl+C` and wait for it to exit. Neither procedure requires deleting data.
 
-Before upgrading, stop Home and back up the complete data directory, including the database, `storage.json` when present, `csrf.key`, `integrations.key` and any `document-history`; back up an external PostgreSQL database when used, mounted original documents/attachments and the deployment configuration separately. **Upgrading from 0.0.7 or 0.0.8 to 0.0.9 adds no database migration and retains the existing click recording baseline.** Upgrading from 0.0.6 or earlier still applies any missing official migrations, including additive migration 011 (`link_clicks`) for SQLite or PostgreSQL. Earlier missing migrations run in their existing order. Reuse the same `/data`, PostgreSQL database when used, keys, document/certificate mounts, root allowlist, runtime identity, ports and language. Existing navigation, page composition, accounts, document records and publication choices remain intact. Counts start when migration 011 first establishes the recording baseline; earlier usage is unknown. An upgrade from 0.0.7 or 0.0.8 does not restart that baseline. No new mount, environment variable or external analytics service is required. Preserve explicit database settings and private `storage.json`; setup does not convert providers. Existing HTTP/direct-TLS/reverse-proxy settings retain their behavior.
+Before upgrading, stop Home and back up the complete data directory, including the database, `storage.json` when present, `csrf.key`, `integrations.key` and any `document-history`; back up an external PostgreSQL database when used, mounted original documents/attachments and the deployment configuration separately. **Upgrading from 0.0.7 through 0.0.9 to 0.0.10 adds no database migration and retains the existing click recording baseline.** Upgrading from 0.0.6 or earlier still applies any missing official migrations, including additive migration 011 (`link_clicks`) for SQLite or PostgreSQL. Earlier missing migrations run in their existing order. Reuse the same `/data`, PostgreSQL database when used, keys, document/certificate mounts, root allowlist, runtime identity, ports and language. Existing navigation, page composition, accounts, document records and publication choices remain intact. Counts start when migration 011 first establishes the recording baseline; earlier usage is unknown. An upgrade from 0.0.7 through 0.0.9 does not restart that baseline. No new mount, environment variable or external analytics service is required. Preserve explicit database settings and private `storage.json`; setup does not convert providers. Existing HTTP/direct-TLS/reverse-proxy settings retain their behavior.
 
 An unpublished build that already applied `008_session_retention.sql` has a narrowly checked [compatibility bridge](docs/STORAGE.md#compatibility-with-an-unpublished-session-migration) to the official 008/009/010 sequence. Only its exact known ledger/schema is accepted; keep that build's own matching backup and do not renumber migrations manually.
 
 Pull the selected image and recreate the container with the existing settings. A container restart alone does not install a new image. In Unraid, use the installed container's update action and retain its saved mappings. New optional template fields may not appear in that saved configuration; check and add the needed variables when enabling a feature. Add document Paths/root allowlist or the certificate mount/TLS pair only when enabling those features. The source Compose deployment below uses its own project-scoped `home-data` volume; switching installation methods does not move data automatically.
 
-Versions 0.0.9, 0.0.8 and 0.0.7 use the same database schema. To return to 0.0.6 after migration 011, stop Home and restore the matching pre-upgrade database/data backup, keys, storage/deployment configuration and old image. Earlier application versions also require their own matching pre-migration backup. Replacing only the image, deleting migration records or dropping tables is not a supported rollback. Database restore does not undo edits to external Markdown originals; restore or reconcile their matching backups separately. Direct upgrades from 0.0.1 also require retaining the original startup language when migration 007 is first applied. PostgreSQL still requires the local instance keys. Follow the [backup and migration instructions](docs/STORAGE.md).
+Versions 0.0.7 through 0.0.10 share a database schema, but saved page formats still matter: 0.0.10 may save `auto:true` on a component binding. Older versions reject this field during page validation. Before reverting the binary/image, restore a compatible saved page configuration with the matching data backup; back up any newer work first. To return to 0.0.6 after migration 011, stop Home and restore the matching pre-upgrade database/data backup, keys, storage/deployment configuration and old image. Earlier application versions also require their own matching pre-migration backup. Replacing only the image, deleting migration records or dropping tables is not a supported rollback. Database restore does not undo edits to external Markdown originals; restore or reconcile their matching backups separately. Direct upgrades from 0.0.1 also require retaining the original startup language when migration 007 is first applied. PostgreSQL still requires the local instance keys. Follow the [backup and migration instructions](docs/STORAGE.md).
 
 For everyday operation, see the **[English user guide](docs/USER_GUIDE.md)** or **[中文使用手册](docs/USER_GUIDE.zh-CN.md)**. They cover accounts, link maintenance, bookmark and icon import, visual editing, themes, category linking, page content, language, integrations and recovery.
 
@@ -137,7 +139,7 @@ In **More → Adjust layout → Add → Document activity**, add Document heatma
 
 Since 0.0.5, **Library** is available beside Home: bookmarks with optional Markdown usage notes, and existing file-backed Markdown directories with reading/editing, source/folder filters, content search, tags, bookmark relations, conflict checks and recovery history. **Admin → Document directories** connects multiple directories to one space; a directory has one managing space. Connections default to read-only and new files remain unpublished until explicitly published.
 
-Configure the container-directory allowlist with `LINGSHU_DOCUMENT_ROOTS='["/documents/notes","/documents/projects"]'` and mount the existing host directories separately from `/data`. [compose.documents.yaml](compose.documents.yaml) supplies a two-directory example without creating missing host paths. See the [complete document-library guide](docs/DOCUMENT_LIBRARY.md) for Docker/Unraid setup, ownership, API/MCP, source restrictions, backup and migration **008**. The **0.0.9** image and Linux release retain these library and HTTPS features. The supplied Compose files build the matching source checkout; image installations can add the same mounts and environment settings to their existing deployment.
+Configure the container-directory allowlist with `LINGSHU_DOCUMENT_ROOTS='["/documents/notes","/documents/projects"]'` and mount the existing host directories separately from `/data`. [compose.documents.yaml](compose.documents.yaml) supplies a two-directory example without creating missing host paths. See the [complete document-library guide](docs/DOCUMENT_LIBRARY.md) for Docker/Unraid setup, ownership, API/MCP, source restrictions, backup and migration **008**. The **0.0.10** image and Linux release retain these library and HTTPS features. The supplied Compose files build the matching source checkout; image installations can add the same mounts and environment settings to their existing deployment.
 
 Optional direct HTTPS uses `LINGSHU_TLS_CERT_FILE` and `LINGSHU_TLS_KEY_FILE`; configure both or neither. Invalid certificates fail startup without falling back to HTTP. [compose.tls.yaml](compose.tls.yaml) and the [transport encryption guide](docs/TRANSPORT_SECURITY.md) cover direct TLS and reverse proxies. `LINGSHU_SECURE_COOKIES` still controls cookie transport and does not itself turn on HTTPS. A network-mounted NAS needs its own encrypted transport; raw Markdown stays compatible with external editors.
 
@@ -190,11 +192,11 @@ Earlier Classic, admin and preview captures remain available as historical examp
 The commands in this section require a source checkout, not the extracted Linux executable bundle. Get the release source with Git:
 
 ```bash
-git clone --branch v0.0.9 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
+git clone --branch v0.0.10 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
 cd Lingshu-Home
 ```
 
-That checkout pins **0.0.9**, including MCP space/directory discovery, permission-scoped receipts and document read/recovery behavior, together with the existing homepage editing, click statistics, library and HTTPS features.
+That checkout pins **0.0.10**, including MCP space/directory discovery, permission-scoped receipts and document read/recovery behavior, together with the existing homepage editing, click statistics, library and HTTPS features.
 
 ### Build a Docker image from the checkout
 
@@ -243,7 +245,7 @@ The background helper is for Linux development and identifies the process it sta
 
 ### Runtime configuration and language
 
-These options apply to **0.0.9**. A new instance can choose its language once at startup or on the first-run page; a saved choice takes precedence.
+These options apply to **0.0.10**. A new instance can choose its language once at startup or on the first-run page; a saved choice takes precedence.
 
 | Variable | Default / meaning |
 | --- | --- |
@@ -296,7 +298,7 @@ Link/category pagination limits mounted rows while retaining the current authori
 
 The component/source iteration adds a [public template import and data contract](docs/COMPONENTS.md). A template can configure an installed renderer; it does not execute a webpage or install remote JavaScript. Calendar, weather, metric and status sources keep one bounded latest snapshot, and an empty polling schedule has no periodic wakeup. Chinese and English setup packs contain different curated links; Setup chooses the matching collection automatically from the saved instance language.
 
-**More → Adjust layout → Add → Dashboard presets** provides Personal overview, Service operations and Data summary layouts. Choose compatible existing sources for the components you want, or explicitly skip a component. Applying a preset replaces the component layout in the unsaved draft while retaining the current theme, page content and valid navigation sources; **Save page** persists it. Presets do not start collectors or insert example values. [Preset layouts and integration guide](docs/DASHBOARDS.md) · [Versioned data examples](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/examples/dashboard-data/README.md).
+**More → Adjust layout → Add → Dashboard presets** provides Personal overview, Service operations and Data summary layouts. Choose compatible existing sources for the components you want, or explicitly skip a component. Applying a preset replaces the component layout in the unsaved draft while retaining the current theme, page content and valid navigation sources; **Save page** persists it. Presets do not start collectors or insert example values. [Preset layouts and integration guide](docs/DASHBOARDS.md) · [Versioned data examples](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/examples/dashboard-data/README.md).
 
 Two extension types are part of the contract: typed panel renderers and full-page themes. Installing arbitrary third-party theme packages, knowledge-base connectors, and general real-time adapters are future work. The admin and login pages remain host-owned interfaces.
 
@@ -340,17 +342,17 @@ cd server
 go test ./...
 ```
 
-The HTTP runner exercises fresh disposable instances and a real process restart. It refuses existing initialized databases and non-loopback targets. Go provider suites use nine distinct fresh PostgreSQL databases through `LINGSHU_TEST_POSTGRES_URL`, `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`, `LINGSHU_TEST_ICONS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENTS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL`, `LINGSHU_TEST_NAVIGATION_POSTGRES_URL`, `LINGSHU_TEST_DOCUMENT_POSTGRES_URL`, `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` and `LINGSHU_TEST_STORAGE_POSTGRES_URL`. These include component, navigation, document, bookmark-context and storage/profile groups; document migrations 008/009 have preservation and rollback cases for both providers; language and migration 007 cases use isolated schemas in the icon test database. HTTP acceptance uses its own databases. An unset PostgreSQL variable skips its suite and is not a passing provider check. See [test instructions and coverage](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/tests/README.md) and [provider isolation](docs/STORAGE.md#provider-validation).
+The HTTP runner exercises fresh disposable instances and a real process restart. It refuses existing initialized databases and non-loopback targets. Go provider suites use nine distinct fresh PostgreSQL databases through `LINGSHU_TEST_POSTGRES_URL`, `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`, `LINGSHU_TEST_ICONS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENTS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL`, `LINGSHU_TEST_NAVIGATION_POSTGRES_URL`, `LINGSHU_TEST_DOCUMENT_POSTGRES_URL`, `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` and `LINGSHU_TEST_STORAGE_POSTGRES_URL`. These include component, navigation, document, bookmark-context and storage/profile groups; document migrations 008/009 have preservation and rollback cases for both providers; language and migration 007 cases use isolated schemas in the icon test database. HTTP acceptance uses its own databases. An unset PostgreSQL variable skips its suite and is not a passing provider check. See [test instructions and coverage](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/tests/README.md) and [provider isolation](docs/STORAGE.md#provider-validation).
 
 Every change set maintains the changelog and relevant public documentation. **Every release must update both `README.md` and `README.zh-CN.md` and its dated `CHANGELOG.md` section**, including the current version, download/source links, image pin, visible changes and upgrade guidance. The release gate checks both READMEs and the changelog against the preceding release; GitHub release notes come from the same dated entry. `VERSION` is the only manually maintained product version. Build outputs and release tags derive from it. Release descriptions come from the matching dated changelog entry, and release automation requires the application validation gates before publication. Creating or pushing a tag is a separate release action.
 
 Private design documents and visual explorations are excluded from Git, Docker contexts, frontend resources, and release artifacts. Public API and deployment documentation are maintained in `docs/`.
 
-Tailwind class discovery is explicitly limited to `web/src`. Build-output directories, public assets and private documents do not influence generated styles. Source-file counts, output identity checks and browser timings belong to the specific run recorded in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/tests/README.md) and [PERFORMANCE.md](docs/PERFORMANCE.md), rather than a standing performance promise.
+Tailwind class discovery is explicitly limited to `web/src`. Build-output directories, public assets and private documents do not influence generated styles. Source-file counts, output identity checks and browser timings belong to the specific run recorded in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/tests/README.md) and [PERFORMANCE.md](docs/PERFORMANCE.md), rather than a standing performance promise.
 
 ### Historical verification
 
-The following paragraph records the earlier visual-editor/icon development iteration. It does not establish the complete verification result for 0.0.9; use the release-specific verification record for that scope.
+The following paragraph records the earlier visual-editor/icon development iteration. It does not establish the complete verification result for 0.0.10; use the release-specific verification record for that scope.
 
 The earlier visual editor passed eight real browser workflows in each interface language, including a deliberate save, full reload and revision-checked restoration. Icon import, persistence, reference protection and invalid-pack rollback passed in both languages; website retrieval and a repeat cache hit were verified against the TypeScript website. GitHub lookup still timed out in the validation environment. SQLite, isolated PostgreSQL databases and the Docker runtime were also checked; see the [verification record](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md) for each result's scope. The [performance report](docs/PERFORMANCE.md) compares the development build with its predecessor using twelve fresh desktop browser contexts. Earlier interface checks are retained as historical evidence.
 
@@ -373,10 +375,10 @@ The earlier visual editor passed eight real browser workflows in each interface 
 | Sources, external pushes, MCP, GitHub Traffic | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) |
 | Components, calendar/weather, template import and data contracts | [docs/COMPONENTS.md](docs/COMPONENTS.md) |
 | Icon libraries, formats and website cache | [docs/ICONS.md](docs/ICONS.md) |
-| Test instructions | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/tests/README.md) |
+| Test instructions | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/tests/README.md) |
 | Changes | [CHANGELOG.md](CHANGELOG.md) |
-| Contribution rules | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/AGENTS.md) |
-| Bundled icon sources | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/assets/icons/manifest.json) |
+| Contribution rules | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/AGENTS.md) |
+| Bundled icon sources | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/assets/icons/manifest.json) |
 | Versioning and releases | [docs/RELEASING.md](docs/RELEASING.md) |
 | Third-party notices | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 

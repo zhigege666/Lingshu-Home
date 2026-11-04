@@ -255,8 +255,13 @@ func validatePageConfig(config map[string]any) error {
 			return invalid("Invalid binding identifier.")
 		}
 		binding, ok := object(raw)
-		if !ok || !keysOnly(binding, "datasetId", "space", "query") {
+		if !ok || !keysOnly(binding, "datasetId", "space", "query", "auto") {
 			return invalid("Invalid binding fields.")
+		}
+		if value, present := binding["auto"]; present {
+			if _, ok := value.(bool); !ok {
+				return invalid("Binding auto must be a boolean.")
+			}
 		}
 		datasetID, ok := binding["datasetId"].(string)
 		if !ok || (datasetID != "local-navigation" && datasetID != "local-document-activity" && !(strings.HasPrefix(datasetID, "source:") && validID(strings.TrimPrefix(datasetID, "source:")))) {

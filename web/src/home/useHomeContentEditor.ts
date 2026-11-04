@@ -5,7 +5,7 @@ import { getLocale, t } from '../core/i18n'
 import { createDraftHistory, inputHistoryGroup, recordDraft, redoDraft, undoDraft, type DraftHistory } from '../core/draft-history'
 import { useHistoryShortcuts } from '../core/useHistoryShortcuts'
 import { inlineDraftEpoch, committedInlineDataset, type BatchEditResult, type CategoryDraft, type InlineConflict, type InlineError, type InlineKind, type LinkDraft } from '../core/navigation-inline'
-import { buildContentEdit, changeContentField, contentNavigation, discardContentOrder, freshContentDraft, moveContent, rebaseContentDraft, resolveContentField, type ContentDraft, type ContentSelection, type OrderConflict } from '../core/home-content-draft'
+import { addContentRow, newNavigationID, buildContentEdit, changeContentField, contentNavigation, discardContentOrder, freshContentDraft, moveContent, rebaseContentDraft, resolveContentField, type ContentDraft, type ContentSelection, type OrderConflict } from '../core/home-content-draft'
 import type { Dataset, NavigationData } from '../core/types'
 import type { NavigationEditor } from './navigation-editor-types'
 
@@ -112,9 +112,15 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
     const next = update(value.history.present)
     const built = buildContentEdit(next)
     if (built.errors.some(item => item.code === 'limit')) { setError(t('这批修改已达到 500 项，请先保存。', 'This batch reached 500 operations. Save it first.')); return }
+    if (next === value.history.present) return false
     install({ ...value, history: recordDraft(value.history, next, group) }); setError(''); setErrors([]); setStatus('')
+    return true
   }
   function change(kind: InlineKind, id: string, patch: Partial<CategoryDraft & LinkDraft>) { edit(value => changeContentField(value, kind, id, patch), inputHistoryGroup()) }
+  function add(kind: InlineKind, parentId: string | null) {
+    const id = newNavigationID()
+    if (edit(value => addContentRow(value, kind, id, spaceId, parentId))) select(kind, id)
+  }
   function moveLink(id: string, categoryId: string | null, beforeId: string | null) { edit(value => moveContent(value, 'links', id, categoryId, beforeId)) }
   function moveCategory(id: string, beforeId: string | null) {
     edit(value => { const row = contentNavigation(value).categories.find(item => item.id === id); return row ? moveContent(value, 'categories', id, row.parentId, beforeId) : value })
@@ -122,7 +128,9 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
   function history(redo = false) {
     const value = state.current
     if (!value || !valid(value) || busyRef.current || value.needsRead || value.conflicts.length || value.orderConflicts.length) return
-    install({ ...value, history: redo ? redoDraft(value.history) : undoDraft(value.history) }); setError(''); setErrors([])
+    const next = redo ? redoDraft(value.history) : undoDraft(value.history)
+    if (selection && !next.present.fields.base.data[selection.kind].some(row => row.id === selection.id)) closeDetails()
+    install({ ...value, history: next }); setError(''); setErrors([])
   }
   const canUndo = !!active?.history.past.length, canRedo = !!active?.history.future.length
   useHistoryShortcuts({ enabled: !!active && !blocked, undo: () => history(), redo: () => history(true), canUndo, canRedo, allowNonModalDialogs: true })
@@ -159,6 +167,8 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
       const result = await request<BatchEditResult>(`/spaces/${encodeURIComponent(spaceId)}/navigation/batch-edit`, { method: 'POST', body: built.body })
       if (!valid(value)) return
       if (!result || typeof result.revision !== 'string' || typeof result.updatedCount !== 'number' || !Array.isArray(result.categories) || !Array.isArray(result.links)) throw new Error('Unconfirmed save result')
+      if (value.history.present.created.categories.some(id => !result.categories.some(row => row.id === id)) ||
+          value.history.present.created.links.some(id => !result.links.some(row => row.id === id))) throw new Error('Unconfirmed created records')
       const base = committedInlineDataset(value.history.present.fields, result)
       install({ ...value, history: createDraftHistory(freshContentDraft(base, value.history.present.locale)), needsRead: false, conflicts: [], orderConflicts: [] })
       current.current.onCommitted?.(base)
@@ -172,6 +182,11 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
       }
     } catch (cause) {
       if (!valid(value)) return
+      if (cause instanceof ApiError && cause.status === 409 && cause.code === 'navigation_version_conflict') {
+        setPending(null); pendingRef.current = null
+        await reconcile(value)
+        return
+      }
       const rejection = cause instanceof ApiError && cause.status >= 400 && cause.status < 500 && ![408, 409, 401, 403, 404].includes(cause.status)
       install({ ...value, needsRead: !rejection }); setPending(null)
       setError(rejection ? messageOf(cause) : cause instanceof ApiError && cause.status === 409
@@ -183,7 +198,11 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
   async function readLatest() {
     const value = state.current
     if (!value || !valid(value) || busyRef.current) return
-    busyRef.current = true; setBusy(true); setError('')
+    busyRef.current = true; setBusy(true)
+    try { await reconcile(value) } finally { busyRef.current = false; if (mounted.current) setBusy(false) }
+  }
+  async function reconcile(value: Session) {
+    setError('')
     const controller = new AbortController(); readAbort.current = controller
     try {
       const latest = await request<Dataset<NavigationData>>(`/spaces/${encodeURIComponent(spaceId)}/navigation`, { signal: controller.signal })
@@ -199,7 +218,7 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
       }
     } catch (cause) {
       if (valid(value) && !controller.signal.aborted) { setError(messageOf(cause)); if (cause instanceof ApiError && [401, 403, 404].includes(cause.status)) void current.current.onSessionChanged?.() }
-    } finally { busyRef.current = false; if (mounted.current) setBusy(false) }
+    }
   }
   function resolve(conflict: InlineConflict, choice: 'mine' | 'server') {
     const value = state.current
@@ -214,10 +233,10 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
   }
   const editor: NavigationEditor | undefined = active && navigation ? {
     spaceId, navigation, selectedLinkId: selection?.kind === 'links' ? selection.id : undefined, selectedCategoryId: selection?.kind === 'categories' ? selection.id : undefined,
-    busy: blocked, onEditLink: id => select('links', id), onEditCategory: id => select('categories', id), onRenameCategory: (id, name) => change('categories', id, { name }), onMoveLink: moveLink, onMoveCategory: moveCategory,
+    busy: blocked, onAddLink: categoryId => add('links', categoryId), onEditLink: id => select('links', id), onEditCategory: id => select('categories', id), onRenameCategory: (id, name) => change('categories', id, { name }), onMoveLink: moveLink, onMoveCategory: moveCategory,
   } : undefined
   return { active: !!active, draft, navigation, editor, selection, changeCount, dirty, busy, blocked, canUndo, canRedo, error, errors, status,
     needsRead: !!active?.needsRead, refreshNeeded, conflicts: active?.conflicts || [], orderConflicts: active?.orderConflicts || [], leaveOpen: !!pending,
-    start, change, moveLink, moveCategory, undo: () => history(), redo: () => history(true), save, readLatest, resolve, resolveOrder, closeDetails,
+    start, add, change, moveLink, moveCategory, undo: () => history(), redo: () => history(true), save, readLatest, resolve, resolveOrder, closeDetails,
     exit: () => requestLeave(() => {}), requestLeave, discard, keep: () => setPending(null) }
 }

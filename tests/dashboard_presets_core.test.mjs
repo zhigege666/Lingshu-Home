@@ -304,7 +304,7 @@ test('changing navigation source does not copy old filters and joins the retaine
   const selected = { ...assignments('personal-overview'), navigation: remote.datasetId }
   const { config } = compiled('personal-overview', { config: current, sources: [...inventory, remote], assignments: selected })
   const changed = panel(config, 'navigation'), unchanged = panel(config, 'favorites')
-  assert.deepEqual(config.bindings[changed.inputs.collection], { datasetId: remote.datasetId, space: 'current-page-space', query: {} })
+  assert.deepEqual(config.bindings[changed.inputs.collection], { datasetId: remote.datasetId, space: 'current-page-space', query: {}, auto: true })
   assert.equal(changed.interactionScope, 'ops')
   assert.deepEqual(config.bindings[unchanged.inputs.collection].query, current.bindings.navigation.query)
   for (const view of config.views.filter(view => ['builtin/calendar', 'builtin/weather'].includes(view.panel.id))) {

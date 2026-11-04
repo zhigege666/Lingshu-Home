@@ -131,7 +131,7 @@ async function main() {
         assert.equal(view.settings.presentation, preset);
         assert.equal(view.settings.recentLimit, preset === 'heatmap' ? 3 : 0);
         assert.equal(view.interactionScope, undefined);
-        assert.deepEqual(config.bindings[view.inputs.activity], { datasetId: 'local-document-activity', space: 'current-page-space', query: {} });
+        assert.deepEqual(config.bindings[view.inputs.activity], { datasetId: 'local-document-activity', space: 'current-page-space', query: {}, auto: true });
         assert.equal(position.w, preset === 'split' ? 24 : 12);
         assert.equal(position.heightMode, 'content');
         assert.ok(!Object.hasOwn(view.settings, 'width') && !Object.hasOwn(view.settings, 'height'));
@@ -179,6 +179,32 @@ async function main() {
       assert.deepEqual(next.bindings, base.bindings);
       assert.deepEqual(next.chrome, base.chrome);
       assert.deepEqual(base, initial);
+    });
+    check('only the final reference releases a component-owned alias; hidden, reserved and legacy bindings survive', () => {
+      const manual = structuredClone(base);
+      manual.bindings.reserved = { datasetId: 'source:reserved', space: 'current-page-space', query: {} };
+      const first = h.addPagePanel(manual, 'builtin/github-traffic', traffic);
+      const alias = first.config.views.at(-1).inputs.traffic;
+      const fork = h.duplicatePagePanel(first.config, first.id);
+      fork.config.layout.placements[fork.id] = { base: { kind: 'hidden' } };
+      const oneLeft = h.removePagePanel(fork.config, first.id);
+      assert.ok(oneLeft.bindings[alias]); assert.ok(oneLeft.bindings.reserved);
+      assert.deepEqual(h.removePagePanel(oneLeft, fork.id).bindings, manual.bindings);
+      assert.ok(first.config.bindings[alias], 'prior draft can still be restored via undo');
+      const old = structuredClone(first.config); delete old.bindings[alias].auto;
+      assert.ok(h.removePagePanel(old, first.id).bindings[alias], 'never guess ownership of a saved older alias');
+    });
+    check('replacing the final automatically generated source at the binding limit needs no additional slot', () => {
+      const first = h.addPagePanel(base, 'builtin/github-traffic', traffic);
+      const before = first.config; const oldAlias = before.views.at(-1).inputs.traffic;
+      for (let i = Object.keys(before.bindings).length; i < 32; i++) before.bindings['reserve' + i] = { ...base.bindings.navigation, query: {search: 'reserved' + i} };
+      const second = { ...traffic, id: 'b'.repeat(32), datasetId: 'source:' + 'b'.repeat(32) };
+      const rebound = h.bindPagePanel(before, first.id, second);
+      const alias = rebound.views.at(-1).inputs.traffic;
+      assert.equal(Object.keys(rebound.bindings).length, 32);
+      assert.equal(rebound.bindings[oldAlias], undefined);
+      assert.equal(rebound.bindings[alias].datasetId, second.datasetId);
+      assert.equal(before.bindings[oldAlias].datasetId, traffic.datasetId);
     });
     check('duplicating preserves settings and input identity with a separate non-overlapping placement', () => {
       const source = structuredClone(base); source.views.find(view => view.id === navId).settings.linkAppearance = 'minimal';

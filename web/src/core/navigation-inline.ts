@@ -1,3 +1,4 @@
+import { validBookmarkURL } from './bookmark-url.ts'
 import type { Category, Dataset, Endpoint, LinkInput, NavigationData, NavLink } from './types'
 
 export type InlineKind = 'categories' | 'links'
@@ -30,7 +31,6 @@ export function putDraft(draft: InlineDraft, kind: InlineKind, id: string, value
 }
 const tags = (value: string) => [...new Set(value.split(/[,，]/).map(item => item.trim()).filter(Boolean))]
 function order(value: string) { return /^-?\d+$/.test(value.trim()) && Number.isSafeInteger(Number(value)) && Math.abs(Number(value)) <= 1000000 }
-function validURL(value: string) { try { const url = new URL(value); return (url.protocol === 'http:' || url.protocol === 'https:') && !!url.hostname } catch { return false } }
 function normalized(kind: InlineKind, value: CategoryDraft | LinkDraft): Record<string, unknown> {
   if (kind === 'categories') { const row = value as CategoryDraft; return { ...row, name: row.name.trim(), sortOrder: Number(row.sortOrder) } }
   const row = value as LinkDraft
@@ -55,13 +55,13 @@ export function buildBatchEdit(draft: InlineDraft): { body: BatchEditBody; error
     const row = draft.base.data.links.find(item => item.id === id)
     if (!row) { add('links', id, 'title', 'deleted'); continue }
     if (!value.title.trim() || [...value.title.trim()].length > 160) add('links', id, 'title', 'title')
-    if (!validURL(value.url.trim()) || value.url.trim().length > 2048) add('links', id, 'url', 'url')
+    if (!validBookmarkURL(value.url.trim())) add('links', id, 'url', 'url')
     if (!order(value.sortOrder)) add('links', id, 'sortOrder', 'order')
     const values = tags(value.tags)
     if (values.length > 32 || values.some(item => [...item].length > 40)) add('links', id, 'tags', 'tags')
     if ([...value.description].length > 2000) add('links', id, 'description', 'description')
     if (value.categoryId && !draft.base.data.categories.some(item => item.id === value.categoryId)) add('links', id, 'categoryId', 'category')
-    if (value.endpoints.length > 12 || value.endpoints.some(item => !validURL(item.url) || !item.label.trim())) add('links', id, 'endpoints', 'endpoints')
+    if (value.endpoints.length > 12 || value.endpoints.some(item => !validBookmarkURL(item.url.trim()) || !item.label.trim())) add('links', id, 'endpoints', 'endpoints')
     const patch = changedFields(normalized('links', linkDraft(row)), normalized('links', value))
     if (Object.keys(patch).length) body.links.push({ id, patch })
   }

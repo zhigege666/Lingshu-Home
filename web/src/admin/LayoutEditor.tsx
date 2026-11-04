@@ -1,3 +1,4 @@
+import { matchingEnabledSources } from '../home/panel-sources'
 import { lazy, Suspense, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, Eye, EyeOff, Layers, LockKeyhole, Plus, Redo2, Trash2, Undo2 } from 'lucide-react'
 import { ApiError, messageOf, request } from '../core/api'
@@ -6,7 +7,7 @@ import { useUnsavedChanges } from '../core/useUnsavedChanges'
 import { createDraftHistory, inputHistoryGroup, recordDraft, redoDraft, undoDraft } from '../core/draft-history'
 import { useHistoryShortcuts } from '../core/useHistoryShortcuts'
 import { builtinPageThemes, switchPageTheme, type BuiltinPageThemeId } from '../core/themes'
-import { categoryPosition, panelTypes, presetConfig, readCategoryNavigationSettings, setCategoryPosition, viewId } from '../core/presentation'
+import { categoryPosition, panelTypes, presetConfig, readCategoryNavigationSettings, setCategoryPosition } from '../core/presentation'
 import type { Bootstrap, Dashboard, Page, PageConfig, Placement, Region, View } from '../core/types'
 import { Button } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
@@ -19,10 +20,10 @@ import { DocumentActivityFields } from '../components/DocumentActivityFields'
 import { NavigationContentFields, type NavigationSelectProps, type NavigationCheckProps } from '../components/NavigationContentFields'
 import { PageChromeEditor, validatePageChrome, type ChromeValidationIssue } from './PageChromeEditor'
 import { PagePreview } from './PagePreview'
-import { addDocumentActivityPanel, documentActivityPresets, addPagePanel, bindPagePanel, panelContracts, panelTitle } from '../home/composition'
+import { addDocumentActivityPanel, documentActivityPresets, addPagePanel, bindPagePanel, removePagePanel, panelContracts, panelTitle, type ComposerSource } from '../home/composition'
 const DiscardChangesDialog = lazy(() => import('../components/DiscardChangesDialog'))
 
-type Source = { id: string; name: string; datasetId: string; schemaId: string }
+const PanelSourceDialog = lazy(() => import('../components/PanelSourceDialog'))
 type Preset = 'grouped-cards' | 'dense-directory'
 const clone = <T,>(value: T): T => structuredClone(value)
 const linkingPanels = ['builtin/search', 'builtin/category-navigation', 'builtin/navigation', 'builtin/favorites']
@@ -50,14 +51,6 @@ function bottom(config: PageConfig) {
   return Math.max(0, ...Object.values(config.layout.placements).map(placement => placement.base.kind === 'grid' ? placement.base.y + placement.base.h : 0))
 }
 function positionName(placement: Placement) { return placement.kind === 'hidden' ? 'hidden' : placement.region }
-function collectionBinding(config: PageConfig, datasetId: string) {
-  const existing = Object.entries(config.bindings).find(([, binding]) => binding.datasetId === datasetId && !Object.keys(binding.query).length)
-  if (existing) return existing[0]
-  const preferred = datasetId === 'local-navigation' ? 'navigation' : 'source-' + datasetId.replace(/^source:/, '')
-  const alias = config.bindings[preferred] ? 'binding-' + viewId() : preferred
-  config.bindings[alias] = { datasetId, space: 'current-page-space', query: {} }
-  return alias
-}
 function neighbor(config: PageConfig, id: string, direction: number): string | null {
   const placement = config.layout.placements[id]?.base
   if (!placement || placement.kind === 'hidden' || placement.locked) return null
@@ -85,8 +78,9 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
   const { name, config } = history.present
   const [baseline, setBaseline] = useState(() => clone(dashboard.page))
   const [revision, setRevision] = useState(dashboard.page.revision)
-  const [sources, setSources] = useState<Source[]>([])
-  const [sourceError, setSourceError] = useState('')
+  const [sources, setSources] = useState<ComposerSource[]>([])
+  const [sourceError, setSourceError] = useState(''), [inventoryReady, setInventoryReady] = useState(false), [sourceRetry, setSourceRetry] = useState(0)
+  const [choosePanel, setChoosePanel] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [conflict, setConflict] = useState(false)
@@ -135,11 +129,12 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
 
   useEffect(() => {
     const pending = new AbortController()
-    request<Source[]>('/spaces/' + encodeURIComponent(dashboard.space.id) + '/sources', { signal: pending.signal })
-      .then(value => { if (!pending.signal.aborted) setSources(value) })
+    setSourceError(''); setInventoryReady(false)
+    request<ComposerSource[]>('/spaces/' + encodeURIComponent(dashboard.space.id) + '/sources', { signal: pending.signal })
+      .then(value => { if (!pending.signal.aborted) { setSources(value); setInventoryReady(true) } })
       .catch(cause => { if (!pending.signal.aborted) setSourceError(messageOf(cause)) })
     return () => pending.abort()
-  }, [dashboard.space.id])
+  }, [dashboard.space.id, sourceRetry])
 
   function edit(change: (value: PageConfig) => void) {
     setConfig(previous => { const next = clone(previous); change(next); return next })
@@ -166,25 +161,27 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
         }
     })
   }
-  function addView() {
+  function insertView(panelId: string, source?: ComposerSource) {
     try {
-      if (addType.startsWith('document-activity:')) {
-        const presentation = addType.slice('document-activity:'.length) as 'heatmap' | 'split' | 'month'
-        const added = addDocumentActivityPanel(config, presentation)
-        setConfig(added.config); setSelectedId(added.id); setError(''); return
-      }
-      const schema = panelContracts[addType]?.schema
-      const source = schema && schema !== 'navigation.collection' ? sources.find(item => item.schemaId === schema) : undefined
-      if (schema && schema !== 'navigation.collection' && !source) { setError(t('请先添加兼容的数据来源。', 'Add a compatible data source first.')); return }
-      const added = addPagePanel(config, addType, source)
+      const added = panelId.startsWith('document-activity:')
+        ? addDocumentActivityPanel(config, panelId.slice('document-activity:'.length) as 'heatmap' | 'split' | 'month')
+        : addPagePanel(config, panelId, source)
       setConfig(added.config); setSelectedId(added.id); setError('')
     } catch (cause) { setError(messageOf(cause)) }
+  }
+  function addView() {
+    const schema = panelContracts[addType]?.schema
+    if (schema && schema !== 'navigation.collection') {
+      const choices = matchingEnabledSources(schema, 1, sources)
+      if (choices.length !== 1) { setChoosePanel(addType); return }
+      insertView(addType, choices[0])
+    } else insertView(addType)
   }
   function removeView(view: View) {
     if (locked) return
     const index = config.views.findIndex(item => item.id === view.id)
     setSelectedId(config.views[index + 1]?.id || config.views[index - 1]?.id || '')
-    edit(next => { next.views = next.views.filter(item => item.id !== view.id); delete next.layout.placements[view.id] })
+    setConfig(removePagePanel(config, view.id))
   }
   function bindSource(view: View, value: string) {
     const source = value === 'local-navigation' ? { id: '', name: t('本地书签', 'Local bookmarks'), datasetId: value, schemaId: 'navigation.collection' } : sources.find(item => item.datasetId === value)
@@ -251,7 +248,7 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
     setConfig(next); setSelectedId(next.views[0]?.id || ''); setPreset(null); setChromeIssue(null)
   }
 
-  return <form ref={form} className="admin-layout-form" onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}>
+  return <><form ref={form} className="admin-layout-form" onSubmit={save} onInvalidCapture={event => handleFormInvalid(event, setError)}>
     <div className={'admin-layout-workspace' + (previewOpen ? ' has-preview' : '')}>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="admin-layout-tabs">
           <div className="admin-layout-tabbar">
@@ -319,10 +316,10 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
               <div className="admin-inline-controls">
                 <StyledSelect aria-label={t('要添加的积木', 'Panel to add')} value={addType} onValueChange={setAddType} disabled={disabled || config.views.length >= 32}
                   options={[...panelTypes.filter(panel => panel.id !== 'builtin/document-activity').map(panel => ({ value: panel.id, label: panelName({ panel }) })), ...documentActivityPresets.map(preset => ({ value: 'document-activity:' + preset.id, label: preset.name }))]} />
-                <Button type="button" disabled={disabled || config.views.length >= 32} onClick={addView}><Plus size={16} />{t('添加积木', 'Add panel')}</Button>
+                <Button type="button" disabled={disabled || config.views.length >= 32 || !inventoryReady && !!panelContracts[addType]?.schema && panelContracts[addType]?.schema !== 'navigation.collection'} onClick={addView}><Plus size={16} />{t('添加积木', 'Add panel')}</Button>
               </div>
             </div>
-            {sourceError && <p className="admin-info">{t('外部数据源列表暂时无法读取，现有绑定保留。', 'External sources are temporarily unavailable. Existing bindings are retained.')}</p>}
+            {sourceError && <p className="admin-info">{t('外部数据源列表暂时无法读取，现有绑定保留。', 'External sources are temporarily unavailable. Existing bindings are retained.')} <Button type="button" variant="outline" size="sm" onClick={() => setSourceRetry(value => value + 1)}>{t('重试', 'Retry')}</Button></p>}
             {selected ? <div className="admin-composition-editor">
               <aside className="admin-component-list" aria-label={t('页面积木列表', 'Page panel list')}>
                 <ul>{config.views.map((view, index) => {
@@ -461,4 +458,8 @@ export default function LayoutEditor({ bootstrap, dashboard, onSaved }: { bootst
     </Modal>}
     {leaveGuard.blocked && <Suspense fallback={null}><DiscardChangesDialog onKeep={leaveGuard.keep} onDiscard={leaveGuard.discard} /></Suspense>}
   </form>
+    {choosePanel && <Suspense fallback={null}><PanelSourceDialog schema={panelContracts[choosePanel]!.schema} sources={sources}
+      space={dashboard.space} canCreate={!!bootstrap.user && canEdit} onSourcesChange={setSources} onClose={() => setChoosePanel(null)}
+      onChoose={source => { setChoosePanel(null); insertView(choosePanel, source) }} /></Suspense>}
+  </>
 }

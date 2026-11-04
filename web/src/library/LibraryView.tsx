@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, ChevronDown, ChevronRight, Clock3, FileText, Folder, FolderOpen, Home, Link2, LockKeyhole, LogOut, Plus, RefreshCw, Search, Settings2, Star, X } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Home, Link2, LockKeyhole, LogOut, Plus, RefreshCw, Search, Settings2, Star, X } from 'lucide-react'
 import { messageOf, request } from '../core/api'
 import { getLocale, t } from '../core/i18n'
 import { requestNavigation } from '../core/navigation'
 import { formatUpdated } from '../core/presentation'
 import type { Bootstrap, Dashboard, Dataset, NavigationData } from '../core/types'
-import type { DocumentPage, DocumentSource, DocumentSourceList, LibraryBookmark, LibraryDocument, LibraryItem } from '../core/library-types'
+import type { DocumentPage, ListedDocumentSource, DocumentSourceList, LibraryBookmark, LibraryDocument, LibraryItem } from '../core/library-types'
 import { ProjectLogo } from '../components/ProjectLogo'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -43,10 +43,10 @@ function FolderBranch({ nodes, active, onSelect, depth = 0 }: { nodes: FolderNod
 
 export default function LibraryView({ bootstrap, dashboard, documentId, onHome, onManage, onLogin, onLogout, onSpaceChange }: Props) {
   const space = dashboard.space, identity = `${bootstrap.user?.id || 'visitor'}:${space.id}`
-  const [sources, setSources] = useState<DocumentSource[]>([]), [bookmarks, setBookmarks] = useState<LibraryBookmark[]>([])
+  const [sources, setSources] = useState<ListedDocumentSource[]>([]), [bookmarks, setBookmarks] = useState<LibraryBookmark[]>([])
   const [documents, setDocuments] = useState<LibraryDocument[]>([]), [total, setTotal] = useState(0)
   const [query, setQuery] = useState(''), [search, setSearch] = useState(''), [kind, setKind] = useState<'all' | 'bookmark' | 'document'>('all')
-  const [section, setSection] = useState<'all' | 'recent' | 'favorites'>('all'), [sourceId, setSourceId] = useState(''), [folder, setFolder] = useState('')
+  const [section, setSection] = useState<'all' | 'favorites'>('all'), [sourceId, setSourceId] = useState(''), [folder, setFolder] = useState('')
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set())
   const [selection, setSelection] = useState<Selection | null>(documentId ? { kind: 'document', id: documentId } : null), [expandedPreview, setExpandedPreview] = useState(false)
   const [newDocument, setNewDocument] = useState(false), [loading, setLoading] = useState(true), [loadingMore, setLoadingMore] = useState(false)
@@ -102,10 +102,10 @@ export default function LibraryView({ bootstrap, dashboard, documentId, onHome, 
     })
   }, [documents, filteredBookmarks, kind, section, sourceId, folder])
   const selectedBookmark = selection?.kind === 'bookmark' ? bookmarks.find(item => item.id === selection.id) : undefined
-  const source = sources.find(item => item.id === sourceId), defaultSource = sources.find(item => item.defaultWrite && item.enabled)
+  const source = sources.find(item => item.id === sourceId)
   const refresh = useCallback(() => setRefreshKey(current => current + 1), [])
   const select = (next: Selection | null) => requestNavigation(() => { setSelection(next); setExpandedPreview(false) })
-  function pickSection(next: typeof section) { setSection(next); setSourceId(''); setFolder(''); if (next === 'favorites') setKind('bookmark') }
+  function pickSection(next: typeof section) { setSection(next); setSourceId(''); setFolder(''); setKind(next === 'favorites' ? 'bookmark' : 'all') }
   function pickSource(id: string, path = '') { setSourceId(id); setFolder(path); setSection('all'); setKind('document') }
   async function openDocumentLink(id: string, path: string) {
     try {
@@ -126,12 +126,11 @@ export default function LibraryView({ bootstrap, dashboard, documentId, onHome, 
     <aside className="library-sidebar" aria-label={t('资料库筛选', 'Library filters')}>
       <nav className="library-sections">
         <button className={section === 'all' && !sourceId ? 'active' : ''} onClick={() => pickSection('all')}><FolderOpen size={19}/>{t('全部资料', 'All resources')}</button>
-        <button className={section === 'recent' ? 'active' : ''} onClick={() => { pickSection('recent'); setKind('all') }}><Clock3 size={19}/>{t('最近更新', 'Recently updated')}</button>
         <button className={section === 'favorites' ? 'active' : ''} onClick={() => pickSection('favorites')}><Star size={19}/>{t('收藏书签', 'Favorite bookmarks')}</button>
       </nav>
       <div className="library-sources-heading"><h2>{t('文档目录', 'Document directories')}</h2>{canManage && <button aria-label={t('管理目录', 'Manage directories')} title={t('管理目录', 'Manage directories')} onClick={onManage}><Settings2 size={15}/></button>}</div>
       {visibleSources.map(item => <div className="library-source" key={item.id}>
-        <div className={`library-source-line ${sourceId === item.id && !folder ? 'active' : ''}`}><button className="library-tree-toggle" aria-label={t('展开或收起 {name}', 'Expand or collapse {name}', { name: item.name })} aria-expanded={expandedSources.has(item.id)} onClick={() => setExpandedSources(current => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next })}>{expandedSources.has(item.id) ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}</button><button className="library-source-select" onClick={() => pickSource(item.id)}><Folder size={18}/><span title={item.name}>{item.name}</span><small className={item.readOnly ? 'is-readonly' : ''}>{item.readOnly ? t('只读', 'Read only') : t('读写', 'Writable')}</small></button></div>
+        <div className={`library-source-line ${sourceId === item.id && !folder ? 'active' : ''}`}><button className="library-tree-toggle" aria-label={t('展开或收起 {name}', 'Expand or collapse {name}', { name: item.name })} aria-expanded={expandedSources.has(item.id)} onClick={() => setExpandedSources(current => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next })}>{expandedSources.has(item.id) ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}</button><button className="library-source-select" onClick={() => pickSource(item.id)}><Folder size={18}/><span title={item.name}>{item.name}</span><small className={item.readOnly ? 'is-readonly' : ''}>{item.readOnly ? t('只读', 'Read only') : item.canWrite ? t('读写', 'Writable') : t('暂不可写', 'Writes paused')}</small></button></div>
         {expandedSources.has(item.id) && <FolderBranch nodes={folderTree(documents, item.id)} active={sourceId === item.id ? folder : ''} onSelect={path => pickSource(item.id, path)}/>}
         {['offline', 'error'].includes(item.status) && <p className="library-source-warning">{t('目录暂不可用', 'Directory unavailable')}</p>}
       </div>)}
@@ -139,7 +138,7 @@ export default function LibraryView({ bootstrap, dashboard, documentId, onHome, 
       <footer><LockKeyhole size={14}/>{space.kind === 'personal' ? t('仅当前账号可见', 'Visible only to this account') : t('文档需单独发布', 'Documents are published individually')}</footer>
     </aside>
     <main className="library-content" id="main-content">
-      <div className="library-heading"><div><h1>{source?.name || t('资料库', 'Library')}</h1><p>{folder || (section === 'favorites' ? t('常用书签，随时查阅说明。', 'Your favorite bookmarks and their usage notes.') : t('书签与原始 Markdown，集中查阅与维护。', 'Browse and maintain bookmarks and original Markdown files.'))}</p></div><div className="library-create-actions">{canWrite && <Button onClick={() => requestNavigation(() => setNewDocument(true))}><Plus size={16}/>{t('新建文档', 'New document')}</Button>}{canManage && <Button variant="outline" onClick={onManage}><Folder size={16}/>{t('管理目录', 'Manage directories')}</Button>}<Button variant="ghost" size="icon" disabled={loading} onClick={refresh} aria-label={t('刷新资料库', 'Refresh library')}><RefreshCw size={17}/></Button>{canWrite && <small>{defaultSource ? t('默认保存：{name}', 'Default directory: {name}', { name: defaultSource.name }) : t('新建时选择保存目录', 'Choose a directory when creating')}</small>}</div></div>
+      <div className="library-heading"><div><h1>{source?.name || t('资料库', 'Library')}</h1><p>{folder || (section === 'favorites' ? t('常用书签，随时查阅说明。', 'Your favorite bookmarks and their usage notes.') : t('书签与原始 Markdown，集中查阅与维护。', 'Browse and maintain bookmarks and original Markdown files.'))}</p></div><div className="library-create-actions">{canWrite && <Button onClick={() => requestNavigation(() => setNewDocument(true))}><Plus size={16}/>{t('新建文档', 'New document')}</Button>}{canManage && <Button variant="outline" onClick={onManage}><Folder size={16}/>{t('管理目录', 'Manage directories')}</Button>}<Button variant="ghost" size="icon" disabled={loading} onClick={refresh} aria-label={t('刷新资料库', 'Refresh library')}><RefreshCw size={17}/></Button></div></div>
       <div className="library-filters"><div role="group" aria-label={t('资料类型', 'Resource type')}>{(['all', 'bookmark', 'document'] as const).map(value => <button key={value} type="button" className={kind === value ? 'active' : ''} onClick={() => { setKind(value); if (value !== 'document') { setSourceId(''); setFolder('') }; if (value !== 'bookmark' && section === 'favorites') setSection('all') }}>{value === 'all' ? t('全部', 'All') : value === 'bookmark' ? t('书签', 'Bookmarks') : t('文档', 'Documents')}</button>)}</div><span>{t('按更新时间排序', 'Sorted by last update')}</span>{!!visibleSources.length && <label className="library-mobile-source"><span>{t('目录', 'Directory')}</span><StyledSelect aria-label={t('筛选文档目录', 'Filter document directory')} value={sourceId || 'all'} onValueChange={value => { if (value === 'all') { setSourceId(''); setFolder('') } else pickSource(value) }} options={[{ value: 'all', label: t('全部目录', 'All directories') }, ...visibleSources.map(item => ({ value: item.id, label: item.name }))]}/></label>}{sourceId && <button className="library-clear-filter" onClick={() => { setSourceId(''); setFolder('') }}>{t('清除目录筛选', 'Clear directory filter')}<X size={13}/></button>}</div>
       <ErrorMessage error={error}/>{notice && <p className="admin-info" role="status">{notice}</p>}
       {loading ? <Loading text={t('正在读取资料库…', 'Loading library…')}/> : items.length ? <div className="library-list-scroll" role="region" aria-label={t('资料列表', 'Resources')} tabIndex={0}><table className="library-table"><thead><tr><th>{t('名称', 'Name')}</th><th>{t('来源', 'Source')}</th><th>{t('更新', 'Updated')}</th></tr></thead><tbody>{items.map(item => {
@@ -149,6 +148,6 @@ export default function LibraryView({ bootstrap, dashboard, documentId, onHome, 
       <footer className="library-list-footer"><span>{t('已显示 {count} 项', '{count} items shown', { count: items.length })}{kind !== 'bookmark' && section !== 'favorites' && total > documents.length ? t(' · 文档已加载 {loaded}/{total}', ' · Documents loaded: {loaded}/{total}', { loaded: documents.length, total }) : ''}</span>{kind !== 'bookmark' && section !== 'favorites' && total > documents.length && <Button variant="outline" size="sm" disabled={loadingMore} onClick={loadMore}>{loadingMore ? t('正在加载…', 'Loading…') : t('加载更多文档', 'Load more documents')}</Button>}</footer>
     </main>
     {selection && <aside className="library-preview" aria-label={t('资料预览', 'Resource preview')}>{selection.kind === 'document' ? <DocumentPanel key={selection.id} space={space} bootstrap={bootstrap} documentId={selection.id} refreshToken={refreshKey} bookmarks={bookmarks} onClose={() => select(null)} expanded={expandedPreview} onExpand={() => setExpandedPreview(value => !value)} onChanged={refresh} onDeleted={() => { setSelection(null); refresh() }} onDocumentLink={openDocumentLink} onNotice={setNotice}/> : selectedBookmark ? <BookmarkPanel key={selectedBookmark.id} bookmark={selectedBookmark} space={space} bootstrap={bootstrap} onClose={() => select(null)} expanded={expandedPreview} onExpand={() => setExpandedPreview(value => !value)} onReload={refresh} onSaved={value => { setBookmarks(current => current.map(item => item.id === value.id ? value : item)); setNotice(t('使用说明已保存', 'Usage notes saved')) }} onDocumentLink={id => select({ kind: 'document', id })}/> : <Empty title={t('该书签已不存在', 'This bookmark no longer exists')}><Button onClick={() => select(null)}>{t('关闭', 'Close')}</Button></Empty>}</aside>}
-    {newDocument && <NewDocumentDialog spaceId={space.id} sources={sources} preferredSourceId={sourceId} onClose={() => setNewDocument(false)} onManage={() => { setNewDocument(false); onManage() }} onCreated={value => { setNewDocument(false); setSelection({ kind: 'document', id: value.id }); setNotice(t('文档已保存到原始目录', 'Document saved to its directory')); refresh() }}/>}
+    {newDocument && <NewDocumentDialog spaceId={space.id} sources={sources} preferredSourceId={sourceId} preferredFolder={folder} onClose={() => setNewDocument(false)} onManage={() => { setNewDocument(false); onManage() }} onCreated={value => { setNewDocument(false); setSelection({ kind: 'document', id: value.id }); setNotice(t('文档已保存到原始目录', 'Document saved to its directory')); refresh() }}/>}
   </div>
 }

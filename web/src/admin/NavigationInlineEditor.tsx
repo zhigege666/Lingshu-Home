@@ -1,3 +1,4 @@
+import { bookmarkURLMaxBytes } from '../core/bookmark-url'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, ChevronLeft, ChevronRight, LoaderCircle, MoreHorizontal, Redo2, RefreshCw, Save, Search, Undo2, X } from 'lucide-react'
 import { ApiError, messageOf, request } from '../core/api'
@@ -292,7 +293,7 @@ export default function NavigationInlineEditor({ kind, identity, bootstrap, dash
           const change = (field: keyof LinkDraft, next: unknown) => changeRow('links', row.id, { ...value, [field]: next } as LinkDraft, row.id + ':' + field)
           return <TableRow key={row.id} data-dirty={dirty} data-row-id={row.id}>
             <TableCell>{cell(row.id, 'title', <Input value={value.title} maxLength={160} disabled={editingDisabled} aria-label={label(row, 'title')} {...invalidProps(row.id, 'title')} onChange={event => change('title', event.target.value)}/>)}</TableCell>
-            <TableCell>{cell(row.id, 'url', <Input value={value.url} maxLength={2048} disabled={editingDisabled} aria-label={label(row, 'url')} {...invalidProps(row.id, 'url')} onChange={event => change('url', event.target.value)}/>)}</TableCell>
+            <TableCell>{cell(row.id, 'url', <Input value={value.url} maxLength={bookmarkURLMaxBytes} disabled={editingDisabled} aria-label={label(row, 'url')} {...invalidProps(row.id, 'url')} onChange={event => change('url', event.target.value)}/>)}</TableCell>
             <TableCell>{cell(row.id, 'categoryId', <StyledSelect tone="admin" value={value.categoryId || ''} disabled={editingDisabled} aria-label={label(row, 'categoryId')} {...invalidProps(row.id, 'categoryId')} options={[{ value: '', label: t('未分类', 'Uncategorized') }, ...categoryOptions]} onValueChange={next => change('categoryId', next || null)}/>)}</TableCell>
             <TableCell>{cell(row.id, 'tags', <Input value={value.tags} maxLength={1400} disabled={editingDisabled} aria-label={label(row, 'tags')} {...invalidProps(row.id, 'tags')} onChange={event => change('tags', event.target.value)}/>)}</TableCell>
             <TableCell>{cell(row.id, 'sortOrder', <Input value={value.sortOrder} inputMode="numeric" disabled={editingDisabled} aria-label={label(row, 'sortOrder')} {...invalidProps(row.id, 'sortOrder')} onChange={event => change('sortOrder', event.target.value)}/>)}</TableCell>

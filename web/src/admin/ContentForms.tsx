@@ -1,8 +1,9 @@
+import { bookmarkURLMaxBytes, validBookmarkURL } from '../core/bookmark-url'
 import { t } from '../core/i18n'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Upload } from 'lucide-react'
 import { messageOf, request } from '../core/api'
-import { categoryLabel, linkInput, navigationData, safeHref } from '../core/presentation'
+import { categoryLabel, linkInput, navigationData } from '../core/presentation'
 import type { BookmarkPreview, BookmarkResult, Category, Dashboard, LinkInput, NavLink } from '../core/types'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -23,7 +24,7 @@ export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons =
   function field<K extends keyof LinkInput>(key: K, value: LinkInput[K]) { setForm(previous => ({ ...previous,[key]: value })) }
   async function save(event: FormEvent) {
     event.preventDefault(); if (busy || iconBusy || !dashboard.space.canEdit) return; setError('')
-    if (!safeHref(form.url) || form.endpoints.some(item=>!safeHref(item.url))) { setError(t("主入口和其他入口均须使用完整的 HTTP 或 HTTPS 网址。", "The primary and additional URLs must be complete HTTP or HTTPS addresses.")); return }
+    if (!validBookmarkURL(form.url.trim()) || form.endpoints.some(item=>!validBookmarkURL(item.url.trim()))) { setError(t("主入口和其他入口均须使用完整的 HTTP 或 HTTPS 网址。", "The primary and additional URLs must be complete HTTP or HTTPS addresses.")); return }
     const endpointError = endpointValidationError(form.endpoints); if (endpointError) { setError(endpointError); return }
     if (new TextEncoder().encode(form.contextMarkdown || '').length > 64 * 1024) { setError(t('使用说明不能超过 64 KiB。', 'Usage notes must be at most 64 KiB.')); return }
     if (onApplyDraft) { onApplyDraft({ ...form, iconMode: form.iconMode === 'auto' ? 'auto' : 'manual', title: form.title.trim(), url: form.url.trim(), tags: [...new Set(tags.split(/[,，]/).map(value => value.trim()).filter(Boolean))] }); return }
@@ -42,7 +43,7 @@ export function LinkEditor({ dashboard, link, onClose, onSaved, autoFetchIcons =
               <Field label={t('分类', 'Category')}><StyledSelect name="categoryId" value={form.categoryId || ''} onValueChange={value => field('categoryId', value || null)} disabled={busy} options={[{ value: '', label: t('未分类', 'Uncategorized') }, ...categoryOptions(categories)]}/></Field>
             </div>
             <Field label={t('主入口 URL', 'Primary URL')} hint={t('关闭自动选路或没有网络入口时使用', 'Used when routing is off or no network route is configured')}>
-              <Input type="url" required maxLength={2048} placeholder="https://" value={form.url} onChange={e => field('url', e.target.value)}/>
+              <Input type="url" required maxLength={bookmarkURLMaxBytes} placeholder="https://" value={form.url} onChange={e => field('url', e.target.value)}/>
             </Field>
             <Field label={t('描述', 'Description')} hint={t('选填', 'Optional')}><Textarea maxLength={2000} value={form.description} onChange={e => field('description', e.target.value)}/></Field>
             <div className="admin-form-row equal">

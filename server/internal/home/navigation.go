@@ -166,7 +166,7 @@ func (a *App) dashboard(r *Request) (*Response, error) {
 		return nil, err
 	}
 	dashboard := Dashboard{Space: *space, Page: page, Datasets: map[string]Dataset{}}
-	bindings, _ := page.Config["bindings"].(map[string]any)
+	bindings := dashboardBindings(page.Config)
 	var local *Dataset
 	for alias, value := range bindings {
 		binding, _ := value.(map[string]any)
@@ -192,7 +192,7 @@ func (a *App) dashboard(r *Request) (*Response, error) {
 		copy.Data = filterNavigation(local.Data.(NavigationData), query)
 		dashboard.Datasets[alias] = copy
 	}
-	if err = a.appendIntegrationDatasets(r, &dashboard); err != nil {
+	if err = a.appendIntegrationDatasets(r, &dashboard, bindings); err != nil {
 		return nil, err
 	}
 	return ok(dashboard), nil
@@ -314,8 +314,7 @@ func (a *App) createCategory(r *Request) (*Response, error) {
 		return nil, err
 	}
 	category := Category{ID: id, SpaceID: space.ID, ParentID: in.ParentID, Name: in.Name, Icon: in.Icon, SortOrder: in.SortOrder}
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO categories(id,space_id,parent_id,name,icon,sort_order) VALUES(?,?,?,?,?,?)"), id, space.ID, nullableID(in.ParentID), in.Name, in.Icon, in.SortOrder)
-	if err != nil {
+	if err = a.insertNavigationCategory(r, category); err != nil {
 		return nil, err
 	}
 	if err = a.touchNavigation(r, space.ID); err != nil {
@@ -474,6 +473,10 @@ func (a *App) validateLink(r *Request, spaceID string, in *linkInput) (string, e
 }
 
 func (a *App) insertLink(r *Request, spaceID string, in linkInput) (Link, error) {
+	return a.insertLinkWithID(r, spaceID, newID(), in)
+}
+
+func (a *App) insertLinkWithID(r *Request, spaceID, id string, in linkInput) (Link, error) {
 	if in.IconMode == "" {
 		in.IconMode = "manual"
 		if in.Icon == "" {
@@ -484,7 +487,7 @@ func (a *App) insertLink(r *Request, spaceID string, in linkInput) (Link, error)
 	if err != nil {
 		return Link{}, err
 	}
-	link := Link{ID: newID(), SpaceID: spaceID, CategoryID: in.CategoryID, Title: in.Title, URL: in.URL, Description: in.Description, Icon: in.Icon, IconMode: string(in.IconMode), Tags: in.Tags, IsFavorite: in.IsFavorite, SortOrder: in.SortOrder, Endpoints: in.Endpoints, UpdatedAt: nowUTC()}
+	link := Link{ID: id, SpaceID: spaceID, CategoryID: in.CategoryID, Title: in.Title, URL: in.URL, Description: in.Description, Icon: in.Icon, IconMode: string(in.IconMode), Tags: in.Tags, IsFavorite: in.IsFavorite, SortOrder: in.SortOrder, Endpoints: in.Endpoints, UpdatedAt: nowUTC()}
 	if in.ContextMarkdown != nil {
 		link.ContextMarkdown = *in.ContextMarkdown
 	}
@@ -492,8 +495,8 @@ func (a *App) insertLink(r *Request, spaceID string, in linkInput) (Link, error)
 	if err != nil {
 		return Link{}, err
 	}
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO links(id,space_id,category_id,title,url,canonical_url,description,context_markdown,icon,icon_mode,icon_origin,tags,is_favorite,sort_order,endpoints,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"), link.ID, spaceID, nullableID(link.CategoryID), link.Title, link.URL, canonical, link.Description, link.ContextMarkdown, link.Icon, link.IconMode, origin, jsonString(link.Tags), link.IsFavorite, link.SortOrder, jsonString(link.Endpoints), link.UpdatedAt)
-	if err == nil {
+	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO links(id,space_id,category_id,title,url,canonical_url,description,context_markdown,icon,icon_mode,icon_origin,tags,is_favorite,sort_order,endpoints,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"), link.ID, spaceID, nullableID(link.CategoryID), link.Title, link.URL, canonical, link.Description, link.ContextMarkdown, link.Icon, link.IconMode, origin, jsonString(link.Tags), link.IsFavorite, link.SortOrder, jsonString(link.Endpoints), link.UpdatedAt)
+	if err = checkNavigationInsert(result, err); err == nil {
 		err = a.queueAutomaticIcon(r, spaceID, origin)
 	}
 	return link, err

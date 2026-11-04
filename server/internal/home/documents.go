@@ -106,7 +106,7 @@ func (a *App) loadDocument(r *Request, write bool) (*documentRecord, *Space, boo
 	if !edit && !d.Published {
 		return nil, nil, false, missing()
 	}
-	d.ReadOnly = !edit || d.sourceReadOnly || r.Bearer && !r.AllowedActions["documents:write"]
+	d.ReadOnly = !edit || !originalWritable(d.sourceReadOnly, d.sourceStatus) || r.Bearer && !r.AllowedActions["documents:write"]
 	if !edit {
 		d.publicView()
 	} else {
@@ -273,7 +273,7 @@ func (a *App) listDocuments(r *Request) (*Response, error) {
 			d.publicView()
 			d.Size = publishedSize
 		} else {
-			d.ReadOnly = d.sourceReadOnly || r.Bearer && !r.AllowedActions["documents:write"]
+			d.ReadOnly = !originalWritable(d.sourceReadOnly, d.sourceStatus) || r.Bearer && !r.AllowedActions["documents:write"]
 			if d.sourceStatus == "offline" {
 				d.ReadOnly = true
 				d.UnavailableReason = "source_unavailable"
@@ -441,8 +441,8 @@ func (a *App) createDocument(r *Request) (*Response, error) {
 	if !source.Enabled {
 		return nil, missing()
 	}
-	if source.ReadOnly {
-		return nil, &APIError{Status: 403, Code: "document_source_read_only", Message: "This directory is configured as read-only."}
+	if err = originalWriteError(source.ReadOnly, source.Status); err != nil {
+		return nil, err
 	}
 	if _, err = cleanDocumentPath(in.RelativePath, false); err != nil {
 		return nil, err
@@ -508,8 +508,8 @@ func (a *App) currentDocumentForWrite(r *Request) (*documentRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	if d.sourceReadOnly {
-		return nil, &APIError{Status: 403, Code: "document_source_read_only", Message: "This directory is configured as read-only."}
+	if err = originalWriteError(d.sourceReadOnly, d.sourceStatus); err != nil {
+		return nil, err
 	}
 	return d, nil
 }

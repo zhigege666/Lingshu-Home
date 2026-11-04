@@ -221,10 +221,11 @@ class Suite:
         datasets = raw.get("datasets")
         self.check(isinstance(bindings, dict) and isinstance(datasets, dict),
                    "Page bindings and dashboard datasets must be objects.")
-        self.check(set(datasets).issubset(bindings), "Dashboard returned an undeclared dataset alias.")
+        used = {alias for view in config.get("views", []) for alias in view.get("inputs", {}).values()}
+        self.check(set(datasets).issubset(used & set(bindings)), "Dashboard returned a dataset not referenced by any view.")
         for alias, binding in bindings.items():
-            if binding.get("datasetId") == "local-navigation":
-                self.check(alias in datasets, "A declared local navigation binding is missing.")
+            if alias in used and binding.get("datasetId") == "local-navigation":
+                self.check(alias in datasets, "A referenced local navigation binding is missing.")
         for alias, dataset in datasets.items():
             self.validate_navigation_dataset(dataset, space, bindings[alias]["datasetId"])
         # Existing business scenarios deliberately use the separate authoritative endpoint.
@@ -659,7 +660,7 @@ class Suite:
         self.save_page(self.owner, self.shared, config, "Filtered binding")
         dashboard = self.dash(self.owner, self.shared)
         self.check(set(dashboard["datasets"]) == {"navigation", "favorites-only"},
-                   "Dashboard must return every declared local binding under its own alias.")
+                   "Dashboard must return each referenced local binding under its own alias.")
         expected_favorites = [link for link in before["data"]["links"] if link["isFavorite"]]
         self.check(dashboard["datasets"]["favorites-only"]["data"]["links"] == expected_favorites and
                    dashboard["datasets"]["navigation"]["data"] == before["data"],

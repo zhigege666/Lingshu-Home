@@ -1,3 +1,4 @@
+import { initialSourceKind } from '../home/panel-sources'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Check, LayoutDashboard, Plus, RefreshCw } from 'lucide-react'
 import { messageOf, request } from '../core/api'
@@ -19,10 +20,7 @@ type Props = {
 }
 const label = (value: DashboardPresetText) => getLocale() === 'zh-CN' ? value.zh : value.en
 const sourceName = (source: ComposerSource) => source.datasetId === 'local-navigation' ? t('本地书签', 'Local bookmarks') : source.name
-function initialKind(schema: string) {
-  return schema === 'calendar.events' ? 'calendar-ics' : schema === 'weather.forecast' ? 'weather-open-meteo'
-    : schema === 'github.traffic' ? 'github-traffic' : schema === 'navigation.collection' ? 'external-push' : 'external-json'
-}
+
 function issueMessage(issue: DashboardPresetIssue, slots: readonly DashboardPresetSlot[]) {
   const names = issue.slotIds.map(id => { const slot = slots.find(item => item.id === id); return slot ? label(slot.title) : id }).join(t('、', ', '))
   switch (issue.code) {
@@ -85,7 +83,7 @@ export default function DashboardPresetDialog({ spaceId, space, canCreateSource 
       : t('来源已保存，但尚未启用或格式不兼容；请先启用兼容来源再绑定。', 'Source saved, but it is disabled or its format is incompatible. Enable a compatible source before binding it.'))
   }
   if (creatingSlot && space && canCreateSource) return <Suspense fallback={<Modal title={t('添加数据来源', 'Add data source')} onClose={() => setCreatingFor(null)}><p role="status">{t('正在加载来源表单…', 'Loading the source form…')}</p></Modal>}>
-    <SourceDialog space={space} source={null} initialKind={initialKind(creatingSlot.schema.id)} requiredSchema={creatingSlot.schema.id}
+    <SourceDialog space={space} source={null} initialKind={initialSourceKind(creatingSlot.schema.id)} requiredSchema={creatingSlot.schema.id}
       contextNote={t('来源会立即保存到此空间；返回后保留本次预置选择，应用布局和保存页面仍由你确认。', 'The source is saved to this space immediately. Your preset choices are kept when you return; applying the layout and saving the page remain separate actions.')}
       onSaved={sourceSaved} onClose={() => setCreatingFor(null)} />
   </Suspense>

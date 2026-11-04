@@ -1,5 +1,7 @@
+import { bookmarkURLMaxBytes } from '../core/bookmark-url'
 import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, LoaderCircle, Redo2, RefreshCw, Undo2, X } from 'lucide-react'
+import { DropdownMenu } from 'radix-ui'
+import { Plus, ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, LoaderCircle, Redo2, RefreshCw, Undo2, X } from 'lucide-react'
 import { t } from '../core/i18n'
 import { readDraft, type InlineConflict } from '../core/navigation-inline'
 import { categoryLabel } from '../core/presentation'
@@ -44,6 +46,8 @@ export default function HomeContentEditor({ controller: c, spaceName, spaceId, a
     const inputs = [...(details.current?.querySelectorAll<HTMLElement>('input:not([type="hidden"]),textarea,button[role="combobox"],button[role="checkbox"]') || [])].filter(node => !node.hasAttribute('disabled') && !!node.getClientRects().length)
     const index = inputs.indexOf(event.target); event.preventDefault(); inputs[index + (event.shiftKey ? -1 : 1)]?.focus()
   }
+  const openingDraft = useRef(false)
+  function create(kind: 'categories' | 'links') { openingDraft.current = true; c.add(kind, null) }
   const hasError = (field: string) => c.errors.some(error => error.id === selection?.id && error.kind === selection?.kind && error.field === field)
   const exists = selection && navigation?.[selection.kind].some(row => row.id === selection.id)
   const link = exists && selection?.kind === 'links' && draft ? readDraft(draft.fields, 'links', selection.id) : null
@@ -69,6 +73,13 @@ export default function HomeContentEditor({ controller: c, spaceName, spaceId, a
   return <>
     <div className="lh-content-toolbar" aria-label={t('首页内容编辑', 'Homepage content editor')}>
       <div className="lh-content-toolbar-title"><strong>{t('编辑内容', 'Edit content')}</strong><span title={spaceName}>{spaceName}</span>{c.dirty && <span className="lh-content-unsaved" aria-label={t('未保存', 'Unsaved')}>{c.changeCount || '·'}</span>}</div>
+      <DropdownMenu.Root modal={false}>
+        <DropdownMenu.Trigger asChild><button type="button" className="lh-quiet-button lh-content-create" disabled={c.blocked}><Plus size={16} aria-hidden="true"/>{t('新增', 'Add')}</button></DropdownMenu.Trigger>
+        <DropdownMenu.Content className="lh-home-actions-menu lh-content-create-menu" align="start" sideOffset={4} collisionPadding={8} onCloseAutoFocus={event => { if (openingDraft.current) { event.preventDefault(); openingDraft.current = false } }}>
+          <DropdownMenu.Item className="lh-home-actions-item" onSelect={() => create('links')}>{t('添加链接', 'Add link')}</DropdownMenu.Item>
+          <DropdownMenu.Item className="lh-home-actions-item" onSelect={() => create('categories')}>{t('新建分类', 'New category')}</DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
       <div className="lh-content-toolbar-actions">
         <button type="button" className="lh-icon-button" aria-label={t('撤销内容修改', 'Undo content edit')} title={t('撤销', 'Undo')} disabled={c.blocked || !c.canUndo} onClick={c.undo}><Undo2 size={17}/></button>
         <button type="button" className="lh-icon-button" aria-label={t('重做内容修改', 'Redo content edit')} title={t('重做', 'Redo')} disabled={c.blocked || !c.canRedo} onClick={c.redo}><Redo2 size={17}/></button>
@@ -87,10 +98,10 @@ export default function HomeContentEditor({ controller: c, spaceName, spaceId, a
     </section>}
     {selection && navigation && draft && (link || category) && <aside ref={details} className="admin-ui lh-content-inspector" role="dialog" aria-modal="false" aria-label={link ? t('编辑链接', 'Edit link') : t('编辑分类', 'Edit category')} onKeyDown={keydown}>
       <header><h2>{link ? t('编辑链接', 'Edit link') : t('编辑分类', 'Edit category')}</h2><button type="button" className="lh-icon-button" aria-label={t('关闭编辑面板', 'Close edit panel')} disabled={c.busy} onClick={c.closeDetails}><X size={19}/></button></header>
-      {link && showClickStats && <Suspense fallback={null}><LinkClickSummary key={selection.id} spaceId={spaceId} linkId={selection.id}/></Suspense>}
+      {link && showClickStats && !draft.created.links.includes(selection.id) && <Suspense fallback={null}><LinkClickSummary key={selection.id} spaceId={spaceId} linkId={selection.id}/></Suspense>}
       <div className="lh-content-inspector-body"><fieldset disabled={c.blocked}>
         <Field name={link ? 'title' : 'name'} label={t('名称', 'Name')} error={hasError(link ? 'title' : 'name')}><Input id={'home-content-' + (link ? 'title' : 'name')} className="lh-content-main-input" maxLength={link ? 160 : 80} value={link?.title ?? category?.name ?? ''} aria-invalid={hasError(link ? 'title' : 'name') || undefined} onChange={event => c.change(selection.kind, selection.id, link ? { title: event.target.value } : { name: event.target.value })}/></Field>
-        {link && <Field name="url" label={t('网址', 'URL')} error={hasError('url')}><Input id="home-content-url" type="url" maxLength={2048} value={link.url} aria-invalid={hasError('url') || undefined} onChange={event => c.change('links', selection.id, { url: event.target.value })}/></Field>}
+        {link && <Field name="url" label={t('网址', 'URL')} error={hasError('url')}><Input id="home-content-url" type="url" maxLength={bookmarkURLMaxBytes} value={link.url} aria-invalid={hasError('url') || undefined} onChange={event => c.change('links', selection.id, { url: event.target.value })}/></Field>}
         <Field name={link ? 'categoryId' : 'parentId'} label={link ? t('分类', 'Category') : t('上级分类', 'Parent category')} error={hasError(link ? 'categoryId' : 'parentId')}><StyledSelect id={'home-content-' + (link ? 'categoryId' : 'parentId')} disabled={c.blocked} value={(link ? link.categoryId : category?.parentId) || ''} options={[{ value: '', label: link ? t('未分类', 'Uncategorized') : t('顶层分类', 'Top level') }, ...categoryOptions.filter(option => link || !forbidden.has(option.value))]} onValueChange={value => c.change(selection.kind, selection.id, link ? { categoryId: value || null } : { parentId: value || null })}/></Field>
         {link && <><Field name="tags" label={t('标签', 'Tags')} error={hasError('tags')}><Input id="home-content-tags" value={link.tags} placeholder={t('逗号分隔', 'Comma separated')} maxLength={1400} onChange={event => c.change('links', selection.id, { tags: event.target.value })}/></Field><Field name="isFavorite" label={t('收藏', 'Favorite')}><Checkbox id="home-content-isFavorite" checked={link.isFavorite} onCheckedChange={value => c.change('links', selection.id, { isFavorite: value })}/></Field></>}
         <div className="lh-content-position" aria-label={t('调整顺序', 'Change order')}>

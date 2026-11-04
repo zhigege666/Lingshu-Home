@@ -31,7 +31,7 @@ export type Placement =
   | { kind: 'grid'; region: 'main'; x: number; y: number; w: number; h: number; heightMode: 'content' | 'fixed'; locked: boolean }
   | { kind: 'flow'; region: Region; order: number; locked?: boolean }
   | { kind: 'hidden' }
-export type Binding = { datasetId: string; space: 'current-page-space'; query: Record<string, unknown> }
+export type Binding = { datasetId: string; space: 'current-page-space'; query: Record<string, unknown>; auto?: boolean }
 export type View = { id: string; panel: { id: string }; inputs: Record<string, string>; interactionScope?: string; settings: Record<string, unknown>; template?: { id: string; version: string; sha256: string; sourceUrl?: string } }
 export type ChromeItem = { id: string; type: 'text' | 'link' | 'branding'; text?: string; url?: string; newTab?: boolean }
 export type ChromeArea = { enabled: boolean; left: ChromeItem[]; center: ChromeItem[]; right: ChromeItem[] }

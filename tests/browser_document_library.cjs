@@ -106,11 +106,13 @@ async function main() {
   const mounts = path.join(mountRoot, 'ui-' + run); for (const name of ['notes', 'projects', 'operations']) fs.mkdirSync(path.join(mounts, name), { recursive: true });
   const markdown = '---\ntitle: ' + prefix + ' handbook\ncustom: preserve-me\n---\n# ' + prefix + ' handbook\n\n## Preparation\n\n- [ ] Verify configuration\n- [x] Back up data\n\n[Related note](other.md)\n\n![Local image](image%20name.png)\n\n[Unsafe](javascript:alert(1))\n\n<script>window.__libraryInjected = true</script>\n\n```sh\nprintf "example"\n```\n';
   const primaryFile = path.join(mounts, 'notes', 'README.md'); fs.writeFileSync(primaryFile, markdown);
+  fs.mkdirSync(path.join(mounts, 'notes', 'guides'));
+  fs.writeFileSync(path.join(mounts, 'notes', 'guides', 'existing.md'), '# A nested guide');
   fs.writeFileSync(path.join(mounts, 'notes', 'other.md'), '# ' + prefix + ' linked note\n\nA separate note.\n');
   fs.writeFileSync(path.join(mounts, 'notes', 'image name.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j9WQAAAAASUVORK5CYII=', 'base64'));
   fs.writeFileSync(path.join(mounts, 'projects', 'README.md'), '# ' + prefix + ' read-only\n\nOriginal project notes.\n');
   fs.writeFileSync(path.join(mounts, 'operations', 'private.md'), '# ' + prefix + ' private\n\nPersonal space contents.\n');
-  bookmark = await api('POST', '/spaces/' + shared.id + '/links', { title: prefix + ' Jenkins', url: 'https://example.invalid/' + run, description: 'Build and deploy project applications.', contextMarkdown: 'Use this service for test deployments.', categoryId: null, icon: 'lucide:link', iconMode: 'manual', tags: ['operations'], isFavorite: true, sortOrder: 0, endpoints: [] }, 201);
+  bookmark = await api('POST', '/spaces/' + shared.id + '/links', { title: prefix + ' Jenkins', url: 'https://example.invalid/' + run, description: 'Build and deploy project applications.', contextMarkdown: 'Use this service for test deployments.', categoryId: null, icon: 'lucide:link', iconMode: 'manual', tags: ['operations'], isFavorite: true, sortOrder: 0, endpoints: [{ label: 'Help', url: 'https://example.invalid/help/' + run }] }, 201);
   page = await context.newPage(); page.on('pageerror', error => report.pageErrors.push({ stage, text: error.message })); page.on('console', message => { if (message.type() === 'error') report.consoleErrors.push({ stage, text: message.text().slice(0, 300), url: message.location().url || '' }); });
   page.on('request', request => {
     const url = new URL(request.url()); if (!url.pathname.includes('/documents')) return;
@@ -146,6 +148,22 @@ async function main() {
     assert.equal(await page.locator('.library-markdown a[href^="javascript:"]').count(), 0);
     await page.locator('.library-markdown').getByRole('link', { name: 'Related note', exact: true }).click(); await page.locator('.library-document-heading h2').filter({ hasText: prefix + ' linked note' }).waitFor();
     await openDocument(document.id); await capture('library-original-document-2560x1440');
+  });
+  await step('new documents inherit the selected folder; a read-only selection never falls back to the default', async () => {
+    const row = page.locator('.library-source').filter({ has: page.locator('.library-source-select', { hasText: notes.name }) });
+    await row.locator('.library-tree-toggle').first().click();
+    await row.locator('.library-folder-tree').getByRole('button', { name: 'guides', exact: true }).click();
+    await button('新建文档', 'New document').click();
+    const dialog = page.getByRole('dialog'), file = label('文件相对路径', 'Relative file path', dialog);
+    assert.equal(await file.inputValue(), 'guides/');
+    await file.press('End'); await file.pressSequentially('review.md');
+    const created = await mutation(() => button('创建文档', 'Create document', dialog).click(), documentsPath(shared), 'POST', 201);
+    assert.equal(created.relativePath, 'guides/review.md'); assert.ok(fs.existsSync(path.join(mounts, 'notes', 'guides', 'review.md')));
+    await dialog.waitFor({ state: 'hidden' });
+    await page.locator('.library-source-select', { hasText: readonly.name }).click(); await button('新建文档', 'New document').click();
+    assert.equal(await button('创建文档', 'Create document', dialog).isEnabled(), false);
+    assert.equal(await file.inputValue(), '');
+    await button('取消', 'Cancel', dialog).click(); await button('全部资料', 'All resources').click();
   });
   await step('create and rename write real files while retaining the document ID', async () => {
     await button('新建文档', 'New document').click(); const dialog = page.getByRole('dialog');
@@ -186,6 +204,40 @@ async function main() {
     await page.locator('.library-linked-documents button').filter({ hasText: document.title }).waitFor();
     await label('搜索资料库', 'Search library').fill('Search marker ' + run); await page.locator('.library-row-title').filter({ hasText: bookmark.title }).waitFor();
     await label('搜索资料库', 'Search library').fill(''); await page.locator('.library-row-title').filter({ hasText: document.title }).waitFor();
+  });
+  await step('refreshing a selected bookmark cannot rebase an active notes draft onto a newer version silently', async () => {
+    const linkPath = '/spaces/' + shared.id + '/links/' + bookmark.id + '/context';
+    await page.locator('.library-row-title[data-resource-id="' + bookmark.id + '"]').click();
+    await button('编辑说明', 'Edit notes').click(); const editor = label('书签使用说明', 'Bookmark usage notes');
+    await editor.fill('Browser draft ' + run);
+    const current = (await api('GET', '/spaces/' + shared.id + '/navigation')).data.links.find(link => link.id === bookmark.id);
+    const external = 'Changed by another client ' + run;
+    await api('PUT', linkPath, { contextMarkdown: external, expectedUpdatedAt: current.updatedAt });
+    await mutation(() => button('刷新资料库', 'Refresh library').click(), '/spaces/' + shared.id + '/navigation', 'GET'); await settle();
+    const refused = await mutation(() => button('保存说明', 'Save notes').click(), linkPath, 'PUT', 409);
+    assert.equal(refused.code, 'bookmark_version_conflict'); assert.equal(await editor.inputValue(), 'Browser draft ' + run);
+    assert.equal((await api('GET', '/spaces/' + shared.id + '/navigation')).data.links.find(link => link.id === bookmark.id).contextMarkdown, external);
+    await button('取消', 'Cancel', page.locator('.library-preview')).click(); await button('放弃修改', 'Discard changes').click();
+    await page.locator('.library-markdown').filter({ hasText: external }).waitFor();
+  });
+  await step('Library counts real bookmark, alternate and related-link activations exactly once', async () => {
+    const statsPath = '/spaces/' + shared.id + '/navigation/click-stats?linkId=' + bookmark.id;
+    const clickPath = '/spaces/' + shared.id + '/links/' + bookmark.id + '/clicks';
+    const before = (await api('GET', statsPath)).items[0].totalClicks;
+    const entries = [];
+    const observe = req => { if (new URL(req.url()).pathname === '/api/v1' + clickPath) entries.push(req.postDataJSON().entry); };
+    page.on('request', observe);
+    try {
+      await mutation(() => page.locator('.library-bookmark-url').click(), clickPath);
+      await mutation(() => page.locator('.library-related-bookmarks a', { hasText: 'Help' }).click({ button: 'middle' }), clickPath);
+      await openDocument(document.id);
+      await mutation(() => page.locator('.library-related-bookmarks a', { hasText: bookmark.title }).press('Enter'), clickPath);
+      assert.deepEqual(entries, ['primary', 'additional', 'primary']);
+      assert.equal((await api('GET', statsPath)).items[0].totalClicks, before + 3);
+    } finally {
+      page.off('request', observe);
+      for (const tab of context.pages()) if (tab !== page) await tab.close();
+    }
   });
   await step('read-only directories allow metadata without original file editing', async () => {
     const list = await api('GET', documentsPath(shared) + '?sourceId=' + readonly.id); const ro = list.items[0]; assert.ok(ro); await openDocument(ro.id);

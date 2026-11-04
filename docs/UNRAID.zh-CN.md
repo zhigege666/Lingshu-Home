@@ -49,7 +49,7 @@ Lingshu-Home 提供可用于 Unraid Docker Manager 和 Community Applications �
 
 使用容器菜单里的 **WebUI**，或打开 `http://<Unraid-IP>:5180`；如果修改了宿主机端口，使用修改后的端口。此 bridge 端口映射允许通过 Unraid 宿主机的网络接口访问，与 README 中仅绑定回环地址的 Docker 示例不同。
 
-模板不固定数据库 provider。全新实例先选择 **SQLite** 或外置 **PostgreSQL**，再进入语言和账号初始化。PostgreSQL 填写主机、端口、数据库、用户名、密码与 TLS 模式，测试连接后确认；测试不写业务表、不保存凭据。已有有效 SQLite 实例、显式或已保存的数据库配置直接沿用。两种 provider 都需要保留同一个 `/data` 映射。
+模板不固定数据库 provider。全新实例先选择 **SQLite** 或外置 **PostgreSQL**，再进入语言和账号初始化。PostgreSQL 填写主机、端口、数据库、用户名、密码与 TLS 模式，可直接选择**验证并保存**，或先单独测试；测试不写业务表、不保存凭据。已有有效 SQLite 实例、显式或已保存的数据库配置直接沿用。两种 provider 都需要保留同一个 `/data` 映射。
 
 网页选择的目标私密保存在 `storage.json`，备份时与数据库及密钥一起保存。已选 PostgreSQL 连接失败进入同一目标的恢复流程，修复后重试；无效本地配置或不完整旧 SQLite 实例会阻止启动，不提供自动换库；选择其他 provider 不会复制已有数据。详见[存储选择与恢复](STORAGE.md#first-run-storage-setup)。
 

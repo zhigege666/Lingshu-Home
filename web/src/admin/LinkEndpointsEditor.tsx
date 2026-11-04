@@ -1,3 +1,4 @@
+import { bookmarkURLMaxBytes } from '../core/bookmark-url'
 import { Globe, Network, Plus, Trash2 } from 'lucide-react'
 import { t } from '../core/i18n'
 import type { Endpoint } from '../core/types'
@@ -50,7 +51,7 @@ export default function LinkEndpointsEditor({ value, onChange, disabled, autoSel
           <Field label={t('入口名称', 'Route name')}><Input required maxLength={40} value={endpoint.label} onChange={event => update(index, { label: event.target.value })}/></Field>
           <Field label={t('网络类型', 'Network type')}><StyledSelect value={endpoint.route!} disabled={disabled} onValueChange={route => update(index, { route: route as Endpoint['route'] })} options={[{ value: 'internal', label: t('内网入口', 'Internal route') }, { value: 'external', label: t('外网入口', 'External route') }]}/></Field>
         </div>
-        <Field label={endpoint.route === 'internal' ? t('内网地址', 'Internal URL') : t('外网地址', 'External URL')}><Input type="url" required maxLength={2048} value={endpoint.url} placeholder={endpoint.route === 'internal' ? 'http://192.168.1.10:8080/' : 'https://example.org/'} onChange={event => update(index, { url: event.target.value })}/></Field>
+        <Field label={endpoint.route === 'internal' ? t('内网地址', 'Internal URL') : t('外网地址', 'External URL')}><Input type="url" required maxLength={bookmarkURLMaxBytes} value={endpoint.url} placeholder={endpoint.route === 'internal' ? 'http://192.168.1.10:8080/' : 'https://example.org/'} onChange={event => update(index, { url: event.target.value })}/></Field>
         <Field label={t('探测路径', 'Probe path')} help={t('留空使用 /favicon.ico。可填写站点根目录下的只读路径，如 /healthz，不含查询参数或片段。跨域检测需要服务允许读取，否则回退到外网或主入口；响应结果不代表服务健康。', 'Leave empty to use /favicon.ico, or enter a read-only path such as /healthz without a query or fragment. Cross-origin checks need permission to read the response; otherwise Home falls back to an external route or the primary URL. A response does not certify service health.')}><Input value={endpoint.probePath || ''} maxLength={256} placeholder="/favicon.ico" autoComplete="off" aria-invalid={!validProbePath(endpoint.probePath || '') || undefined} onChange={event => update(index, { probePath: event.target.value })}/></Field>
       </div>)}
     </section>
@@ -58,7 +59,7 @@ export default function LinkEndpointsEditor({ value, onChange, disabled, autoSel
       <div className="admin-content-toolbar"><h3>{t('其他入口', 'Additional URLs')}<FieldHelp label={t('其他入口', 'Additional URLs')}>{t('文档、后台、帮助等附加页面直接打开，不参与自动选路。名称中的“内网”或“外网”不会改变入口用途。', 'Documentation, admin and help pages open directly and do not take part in automatic routing. Naming a link internal or external does not change its purpose.')}</FieldHelp></h3><Button type="button" variant="outline" size="sm" disabled={disabled || full} onClick={() => add()}><Plus size={15}/>{t('添加入口', 'Add URL')}</Button></div>
       {additional.map(({ endpoint, index }, order) => <div className="link-additional-row" key={index}>
         <Field label={t('入口 {index} 名称', 'URL {index} name', { index: order + 1 })}><Input required maxLength={40} value={endpoint.label} onChange={event => update(index, { label: event.target.value })}/></Field>
-        <Field label={t('入口 URL', 'URL')}><Input required type="url" maxLength={2048} value={endpoint.url} onChange={event => update(index, { url: event.target.value })}/></Field>
+        <Field label={t('入口 URL', 'URL')}><Input required type="url" maxLength={bookmarkURLMaxBytes} value={endpoint.url} onChange={event => update(index, { url: event.target.value })}/></Field>
         <div className="admin-button-row"><Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => update(index, { route: 'internal', probePath: '/favicon.ico' })}>{t('设为网络入口', 'Use as network route')}</Button><Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={t('移除入口 {index}', 'Remove URL {index}', { index: order + 1 })} onClick={() => remove(index)}><Trash2 size={16}/></Button></div>
       </div>)}
     </section>

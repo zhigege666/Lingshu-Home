@@ -12,7 +12,7 @@ Selection follows explicit CLI options, explicit environment configuration, `<da
 
 A fresh instance without a selected target serves the storage page before creating an application database or keys. The process still holds the data-directory lock. Choose SQLite or external PostgreSQL; MySQL/MariaDB are not supported. PostgreSQL fields are host, port, database, username, password and TLS mode (`require`, `verify-full` or `disable`). The browser defaults to encrypted transport. Use `verify-full` with a trusted certificate and matching hostname; install the trusted CA in the application environment when needed. `disable` is an explicit option for a network where plaintext database traffic is acceptable.
 
-Connection testing is read-only: it does not save credentials, create application tables, migrate or initialize keys. PostgreSQL needs a dedicated database and permissions to connect, use the schema and apply migrations. Confirmation validates again, saves a private atomic configuration without overwriting a concurrent selection, and performs the existing migrations.
+On initial PostgreSQL setup, **Validate and save** performs the authoritative probe; a separate connection test is optional. Connection testing is read-only: it does not save credentials, create application tables, migrate or initialize keys. PostgreSQL needs a dedicated database and permissions to connect, use the schema and apply migrations. Confirmation validates again, saves a private atomic configuration without overwriting a concurrent selection, and performs the existing migrations.
 
 ### Saved configuration and recovery
 

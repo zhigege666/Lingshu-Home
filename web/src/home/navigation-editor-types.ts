@@ -7,6 +7,7 @@ export type NavigationEditor = {
   selectedLinkId?: string
   selectedCategoryId?: string
   busy?: boolean
+  onAddLink: (categoryId: string | null) => void
   onEditLink: (id: string) => void
   onEditCategory: (id: string) => void
   onRenameCategory: (id: string, name: string) => void

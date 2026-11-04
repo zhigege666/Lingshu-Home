@@ -27,7 +27,7 @@ Personal access tokens are the intersection of an active account, one space, sel
 | Action | Permitted integration operations |
 | --- | --- |
 | `navigation:read` | Read local categories, bookmarks, their navigation revision and aggregate link click statistics |
-| `navigation:write` | Maintain local categories and bookmarks, including atomic field patches and stable-ID moves |
+| `navigation:write` | Maintain local categories and bookmarks, including atomic creates, field patches and stable-ID moves |
 | `sources:read` | Read source configuration and snapshots; resolve external page bindings |
 | `sources:write` | Create or edit source configuration; rotate a source credential; queue polling |
 | `datasets:write` | Push an external snapshot |
@@ -36,7 +36,7 @@ Personal access tokens are the intersection of an active account, one space, sel
 | `documents:read` | Read authorized documents; directory discovery and activity queries additionally require working-document access |
 | `documents:write` | Maintain authorized documents using the separate document contracts; writes also require `documents:read` |
 
-Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source, and `documents:read` for a local activity binding. Reading a dashboard with an activity binding does not require activity access because that projection contains only an empty schema marker; the dedicated activity query enforces working-document permission separately. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
+Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source, and `documents:read` for a local activity binding. Reading a dashboard with an activity binding does not require activity access because that projection contains only an empty schema marker; the dedicated activity query enforces working-document permission separately. When creating a token for one external push source, the UI starts with read access only. Select snapshot push explicitly; a push-only producer need not have read access. Previously issued tokens keep their scopes. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
 
 ### Create and revoke a Home token
 
@@ -66,7 +66,7 @@ The `201` response contains `{ "token": "lhp_...", "credential": {...} }`. The c
 
 Home stores only the token's SHA-256 digest. Later GETs do not return the secret or its digest. Mode changes invalidate all existing tokens. Disabling a user or resetting their password invalidates that user's existing tokens. Revocation takes effect at authentication, including queued MCP operations after they acquire the write gate.
 
-Browser login retention does not renew or extend a personal access token. Session-policy, profile/password and browser-session endpoints accept browser authentication only; a PAT cannot use them. Revoking browser sessions leaves separately issued PATs intact, while a password/security-version change invalidates the account's existing PATs. The authorized HTTP `POST /api/v1/spaces/{spaceId}/navigation/batch-edit` endpoint and MCP `navigation_batch_edit` can apply up to 500 category/link patches and moves combined with `navigation:write`, a matching space and `expectedRevision`; use the [atomic editing contract](API.md#atomic-category-and-link-editing), including readback after an uncertain response.
+Browser login retention does not renew or extend a personal access token. Session-policy, profile/password and browser-session endpoints accept browser authentication only; a PAT cannot use them. Revoking browser sessions leaves separately issued PATs intact, while a password/security-version change invalidates the account's existing PATs. The authorized HTTP `POST /api/v1/spaces/{spaceId}/navigation/batch-edit` endpoint and MCP `navigation_batch_edit` can apply up to 500 category/link creates, patches and moves combined with `navigation:write`, a matching space and `expectedRevision`; use the [atomic editing contract](API.md#atomic-category-and-link-editing), including readback after an uncertain response.
 
 ## Source configuration
 
@@ -268,7 +268,7 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 | `document_sources_list` | Optional `spaceId`. Returns enabled working-document directories, including empty ones, with IDs, names, configured read-only mode, caller write availability, defaults and last observed status; no absolute paths. Requires `documents:read` and working-document access. |
 | `documents_list`, `documents_activity_list` | Optional `spaceId` and `input` filters. Omit both to use the defaults. |
 | `navigation_get` | `spaceId`; complete local navigation dataset and revision |
-| `navigation_batch_edit` | `spaceId`, `input` with `expectedRevision` and category/link patches or stable-ID moves |
+| `navigation_batch_edit` | `spaceId`, `input` with `expectedRevision` and optional creation records, category/link patches or stable-ID moves |
 | `navigation_click_stats` | Optional `spaceId` and optional `input` containing date, category, link, sort and pagination filters; `{}` uses defaults |
 | `bookmarks_list`, `categories_list` | `spaceId` |
 | `bookmarks_get`, `categories_get` | `spaceId`, `id` |
@@ -316,11 +316,11 @@ Since 0.0.7, `navigation_get` accepts `{"spaceId":"<space-id>"}` and requires `n
 }
 ```
 
-Use the revision actually read and replace every placeholder with an authorized local ID. Unused arrays may be omitted. Category patches allow `name`, `parentId`, `icon` and `sortOrder`; link patches allow `categoryId`, `title`, `url`, `description`, `icon`, `iconMode`, `tags`, `isFavorite`, `sortOrder` and `endpoints`. Omitted fields are retained. This tool does not create/delete rows or edit bookmark usage notes; `contextMarkdown` remains unchanged and has its own revision-checked bookmark tool.
+Use the revision actually read and replace every placeholder with an authorized local ID. Unused arrays may be omitted. Category patches allow `name`, `parentId`, `icon` and `sortOrder`; link patches allow `categoryId`, `title`, `url`, `description`, `icon`, `iconMode`, `tags`, `isFavorite`, `sortOrder` and `endpoints`. Omitted fields are retained. In 0.0.10 the optional `createCategories` and `createLinks` arrays also accept new records with stable caller-generated IDs (32 lowercase hexadecimal characters). Insert new parents before their children. Creation, patches and moves commit together; a collision never replaces another record. This tool does not delete rows or edit existing usage notes; use their revision-checked bookmark tool.
 
-- Apply all field patches first, validate the final category tree, then apply moves in array order. Category moves stay among siblings under the patched `parentId`; use a field patch to change that parent and omit `categoryId` from a category move.
+- Insert new categories and links, then apply field patches, validate the final category tree, then apply moves in array order. Category moves stay among siblings under the patched `parentId`; use a field patch to change that parent and omit `categoryId` from a category move.
 - Every move requires explicit `beforeId`: a same-group anchor ID places the row immediately before that anchor, while `null` appends. Link moves also require explicit `categoryId`; `null` targets Uncategorized. Anchors must exist in the target group after the field patches and preceding moves. For several dependent moves into one group, arrange the later anchors first, for example by sending the desired sequence from right to left.
-- Submit 1–500 operations across all three arrays. A row may have one patch and one move, counting as two operations; repeated patches or repeated moves for the same entity are rejected. Missing/foreign IDs, self anchors and invalid group references fail the whole batch.
+- Submit 1–500 operations across the optional creation, patch and move arrays. A row may have one patch and one move, counting as two operations; repeated patches or repeated moves for the same entity are rejected. Missing/foreign IDs, self anchors and invalid group references fail the whole batch.
 - Moves operate on complete sibling groups, including hidden or paginated rows. Untouched siblings keep their relative order. A changed group's sort values are normalized, so the response may contain more than 500 affected records even though the request has at most 500 operations.
 
 With navigation read access, success returns `structuredContent:{updatedCount,revision,categories,links}` with every normalized changed row. Merge all returned rows into the next baseline. Actual changes advance the navigation revision once; a normalized no-op leaves the revision and link timestamps unchanged. Page composition has a separate revision and save operation.

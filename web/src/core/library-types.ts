@@ -6,7 +6,8 @@ export type DocumentSource = {
   enabled: boolean; status: 'ready' | 'offline' | 'error' | 'pending' | 'detached';
   lastScanAt: string; lastError: string; documentCount: number; revision: string;
 }
-export type DocumentSourceList = { items: DocumentSource[]; roots: string[]; canManage: boolean }
+export type ListedDocumentSource = DocumentSource & { canWrite: boolean }
+export type DocumentSourceList = { items: ListedDocumentSource[]; roots: string[]; canManage: boolean }
 export type LibraryDocument = {
   id: string; sourceId: string; spaceId: string; sourceName: string; relativePath: string;
   title: string; revision: string; metadataRevision: string; size: number; updatedAt: string; status: 'ready' | 'missing';

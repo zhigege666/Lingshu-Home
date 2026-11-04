@@ -103,6 +103,23 @@ func (a *App) registerDocumentRoutes() {
 	a.route("PUT /api/v1/spaces/{spaceId}/links/{id}/context", true, a.updateLinkContext)
 }
 
+// The scanner is the authority on directory health. A path that can still be
+// opened may be an empty directory underneath a disconnected mount. Do not
+// write originals there until a complete scan accepts the directory again.
+func originalWritable(readOnly bool, scanStatus string) bool {
+	return !readOnly && scanStatus == "ready"
+}
+
+func originalWriteError(readOnly bool, scanStatus string) error {
+	if originalWritable(readOnly, scanStatus) {
+		return nil
+	}
+	if readOnly {
+		return &APIError{Status: 403, Code: "document_source_read_only", Message: "This directory is configured as read-only."}
+	}
+	return &APIError{Status: 503, Code: "document_source_unavailable", Message: "Original-file writes are paused. Check the mount and rescan the directory before writing."}
+}
+
 func (a *App) listDocumentSources(r *Request) (*Response, error) {
 	_, edit, err := r.documentSpace(false)
 	if err != nil {
@@ -112,7 +129,11 @@ func (a *App) listDocumentSources(r *Request) (*Response, error) {
 		return nil, unauthorized()
 	}
 	canManage := r.User.Role == "Owner" && edit && !r.Bearer
-	items := []DocumentSource{}
+	type listedSource struct {
+		DocumentSource
+		CanWrite bool `json:"canWrite"`
+	}
+	items := []listedSource{}
 	// Readers must not learn unpublished directory names, paths or file counts.
 	if edit {
 		rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT "+documentSourceColumns+",(SELECT COUNT(*) FROM documents d WHERE d.source_id=document_sources.id AND d.status='ready') FROM document_sources WHERE space_id=? ORDER BY name,id"), r.param("spaceId"))
@@ -130,7 +151,7 @@ func (a *App) listDocumentSources(r *Request) (*Response, error) {
 			if !canManage {
 				s.Path = ""
 			}
-			items = append(items, s)
+			items = append(items, listedSource{s, s.Enabled && originalWritable(s.ReadOnly, s.Status) && (!r.Bearer || r.AllowedActions["documents:write"])})
 		}
 		if err = rows.Err(); err != nil {
 			return nil, err
@@ -172,7 +193,7 @@ func (a *App) listDocumentDestinations(r *Request) (*Response, error) {
 		if err := rows.Scan(&d.ID, &d.Name, &d.ReadOnly, &d.DefaultWrite, &d.DefaultFolder, &d.Status); err != nil {
 			return nil, err
 		}
-		d.CanWrite = !d.ReadOnly && d.Status != "offline" && r.AllowedActions["documents:write"]
+		d.CanWrite = originalWritable(d.ReadOnly, d.Status) && r.AllowedActions["documents:write"]
 		items = append(items, d)
 	}
 	if err := rows.Err(); err != nil {

@@ -2,9 +2,9 @@
 
 **English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
 
-This guide covers **Lingshu-Home 0.0.9**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/tests/README.md).
+This guide covers **Lingshu-Home 0.0.10**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/tests/README.md).
 
-The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.9/tests/README.md).
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/tests/README.md).
 
 ## 1. Start and initialize an instance
 
@@ -19,7 +19,7 @@ docker compose ps
 
 Open `http://127.0.0.1:5180` on the computer running Home. The examples bind access to that host's loopback address. For another computer, use the address provided by the instance administrator after configuring the published interface or reverse proxy. The homepage, admin, API and MCP use the same service.
 
-A new instance with no explicit or saved database selection opens storage setup first. Choose **SQLite** for an embedded database, or **PostgreSQL** and enter its host, port, database, username, password and TLS mode. Test the external connection, then confirm the selection. Testing does not save credentials, create tables or run migrations; confirmation validates again and initializes the selected target. Language and account setup follow only after storage is ready.
+A new instance with no explicit or saved database selection opens storage setup first. Choose **SQLite** for an embedded database, or **PostgreSQL** and enter its host, port, database, username, password and TLS mode. Choose **Validate and save**. A separate connection test is optional. Testing does not save credentials, create tables or run migrations; confirmation validates again and initializes the selected target. Language and account setup follow only after storage is ready.
 
 An existing valid SQLite instance, saved storage selection or explicit deployment configuration uses its original target without this prompt. A failed connection to the selected PostgreSQL target opens recovery: repair the connection and retry that target. Invalid local configuration or an incomplete old SQLite instance prevents startup instead of creating an empty replacement. Before storage is ready, `/health` and business APIs return HTTP 503 while the setup page remains available. Storage setup does not move data between providers. Preserve the data directory and any private `storage.json`; see [storage selection and recovery](STORAGE.md#first-run-storage-setup).
 
@@ -143,15 +143,15 @@ Since 0.0.7, the homepage **Edit** action opens a content draft for readers with
 2. Click a link name to open a compact inspector for title, URL, category, tags and favorite state. Expand additional fields for description, icons and alternate URLs. The inspector also shows recorded lifetime clicks and last-click time.
 3. Drag link handles within a category or into another, empty or Uncategorized group. Search and page through folders without truncating hidden records or losing their relative order. Favorite cards edit the same original link without a separate favorite order.
 4. Keep all changes in one memory draft, then Undo/Redo, Cancel or **Save**. Ctrl/Cmd+S uses the same save. Enter/Shift+Enter moves between fields without interfering with IME composition. Position buttons provide a non-drag alternative.
-5. One save submits fields and order atomically. Validation retains input; conflicts or an uncertain response require **Read latest and compare**. Explicitly choose conflicts; already committed changes are not replayed. A successful save with failed refresh keeps the confirmed result visible and offers another read.
+5. One save submits additions, field edits and order atomically. Validation retains input; a version conflict triggers one read-only comparison. Resolve actual conflicts, and use **Read latest and compare** after an uncertain response; already committed changes are not replayed. A successful save with failed refresh keeps the confirmed result visible and offers another read.
 
-A draft accepts 500 patch/move operations; editing fields and moving one record can consume two operations. Creation, deletion, imports and bookmark usage notes keep their established management paths. Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **More → Adjust layout**. Content editing does not save layout, theme or component placement.
+In edit mode, use **Add** to create a category or bookmark, or add a bookmark inside its category. New categories and links are drafts until Save; Cancel or Undo also applies to additions. A draft accepts up to 500 creates, patches and moves combined. Deletion, imports and bookmark usage notes keep their existing paths. Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **More → Adjust layout**. Content editing does not save layout, theme or component placement.
 
 ### View click statistics
 
 Signed-in readers can choose **More → Click statistics** on Home, choose the last 7/30/90 days or a custom UTC range, filter categories and sort by range clicks or last click. The table includes period/lifetime counts and last-click times, including zero-click links. Summaries cover the full filtered population, independently of pagination. Link inspectors read the same statistics.
 
-Counts represent local bookmark activations, including alternate entrances, keyboard Enter and modified/middle clicks; they are not proof of a successful destination load or unique visitors. Editing, previews, hover, probes and folder browsing do not count, and external snapshots are excluded. Reporting failures do not block navigation. Recording begins at the upgrade baseline; earlier usage is unknown and the first/current day may be partial. Categories describe current membership; deleting a link removes its counters.
+Counts represent recorded local bookmark activations from Home and (since 0.0.10) Library, including alternate entrances, keyboard Enter and modified/middle clicks; they are not proof of a successful destination load or unique visitors. Editing, previews, hover, probes and folder browsing do not count, and external snapshots are excluded. Reporting failures do not block navigation. Recording begins at the upgrade baseline; earlier usage is unknown and the first/current day may be partial. Categories describe current membership; deleting a link removes its counters.
 
 Agents with this space's `navigation:read` scope can use `navigation_click_stats` for date comparisons, category analysis and zero-click records. Preserve the returned recording baseline and tracked-day flags when interpreting results. Aggregate reads require sign-in and space read permission; anonymous public-shared browsing can report clicks but cannot read statistics. The statistics tables store no visitor identities, IPs, browser identifiers or referrers. See the [API counting contract](API.md#link-click-statistics).
 
@@ -323,7 +323,7 @@ The admin's **Current theme** chooses the same two themes. **Grouped cards / Com
 
 ### Add and configure components
 
-1. Choose **Add component**, then Search, Categories, Favorites, Bookmarks or GitHub Traffic. Traffic becomes available after a compatible GitHub Traffic source exists in the current space.
+1. Choose **Add component**, then Search, Categories, Favorites, Bookmarks or GitHub Traffic. A single enabled compatible source is used directly. Choose when several exist, or create one in place when permitted. The source is saved independently; save the layout to persist the new component.
 2. Select the component on the canvas or under **Layers**. Set its optional **Component title**.
 3. Use **Position** to move it to a supported region, and **Up / Down** to reorder within that region. Category navigation supports top, left, right, bottom or hidden; it does not occupy the main grid.
 4. Choose **Data source** when the component consumes data. Navigation, favorites and categories accept compatible navigation collections; Traffic requires its own schema. Search filters linked components and has no direct dataset selector.
@@ -559,7 +559,7 @@ Since 0.0.9, omit `spaceId` to use the space bound to the token, or call `space_
 
 After updating Home, rediscover the existing connection in Gate or your MCP gateway, publish the newly discovered tools to the intended callers, and refresh client definitions. If the tools are still missing, compare the authenticated Home `tools/list` with the gateway catalog and check the running version, endpoint and caller grants. A write-only token receives an ID/revision receipt after a navigation or source change; viewing the saved fields additionally requires the corresponding read action.
 
-The token can be viewed only at creation. Revoke it from the token list to stop a client. Changing access mode invalidates existing sessions and tokens; password resets or disabling a Member invalidate that Member's access. Tokens cannot create accounts, change global security settings or issue more tokens. Detailed scopes, protocol negotiation and examples are in [MCP transport](INTEGRATIONS.md#mcp-transport).
+For a token limited to one external push source, read access is initially selected. Grant **Push snapshots** explicitly when needed; the two actions can be selected independently. The token can be viewed only at creation. Revoke it from the token list to stop a client. Changing access mode invalidates existing sessions and tokens; password resets or disabling a Member invalidate that Member's access. Tokens cannot create accounts, change global security settings or issue more tokens. Detailed scopes, protocol negotiation and examples are in [MCP transport](INTEGRATIONS.md#mcp-transport).
 
 ## 8. Manage members and access
 
@@ -643,7 +643,7 @@ The Linux development helper permits an immediate restart while closed connectio
 | Language did not change | In 0.0.2 this is expected once the language is saved; a conflicting startup value is ignored with a warning. It is not a setting you can switch later. Stored names remain unchanged. |
 | Preview differs from the saved homepage | Check the Unsaved draft marker and any temporary filters. Preview follows the current editor draft; other visitors see saved configuration. |
 | Changing theme does not change a component's icons | That navigation/favorites component may have an explicit **Icons and text** choice. Choose **Theme default** to follow each theme, then save the page. |
-| Cannot add, duplicate or move a component | Check its lock, the 32-component/binding limits and available placement. GitHub Traffic needs a compatible source first; Categories cannot occupy the main grid. |
+| Cannot add, duplicate or move a component | Check its lock, the 32-component/binding limits and available placement. For an external component choose an enabled compatible source or create one in place when permitted; Categories cannot occupy the main grid. |
 | Preview shows incomplete source data | Check the binding and source snapshot. Missing filtered projections are not fabricated; Retry can repeat failed authorized reads. |
 | Footer content is absent | Check Footer → Show footer content, the selected alignment and unsaved state. An enabled footer stays at the viewport bottom while the content scrolls. |
 | A hidden header/footer item prevents saving | Disabled regions retain and validate their items. Follow the error to fill or remove the invalid item, then save again. |

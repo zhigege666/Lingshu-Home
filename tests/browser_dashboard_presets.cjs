@@ -64,7 +64,8 @@ function validateStartup() {
   base = new URL(process.env.BASE_URL);
   check(base.protocol === 'http:' && !base.username && !base.password && !base.search && !base.hash && base.pathname === '/', 'A plain local test origin is required');
   check(['127.0.0.1', 'localhost', '10.233.233.61'].includes(base.hostname), 'Only an approved local test host is accepted');
-  check(['5202', '5203'].includes(base.port), 'Only isolated preset ports 5202/5203 are permitted; all existing service and acceptance ports are protected');
+  if (process.argv.includes('--panel-add-only')) check(base.hostname === '127.0.0.1' && Number(base.port) >= 32768, 'Single-panel acceptance needs its own disposable loopback high port');
+  else check(['5202', '5203'].includes(base.port), 'Only isolated preset ports 5202/5203 are permitted; all existing service and acceptance ports are protected');
   if (process.env.LINGSHU_EXPECT_LANGUAGE) check(['zh-CN', 'en'].includes(process.env.LINGSHU_EXPECT_LANGUAGE), 'Expected language must be zh-CN or en');
 }
 function loadExamples() {
@@ -597,6 +598,69 @@ async function idleAndAudit() {
   equal(responses.filter(response => response.status >= 400 && !expectedHTTP.some(proof => proof.phase === response.phase
     && proof.method === response.method && proof.url === response.url && proof.status === response.status)), [], 'No HTTP error other than the specifically proven missing first snapshot is accepted');
 }
+// Reuses the same fail-closed bootstrap and disposable Owner; never polls a remote source.
+async function singlePanelAdd() {
+  const original = await readPage();
+  const metrics = l('统计指标', 'Metrics'), status = l('服务状态', 'Service status');
+  const chooserName = l('选择数据来源', 'Choose a data source');
+  const chooser = page.getByRole('dialog', { name: chooserName, exact: true });
+  const sourceForm = page.getByRole('dialog', { name: l('添加数据来源', 'Add data source'), exact: true });
+  const layerCount = () => page.locator('[data-composer-layer]').count();
+  const originalCount = original.config.views.length;
+  const addFromHome = async name => {
+    await page.locator('.lh-composer-library-toggle').click();
+    await page.locator('.lh-composer-library-item').getByText(name, { exact: true }).click();
+  };
+  const createPushSource = async name => {
+    await sourceForm.waitFor();
+    await select(sourceForm.getByRole('combobox', { name: l('数据来源类型', 'Source type'), exact: true }), l('外部推送 / 日程文件导入', 'External push / Calendar file import'));
+    await sourceForm.getByRole('textbox', { name: l('名称', 'Name'), exact: true }).fill(name);
+    await sourceForm.getByRole('button', { name: l('创建数据来源', 'Create source'), exact: true }).click();
+    await sourceForm.waitFor({ state: 'hidden' });
+  };
+  step('Zero and unique sources in the homepage layout draft');
+  await home(); await enterEditor();
+  await addFromHome(l('书签导航', 'Bookmarks'));
+  await until(async () => await layerCount() === originalCount + 1, 'Unrelated navigation draft exists');
+  await addFromHome(metrics); await createPushSource('Single panel A');
+  await until(async () => await layerCount() === originalCount + 2, 'Created source is bound without discarding the existing draft');
+  equal(await readPage(), original, 'Inline source creation did not commit the page');
+  await addFromHome(metrics);
+  await until(async () => await layerCount() === originalCount + 3, 'The only enabled compatible source adds the component directly');
+  equal(await chooser.count(), 0, 'A unique match needs no chooser');
+  await cancelEditor(true);
+  equal(await readPage(), original, 'Cancel discards all panel additions');
+  const inventoryPath = '/spaces/' + space.id + '/sources';
+  const [first] = await api(inventoryPath);
+  equal(first.name, 'Single panel A', 'Created source persists independently of page cancellation');
+  async function metricSource(name, enabled) {
+    return api(inventoryPath, 'POST', { name, enabled, kind: 'external-push', schemaId: 'metrics.summary', schemaVersion: 1,
+      connection: {}, sync: { mode: 'push', staleAfterSeconds: 86400 } }, 201);
+  }
+  const second = await metricSource('Single panel B', true);
+  await metricSource('Single panel disabled', false);
+  step('Explicit multi-source selection and inline source creation in admin');
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto(base.origin + '/#/admin?tab=appearance&spaceId=' + encodeURIComponent(space.id), { waitUntil: 'networkidle' });
+  const form = page.locator('.admin-layout-form');
+  await form.getByRole('tab', { name: new RegExp(l('积木与数据绑定', 'Panels and data')) }).click();
+  const addFromAdmin = async name => {
+    await select(form.getByRole('combobox', { name: l('要添加的积木', 'Panel to add'), exact: true }), name);
+    await form.getByRole('button', { name: l('添加积木', 'Add panel'), exact: true }).click();
+  };
+  await addFromAdmin(metrics); await chooser.waitFor();
+  equal(await chooser.getByRole('button', { name: 'Single panel disabled', exact: true }).count(), 0, 'Disabled sources are not offered');
+  await chooser.getByRole('button', { name: second.name, exact: true }).click();
+  await chooser.waitFor({ state: 'hidden' });
+  await addFromAdmin(status); await createPushSource('Inline status source');
+  equal(await readPage(), original, 'Admin source form submit did not also save the containing page');
+  await form.getByRole('button', { name: l('保存页面', 'Save page'), exact: true }).click();
+  await until(async () => (await readPage()).config.views.length === originalCount + 2, 'Both admin additions persist after explicit page save');
+  const saved = await readPage(), metric = saved.config.views.find(view => view.panel.id === 'builtin/metrics');
+  equal(saved.config.bindings[metric.inputs.metrics].datasetId, second.datasetId, 'Saved metric panel used the selected source, not the first');
+  equal(pageErrors, [], 'No page error during source selection or creation');
+  equal(unexpectedNetwork, [], 'All traffic remained local');
+}
 async function run() {
   validateStartup();
   if (process.argv.includes('--guard-only')) { step('startup guard passed without Playwright or HTTP'); return; }
@@ -616,6 +680,7 @@ async function run() {
   equal((await api(`/spaces/${space.id}/sources`)).length, 0, 'Fresh fixture has no external sources');
   equal((await api('/network-proxy')).mode, 'direct', 'Fresh fixture has no outbound proxy configuration');
   await installMonitoring(); page = await context.newPage();
+  if (process.argv.includes('--panel-add-only')) { await singlePanelAdd(); return; }
   await seedLocalPage(); await missingSourceAndCancellation(); await seedPushSources(); await home();
 
   step('Personal overview: local navigation, real save/reload and four desktop geometries');

@@ -202,7 +202,7 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       await start(); await editLink(links[0].id); const mine = prefix + ' mine', serverDescription = prefix + ' changed elsewhere'; await field('title').fill(mine);
       const before = await nav(); await api(batchPath, 'POST', { expectedRevision: before.revision, links: [{ id: links[0].id, patch: { title: prefix + ' server', description: serverDescription } }] });
       await save(409); assert.equal(await field('title').inputValue(), mine); assert(await button('保存', 'Save', toolbar()).isDisabled());
-      await button('读取最新内容并比较', 'Read latest and compare').click(); await page.locator('.lh-content-conflict').waitFor(); assert.equal(await page.locator('.lh-content-conflict').count(), 1);
+      await page.locator('.lh-content-conflict').waitFor(); assert.equal(await page.locator('.lh-content-conflict').count(), 1);
       await button('冲突 1：保留我的修改', 'Conflict 1: keep my edit').click(); await save();
       const saved = (await nav()).data.links.find(row => row.id === links[0].id); assert.equal(saved.title, mine); assert.equal(saved.description, serverDescription); newTitle = mine;
     });
@@ -241,6 +241,30 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       await button('保存并离开', 'Save and leave', guard).click(); await page.locator('.lh-composer').waitFor(); assert.equal(await toolbar().count(), 0);
       assert.equal((await nav()).data.links.find(row => row.id === links[0].id).title, newTitle); assert.deepEqual(await savedPage(), fixturePage);
       await button('取消', 'Cancel', page.locator('.lh-composer-toolbar')).click(); await page.locator('.lh-composer').waitFor({ state: 'hidden' });
+    });
+    await check(provider + '/local_creates_cancel_then_atomically_save_category_and_link', async () => {
+      const before = await nav(), count = posts(), name = prefix + ' drafted category', title = prefix + ' drafted link'
+      await start(); await group(categories.Empty.id).locator('.lh-content-add-link').click()
+      await field('title').fill(title); await field('url').fill('https://example.invalid/cancelled'); await closeDetails()
+      await button('取消', 'Cancel', toolbar()).click()
+      await button('放弃修改', 'Discard changes', page.getByRole('dialog', { name: l('保存内容修改？', 'Save content changes?'), exact: true })).click()
+      assert.equal((await nav()).revision, before.revision); assert.equal(posts(), count)
+      await start(); await button('新增', 'Add', toolbar()).click()
+      await page.getByRole('menuitem', { name: l('新建分类', 'New category'), exact: true }).click()
+      await field('name').fill(name); await closeDetails()
+      const section = panel().locator('section.lh-link-group').filter({ has: page.getByRole('button', { name: l('添加链接到 ' + name, 'Add link to ' + name), exact: true }) })
+      const categoryId = await section.getAttribute('data-category-id'); assert.match(categoryId, /^[a-f0-9]{32}$/)
+      await section.locator('.lh-content-add-link').click()
+      await field('title').fill(title); await field('url').fill('https://example.invalid/created/' + categoryId); await closeDetails()
+      assert.equal((await nav()).revision, before.revision)
+      const pendingBatch = page.waitForRequest(value => value.url() === batchURL && value.method() === 'POST')
+      await save()
+      const submitted = (await pendingBatch).postDataJSON()
+      const after = await nav(), added = after.data.links.find(row => row.id === submitted.createLinks[0].id)
+      assert.equal(submitted.createCategories[0].id, categoryId)
+      assert.equal(added.title, title); assert.equal(added.categoryId, categoryId)
+      assert.equal(after.data.categories.find(row => row.id === categoryId).name, name)
+      assert.equal(BigInt(after.revision), BigInt(before.revision) + 1n); assert.equal(posts(), count + 1)
     });
     await check(provider + '/four_desktops_and_dark_edit_panel_geometry', async () => {
       await start(); await editLink(links[0].id);

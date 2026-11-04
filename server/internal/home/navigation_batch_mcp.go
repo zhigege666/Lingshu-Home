@@ -1,6 +1,6 @@
 package home
 
-// The patch schema deliberately excludes usage-note replacement and row creation.
+// Existing row patches exclude usage-note replacement. Creates use stable caller IDs.
 // The same handler enforces transaction, space permission and revision checks for
 // browser, bearer HTTP and MCP calls.
 func navigationBatchEditSchema(link, category map[string]any) map[string]any {
@@ -31,7 +31,17 @@ func navigationBatchEditSchema(link, category map[string]any) map[string]any {
 		integrationObjectSchema(map[string]any{"kind": map[string]any{"const": "category"}, "id": id, "beforeId": nullableID}, "kind", "id", "beforeId"),
 		integrationObjectSchema(map[string]any{"kind": map[string]any{"const": "link"}, "id": id, "beforeId": nullableID, "categoryId": nullableID}, "kind", "id", "beforeId", "categoryId"),
 	}}
+	creates := func(source map[string]any, required ...string) map[string]any {
+		props := map[string]any{"id": map[string]any{"type": "string", "pattern": "^[0-9a-f]{32}$"}}
+		for k, v := range source["properties"].(map[string]any) {
+			if k != "expectedUpdatedAt" {
+				props[k] = v
+			}
+		}
+		return map[string]any{"type": "array", "maxItems": maxBatchLinks, "items": integrationObjectSchema(props, append([]string{"id"}, required...)...)}
+	}
 	return integrationObjectSchema(map[string]any{
+		"createCategories": creates(category, "name"), "createLinks": creates(link, "title", "url"),
 		"expectedRevision": map[string]any{"type": "string", "minLength": 1, "maxLength": 30},
 		"categories":       rows(patch(category)),
 		"links":            rows(patch(link, "contextMarkdown", "expectedUpdatedAt")),

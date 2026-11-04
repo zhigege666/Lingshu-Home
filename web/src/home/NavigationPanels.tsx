@@ -1,6 +1,6 @@
 import { navigationFolderPage, navigationGroupPreview } from '../core/navigation-folder'
 import './navigation-folder.css'
-import { ArrowUpRight, Bookmark, ChevronDown, ChevronLeft, ChevronRight, Folder, GripVertical, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Search, Star, X } from 'lucide-react';
+import { ArrowUpRight, Bookmark, ChevronDown, ChevronLeft, ChevronRight, Folder, GripVertical, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Search, Star, X } from 'lucide-react';
 import { memo, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactElement } from 'react';
 import { Dialog as DialogPrimitive, Tooltip } from 'radix-ui';
 import type { Category, NavLink, NavigationData } from '../core/types';
@@ -439,12 +439,15 @@ function NavigationGroup({ group, presentation, variant, linkAppearance, favorit
       </div>}
       <div className={'lh-links ' + (variant === 'directory' ? 'is-directory' : '')}>
         {visible.visible.map(link => renderLink(link))}
-        {editable && !group.links.length && <div className="lh-empty-category-target" aria-label={t('移入分类 {name}', 'Move into category {name}', { name: group.name })}><Folder size={18} aria-hidden="true"/><span>{t('暂无链接', 'No links yet')}</span></div>}
         {visible.hiddenCount > 0 && <DialogPrimitive.Trigger asChild><button ref={trigger} type="button" className="lh-folder-more"
           aria-label={t('打开“{name}”，查看全部 {count} 个书签', 'Open {name}, view all {count} bookmarks', { name: group.name, count: count(group.links.length) })}
           onClick={event => event.stopPropagation()}>
           <Folder size={22} aria-hidden="true"/><span className="lh-folder-more-copy"><strong>{t('查看全部', 'View all')}</strong><small>{matching ? t('还有 {count} 个匹配项', '{count} more matches', { count: count(visible.hiddenCount) }) : t('还有 {count} 个书签', '{count} more bookmarks', { count: count(visible.hiddenCount) })}</small></span><ChevronRight size={17} aria-hidden="true"/>
         </button></DialogPrimitive.Trigger>}
+        {editable && editor && <button type="button" className={group.links.length ? 'lh-content-add-link' : 'lh-content-add-link lh-empty-category-target'} disabled={editor.busy}
+          aria-label={t('添加链接到 {name}', 'Add link to {name}', { name: group.name })} onClick={() => editor.onAddLink(group.category?.id || null)}>
+          <Plus size={15} aria-hidden="true"/>{t('添加链接', 'Add link')}
+        </button>}
       </div>
     </section>
     {open && <DialogPrimitive.Portal container={viewportWindow?.document.body || trigger.current?.ownerDocument.body}>

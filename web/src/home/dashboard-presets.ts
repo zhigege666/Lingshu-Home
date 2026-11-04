@@ -1,3 +1,4 @@
+import { matchingEnabledSources, validExternalSource } from './panel-sources.ts'
 import type { Binding, PageConfig, Placement, View } from '../core/types'
 import type { ComposerSource } from './composition'
 
@@ -99,7 +100,6 @@ export const DASHBOARD_PRESETS: readonly DashboardPreset[] = Object.freeze([
 const localSource: Readonly<ComposerSource> = Object.freeze({
   id: '', name: 'Local bookmarks', datasetId: 'local-navigation', schemaId: 'navigation.collection', schemaVersion: 1, enabled: true,
 })
-const validSource = (source: ComposerSource) => /^[0-9a-f]{32}$/.test(source.id) && source.datasetId === 'source:' + source.id
 const findPreset = (id: string) => DASHBOARD_PRESETS.find(value => value.id === id)
 const controlPanel = (view: View) => view.panel.id === 'builtin/search' || view.panel.id === 'builtin/category-navigation'
 const navigationPanel = (view: View) => view.panel.id === 'builtin/navigation' || view.panel.id === 'builtin/favorites'
@@ -113,10 +113,7 @@ const metadata = (source: ComposerSource): ComposerSource => ({
 
 /** The caller supplies the authorized current-space inventory, not arbitrary source objects from a template. */
 export function matchingDashboardPresetSources(item: DashboardPresetSlot, sources: readonly ComposerSource[]): ComposerSource[] {
-  const counts = new Map<string, number>()
-  for (const source of sources) counts.set(source.datasetId, (counts.get(source.datasetId) || 0) + 1)
-  const matches = sources.filter(source => validSource(source) && counts.get(source.datasetId) === 1
-    && compatible(source, item) && source.enabled !== false).map(metadata)
+  const matches = matchingEnabledSources(item.schema.id, item.schema.version, sources).map(metadata)
   return compatible(localSource, item) ? [metadata(localSource), ...matches] : matches
 }
 
@@ -211,7 +208,7 @@ export function compileDashboardPreset(input: {
     const matches = datasetId === localSource.datasetId ? [localSource] : sources.filter(source => source.datasetId === datasetId)
     if (matches.length > 1) { fail('ambiguous-source', [item.id], datasetId); continue }
     const source = matches[0]
-    if (!source || datasetId !== localSource.datasetId && !validSource(source)) { fail('source-unavailable', [item.id], datasetId); continue }
+    if (!source || datasetId !== localSource.datasetId && !validExternalSource(source)) { fail('source-unavailable', [item.id], datasetId); continue }
     if (!compatible(source, item)) { fail('source-schema-mismatch', [item.id], datasetId); continue }
     if (source.enabled === false) { fail('source-disabled', [item.id], datasetId); continue }
     selected.push({ item, datasetId })
@@ -243,7 +240,7 @@ export function compileDashboardPreset(input: {
       && binding.space === 'current-page-space' && queryKey(binding.query) === queryKey(query))
     if (existing) return existing[0]
     const alias = uniqueIdentifier(datasetId === localSource.datasetId ? 'navigation' : 'preset-' + item.id, usedAliases)
-    bindings[alias] = { datasetId, space: 'current-page-space', query: structuredClone(query) }
+    bindings[alias] = { datasetId, space: 'current-page-space', query: structuredClone(query), auto: true }
     return alias
   }
   const navigationReference = (item: DashboardPresetSlot, datasetId: string) => {

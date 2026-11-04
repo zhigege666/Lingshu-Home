@@ -50,7 +50,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.9` uses `ghcr.io/zhigege666/lingshu-home:0.0.9`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.10` uses `ghcr.io/zhigege666/lingshu-home:0.0.10`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 
@@ -115,6 +115,14 @@ sha256sum --check SHA256SUMS
 ```
 
 The packaging command builds and validates files locally; it does not authenticate to a registry, push an image or create a GitHub Release. Online publication is a separate workflow stage.
+
+## Version 0.0.10 upgrade and rollback
+
+From 0.0.9, retain the database, `storage.json` if present, both instance keys, document history and mounts, deployment identity, language and HTTP/TLS settings. 0.0.10 adds no database migration. Back up the database/data and saved page configuration before the change, and back up mounted Markdown originals and attachments independently. New homepage creates, click observations and file edits are real data writes; restoring an older backup can discard subsequent work.
+
+The new editor may save `auto:true` on a binding it manages. Old strict page validators reject this field even though the database schema is unchanged. Before reverting, preserve later changes and restore the matching previously compatible page configuration and data backup. Do not claim that switching an image tag rolls back a saved layout, file edit or database change.
+
+After upgrading, check the running instance version. A previously failed/offline document source must complete a healthy scan before original-file mutations; verify the intended mount rather than overriding the safeguard on an ambiguous path. If using a gateway, compare its batch-edit definition with the running Home server’s authenticated schema before sending `createCategories` or `createLinks`. Existing basic reads and PATCH-style batch rows retain their contracts. A tag, a hosted release, a deployed instance and a refreshed gateway catalog are separate observations. Record release verification through the tagged workflows and public availability steps above.
 
 ## Version 0.0.9 upgrade and evidence
 

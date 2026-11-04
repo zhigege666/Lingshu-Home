@@ -60,7 +60,7 @@ async function testConnection(page, success) {
   await page.getByRole('button', { name: /^(测试连接|Test connection)$/ }).click();
   assert.equal((await response).ok(), success, 'Unexpected connection test result');
   await page.locator(success ? '.storage-setup-test-status.is-success' : '.storage-setup-error[role="alert"]').waitFor();
-  assert.equal(await page.locator(submit).isEnabled(), success);
+  assert(await page.locator(submit).isEnabled());
 }
 async function business(page, context, base) {
   await page.locator('.auth-language, .auth-setup').first().waitFor({ state: 'visible', timeout: 45000 });
@@ -101,14 +101,16 @@ async function main() {
   await check('wrong_password_blocks_save', async () => {
     const bad = 'intentionally-wrong-' + Date.now(); secrets.push(bad);
     await page.locator('input[name="storage-password"]').fill(bad);
-    assert(!(await page.locator(submit).isEnabled())); await testConnection(page, false);
+    assert(await page.locator(submit).isEnabled()); await testConnection(page, false);
+    const refused = responseFor(page, 'configure'); await page.locator(submit).click(); assert(!(await refused).ok());
+    assert.equal((await state(external.context, bases.PG)).state, 'required');
   });
-  await check('correct_password_and_edit_requires_retest', async () => {
+  await check('editing_after_test_clears_status_and_direct_save_stays_available', async () => {
     await page.locator('input[name="storage-password"]').fill(pg.password); await testConnection(page, true);
     await page.locator('input[name="storage-port"]').fill(String(Number(pg.port) === 65535 ? 65534 : Number(pg.port) + 1));
-    assert(!(await page.locator(submit).isEnabled())); assert.equal(await page.locator('.storage-setup-test-status.is-success').count(), 0);
+    assert(await page.locator(submit).isEnabled()); assert.equal(await page.locator('.storage-setup-test-status.is-success').count(), 0);
     await page.locator('input[name="storage-port"]').fill(pg.port);
-    assert(!(await page.locator(submit).isEnabled())); await testConnection(page, true);
+    assert(await page.locator(submit).isEnabled()); // Save will validate these edited values itself.
   });
   for (const [width, height] of [[2560,1440], [1920,1080], [1600,900], [2560,1080]]) {
     await check('layout_' + width + 'x' + height, async () => {

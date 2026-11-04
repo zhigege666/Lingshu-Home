@@ -391,10 +391,31 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 			page := owner.object("GET", "/api/v1/spaces/"+shared+"/page", nil, 200, "")
 			configJSON := integrationClone(page["config"].(map[string]any))
 			configJSON["bindings"].(map[string]any)["external"] = map[string]any{"datasetId": "source:" + sourceID, "space": "current-page-space", "query": map[string]any{}}
+			// A hidden component still references its dataset; unreferenced aliases
+			// remain in the editable page but must not load any kind of snapshot.
+			bindings := configJSON["bindings"].(map[string]any)
+			bindings["unused-source"] = bindings["external"]
+			bindings["unused-local"] = bindings["navigation"]
+			bindings["unused-activity"] = map[string]any{"datasetId": "local-document-activity", "space": "current-page-space", "query": map[string]any{}}
+			for _, raw := range configJSON["views"].([]any) {
+				view := raw.(map[string]any)
+				if view["panel"].(map[string]any)["id"] == "builtin/navigation" {
+					view["inputs"] = map[string]any{"collection": "external"}
+					configJSON["layout"].(map[string]any)["placements"].(map[string]any)[view["id"].(string)] = map[string]any{"base": map[string]any{"kind": "hidden"}}
+				}
+			}
 			updated := owner.object("PUT", "/api/v1/spaces/"+shared+"/page", map[string]any{"name": page["name"], "expectedRevision": page["revision"], "config": configJSON}, 200, "")
 			dashboard := anonymous.tool(full, "dashboard_get", map[string]any{"spaceId": shared}, "")
 			if _, ok := dashboard["datasets"].(map[string]any)["external"]; !ok {
 				t.Fatal("page-bound source dataset was not resolved")
+			}
+			for _, alias := range []string{"unused-source", "unused-local", "unused-activity"} {
+				if _, ok := dashboard["datasets"].(map[string]any)[alias]; ok {
+					t.Fatalf("unreferenced dataset %s was projected", alias)
+				}
+				if updated["config"].(map[string]any)["bindings"].(map[string]any)[alias] == nil {
+					t.Fatalf("editable page lost reserved alias %s", alias)
+				}
 			}
 			configJSON["bindings"].(map[string]any)["external"].(map[string]any)["datasetId"] = "source:" + private["id"].(string)
 			owner.call("PUT", "/api/v1/spaces/"+shared+"/page", map[string]any{"name": page["name"], "expectedRevision": updated["revision"], "config": configJSON}, 400, "")

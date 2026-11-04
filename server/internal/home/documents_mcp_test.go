@@ -119,3 +119,98 @@ func TestDocumentMCPUnavailableOriginal(t *testing.T) {
 	}
 	caller.tool(reader, "documents_get", args, "document_source_unavailable")
 }
+
+// A disconnected mount may leave a perfectly writable directory at the same
+// path. Exercise both transports against real temporary files, including
+// recovery (which is explicitly allowed to recreate a missing original).
+func TestDocumentWriteGuardAfterSuspiciousScan(t *testing.T) {
+	f := newDocumentFixture(t, false)
+	source := f.source(t, f.shared, "mounted", false, map[string]string{"guide.md": "# Original"})
+	id := source["id"].(string)
+	b := f.owner
+	doc := documentByPath(t, b, f.shared, "guide.md")
+	path := documentURL(f.shared, doc)
+	oldRevision := doc["revision"]
+	updated := b.ok("PUT", path, map[string]any{"expectedRevision": oldRevision, "content": "# Reviewed"})
+	revision := updated["revision"]
+	owner := &integrationTestBrowser{t: t, base: f.server.URL, client: b.client, csrf: b.csrf}
+	writer, _ := owner.token(f.shared, "", "documents:read", "documents:write")
+	client := integrationBrowser(t, f.server.URL)
+	dir, original := filepath.Join(f.root, "mounted"), filepath.Join(t.TempDir(), "original")
+	if err := os.Rename(dir, original); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	listPath := "/spaces/" + f.shared + "/document-sources"
+	scan := func(want string, confirm bool) {
+		t.Helper()
+		got := b.ok("POST", listPath+"/"+id+"/scan", map[string]any{"confirmMissing": confirm})
+		if got["status"] != want {
+			t.Fatalf("unexpected scan status: %v", got["status"])
+		}
+	}
+	checkAvailability := func(want bool) {
+		t.Helper()
+		for _, items := range []any{b.ok("GET", listPath, nil)["items"], client.tool(writer, "document_sources_list", map[string]any{}, "")["items"]} {
+			rows := items.([]any)
+			if len(rows) != 1 || integrationObject(t, rows[0])["canWrite"] != want {
+				t.Fatalf("unexpected destination availability: %v", rows)
+			}
+		}
+	}
+	scan("error", false)
+	checkAvailability(false)
+	create := map[string]any{"input": map[string]any{"sourceId": id, "relativePath": "report.md", "content": "correct location"}}
+	client.tool(writer, "documents_create", create, "document_source_unavailable")
+	if detail := b.ok("GET", path, nil); detail["readOnly"] != true || detail["canRestore"] == true {
+		t.Fatalf("missing original on suspect mount advertised a write: %v", detail)
+	}
+	status, detail := b.call("POST", path+"/restore", map[string]any{"revision": oldRevision, "expectedRevision": revision})
+	if status != 503 || detail["code"] != "document_source_unavailable" {
+		t.Fatalf("unexpected restore response: %d %+v", status, detail)
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Fatalf("replacement directory was changed: %v, %v", entries, err)
+	}
+	// An unrelated file appearing in the placeholder is not proof that the
+	// original filesystem has returned, even for a source with just one note.
+	if err := os.WriteFile(filepath.Join(dir, "unrelated.md"), []byte("# Unrelated"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	scan("error", false)
+	checkAvailability(false)
+	for _, tc := range []struct {
+		name string
+		body map[string]any
+	}{
+		{"documents_update", map[string]any{"expectedRevision": revision, "content": "# Wrong disk"}},
+		{"documents_rename", map[string]any{"expectedRevision": revision, "relativePath": "renamed.md"}},
+		{"documents_delete", map[string]any{"expectedRevision": revision}},
+	} {
+		client.tool(writer, tc.name, map[string]any{"id": doc["id"], "input": tc.body}, "document_source_unavailable")
+	}
+	if err := os.Rename(dir, filepath.Join(t.TempDir(), "placeholder")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(original, dir); err != nil {
+		t.Fatal(err)
+	}
+	scan("ready", false)
+	checkAvailability(true)
+	client.tool(writer, "documents_create", create, "")
+	if body, err := os.ReadFile(filepath.Join(dir, "report.md")); err != nil || string(body) != "correct location" {
+		t.Fatalf("file not created on restored mount: %v", err)
+	}
+	// The owner can also accept an intentional purge after verifying the mount.
+	for _, file := range []string{"guide.md", "report.md"} {
+		if err := os.Remove(filepath.Join(dir, file)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scan("error", false)
+	scan("ready", true)
+	checkAvailability(true)
+	client.tool(writer, "documents_create", create, "")
+}

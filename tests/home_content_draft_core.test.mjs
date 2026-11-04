@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { freshContentDraft, moveContent, changeContentField, buildContentEdit, contentNavigation, rebaseContentDraft, resolveContentField, discardContentOrder, projectContentNavigation } from '../web/src/core/home-content-draft.ts'
+import { addContentRow, newNavigationID, freshContentDraft, moveContent, changeContentField, buildContentEdit, contentNavigation, rebaseContentDraft, resolveContentField, discardContentOrder, projectContentNavigation } from '../web/src/core/home-content-draft.ts'
 import { createDraftHistory, recordDraft, undoDraft, redoDraft } from '../web/src/core/draft-history.ts'
 
 const category = (id, sortOrder = 0, parentId = null) => ({ id, name: id, spaceId: 's', parentId, sortOrder, icon: 'lucide:folder' })
@@ -134,4 +134,53 @@ test('entering edit preserves sort values and membership in limited components',
   assert.deepEqual(projectContentNavigation(contentNavigation(draft), { limit: 2 }).links.map(row => row.id), ['x', 'y'])
   const changed = changeContentField(draft, 'links', 'a', { title: 'Changed' })
   assert.deepEqual(projectContentNavigation(contentNavigation(changed), { limit: 2 }).links.map(row => row.id), ['x', 'y'])
+})
+
+test('creating linked draft rows is reversible and compiles once in parent-first order', () => {
+  const original = base(), start = freshContentDraft(original)
+  const ids = Array.from({ length: 3 }, newNavigationID); assert.equal(new Set(ids).size, 3); assert(ids.every(id => /^[0-9a-f]{32}$/.test(id)))
+  const [child, parent, bookmark] = ids
+  let draft = addContentRow(start, 'categories', child, 's', null)
+  draft = changeContentField(draft, 'categories', child, { name: 'Child' })
+  draft = addContentRow(draft, 'categories', parent, 's', null)
+  draft = changeContentField(draft, 'categories', parent, { name: 'Parent' })
+  draft = changeContentField(draft, 'categories', child, { parentId: parent })
+  draft = addContentRow(draft, 'links', bookmark, 's', child)
+  const empty = buildContentEdit(draft)
+  assert.deepEqual(empty.errors.map(e => e.field), ['title', 'url'])
+  draft = changeContentField(draft, 'links', bookmark, { title: ' Bookmark ', url: 'https://new.test/' })
+  const built = buildContentEdit(draft)
+  assert.deepEqual(built.errors, []); assert.equal(built.count, 3); assert.deepEqual(built.body.categories, []); assert.deepEqual(built.body.links, [])
+  assert.deepEqual(built.body.createCategories.map(r => [r.id, r.parentId]), [[parent, null], [child, parent]])
+  assert.deepEqual([built.body.createLinks[0].id, built.body.createLinks[0].categoryId, built.body.createLinks[0].title], [bookmark, child, 'Bookmark'])
+  const hist = recordDraft(createDraftHistory(start), draft)
+  assert.equal(buildContentEdit(undoDraft(hist).present).count, 0); assert.deepEqual(redoDraft(undoDraft(hist)).present, draft)
+  assert.deepEqual(original, base())
+  const saved = structuredClone(original); saved.revision = '11'; saved.data = contentNavigation(draft)
+  saved.data.links.find(row => row.id === bookmark).title = 'Bookmark'
+  const got = rebaseContentDraft(draft, saved)
+  assert.deepEqual(got.conflicts, []); assert.deepEqual(got.orderConflicts, []); assert.equal(buildContentEdit(got.draft).count, 0)
+  const concurrent = structuredClone(original); concurrent.revision = '11'; concurrent.data.categories.push(category('other', 30))
+  const pending = rebaseContentDraft(draft, concurrent)
+  assert.equal(buildContentEdit(pending.draft).count, 3); assert.equal(buildContentEdit(pending.draft).body.createLinks[0].id, bookmark)
+  assert.deepEqual(pending.orderConflicts, [])
+})
+test('independent insertions do not turn a rename into an order conflict; actual competing moves still require review', () => {
+  const original = base(), renamed = changeContentField(freshContentDraft(original), 'links', 'a', { title: 'Updated' })
+  const latest = structuredClone(original); latest.data.links.push(link('f', 10)); latest.revision = '11'
+  const rebased = rebaseContentDraft(renamed, latest)
+  assert.deepEqual(rebased.orderConflicts, []); assert.deepEqual(rebased.conflicts, [])
+  assert.deepEqual(buildContentEdit(rebased.draft).body, { expectedRevision: '11', links: [{ id: 'a', patch: { title: 'Updated' } }], categories: [] })
+  const moved = moveContent(freshContentDraft(original), 'links', 'e', 'one', 'a')
+  latest.data.links.find(row => row.id === 'c').sortOrder = 3; latest.data.links.find(row => row.id === 'd').sortOrder = 2
+  const independent = rebaseContentDraft(moved, latest)
+  assert.deepEqual(independent.orderConflicts, []); assert.deepEqual(independent.draft.orders.links.one, ['e', 'a', 'b', 'd', 'c', 'f'])
+})
+test('unchanged URLs up to the API UTF-8 byte limit can be edited; invalid data is still rejected', () => {
+  const prefix = 'https://example.test/', url = prefix + 'a'.repeat(4096 - prefix.length)
+  const source = base(); source.data.links[0].url = url
+  const change = patch => buildContentEdit(changeContentField(freshContentDraft(source), 'links', 'a', patch))
+  assert.deepEqual(change({ title: 'rename only' }).errors, [])
+  for (const bad of [url + 'a', prefix + '文'.repeat(1500), 'https://user:pass@a.test/', 'file:///tmp/note'])
+    assert(change({ url: bad }).errors.some(e => e.field === 'url'))
 })

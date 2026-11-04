@@ -1,3 +1,4 @@
+import { initialSourceKind } from '../home/panel-sources'
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Download, FileJson, Globe, PackageCheck, Plus, RefreshCw } from 'lucide-react'
 import { ApiError, request, messageOf } from '../core/api'
@@ -42,10 +43,7 @@ function templateIssue(cause: unknown) {
   }
   return messageOf(cause)
 }
-function sourceKind(schema: string) {
-  return schema === 'calendar.events' ? 'calendar-ics' : schema === 'weather.forecast' ? 'weather-open-meteo'
-    : schema === 'github.traffic' ? 'github-traffic' : schema === 'navigation.collection' ? 'external-push' : 'external-json'
-}
+
 
 export default function WidgetImportDialog({ spaceId, space, canCreateSource = false, config, sources, onSourcesChange, onApply, onClose }: Props) {
   const [mode, setMode] = useState<'url' | 'json'>('url')
@@ -169,7 +167,7 @@ export default function WidgetImportDialog({ spaceId, space, canCreateSource = f
   }
   const loadingSource = <Modal title={t('添加数据来源', 'Add data source')} onClose={() => setSourceOpen(false)}><p role="status">{t('正在加载来源表单…', 'Loading the source form…')}</p></Modal>
   if (sourceOpen && space && canCreateSource && preview) return <Suspense fallback={loadingSource}><SourceDialog
-    space={space} source={null} initialKind={sourceKind(preview.manifest.dataSchema.id)} requiredSchema={preview.manifest.dataSchema.id}
+    space={space} source={null} initialKind={initialSourceKind(preview.manifest.dataSchema.id)} requiredSchema={preview.manifest.dataSchema.id}
     contextNote={t('来源会立即保存到此空间；返回后仍保留当前模板预览和页面草稿。只有保存页面才会应用组件。', 'The source is saved to this space immediately. Your template preview and page draft will be kept when you return. The component is applied only when you save the page.')}
     onSaved={sourceSaved} onClose={() => setSourceOpen(false)} /></Suspense>
 

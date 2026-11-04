@@ -4,6 +4,33 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-11-04
+
+### Navigation maintenance and click statistics
+
+- Add categories and bookmarks in homepage Edit, including links in newly drafted categories. Undo, redo and cancel apply to pending creations. One revision-checked `navigation_batch_edit` can create rows with stable IDs, patch fields and apply moves atomically. The same 500-operation limit and write-only receipt rules apply.
+- Compare the intended ordering changes on re-read. Adding or rearranging unrelated siblings no longer forces an order decision for a rename; tied legacy order and real field or position conflicts remain protected. A stale revision triggers a read for comparison, never an automatic write retry. A read after an uncertain response recognizes saved creations by their IDs.
+- Align bookmark and alternate-link URL inputs with the server’s 4,096-byte UTF-8 limit. A supported long URL no longer blocks an unrelated title or category edit.
+- Count actual primary, alternate and related-bookmark opens in Library alongside homepage activations. Keep previews, probes and MCP reads out of the totals; the zero-click label describes missing observations. Preserve the historical recording baseline and existing aggregates without backfilling new entry points.
+
+### Document safety and Library
+
+- Pause original-file mutations after a failed or offline scan, including create, edit, rename, delete and history restore. Browser and MCP destination discovery agree with the server. An unexpectedly empty or largely missing mount retains its last index; check the mount and rescan before resuming writes. A genuinely empty, newly registered healthy directory remains writable. This uses the observed scan state and does not claim continuous mount-identity detection.
+- Keep a bookmark note’s revision with its original draft, including across Library refresh, so a newer note cannot be overwritten using a refreshed timestamp. Conflicts retain the draft.
+- Start new documents in the selected writable subfolder, use the configured default from the overview, and require a deliberate change of destination when the selected source is not writable. Remove the duplicate Recently updated view; All resources remains sorted by update time.
+
+### Components, tokens and setup
+
+- Reuse compatible enabled sources for single-component insertion in both layout editors. Use a unique match directly; choose between multiple matches, or create a source in context when authorized. Keep the page layout in its existing explicit-save draft.
+- Resolve displayed dashboard snapshots only for bindings referenced by a component. Release unreferenced editor-created `auto:true` bindings on removal or rebind; preserve manual and legacy bindings, shared references, hidden views that still reference data, and independent sources/snapshots.
+- Let a source-scoped token select `sources:read` and `datasets:write` independently, subject to space access. Selecting an external push source defaults to read-only; existing tokens keep their grants.
+- Make the connection test optional during first-run PostgreSQL setup. Saving still validates the target and checks storage conflicts before initialization; SQLite and previously configured installations keep their existing flow.
+
+### Upgrade and rollback
+
+- No new database migration, mount, credential or deployment setting. Keep data, keys, storage selection, mounted originals, language and HTTP/TLS configuration. Recheck gateway tool definitions after upgrading the actual Home instance if batch-create fields are needed.
+- New layouts may store `auto:true` on a binding, which older strict page validators reject. Keep a matching pre-upgrade database/data backup and page configuration before updating. Restore a compatible configuration/data set before reverting to the older binary or image; a tag change alone does not restore it. Back up and reconcile mounted Markdown and attachments separately.
+
 ## [0.0.9] - 2026-11-04
 
 ### MCP space and directory discovery

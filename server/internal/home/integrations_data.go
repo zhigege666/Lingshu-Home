@@ -332,11 +332,29 @@ func (a *App) getIntegrationSnapshot(r *Request) (*Response, error) {
 	return ok(d), nil
 }
 
-func (a *App) appendIntegrationDatasets(r *Request, d *Dashboard) error {
+// Keep the persisted page (including reserved aliases) intact; only load snapshots
+// used by a view. Hidden/narrow placements remain valid consumers.
+func dashboardBindings(config map[string]any) map[string]any {
+	bindings, _ := object(config["bindings"])
+	views, _ := config["views"].([]any)
+	used := make(map[string]any)
+	for _, raw := range views {
+		view, _ := object(raw)
+		inputs, _ := object(view["inputs"])
+		for _, value := range inputs {
+			alias, ok := value.(string)
+			if binding, exists := bindings[alias]; ok && exists {
+				used[alias] = binding
+			}
+		}
+	}
+	return used
+}
+
+func (a *App) appendIntegrationDatasets(r *Request, d *Dashboard, bindings map[string]any) error {
 	if r.Bearer && !r.AllowedActions["sources:read"] {
 		return nil
 	}
-	bindings, _ := d.Page.Config["bindings"].(map[string]any)
 	cached := map[string]Dataset{}
 	missingSnapshots := map[string]bool{}
 	for alias, raw := range bindings {

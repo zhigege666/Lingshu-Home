@@ -1,9 +1,11 @@
-import { buildBatchEdit, draftNavigation, freshInlineDraft, putDraft, readDraft, rebaseInlineDraft, resolveInlineConflict, type CategoryDraft, type InlineConflict, type InlineDraft, type InlineKind, type LinkDraft } from './navigation-inline.ts'
+import { buildBatchEdit, categoryDraft, linkDraft, draftNavigation, freshInlineDraft, putDraft, readDraft, rebaseInlineDraft, resolveInlineConflict, type CategoryDraft, type InlineConflict, type InlineDraft, type InlineKind, type LinkDraft } from './navigation-inline.ts'
 import type { Category, Dataset, NavigationData, NavLink } from './types'
 
 export type ContentOrders = { categories: Record<string, string[]>; links: Record<string, string[]> }
 export type ContentDraft = {
   fields: InlineDraft
+  /** IDs added to the working dataset locally, never written before Save. */
+  created: { categories: string[]; links: string[] }
   orders: ContentOrders
   moved: { categories: string[]; links: string[] }
   locale: string
@@ -24,7 +26,27 @@ export function navigationOrders(data: NavigationData, locale = 'zh-CN'): Conten
   return orders
 }
 export function freshContentDraft(base: Dataset<NavigationData>, locale = 'zh-CN'): ContentDraft {
-  return { fields: freshInlineDraft(base), orders: navigationOrders(base.data, locale), moved: { categories: [], links: [] }, locale }
+  return { fields: freshInlineDraft(base), created: { categories: [], links: [] }, orders: navigationOrders(base.data, locale), moved: { categories: [], links: [] }, locale }
+}
+export function newNavigationID(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/** Seed a locally editable row with its final stable ID. The captured revision is unchanged. */
+export function addContentRow(draft: ContentDraft, kind: InlineKind, id: string, spaceId: string, parentId: string | null): ContentDraft {
+  const data = draftNavigation(draft.fields)
+  if (!/^[0-9a-f]{32}$/.test(id) || data.links.some(row => row.id === id) || data.categories.some(row => row.id === id)
+    || parentId && !data.categories.some(row => row.id === parentId)) return draft
+  const group = key(parentId), siblings = draft.orders[kind][group] || []
+  const sortOrder = Math.min(1000000, data[kind].reduce((max, row) => parent(row) === parentId ? Math.max(max, row.sortOrder) : max, -1) + 1)
+  const base = draft.fields.base
+  const rows = kind === 'categories'
+    ? { ...base.data, categories: [...base.data.categories, { id, spaceId, parentId, name: '', icon: 'lucide:folder', sortOrder }] }
+    : { ...base.data, links: [...base.data.links, { id, spaceId, categoryId: parentId, title: '', url: '', description: '', icon: 'lucide:link', iconMode: 'auto' as const, tags: [], isFavorite: false, sortOrder, endpoints: [], updatedAt: '' }] }
+  return { ...draft, fields: { ...draft.fields, base: { ...base, data: rows } },
+    created: { ...draft.created, [kind]: [...draft.created[kind], id] },
+    moved: { ...draft.moved, [kind]: [...new Set([...draft.moved[kind], id])] },
+    orders: { ...draft.orders, [kind]: { ...draft.orders[kind], [group]: [...siblings, id] } } }
 }
 /** Changes stay in one account/space draft; no layout or external-source data enters it. */
 export function changeContentField(draft: ContentDraft, kind: InlineKind, id: string, patch: Partial<CategoryDraft & LinkDraft>): ContentDraft {
@@ -71,8 +93,28 @@ export function contentNavigation(draft: ContentDraft): NavigationData {
 export type ContentMove = { kind: 'category' | 'link'; id: string; beforeId: string | null; categoryId?: string | null }
 /** Fields are applied first on the server, then the final-position moves, right to left. */
 export function buildContentEdit(draft: ContentDraft) {
-  const built = buildBatchEdit(draft.fields)
-  const simulated = navigationOrders(draftNavigation(draft.fields), draft.locale)
+  const data = draftNavigation(draft.fields), newCategories = new Set(draft.created.categories), newLinks = new Set(draft.created.links)
+  // Validate even untouched empty fields in newly inserted rows.
+  const fields = { ...draft.fields, categories: { ...draft.fields.categories }, links: { ...draft.fields.links } }
+  for (const row of data.categories) if (newCategories.has(row.id)) fields.categories[row.id] ??= categoryDraft(row)
+  for (const row of data.links) if (newLinks.has(row.id)) fields.links[row.id] ??= linkDraft(row)
+  const built = buildBatchEdit(fields)
+  const categories = built.body.categories.filter(row => !newCategories.has(row.id)), links = built.body.links.filter(row => !newLinks.has(row.id))
+  const additions = new Map(data.categories.filter(row => newCategories.has(row.id)).map(row => [row.id, row]))
+  const seen = new Set<string>(), createCategories: Omit<Category, 'spaceId'>[] = []
+  function addParentFirst(row: Category) {
+    if (seen.has(row.id)) return
+    seen.add(row.id)
+    const ancestor = row.parentId && additions.get(row.parentId)
+    if (ancestor) addParentFirst(ancestor)
+    createCategories.push({ id: row.id, name: row.name.trim(), icon: row.icon, parentId: row.parentId, sortOrder: row.sortOrder })
+  }
+  for (const row of additions.values()) addParentFirst(row)
+  const createLinks = data.links.filter(row => newLinks.has(row.id)).map(row => ({
+    id: row.id, categoryId: row.categoryId, title: row.title.trim(), url: row.url.trim(), description: row.description.trim(),
+    icon: row.icon, iconMode: row.iconMode, tags: row.tags, isFavorite: row.isFavorite, sortOrder: row.sortOrder, endpoints: row.endpoints,
+  }))
+  const simulated = navigationOrders(data, draft.locale)
   const moves: ContentMove[] = []
   for (const kind of ['categories', 'links'] as const) {
     const touched = new Set(draft.moved[kind])
@@ -91,9 +133,12 @@ export function buildContentEdit(draft: ContentDraft) {
       }
     }
   }
-  const total = built.body.categories.length + built.body.links.length + moves.length
+  const total = categories.length + links.length + createCategories.length + createLinks.length + moves.length
   if (total > 500 && !built.errors.some(error => error.code === 'limit')) built.errors.push({ kind: 'links', id: '', field: '', code: 'limit' })
-  return { body: { ...built.body, ...(moves.length ? { moves } : {}) }, errors: built.errors, count: new Set([...built.body.categories.map(row => 'c:' + row.id), ...built.body.links.map(row => 'l:' + row.id), ...moves.map(row => row.kind[0] + ':' + row.id)]).size }
+  return { body: { expectedRevision: fields.base.revision, categories, links, ...(createCategories.length ? { createCategories } : {}),
+    ...(createLinks.length ? { createLinks } : {}), ...(moves.length ? { moves } : {}) }, errors: built.errors,
+    count: new Set([...categories, ...createCategories].map(row => 'c:' + row.id).concat([...links, ...createLinks].map(row => 'l:' + row.id), moves.map(row => row.kind[0] + ':' + row.id))).size }
+
 }
 /** A page binding is a projection, never the authority for a write or a full reorder. */
 export function projectContentNavigation(data: NavigationData, query: Record<string, unknown>): NavigationData {
@@ -110,19 +155,44 @@ export function projectContentNavigation(data: NavigationData, query: Record<str
 }
 
 export function rebaseContentDraft(draft: ContentDraft, latest: Dataset<NavigationData>) {
-  const merged = rebaseInlineDraft(draft.fields, latest)
-  let next = { ...freshContentDraft(latest, draft.locale), fields: merged.draft }
+  // A fresh GET can confirm an earlier atomic save whose response never arrived.
+  // Only missing, never-observed creation IDs are carried forward as local rows.
+  const localBase = draft.fields.base.data
+  const candidates = { categories: localBase.categories.filter(row => draft.created.categories.includes(row.id)), links: localBase.links.filter(row => draft.created.links.includes(row.id)) }
+  const latestIDs = { categories: new Set(latest.data.categories.map(row => row.id)), links: new Set(latest.data.links.map(row => row.id)) }
+  const observed = candidates.categories.some(row => latestIDs.categories.has(row.id)) || candidates.links.some(row => latestIDs.links.has(row.id))
+  const pending = { categories: observed ? [] : candidates.categories, links: observed ? [] : candidates.links }
+  const working = { ...latest, data: { categories: [...latest.data.categories, ...pending.categories], links: [...latest.data.links, ...pending.links] } }
+  const merged = rebaseInlineDraft(draft.fields, working)
+  let next: ContentDraft = { ...freshContentDraft(working, draft.locale), fields: merged.draft,
+    created: { categories: pending.categories.map(row => row.id), links: pending.links.map(row => row.id) } }
   const conflicts: OrderConflict[] = []
   const originalOrders = navigationOrders(draft.fields.base.data, draft.locale)
   const serverOrders = navigationOrders(latest.data, draft.locale)
   // Reconstruct final memberships from the rebased fields before reapplying order.
   next.orders = navigationOrders(draftNavigation(merged.draft), draft.locale)
+  const moves = buildContentEdit(draft).body.moves || []
   for (const kind of ['categories', 'links'] as const) {
-    const ids = draft.moved[kind].filter(id => latest.data[kind].some(row => row.id === id))
+    // A rename is marked as potentially moving to preserve legacy ties. If it
+    // produced no move, a new sibling on the server cannot be an order conflict.
+    const ids = moves.filter(m => m.kind === (kind === 'links' ? 'link' : 'category') && working.data[kind].some(row => row.id === m.id)).map(m => m.id)
+
     if (!ids.length) continue
     const groups = new Set<string>()
     for (const id of ids) for (const source of [originalOrders[kind], draft.orders[kind]]) for (const [group, values] of Object.entries(source)) if (values.includes(id)) groups.add(group)
-    const changed = [...groups].some(group => !same(originalOrders[kind][group] || [], serverOrders[kind][group] || []))
+    const changed = [...groups].some(group => {
+      const before = originalOrders[kind][group] || [], after = serverOrders[kind][group] || []
+      const old = new Set(before), remote = new Set(after)
+      // Concurrent additions do not reorder existing siblings. A moved row
+      // that changed groups or a removed drop anchor still needs explicit review.
+      return ids.some(id => old.has(id) !== remote.has(id) && !draft.created[kind].includes(id))
+        || moves.some(move => ids.includes(move.id) && move.beforeId && old.has(move.beforeId) && !remote.has(move.beforeId))
+        || moves.filter(m => ids.includes(m.id)).some(m => [m.id, m.beforeId].some(target => {
+          if (!target || !old.has(target) || !remote.has(target)) return false
+          const oldBefore = new Set(before.slice(0, before.indexOf(target))), serverBefore = new Set(after.slice(0, after.indexOf(target)))
+          return before.some(sibling => remote.has(sibling) && oldBefore.has(sibling) !== serverBefore.has(sibling))
+        }))
+    })
     const committed = [...groups].every(group => same(draft.orders[kind][group] || [], serverOrders[kind][group] || []))
     if (committed && [...groups].every(group => same(draft.orders[kind][group] || [], next.orders[kind][group] || []))) continue
     if (changed && !committed) conflicts.push({ kind, ids })

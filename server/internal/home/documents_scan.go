@@ -197,7 +197,11 @@ func (a *App) applyDocumentScan(r *Request, s *DocumentSource, scan documentScan
 		renames = append(renames, rename{previous[0], scan.found[indices[0]].relative, old[previous[0]].id})
 		missingCount--
 	}
-	if !confirmMissing && (len(old) > 0 && len(scan.seen) == 0 || len(old) >= 10 && missingCount*2 > len(old)) {
+	// A new, unrelated file in a replacement directory must not turn the next
+	// automatic scan into a confirmation that every indexed original was removed.
+	// Recognized external renames have already been deducted from missingCount.
+	lostBaseline := len(old) > 0 && s.Status != "ready" && missingCount == len(old)
+	if !confirmMissing && (len(old) > 0 && len(scan.seen) == 0 || len(old) >= 10 && missingCount*2 > len(old) || lostBaseline) {
 		return setStatus("error", "The directory is unexpectedly empty or many files are missing. The previous index is retained. Check the mount, then explicitly confirm missing files if the removal was intentional.")
 	}
 	renamed := map[string]bool{}
