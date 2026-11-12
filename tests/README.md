@@ -4,7 +4,7 @@
 
 本文记录 HTTP、Go 集成、Docker、开发启动器与发布边界的不同验证范围。正式标签打包、GitHub 托管工作流和浏览器交互的状态单独说明；已经通过的服务测试不替代这些检查。
 
-**当前源码 `VERSION` 为 0.0.11；本轮首页删除与跨分类拖动的定向验证结果见下文。** 0.0.10 的首页、资料库、组件与配置验证保留在对应章节。 0.0.9 的 MCP 默认空间、文档目录发现、只写回执和缺失原件验证保留在对应章节。 0.0.8 的首页操作收拢与页眉页脚常驻，以及 0.0.7 的首页分类／链接内容编辑、拖动排序与点击统计原始验收保留在对应章节。0.0.6 的文档活动、登录保持、行内编辑、分类文件夹和存储初始化记录保留在对应章节。导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
+**当前源码 `VERSION` 为 0.1.0；本轮事项看板的定向验证结果见下文。** 0.0.11 的首页删除与跨分类拖动记录保留在对应章节。 0.0.10 的首页、资料库、组件与配置验证保留在对应章节。 0.0.9 的 MCP 默认空间、文档目录发现、只写回执和缺失原件验证保留在对应章节。 0.0.8 的首页操作收拢与页眉页脚常驻，以及 0.0.7 的首页分类／链接内容编辑、拖动排序与点击统计原始验收保留在对应章节。0.0.6 的文档活动、登录保持、行内编辑、分类文件夹和存储初始化记录保留在对应章节。导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
 
 **0.0.4 开发轮次为分类图标、链接删除、内网获取、弹窗、空间偏好和组件内容设置。** 这些变更已整理到 0.0.4 的日期版本记录；开发时的源码与独立浏览器结果见文末“2026-10-24 开发验收：导航内容与管理交互”，不计入 0.0.2 的既有发布记录。
 
@@ -15,6 +15,48 @@
 `http_smoke.py` 使用 Python 3.10+ 标准库向真实运行的服务发送 HTTP 请求，不导入后端实现。测试会创建随机账号、空间内容、书签和布局，并切换访问模式；**只能对空的、可丢弃的测试数据库执行**。不要使用演示实例或个人正在使用的数据目录。
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
+
+## 事项看板：0.1.0
+
+2026-11-13（Asia/Shanghai）在独立回环实例、专用 PostgreSQL 测试库和可丢弃文档目录完成定向验证。公开源码、构建和正式托管发布分别记录；没有使用日常数据库或修改用户的原件。
+
+| 验证 | 实际结果与范围 |
+| --- | --- |
+| HTTP/MCP 业务与权限 | `TestWorkBoardHTTPAndMCP` 的 SQLite、PostgreSQL 分支均通过。覆盖稳定 ID 重放、同 ID 不同意图拒绝、事项版本冲突、非法引用原子回滚、筛选隐藏卡片顺序、真实列尾、排序间隔耗尽后的重排、过期游标、项目/事项归档恢复、匿名/个人空间/源限定 PAT、只写回执、CSRF 与原资料保留。 |
+| 012 数据迁移 | `TestWorkMigrationPreservesAndRollsBack` 在两种数据库均通过。验证已有业务数据保留，以及迁移故障时事务回滚；注意事项索引修正后重新验证该迁移。 |
+| 既有 MCP | `TestMCPBoundSpace`、`TestMCPDefaultFiltersAndBatchErrorDetails` 通过，原有默认空间与工具默认参数行为保持。 |
+| 资料库核心 | `library_navigation_core.test.mjs`、`library_links_core.test.mjs` 共 5 项通过，包含链接边界、附件授权路径、原 Markdown 保留与跨空间深链。 |
+| 中文浏览器 | **11 个不同检查组**通过：真实创建/编辑/刷新、原生拖动、菜单状态变更、冲突草稿、提交成功但回包丢失、归档恢复、脏表单关闭、项目归档未知响应、资料关联、四尺寸布局、首页加载与大数据量检查。组名见下文；不把同一组在中途失败和补测中的结果重复计数。 |
+| 英文浏览器 | 3 个关键检查组通过：项目/事项创建编辑、从文档/书签创建及资料关联、看板/列表和四尺寸几何/关闭点击。 |
+| 真实进程重启 | 当前 0.1.0 SQLite 程序停止后重新启动，项目归档、事项全部业务字段及 revision、书签引用均保留；归档项目中的开放事项仍可见，重启后使用已保存 revision 继续写入成功。此项不声称在 PostgreSQL 上重跑了同一浏览器/进程夹具。 |
+| 性能 | SQLite/PostgreSQL 各 100、1,000、10,000 条数据的 25 次顺序 HTTP 样本完成；另有实际浏览器三种规模、每组 3 个新上下文和 20 次 HTTP 样本。结果与方法见 [性能报告](../docs/PERFORMANCE.md#work-board--010-2026-11-13)。 |
+| 构建 | TypeScript、Vite 生产构建与 Go 服务构建退出 0。Vite 既有主入口体积警告仍保留，没有将其隐藏或误写成不存在。 |
+
+中文检查组为 `home_initial_loading_baseline`、`http_references_versions_and_create_replay`、`ui_create_project_item_edit_and_persistence`、`ui_native_drag_and_keyboard_status`、`ui_conflict_preserves_draft_and_uncertain_response_reads_back`、`ui_archive_restore_and_dirty_close_guard`、`ui_project_archive_unconfirmed_and_recovery`、`ui_resources_and_create_from_originals`、`ui_view_switch_and_four_screen_sizes`、`project_archive_preserves_open_items_and_originals`、`bounded_board_100_1000_10000_performance`。
+
+首次中文浏览器运行的前 5 组通过，四尺寸组在 1920×1080 的详情关闭按钮处失败。实际截图确认抽屉继承了居中位移且被遮罩覆盖；仅修正抽屉位移变量/层级，再对该组和新增异常场景补测。没有把首次整体失败报告写为整轮通过，也没有重跑未受影响的已通过业务组。最终中文补测与英文报告均无未处理页面异常。故障注入的预期失败请求单独由用例核对。
+
+未知项目归档测试在没有落库的 503 后读回原记录，确认弹窗仍保留且未误报成功；用户采用最新版本后才正常归档。恢复已提交但回包丢失时，通过读回实际 `archived` 值确认完成，只有一次 PATCH。事项的回包丢失测试也真实转发成功请求后中断浏览器响应，未盲目重发。
+
+四种尺寸为 **2560×1440、1920×1080、1600×900、2560×1080**。检查文档宽度、详情整体边界、页头/页尾控件，并实际点击关闭；中英文各保留 8 张看板/详情截图，另有 10,000 条数据截图。已目视检查小屏抽屉和大数据量看板，不将截图存在本身作为视觉通过依据。
+
+定向 Go 与核心测试入口：PostgreSQL 使用 `LINGSHU_TEST_STORAGE_POSTGRES_URL` 指定专用数据库；没有配置该变量时，对应分支会跳过，不能记为 PostgreSQL 通过。
+
+```bash
+node --test tests/library_navigation_core.test.mjs tests/library_links_core.test.mjs
+
+# 从 server/ 运行；PostgreSQL 必须使用专用可丢弃测试库。
+go test ./internal/home -run '^(TestWorkBoardHTTPAndMCP|TestWorkMigrationPreservesAndRollsBack|TestMCPBoundSpace|TestMCPDefaultFiltersAndBatchErrorDetails)$' -count=1 -v
+
+# 可选性能采样；普通 CI 不以耗时阈值代替功能验证。
+LINGSHU_WORK_PERFORMANCE=1 go test ./internal/home -run '^TestWorkPerformance$' -count=1 -v
+```
+
+`tests/browser_work_items.cjs` 仅接受回环实例，并核对站点名 `Release UI fixture sqlite` 或 `Release UI fixture postgres`。必须提供由测试者新建的独立夹具，不能把已有站点改名后运行。配置 `UI_FIXTURES` 指向 JSON，包含 provider 键和 `url`、`username`、`password`、`shared`、`documentRoot`；`OUTPUT_DIR` 是该夹具自己的目录，`documentRoot` 为它的 `documents` 子目录，其中 `plan.md` 原始内容为 `# Work fixture\n\nOriginal mounted document.\n`。性能种子只允许写该目录下真实、非符号链接的 `data/lingshu-home.db`，并核对目录关系和专用 ID 前缀。
+
+配置 `PLAYWRIGHT_MODULE`、`CHROMIUM_PATH` 及有效中英文字体后，运行 `node tests/browser_work_items.cjs`。`UI_CHECK_MATCH` 可选择某些检查组；脚本会创建必要的最小前置记录，未选中的组不计为通过。`UI_BASELINE=1` 只测首页，不调用工作项 API。报告不写入密码、Cookie、令牌或连接串。夹具必须在运行结束后停止，临时凭据应删除；本轮专用 PostgreSQL 数据库已经确认无活动连接后清理，测试证据保留。
+
+正式版本以相同提交的托管 CI、标签打包、公开资产校验和、匿名镜像读回及真实发布程序重启检查为准。本节记录的是提交前已完成的候选验证，不预先声称发布成功。
 
 ## 首页书签删除与跨分类拖动：0.0.11
 

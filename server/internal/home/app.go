@@ -137,6 +137,7 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 	a.registerComponentTemplateRoutes()
 	a.registerNetworkProxyRoutes()
 	a.registerDocumentRoutes()
+	a.registerWorkRoutes()
 	a.startIntegrationWorkers()
 	a.startAutoIconWorker()
 	a.startDocumentWorker()

@@ -50,7 +50,7 @@ One Linux amd64 Docker image is built and exercised. The Linux program, built fr
 | `release-metadata.json` | Version, tag, commit, image identity and the complete artifact list |
 | `SHA256SUMS` | Hashes for every transferred release artifact except the checksum manifest itself |
 
-The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.0.10` uses `ghcr.io/zhigege666/lingshu-home:0.0.10`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
+The registry coordinate is `ghcr.io/<lowercase owner>/<lowercase repository>:<full version>`. Version `0.1.0` uses `ghcr.io/zhigege666/lingshu-home:0.1.0`. A prepared coordinate is not evidence of successful publication; check the matching release run and verify the actual image before announcing availability.
 
 The application publisher pushes immutable exact version tags. After a stable GitHub Release is successfully published, a separate promotion job synchronizes `latest` to the highest published stable SemVer version. Drafts and prereleases are excluded. SemVer build metadata `+` is represented as `_` in the Docker tag because Docker tags cannot include `+`; release metadata retains the original SemVer. Multiple highest stable releases with equal SemVer precedence but different build metadata are ambiguous and stop promotion for maintainer review.
 
@@ -115,6 +115,16 @@ sha256sum --check SHA256SUMS
 ```
 
 The packaging command builds and validates files locally; it does not authenticate to a registry, push an image or create a GitHub Release. Online publication is a separate workflow stage.
+
+## Version 0.1.0 upgrade and rollback
+
+Version 0.1.0 adds work projects/items, resource references, scoped HTTP/MCP tools and additive migration `012_work_board.sql` for SQLite and PostgreSQL. It introduces no required environment variable or deployment dependency. Existing PATs retain their existing scopes; explicitly grant `work:read` and/or `work:write` to integrations that need the new tools. Source-bound PATs cannot operate work items.
+
+Before upgrading, back up the database/data with its matching instance keys, provider configuration and document recovery history. Back up mounted Markdown originals and attachments separately. Retain deployment identity, language, document mounts and HTTP/TLS settings. Migration 012 adds work tables/indexes and does not rewrite original files.
+
+After upgrading, confirm the running version, create/read a disposable work item through an authorized space, and check both existing Library references and the authenticated MCP tool list. A gateway may require rediscovery before it exposes the ten work tools. Publishing the release or refreshing a gateway does not itself upgrade an installed container.
+
+Returning to 0.0.11 requires the matching pre-upgrade database/data backup and application version. Preserve any later work before recovery; do not edit migration ledgers or assume changing an image tag reverses schema/data changes. Functional, dual-provider migration and performance evidence is recorded in [the test guide](../tests/README.md) and [performance report](PERFORMANCE.md).
 
 ## Version 0.0.10 upgrade and rollback
 

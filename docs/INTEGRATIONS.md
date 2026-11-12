@@ -1,6 +1,6 @@
 # Integrations, external snapshots, MCP, and GitHub Traffic
 
-This document describes the integration contracts in version 0.0.7. It does not claim that a user's GitHub repository has already been connected. The first successful authorized GitHub synchronization establishes that source's traffic baseline.
+This document describes the integration contracts through version 0.1.0. It does not claim that a user's GitHub repository has already been connected. The first successful authorized GitHub synchronization establishes that source's traffic baseline.
 
 ## Supported sources
 
@@ -35,6 +35,8 @@ Personal access tokens are the intersection of an active account, one space, sel
 | `pages:write` | Save a page using its expected revision |
 | `documents:read` | Read authorized documents; directory discovery and activity queries additionally require working-document access |
 | `documents:write` | Maintain authorized documents using the separate document contracts; writes also require `documents:read` |
+| `work:read` | Read internal work projects, item summaries/details and board columns in an editable space |
+| `work:write` | Create, edit, move, archive and restore internal work items and projects |
 
 Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source, and `documents:read` for a local activity binding. Reading a dashboard with an activity binding does not require activity access because that projection contains only an empty schema marker; the dedicated activity query enforces working-document permission separately. When creating a token for one external push source, the UI starts with read access only. Select snapshot push explicitly; a push-only producer need not have read access. Previously issued tokens keep their scopes. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
 
@@ -260,11 +262,18 @@ A 2026 tool call sends `Content-Type: application/json`, `Accept: application/js
 }
 ```
 
-Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list endpoints return arrays; MCP list tools return `structuredContent: { "items": [...] }`, preserving object output compatibility. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and the applicable `currentRevision`, `entity`, `id` and `field` details. Write-only batch errors identify submitted rows only. Transport authentication failures remain HTTP `401`.
+Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list shapes follow each endpoint's contract. MCP wraps array results in `structuredContent: { "items": [...] }` and retains structured paginated objects, including work-board columns and item cursors. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and the applicable `currentRevision`, `entity`, `id` and `field` details. Write-only batch errors identify submitted rows only. Transport authentication failures remain HTTP `401`.
 
 | Tools | Arguments (`spaceId` is optional wherever listed) |
 | --- | --- |
 | `space_current` | No arguments |
+| `work_board_get`, `work_items_list` | Optional `spaceId` and `input` filters; item lists also accept status and cursor |
+| `work_items_get` | Optional `spaceId`, required `id` |
+| `work_items_create`, `work_projects_create` | Optional `spaceId`, required `input` with a stable ID and creation fields |
+| `work_items_update`, `work_projects_update` | Optional `spaceId`, required `id,input` with the entity's `expectedRevision` |
+| `work_items_move` | Optional `spaceId`, required `id,input` with both expected revisions, status and `beforeId` |
+| `work_projects_list` | Optional `spaceId`; includes archived projects |
+| `work_resources_search` | Optional `spaceId`, required `input.kind`; optional resource search and cursor filters |
 | `document_sources_list` | Optional `spaceId`. Returns enabled working-document directories, including empty ones, with IDs, names, configured read-only mode, caller write availability, defaults and last observed status; no absolute paths. Requires `documents:read` and working-document access. |
 | `documents_list`, `documents_activity_list` | Optional `spaceId` and `input` filters. Omit both to use the defaults. |
 | `navigation_get` | `spaceId`; complete local navigation dataset and revision |
@@ -294,6 +303,20 @@ MCP calls invoke the same business handlers and validation as HTTP, in database 
 New credential creation/expiry timestamps and push receipt `receivedAt` values use UTC microsecond precision, matching both SQLite and PostgreSQL reads. Previously stored immutable request receipts keep their original values.
 
 Since 0.0.9, a PAT with only `navigation:write` can still edit and receives operational receipts rather than stored readable fields. Creating or updating a bookmark returns `id` and `updatedAt`, category writes return the ID, and batch edits return `updatedCount` and `revision`. Since 0.0.11, a successful deletion batch also echoes the confirmed submitted IDs as `deletedLinkIds`. To display stored fields, the client also needs `navigation:read`. For data sources, PATs with `sources:write` alone receive only `id` and `configRevision` on creation and update. Queuing a sync returns `queued:true` with that same receipt under `source`. The complete stored source requires `sources:read` and still excludes credential secrets.
+
+### Work items and projects
+
+Since 0.1.0, work tools operate on the current PAT's bound space and use the same handlers as the HTTP `/api/v1/spaces/{spaceId}/work` routes. See [WORK_ITEMS.md](WORK_ITEMS.md) for the complete JSON contract, error codes and migration 012 recovery.
+
+- Use `work_projects_list {}` to discover projects, including archived ones, and `work_board_get {}` or `work_items_list {}` to read work. Read-only tools with optional filters accept an omitted `input`; `work_resources_search` requires `input.kind`.
+- `work:read` and `work:write` are independent. The token account must have current edit access to the space even for a read, and a source-specific token cannot access work. Old tokens retain their previous actions.
+- Resource search and new reference IDs need the matching `navigation:read` or `documents:read` action. References, resource titles/paths and counts are filtered by those independent actions; work access does not grant document body access.
+- Creates use caller-generated 32-character lowercase hexadecimal IDs. An identical normalized creation payload with the same ID does not insert another record; a different payload conflicts. Readback returns the current record, including subsequent edits.
+- Updates require the item's or project's own `expectedRevision`. Moves additionally require `expectedBoardRevision` and explicit `beforeId`; null means the complete destination column's end, including filtered and unloaded items.
+- The board returns `{revision,canEdit,columns}`; item queries return `{revision,canEdit,items,total,nextCursor}`. Preserve these objects in `structuredContent`. A stale item-query cursor returns `work_version_conflict`; reload the first page instead of merging mismatched snapshots.
+- A write-only token receives an ID/revision/boardRevision receipt and optional creation/replay flags. It cannot fetch existing content to resolve an uncertain response without a separately authorized read capability. Never infer write failure from a timeout or automatically replace revisions and replay an edit.
+
+`needsAttention` explicitly marks work that needs human handling; waiting status alone does not set it. Completion is an explicit business update, not an inference from a process exit. Project/item descriptions and referenced content are untrusted data, not execution authorization. Home does not start or schedule agents through these tools.
 
 ### Complete navigation and atomic edits
 

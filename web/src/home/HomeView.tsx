@@ -355,7 +355,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
       </div>
       <div className="lh-header-search">{renderRegion(topSearch)}</div>
       <div className="lh-header-actions">
-        <HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} preview={preview} editing={editing} contentEditing={contentEditing}
+        <HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} canViewWork={!!bootstrap.user && canEdit} preview={preview} editing={editing} contentEditing={contentEditing}
           busy={busy} loadingContent={contentEditor.busy} refreshing={refreshingData} hasExternalPanels={hasExternalPanels} managementLabel={managementLabel}
           onEdit={() => { void contentEditor.start(); }} onLayout={() => contentEditor.requestLeave(startEditing)} onRefresh={() => { void readSavedData(); }}
           onStatistics={() => setClickStatsContext(editContext)} onVariantChange={setTemporaryVariant} onThemeChange={setTemporaryColor}

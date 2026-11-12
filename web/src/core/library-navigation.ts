@@ -1,4 +1,4 @@
-export type LibraryTarget = { spaceId: string; documentId: string }
+export type LibraryTarget = { spaceId: string; documentId: string; bookmarkId?: string; view?: 'board' }
 
 /** A route may select a document only after its space is confirmed accessible. */
 export function readLibraryTarget(route: string): LibraryTarget | null {
@@ -6,7 +6,7 @@ export function readLibraryTarget(route: string): LibraryTarget | null {
   const queryAt = normalized.indexOf('?')
   if ((queryAt < 0 ? normalized : normalized.slice(0, queryAt)) !== '/library') return null
   const query = new URLSearchParams(queryAt < 0 ? '' : normalized.slice(queryAt + 1))
-  return { spaceId: query.get('space') || '', documentId: query.get('document') || '' }
+  return { spaceId: query.get('space') || '', documentId: query.get('document') || '', ...(query.get('bookmark') ? { bookmarkId: query.get('bookmark')! } : {}), ...(query.get('view') === 'board' ? { view: 'board' as const } : {}) }
 }
 
 export function accessibleLibrarySpace(target: LibraryTarget | null, spaces: readonly { id: string }[]): string {

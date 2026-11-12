@@ -630,6 +630,8 @@ Each PAT belongs to one account and one space. Optional `sourceId` further restr
 | --- | --- |
 | `navigation:read` | Local navigation reads and HTML export |
 | `navigation:write` | Bookmark/category maintenance and bookmark import |
+| `work:read` | Internal work-board/project/item reads; linked resources retain separate read scopes |
+| `work:write` | Internal work/project creation, edits, moves, archive and restore |
 | `pages:read` | Page reads; dashboard and JSON export also require navigation read |
 | `pages:write` | Page replacement; bound local/external datasets also require their read actions |
 | `sources:read` | Permitted source metadata and snapshots |
@@ -646,13 +648,36 @@ The GitHub adapter only calls fixed HTTPS repository Traffic endpoints on `api.g
 
 `github.traffic@1` keeps the first successful 14-day views/clones window as a baseline and stores later observed daily values. Unknown days remain null rather than zero; partial-day observations retain their measurement timestamps. GitHub rolling-window totals are not lifetime totals. Popular paths and referrers have independent success/error status, so auxiliary failures do not discard a valid core observation. No live GitHub account data is needed for the automated adapter tests.
 
+## Work items and projects
+
+Version 0.1.0 adds the internal work board under `/api/v1/spaces/{spaceId}/work`, backed by additive migration 012 for SQLite and PostgreSQL. The [work guide and complete contract](WORK_ITEMS.md) cover the browser flow, fields, limits, HTTP/MCP mapping, archive behavior and upgrade recovery.
+
+| Method and path suffix | Result / guard |
+| --- | --- |
+| `GET /board` | `{revision,canEdit,columns:[{status,total,items,nextCursor}]}`; four paginated summary columns |
+| `GET /items` | `{revision,canEdit,items,total,nextCursor}`; optional project/status/text/archive/attention filters |
+| `GET /items/{id}` | Current authorized item detail and references |
+| `POST /items` | Stable caller-generated ID and title; optional project, status, notes, attention and resource IDs |
+| `PATCH /items/{id}` | Supplied fields plus item `expectedRevision`; includes archive/restore |
+| `POST /items/{id}/move` | Item `expectedRevision`, `expectedBoardRevision`, target `status` and explicit `beforeId` |
+| `GET /projects` | `{items}`, including archived projects |
+| `POST /projects` | Stable caller-generated ID and name |
+| `PATCH /projects/{id}` | Project `expectedRevision` plus name and/or archive state |
+| `GET /resources` | Authorized bookmark/document summaries, with bounded cursor pagination |
+
+Work always requires a signed-in account with edit access to the space, including for reads. Anonymous public/open-edit access does not expose work. PATs additionally require `work:read` or `work:write`; source-specific PATs cannot access the board. Reading or adding linked bookmarks/documents requires the corresponding `navigation:read`/`documents:read` action; a work scope does not grant document body access. References and their counts omit unauthorized types.
+
+Ordinary edits check only the edited entity's revision. Moves also check the board revision and resolve anchors against the complete active target column, including hidden/unloaded items. A null `beforeId` appends to that full column. Query cursors are bound to their filters and board snapshot; `409 work_version_conflict` requires a fresh first page. Preserve drafts on conflicts and read back uncertain results before deciding on another write.
+
+Work creates and mutations return HTTP 200. Read/write callers receive the current authorized object; write-only PATs receive `{id,revision,boardRevision}`, with optional creation/replay flags and no stored content. Existing PATs gain no work actions automatically. Work has no permanent-delete endpoint or external execution engine; archive and restore do not modify referenced originals.
+
 ## MCP
 
 The endpoint is `/mcp` on the same server. It uses the official MCP Go SDK and stateless Streamable HTTP, supporting protocol versions `2026-07-28` and `2025-11-25`. Browser cookies are not accepted as MCP authentication; supply a PAT. The SDK handles protocol negotiation, initialization/discovery, schemas and JSON-RPC framing.
 
 Since 0.0.9, a space-scoped MCP call may omit `spaceId`; Home resolves it from the PAT authenticated for that request. This applies to reads and writes. `space_current` accepts no parameters and returns the bound space’s `spaceId`, `name` and `kind`. HTTP routes still take their documented identifiers. Read-only tools whose filters are all optional accept `{}` with no `input` for their defaults. Explicit `null`, missing required resource IDs and missing mutation `input` objects remain invalid. `document_sources_list` returns only enabled directories in the current working-document scope, including empty directories. See the [document guide](DOCUMENT_LIBRARY.md) for the destination fields and read failures.
 
-Tools cover dashboard/page reads, page updates, category and bookmark CRUD, source management, snapshot reads/pushes and synchronization requests. Tool inputs contain resource identifiers and, for mutations, an `input` object. List results use an `items` array. Discover exact schemas using the negotiated protocol rather than duplicating JSON-RPC assumptions in clients.
+Tools cover dashboard/page reads, page updates, category and bookmark CRUD, source management, snapshot reads/pushes, synchronization requests and the [work-board/project/item operations](WORK_ITEMS.md). Tool inputs contain resource identifiers and, for mutations, an `input` object. List results use an `items` array. Discover exact schemas using the negotiated protocol rather than duplicating JSON-RPC assumptions in clients.
 
 Every tool invocation reloads the current account, permission epoch and token scope. Mutations use the same write gate, transaction, authorization and business handlers as the HTTP API. Long-lived clients cannot retain revoked permissions. MCP responses are private and not cacheable across accounts.
 

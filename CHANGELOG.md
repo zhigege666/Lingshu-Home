@@ -4,6 +4,27 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-13
+
+### Work board and resource continuity
+
+- Add a lazy-loaded work board in Library, with a Home More entry, shared list/board data, project grouping and search. Four states cover Todo, Doing, Waiting and Done; Needs attention is an independent filter. A title is the only required content field.
+- Create work from bookmarks or documents, retain original files, and add optional next steps/results. Archive and restore projects and items separately; project archive keeps open items in All items. Completing work does not require a result form.
+- Save fields with per-item revision checks. Move by stable ID and a real destination anchor, preserving hidden and unloaded siblings. Keep drafts on conflicts and uncertain responses for comparison before a deliberate retry.
+
+### HTTP, MCP and private working data
+
+- Reuse HTTP handlers for MCP work operations with independent work:read/work:write actions; existing tokens gain no permissions. Require a signed-in space editor and reject source-bound tokens.
+- Validate bookmark/document references with their respective read scopes and current-space ownership. Work access does not grant document content access. Write-only callers receive operational receipts.
+- Use stable creation IDs, replay the same normalized intent without duplicate insertion, and reject ID reuse with different content. Bind pagination cursors to filters and board revision.
+- Page column summaries and resource selection, defer board code, and keep Markdown bodies and external service calls out of board reads.
+
+### Upgrade and rollback
+
+- Add SQLite/PostgreSQL migration 012 (work_board) for projects, items, references, revisions and indexes. Preserve existing navigation, documents, page configuration, click history and deployment settings.
+- Back up complete database/data, local keys and configuration before upgrading; mounted originals remain separately backed up. Returning to 0.0.11 or earlier requires the matching pre-upgrade backup, not just an image-tag change or removed migration records.
+- No additional service, mount, environment variable or AgentOS dependency. Rediscover the upgraded MCP catalog when enabling new actions; old credentials retain their grants.
+
 ## [0.0.11] - 2026-11-13
 
 ### Homepage bookmark maintenance

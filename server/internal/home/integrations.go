@@ -25,6 +25,7 @@ var integrationActions = map[string]bool{
 	"navigation:read": true, "navigation:write": true, "sources:read": true, "sources:write": true,
 	"datasets:write": true, "pages:read": true, "pages:write": true,
 	"documents:read": true, "documents:write": true,
+	"work:read": true, "work:write": true,
 }
 var integrationTokenPattern = regexp.MustCompile(`^lhp_[A-Za-z0-9_-]{43}$`)
 var integrationExternalID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
@@ -618,6 +619,7 @@ func validateIntegrationConfiguration(name, kind, schema string, version int, co
 	}
 	return nil
 }
+
 // A writer needs the source ID and revision for its next guarded update.
 // Reading stored connection details and sync history requires sources:read.
 func (r *Request) sourceWriteResult(s IntegrationSource) any {

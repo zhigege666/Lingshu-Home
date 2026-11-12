@@ -253,3 +253,12 @@ Counters start empty at the recorded migration time. Earlier usage is unknown. A
 Back up the complete data directory, external PostgreSQL database when used, matching instance keys, storage/deployment configuration, history and mounted original documents before upgrading. A failed 011 transaction rolls back its schema and ledger entry. A 0.0.6 binary rejects a database containing unknown migration 011; rollback requires restoring its matching pre-upgrade database/data and keys with the old application, plus separately reconciling any original-file edits. Do not remove ledger rows or drop the new tables as a downgrade shortcut.
 
 Focused HTTP/atomic-move/click tests create their own random schemas using `LINGSHU_TEST_STORAGE_POSTGRES_URL`; 011 preservation/rollback cases use `LINGSHU_TEST_DOCUMENT_POSTGRES_URL`. Use only dedicated test databases and do not count an unset-provider skip as PostgreSQL verification.
+
+
+## Work board migration 012 (0.1.0)
+
+Both SQLite and PostgreSQL apply 012_work_board.sql using the existing migration ledger and transaction rules. It adds work_spaces, work_projects, work_items, bookmark/document relation tables and indexes. It does not rewrite original Markdown files, existing navigation, page configuration or click counters. Keep the existing storage selection, keys, document mounts and runtime identity.
+
+Before upgrading, stop writes and take a complete consistent database/data backup, including external PostgreSQL when configured and local instance keys. Back up mounted originals separately. Returning to 0.0.11 or earlier requires stopping 0.1.0, retaining newer work separately and restoring matching pre-012 data before starting the old image. Do not remove ledger rows or manually drop tables.
+
+Work data has no anonymous publication mode. The [work board guide](WORK_ITEMS.md) documents space-editor permissions, references, archive behavior and Agent operations.

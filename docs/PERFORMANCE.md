@@ -1,6 +1,66 @@
 # Performance and interface verification
 
-This document records reproducible development measurements, their scope, and the changes they motivated. Product version: `0.1.0-dev.1`. These are Chromium laboratory samples on an internal deployment, not a Lighthouse score, a public-network service guarantee, or real-user Core Web Vitals percentiles.
+This document records reproducible development measurements, their scope, and the changes they motivated. Each section identifies its actual product/build version; earlier development evidence is retained under its original date. These are laboratory samples, not a Lighthouse score, a public-network service guarantee, or real-user Core Web Vitals percentiles.
+
+## Work board — 0.1.0, 2026-11-13
+
+The board is a deferred Library view. Its initial request returns up to 30 summaries per status (120 in total), with cursor-based continuation. Description/result bodies and mounted Markdown contents are not loaded into these summaries. Dragging uses native browser events and existing UI primitives; no new drag-and-drop dependency or background board polling was added.
+
+### Database and HTTP measurements
+
+`TestWorkPerformance` exercised disposable SQLite and PostgreSQL fixtures at 100, 1,000 and 10,000 items. Each operation used one warmup followed by **25 sequential local HTTP samples**, including authorization. These are development measurements without concurrent clients, remote latency, production storage contention or a service-level guarantee.
+
+| Items | SQLite board P95 | PostgreSQL board P95 | Summary response bytes |
+| --- | ---: | ---: | ---: |
+| 100 | 6.525 ms | 7.676 ms | 33,565 |
+| 1,000 | 6.453 ms | 10.953 ms | 40,973 |
+| 10,000 | 9.651 ms | 18.653 ms | 40,977 |
+
+| Other operations at 10,000 items | SQLite P95 | PostgreSQL P95 |
+| --- | ---: | ---: |
+| List first page | 5.836 ms | 14.741 ms |
+| Move an item | 4.067 ms | 12.145 ms |
+| Needs-attention filter plus text query | 12.272 ms | 15.569 ms |
+
+The board handler issued **7 SQL calls** at each size; this count excludes surrounding authentication/transaction setup. Actual column query plans used `work_items_column` at 1,000 and 10,000 items. PostgreSQL chose a sequential scan for the small 100-item fixture, which is a valid planner choice.
+
+The first 10,000-item attention/query measurement exposed a SQLite P95 of **42.584 ms**. Adding `(space_id, archived, needs_attention, status, sort_order, id)` to migration 012 reduced the same-method local result to **12.272 ms**, approximately 71% lower. PostgreSQL changed from 20.648 ms to 15.569 ms. Before/after samples and plans were retained; these are sequential measurements on one host, not a claim about every deployment or concurrent search capacity.
+
+Reproduce the optional performance suite from `server/` with `LINGSHU_WORK_PERFORMANCE=1` and a dedicated PostgreSQL test database as described in [the test guide](../tests/README.md). It is opt-in to avoid turning ordinary functional CI into a timing benchmark.
+
+### Actual browser population limits
+
+A separate Chromium suite used fresh SQLite fixtures and three fresh browser contexts per size at 2560×1440. Its synthetic titles and descriptions differ from the Go HTTP fixture above, so response sizes are not interchangeable.
+
+| Stored items | Initial mounted cards | DOM nodes | Median board-ready observation | HTTP P95, 20 samples | Response bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 100 | 100 | 1,833 | 986.6 ms | 7.659 ms | 30,177 |
+| 1,000 | 120 | 2,157 | 999.1 ms | 8.435 ms | 36,919 |
+| 10,000 | 120 | 2,157 | 1,002.6 ms | 13.306 ms | 36,923 |
+
+Board readiness means a real card was visible and two animation frames had completed. It is not FCP, LCP or a browser score. The initial DOM remained bounded between 1,000 and 10,000 records; explicitly loading additional pages can add cards. The functional viewport check also observed **zero work API requests during a settled five-second foreground interval**. This short observation verifies absence of board polling in that scenario, not server-wide inactivity.
+
+### Homepage comparison with released 0.0.11
+
+The released 0.0.11 frontend/server and the 0.1.0 candidate each ran against their own fresh fixture with the same single manual-icon bookmark. Three fresh contexts per version used the same Chromium runtime and 2560×1440 viewport.
+
+| Median of three samples | Released 0.0.11 | 0.1.0 candidate |
+| --- | ---: | ---: |
+| Initial JS/CSS encoded bodies | 250,455 B | 251,030 B |
+| Homepage DOM nodes | 143 | 143 |
+| Readiness observation | 889.4 ms | 892.6 ms |
+| Observed LCP | 176 ms | 160 ms |
+| Pre-observation long-task blocking | 79 ms | 73 ms |
+
+The initial encoded JS/CSS increase was **575 B (about 0.23%)**. Neither version requested BoardView assets or work API data from the homepage. Readiness includes the test's `networkidle` wait; three local samples are too few to infer a meaningful speed improvement or regression from the small timing differences. The existing main-entry size warning remains visible in the Vite build; deferred board code does not eliminate all pre-existing entry-bundle cost.
+
+### Interaction and responsive verification
+
+Chinese and English checks exercised the board at **2560×1440, 1920×1080, 1600×900 and 2560×1080**, including board/list switching, detail bounds, footer/header controls and real close clicks. The 2200px breakpoint retains an inset detail pane on large screens and an overlay drawer below it.
+
+The first smaller-screen run exposed inherited Dialog translation and a drawer stacking level below the overlay. The fix explicitly resets the Tailwind translation variables and uses the existing Dialog content stacking level. The corrected build passed all four sizes and was visually inspected. Project archive failure/readback was also checked against actual submitted archive state; a matching name alone cannot confirm an archive.
+
+See [work items](WORK_ITEMS.md) for behavior and permissions and [the test guide](../tests/README.md) for functional, migration and process-restart evidence. Candidate measurements do not themselves establish release publication or deployment.
 
 ## Network routing, template discovery and dashboard presets — 2026-10-19
 

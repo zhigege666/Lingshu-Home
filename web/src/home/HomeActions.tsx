@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { DropdownMenu } from 'radix-ui'
-import { BarChart3, BookOpen, Check, LayoutGrid, List, Moon, MoreHorizontal, Pencil, RefreshCw, Settings2, Sun } from 'lucide-react'
+import { BarChart3, BookOpen, Check, LayoutDashboard, LayoutGrid, List, Moon, MoreHorizontal, Pencil, RefreshCw, Settings2, Sun } from 'lucide-react'
 import { t } from '../core/i18n'
 import './home-actions.css'
 
@@ -9,6 +9,7 @@ export type HomeActionsProps = {
   variant: 'cards' | 'directory'
   canEdit: boolean
   canViewStats: boolean
+  canViewWork: boolean
   preview: boolean
   editing: boolean
   contentEditing: boolean
@@ -24,11 +25,11 @@ export type HomeActionsProps = {
   onVariantChange: (variant: 'cards' | 'directory') => void
   onThemeChange: (theme: 'light' | 'dark') => void
   /** The host supplies the unsaved-draft guard before changing the route. */
-  onNavigate: (href: '#/library' | '#/admin') => void
+  onNavigate: (href: '#/library' | '#/library?view=board' | '#/admin') => void
 }
 
 /** The header keeps its primary action visible; secondary actions share one menu. */
-export function HomeActions({ theme, variant, canEdit, canViewStats, preview, editing, contentEditing, busy, loadingContent, refreshing, hasExternalPanels,
+export function HomeActions({ theme, variant, canEdit, canViewStats, canViewWork, preview, editing, contentEditing, busy, loadingContent, refreshing, hasExternalPanels,
   managementLabel, onEdit, onLayout, onRefresh, onStatistics, onVariantChange, onThemeChange, onNavigate }: HomeActionsProps) {
   const [open, setOpen] = useState(false)
   const [palette, setPalette] = useState<CSSProperties>({})
@@ -66,7 +67,7 @@ export function HomeActions({ theme, variant, canEdit, canViewStats, preview, ed
     afterClose.current = action
     setOpen(false)
   }
-  function navigate(event: MouseEvent<HTMLAnchorElement>, href: '#/library' | '#/admin') {
+  function navigate(event: MouseEvent<HTMLAnchorElement>, href: '#/library' | '#/library?view=board' | '#/admin') {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
     event.preventDefault()
     closeThen(() => onNavigate(href))
@@ -128,6 +129,7 @@ export function HomeActions({ theme, variant, canEdit, canViewStats, preview, ed
           {maintenance && <>
             <DropdownMenu.Label className="lh-home-actions-label">{t('访问', 'Explore')}</DropdownMenu.Label>
             <DropdownMenu.Item className="lh-home-actions-item" asChild><a href="#/library" onClick={event => navigate(event, '#/library')}><BookOpen size={16} aria-hidden="true"/><span>{t('资料库', 'Library')}</span></a></DropdownMenu.Item>
+            {canViewWork && <DropdownMenu.Item className="lh-home-actions-item" asChild><a href="#/library?view=board" onClick={event => navigate(event, '#/library?view=board')}><LayoutDashboard size={16} aria-hidden="true"/><span>{t('事项看板', 'Work board')}</span></a></DropdownMenu.Item>}
             {canViewStats && !contentEditing && <DropdownMenu.Item className="lh-home-actions-item lh-click-stats-trigger" onSelect={() => closeThen(onStatistics)}><BarChart3 size={16} aria-hidden="true"/><span>{t('点击统计', 'Click statistics')}</span></DropdownMenu.Item>}
             <DropdownMenu.Separator className="lh-home-actions-separator"/>
             <DropdownMenu.Label className="lh-home-actions-label">{t('页面', 'Page')}</DropdownMenu.Label>
