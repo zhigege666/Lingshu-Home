@@ -5,7 +5,7 @@ import { getLocale, t } from '../core/i18n'
 import { createDraftHistory, inputHistoryGroup, recordDraft, redoDraft, undoDraft, type DraftHistory } from '../core/draft-history'
 import { useHistoryShortcuts } from '../core/useHistoryShortcuts'
 import { inlineDraftEpoch, committedInlineDataset, type BatchEditResult, type CategoryDraft, type InlineConflict, type InlineError, type InlineKind, type LinkDraft } from '../core/navigation-inline'
-import { addContentRow, newNavigationID, buildContentEdit, changeContentField, contentNavigation, discardContentOrder, freshContentDraft, moveContent, rebaseContentDraft, resolveContentField, type ContentDraft, type ContentSelection, type OrderConflict } from '../core/home-content-draft'
+import { addContentRow, newNavigationID, buildContentEdit, changeContentField, contentNavigation, deleteContentLink, discardContentOrder, freshContentDraft, moveContent, rebaseContentDraft, resolveContentField, type ContentDraft, type ContentSelection, type OrderConflict } from '../core/home-content-draft'
 import type { Dataset, NavigationData } from '../core/types'
 import type { NavigationEditor } from './navigation-editor-types'
 
@@ -122,6 +122,9 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
     if (edit(value => addContentRow(value, kind, id, spaceId, parentId))) select(kind, id)
   }
   function moveLink(id: string, categoryId: string | null, beforeId: string | null) { edit(value => moveContent(value, 'links', id, categoryId, beforeId)) }
+  function deleteLink(id: string) {
+    if (edit(value => deleteContentLink(value, id)) && selection?.kind === 'links' && selection.id === id) closeDetails()
+  }
   function moveCategory(id: string, beforeId: string | null) {
     edit(value => { const row = contentNavigation(value).categories.find(item => item.id === id); return row ? moveContent(value, 'categories', id, row.parentId, beforeId) : value })
   }
@@ -129,7 +132,7 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
     const value = state.current
     if (!value || !valid(value) || busyRef.current || value.needsRead || value.conflicts.length || value.orderConflicts.length) return
     const next = redo ? redoDraft(value.history) : undoDraft(value.history)
-    if (selection && !next.present.fields.base.data[selection.kind].some(row => row.id === selection.id)) closeDetails()
+    if (selection && !contentNavigation(next.present)[selection.kind].some(row => row.id === selection.id)) closeDetails()
     install({ ...value, history: next }); setError(''); setErrors([])
   }
   const canUndo = !!active?.history.past.length, canRedo = !!active?.history.future.length
@@ -169,6 +172,7 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
       if (!result || typeof result.revision !== 'string' || typeof result.updatedCount !== 'number' || !Array.isArray(result.categories) || !Array.isArray(result.links)) throw new Error('Unconfirmed save result')
       if (value.history.present.created.categories.some(id => !result.categories.some(row => row.id === id)) ||
           value.history.present.created.links.some(id => !result.links.some(row => row.id === id))) throw new Error('Unconfirmed created records')
+      if (value.history.present.deletedLinkIds.some(id => !result.deletedLinkIds?.includes(id))) throw new Error('Unconfirmed deleted records')
       const base = committedInlineDataset(value.history.present.fields, result)
       install({ ...value, history: createDraftHistory(freshContentDraft(base, value.history.present.locale)), needsRead: false, conflicts: [], orderConflicts: [] })
       current.current.onCommitted?.(base)
@@ -233,10 +237,10 @@ export function useHomeContentEditor({ identity, spaceId, pageId, enabled, onRef
   }
   const editor: NavigationEditor | undefined = active && navigation ? {
     spaceId, navigation, selectedLinkId: selection?.kind === 'links' ? selection.id : undefined, selectedCategoryId: selection?.kind === 'categories' ? selection.id : undefined,
-    busy: blocked, onAddLink: categoryId => add('links', categoryId), onEditLink: id => select('links', id), onEditCategory: id => select('categories', id), onRenameCategory: (id, name) => change('categories', id, { name }), onMoveLink: moveLink, onMoveCategory: moveCategory,
+    busy: blocked, onAddLink: categoryId => add('links', categoryId), onEditLink: id => select('links', id), onDeleteLink: deleteLink, onEditCategory: id => select('categories', id), onRenameCategory: (id, name) => change('categories', id, { name }), onMoveLink: moveLink, onMoveCategory: moveCategory,
   } : undefined
   return { active: !!active, draft, navigation, editor, selection, changeCount, dirty, busy, blocked, canUndo, canRedo, error, errors, status,
     needsRead: !!active?.needsRead, refreshNeeded, conflicts: active?.conflicts || [], orderConflicts: active?.orderConflicts || [], leaveOpen: !!pending,
-    start, add, change, moveLink, moveCategory, undo: () => history(), redo: () => history(true), save, readLatest, resolve, resolveOrder, closeDetails,
+    start, add, change, deleteLink, moveLink, moveCategory, undo: () => history(), redo: () => history(true), save, readLatest, resolve, resolveOrder, closeDetails,
     exit: () => requestLeave(() => {}), requestLeave, discard, keep: () => setPending(null) }
 }

@@ -9,6 +9,7 @@ export type NavigationEditor = {
   busy?: boolean
   onAddLink: (categoryId: string | null) => void
   onEditLink: (id: string) => void
+  onDeleteLink: (id: string) => void
   onEditCategory: (id: string) => void
   onRenameCategory: (id: string, name: string) => void
   /** null appends to the destination category; beforeId is a real record ID. */

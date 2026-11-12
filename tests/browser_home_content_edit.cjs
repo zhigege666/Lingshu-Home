@@ -8,12 +8,13 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 assert(process.env.UI_FIXTURES && process.env.OUTPUT_DIR, 'UI_FIXTURES and OUTPUT_DIR are required');
 const fixtures = JSON.parse(fs.readFileSync(process.env.UI_FIXTURES, 'utf8')), OUT = path.resolve(process.env.OUTPUT_DIR);
 fs.mkdirSync(OUT, { recursive: true, mode: 0o700 });
-const report = { passed: false, startedAt: new Date().toISOString(), checks: [], screenshots: [], errors: [], gesture: 'Playwright real mouse starts a native draggable handle before scrolling to the target; no synthetic drag/drop or direct DOM state mutation.' };
+const report = { passed: false, startedAt: new Date().toISOString(), checks: [], screenshots: [], errors: [], gesture: 'Playwright real mouse starts a native draggable bookmark card or handle before scrolling to the target; no synthetic drag/drop or direct DOM state mutation.' };
 const secrets = Object.values(fixtures).flatMap(f => [f.username, f.password]).filter(Boolean);
 const scrub = value => secrets.reduce((text, secret) => text.split(secret).join('[redacted]'), String(value));
 let browser, currentPage;
 async function until(fn, message) { const end = Date.now() + 15000; while (Date.now() < end) { if (await fn()) return; await new Promise(resolve => setTimeout(resolve, 60)); } throw Error(message); }
 async function check(name, run) {
+  if (process.env.UI_CHECK_MATCH && !new RegExp(process.env.UI_CHECK_MATCH).test(name)) return;
   const start = Date.now();
   try { await run(); report.checks.push({ name, passed: true, ms: Date.now() - start }); console.log('PASS ' + name); }
   catch (error) {
@@ -94,6 +95,18 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
     async function home() { await page.goto(BASE + '/#/', { waitUntil: 'domcontentloaded' }); await page.locator('.lh-home').waitFor(); await shared(); }
     async function start() { await page.locator('.lh-edit-trigger').click(); await toolbar().waitFor(); assert.equal(await page.locator('.lh-composer').count(), 0); }
     async function editLink(id, parent = panel()) { await card(id, parent).locator('.lh-bookmark-edit-title').click(); await details().waitFor(); await field('title').waitFor(); }
+    const deleteConfirm = () => page.locator('.lh-confirm-popover[data-confirm-kind=link]');
+    async function deleteDraft(id) {
+      await card(id).locator('.lh-content-delete-link').click(); await deleteConfirm().waitFor();
+      await button('确认删除', 'Delete link', deleteConfirm()).click();
+      await card(id).waitFor({ state: 'hidden' });
+    }
+    async function deletionFixture(name) {
+      return api(spacePath + '/links', 'POST', { title: prefix + ' ' + name, url: 'https://example.invalid/' + name,
+        categoryId: categories.Empty.id, icon: 'lucide:link', iconMode: 'manual', description: 'Deletion fixture',
+        contextMarkdown: 'Keep the surviving Agent notes', tags: ['delete-edit'], isFavorite: false, sortOrder: -100,
+        endpoints: [{ label: 'Docs', url: 'https://example.invalid/docs' }] }, 201);
+    }
     async function closeDetails() { if (await details().count()) { await button('关闭编辑面板', 'Close edit panel', details()).click(); await details().waitFor({ state: 'hidden' }); } }
     async function save(status = 200) {
       const response = page.waitForResponse(value => value.url() === batchURL && value.request().method() === 'POST');
@@ -151,9 +164,9 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       await until(() => visibleIds(group(categories.A.id)).then(values => values[0] === links[1].id), 'Same-category drag did not reorder');
       await button('撤销内容修改', 'Undo content edit', toolbar()).click(); assert.equal((await visibleIds(group(categories.A.id)))[0], links[0].id);
       await button('重做内容修改', 'Redo content edit', toolbar()).click(); assert.equal((await visibleIds(group(categories.A.id)))[0], links[1].id);
-      await drag(card(links[2].id).locator('.lh-nav-drag-handle'), group(categories.B.id).locator('.lh-group-heading'));
+      await drag(card(links[2].id), group(categories.B.id).locator('.lh-group-heading'));
       await until(() => card(links[2].id, group(categories.B.id)).count().then(value => value === 1), 'Cross-category drop failed');
-      await drag(card(links[3].id).locator('.lh-nav-drag-handle'), group(categories.Empty.id).locator('.lh-empty-category-target'));
+      await drag(card(links[3].id), group(categories.Empty.id).locator('.lh-empty-category-target'));
       await until(() => card(links[3].id, group(categories.Empty.id)).count().then(value => value === 1), 'Empty category did not accept a link');
       const row = id => page.locator('.lh-categories .lh-category-node[data-category-id="' + id + '"] > .lh-category-row');
       await drag(row(categories.B.id).locator('.lh-nav-drag-handle'), row(categories.A.id), 'before', true);
@@ -266,6 +279,97 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       assert.equal(after.data.categories.find(row => row.id === categoryId).name, name)
       assert.equal(BigInt(after.revision), BigInt(before.revision) + 1n); assert.equal(posts(), count + 1)
     });
+    await check(provider + '/direct_delete_undo_redo_cancel_and_card_move_save_together', async () => {
+      const removed = await deletionFixture('delete-with-move'), survivor = await deletionFixture('move-survivor');
+      await home(); const before = await nav(), count = posts(); await start();
+      const removeButton = card(removed.id).locator('.lh-content-delete-link');
+      await removeButton.click(); await deleteConfirm().waitFor();
+      await button('保留', 'Keep', deleteConfirm()).click(); assert(await card(removed.id).isVisible());
+      await deleteDraft(removed.id);
+      assert((await nav()).data.links.some(row => row.id === removed.id)); assert.equal(posts(), count);
+      await button('撤销内容修改', 'Undo content edit', toolbar()).click(); await card(removed.id).waitFor();
+      await button('重做内容修改', 'Redo content edit', toolbar()).click(); await card(removed.id).waitFor({ state: 'hidden' });
+      await button('取消', 'Cancel', toolbar()).click();
+      await button('放弃修改', 'Discard changes', page.getByRole('dialog', { name: l('保存内容修改？', 'Save content changes?'), exact: true })).click();
+      assert.equal((await nav()).revision, before.revision); assert.equal(posts(), count);
+      await start(); await deleteDraft(removed.id);
+      await drag(card(survivor.id), group(categories.B.id).locator('.lh-group-heading'));
+      await until(() => card(survivor.id, group(categories.B.id)).count().then(value => value === 1), 'Dragging the bookmark body did not move it');
+      await editLink(survivor.id); await field('title').fill(prefix + ' moved and edited'); await closeDetails();
+      const pendingBatch = page.waitForRequest(value => value.url() === batchURL && value.method() === 'POST');
+      await save(); const submitted = (await pendingBatch).postDataJSON(), after = await nav();
+      assert.deepEqual(submitted.deleteLinkIds, [removed.id]); assert.equal(posts(), count + 1);
+      assert.equal(BigInt(after.revision), BigInt(before.revision) + 1n);
+      assert(!after.data.links.some(row => row.id === removed.id));
+      const saved = after.data.links.find(row => row.id === survivor.id);
+      assert.equal(saved.categoryId, categories.B.id); assert.equal(saved.title, prefix + ' moved and edited');
+      assert.equal(saved.contextMarkdown, survivor.contextMarkdown); assert.deepEqual(saved.endpoints, survivor.endpoints);
+      await home(); assert.equal(await card(removed.id).count(), 0); assert(await card(survivor.id, group(categories.B.id)).isVisible());
+    });
+    await check(provider + '/delete_empty_local_creation_needs_no_save_or_validation', async () => {
+      const before = await nav(), count = posts(); await start();
+      await group(categories.Empty.id).locator('.lh-content-add-link').click(); await details().waitFor();
+      await details().locator('.lh-content-delete-action').click(); await deleteConfirm().waitFor();
+      await button('确认删除', 'Delete link', deleteConfirm()).click(); await details().waitFor({ state: 'hidden' });
+      assert(await button('保存', 'Save', toolbar()).isDisabled()); assert.equal(posts(), count);
+      await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
+      assert.equal((await nav()).revision, before.revision);
+    });
+    await check(provider + '/concurrent_edit_of_deletion_target_requires_explicit_choice', async () => {
+      const target = await deletionFixture('delete-conflict'); await home(); await start(); await deleteDraft(target.id);
+      let latest = await nav(); const changedTitle = prefix + ' changed before deletion';
+      await api(batchPath, 'POST', { expectedRevision: latest.revision, links: [{ id: target.id, patch: { title: changedTitle } }] });
+      await save(409); await button('保留书签', 'Keep bookmark').waitFor(); assert(await button('保存', 'Save', toolbar()).isDisabled());
+      await button('保留书签', 'Keep bookmark').click(); await card(target.id).waitFor();
+      assert.equal(await card(target.id).locator('.lh-bookmark-edit-title').innerText(), changedTitle);
+      assert(await button('保存', 'Save', toolbar()).isDisabled());
+      await deleteDraft(target.id); latest = await nav();
+      await api(batchPath, 'POST', { expectedRevision: latest.revision, links: [{ id: target.id, patch: { description: 'Another remote edit' } }] });
+      await save(409); await button('仍然删除', 'Delete anyway').waitFor(); await button('仍然删除', 'Delete anyway').click();
+      await save(); assert(!(await nav()).data.links.some(row => row.id === target.id));
+    });
+    await check(provider + '/deleted_bookmark_stays_deleted_after_lost_response_or_refresh_failure', async () => {
+      const lost = await deletionFixture('delete-lost-response'); await home(); await start(); await deleteDraft(lost.id);
+      let count = posts();
+      await page.route(batchURL, async route => { const response = await route.fetch(); assert.equal(response.status(), 200); await route.abort('failed'); }, { times: 1 });
+      await button('保存', 'Save', toolbar()).click(); await button('读取最新内容并比较', 'Read latest and compare').waitFor();
+      assert(!(await nav()).data.links.some(row => row.id === lost.id));
+      await button('读取最新内容并比较', 'Read latest and compare').click(); await toolbar().waitFor({ state: 'hidden' });
+      assert.equal(posts(), count + 1); assert.equal(await card(lost.id).count(), 0);
+      const refresh = await deletionFixture('delete-refresh-failure'); await home(); await start(); await deleteDraft(refresh.id); count = posts();
+      await page.route('**/api/v1/dashboard?*', route => route.abort('failed'), { times: 1 });
+      const response = page.waitForResponse(value => value.url() === batchURL && value.request().method() === 'POST');
+      await button('保存', 'Save', toolbar()).click(); assert.equal((await response).status(), 200);
+      await button('读取最新内容并比较', 'Read latest and compare').waitFor();
+      assert(await button('保存', 'Save', toolbar()).isDisabled());
+      await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
+      assert.equal(await card(refresh.id).count(), 0, 'Confirmed deletion resurrected in the cached dashboard');
+      assert.equal(posts(), count + 1); assert(!(await nav()).data.links.some(row => row.id === refresh.id));
+    });
+    await check(provider + '/folder_delete_confirm_theme_layer_and_keyboard', async () => {
+      await start(); await group(categories.A.id).locator('.lh-folder-more').click();
+      const folder = page.locator('.lh-folder-dialog'); await folder.waitFor();
+      const targetId = (await visibleIds(folder))[0], remove = card(targetId, folder).locator('.lh-content-delete-link');
+      await remove.click(); await deleteConfirm().waitFor();
+      assert(await deleteConfirm().evaluate(node => { const box = node.getBoundingClientRect(); return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)); }), 'Folder covers the delete confirmation');
+      await snapshot('folder-delete-confirm'); await page.keyboard.press('Escape'); await deleteConfirm().waitFor({ state: 'hidden' });
+      assert(await folder.isVisible(), 'Escape on confirmation also closed the folder');
+      assert(await remove.evaluate(node => node === document.activeElement), 'Escape did not restore the delete button focus');
+      await remove.click(); await deleteConfirm().waitFor(); await button('确认删除', 'Delete link', deleteConfirm()).click();
+      assert.equal(await card(targetId, folder).count(), 0); assert(await folder.isVisible());
+      await button('关闭书签文件夹', 'Close bookmark folder', folder).click();
+      await button('撤销内容修改', 'Undo content edit', toolbar()).click();
+      await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
+      await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape');
+      await page.locator('.lh-home[data-theme=dark]').waitFor(); await start(); await editLink(links[0].id);
+      await details().locator('.lh-content-delete-action').click(); await deleteConfirm().waitFor();
+      assert.equal(await deleteConfirm().evaluate(node => getComputedStyle(node).backgroundColor), await details().evaluate(node => getComputedStyle(node).backgroundColor), 'Delete confirmation does not inherit the homepage theme');
+      assert.equal(await button('保留', 'Keep', deleteConfirm()).evaluate(node => getComputedStyle(node).backgroundColor), await details().evaluate(node => getComputedStyle(node).backgroundColor), 'Keep button stays light in dark mode');
+      await snapshot('delete-confirm-dark'); await button('保留', 'Keep', deleteConfirm()).click();
+      await closeDetails(); await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
+      await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape');
+      await page.locator('.lh-home[data-theme=light]').waitFor();
+    });
     await check(provider + '/four_desktops_and_dark_edit_panel_geometry', async () => {
       await start(); await editLink(links[0].id);
       for (const [width, height] of [[2560, 1440], [1920, 1080], [1600, 900], [2560, 1080]]) {
@@ -278,6 +382,11 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
         assert(await details().evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'Inspector horizontal overflow');
         const label = await details().locator('[data-content-field=title] > label').boundingBox(), input = await field('title').boundingBox(); assert(label && input && Math.abs(label.y - input.y) <= 14, 'Label and input are not on one row');
         await snapshot('content-' + width + 'x' + height);
+        await details().locator('.lh-content-delete-action').click(); await deleteConfirm().waitFor();
+        const confirm = await deleteConfirm().boundingBox();
+        assert(confirm && confirm.x >= 0 && confirm.y >= 0 && confirm.x + confirm.width <= width + 1 && confirm.y + confirm.height <= height + 1, 'Delete confirmation is clipped');
+        await snapshot('delete-confirm-' + width + 'x' + height);
+        await button('保留', 'Keep', deleteConfirm()).click();
       }
       await closeDetails(); await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
       await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape');
@@ -293,13 +402,32 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       const state = await boot(reader); assert.equal(state.spaces.find(space => space.id === f.shared)?.canEdit, false);
       const tab = await reader.newPage(); tab.setDefaultTimeout(15000); tab.on('pageerror', error => report.errors.push(scrub(error.message)));
       await tab.goto(BASE + '/#/'); await tab.locator('.lh-home').waitFor(); await shared(tab, reader);
-      assert.equal(await tab.locator('.lh-edit-trigger,.lh-nav-drag-handle,.lh-content-toolbar').count(), 0);
+      assert.equal(await tab.locator('.lh-edit-trigger,.lh-nav-drag-handle,.lh-content-delete-link,.lh-content-toolbar').count(), 0);
       await tab.locator('.lh-more-trigger').click();
       assert.equal(await tab.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).count(), 0, 'A read-only space exposes layout editing in More');
       assert.equal(await tab.getByRole('menuitem', { name: l('点击统计', 'Click statistics'), exact: true }).count(), state.user ? 1 : 0, 'Statistics visibility does not match the reader identity');
       await tab.keyboard.press('Escape');
       const before = await nav(); await api(batchPath, 'POST', { expectedRevision: before.revision, links: [{ id: links[0].id, patch: { title: 'Forbidden' } }] }, initial.mode === 'private_multi' ? 403 : 401, reader); assert.equal((await nav()).revision, before.revision);
       await reader.close();
+    });
+    await check(provider + '/compact_edit_controls_do_not_overlap', async () => {
+      await page.setViewportSize({ width: 1600, height: 900 });
+      for (const [variant, linkAppearance] of [['directory', 'minimal'], ['cards', 'app-icons'], ['cards', 'minimal']]) {
+        const current = await savedPage(), changed = structuredClone(config);
+        const view = changed.views.find(item => item.id === viewId);
+        Object.assign(view.settings, { variant, linkAppearance, density: 'compact', descriptionLines: 0, urlDisplay: 'hidden', showTags: false, showEndpoints: false });
+        await api(spacePath + '/page', 'PUT', { name: prefix, expectedRevision: current.revision, config: changed });
+        await home(); await start();
+        const target = card(links[30].id), handle = target.locator('.lh-nav-drag-handle'), remove = target.locator('.lh-content-delete-link');
+        await target.scrollIntoViewIfNeeded();
+        const h = await handle.boundingBox(), d = await remove.boundingBox(), label = await target.locator('.lh-bookmark-edit-title').boundingBox();
+        const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+        assert(h && d && label && !overlaps(h, d), 'Drag and delete controls overlap in ' + variant + '/' + linkAppearance);
+        assert(!overlaps(label, d), 'Delete control covers the bookmark title in ' + variant + '/' + linkAppearance);
+        await remove.click(); await deleteConfirm().waitFor(); await button('保留', 'Keep', deleteConfirm()).click();
+        await snapshot('compact-' + variant + '-' + linkAppearance);
+        await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
+      }
     });
     assert.deepEqual(report.errors, [], 'Unhandled browser exceptions'); await context.close(); currentPage = null;
   }

@@ -65,12 +65,12 @@ func TestNavigationWriteOnlyReceipts(t *testing.T) {
 }
 
 func TestNavigationWriteOnlyErrorTargets(t *testing.T) {
-	input := navigationEditInput{Links: []navigationEditRow{{ID: "mine"}}, Moves: []navigationEditMove{{Kind: "category", ID: "moved"}}}
+	input := navigationEditInput{DeleteLinkIDs: []string{"deleted"}, Links: []navigationEditRow{{ID: "mine"}}, Moves: []navigationEditMove{{Kind: "category", ID: "moved"}}}
 	for _, tc := range []struct {
 		entity, id string
 		reported   bool
 	}{
-		{"link", "mine", true}, {"category", "moved", true},
+		{"link", "mine", true}, {"category", "moved", true}, {"link", "deleted", true}, {"category", "deleted", false},
 		{"category", "mine", false}, {"link", "unknown-sibling", false},
 	} {
 		original := &APIError{Status: 409, Code: "navigation_version_conflict", Message: "Reload the bookmark list.", CurrentRevision: "42", Entity: tc.entity, ID: tc.id, Field: "sortOrder"}

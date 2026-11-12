@@ -6,6 +6,8 @@ export type ContentDraft = {
   fields: InlineDraft
   /** IDs added to the working dataset locally, never written before Save. */
   created: { categories: string[]; links: string[] }
+  /** Existing bookmarks removed only when the whole draft is saved. */
+  deletedLinkIds: string[]
   orders: ContentOrders
   moved: { categories: string[]; links: string[] }
   locale: string
@@ -26,10 +28,29 @@ export function navigationOrders(data: NavigationData, locale = 'zh-CN'): Conten
   return orders
 }
 export function freshContentDraft(base: Dataset<NavigationData>, locale = 'zh-CN'): ContentDraft {
-  return { fields: freshInlineDraft(base), created: { categories: [], links: [] }, orders: navigationOrders(base.data, locale), moved: { categories: [], links: [] }, locale }
+  return { fields: freshInlineDraft(base), created: { categories: [], links: [] }, deletedLinkIds: [], orders: navigationOrders(base.data, locale), moved: { categories: [], links: [] }, locale }
 }
 export function newNavigationID(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function visibleContentData(draft: ContentDraft): NavigationData {
+  const data = draftNavigation(draft.fields), deleted = new Set(draft.deletedLinkIds)
+  return { ...data, links: data.links.filter(row => !deleted.has(row.id)) }
+}
+
+/** Keep the original row for conflict comparison; history restores its edits and position. */
+export function deleteContentLink(draft: ContentDraft, id: string): ContentDraft {
+  if (draft.deletedLinkIds.includes(id) || !draft.fields.base.data.links.some(row => row.id === id)) return draft
+  const created = draft.created.links.includes(id), links = { ...draft.fields.links }
+  delete links[id]
+  return { ...draft,
+    fields: { ...draft.fields, links, base: created ? { ...draft.fields.base, data: { ...draft.fields.base.data, links: draft.fields.base.data.links.filter(row => row.id !== id) } } : draft.fields.base },
+    created: { ...draft.created, links: draft.created.links.filter(value => value !== id) },
+    deletedLinkIds: created ? draft.deletedLinkIds : [...draft.deletedLinkIds, id],
+    moved: { ...draft.moved, links: draft.moved.links.filter(value => value !== id) },
+    orders: { ...draft.orders, links: Object.fromEntries(Object.entries(draft.orders.links).map(([group, ids]) => [group, ids.filter(value => value !== id)])) },
+  }
 }
 
 /** Seed a locally editable row with its final stable ID. The captured revision is unchanged. */
@@ -50,6 +71,7 @@ export function addContentRow(draft: ContentDraft, kind: InlineKind, id: string,
 }
 /** Changes stay in one account/space draft; no layout or external-source data enters it. */
 export function changeContentField(draft: ContentDraft, kind: InlineKind, id: string, patch: Partial<CategoryDraft & LinkDraft>): ContentDraft {
+  if (kind === 'links' && draft.deletedLinkIds.includes(id)) return draft
   if (!draft.fields.base.data[kind].some(row => row.id === id)) return draft
   const previous = kind === 'categories' ? readDraft(draft.fields, 'categories', id) : readDraft(draft.fields, 'links', id)
   let next = { ...draft, fields: putDraft(draft.fields, kind, id, { ...previous, ...patch }) }
@@ -63,7 +85,7 @@ export function changeContentField(draft: ContentDraft, kind: InlineKind, id: st
 }
 /** Move a single ID in the full sequence. Hidden and paginated siblings keep their relative order. */
 export function moveContent(draft: ContentDraft, kind: InlineKind, id: string, target: string | null, beforeId: string | null): ContentDraft {
-  const data = draftNavigation(draft.fields), row = data[kind].find(item => item.id === id)
+  const data = visibleContentData(draft), row = data[kind].find(item => item.id === id)
   if (!row || id === beforeId) return draft
   if (target && !data.categories.some(item => item.id === target)) return draft
   if (kind === 'categories' && parent(row) !== target) return draft
@@ -79,7 +101,7 @@ export function moveContent(draft: ContentDraft, kind: InlineKind, id: string, t
   return { ...draft, fields, orders: { ...draft.orders, [kind]: groups }, moved: { ...draft.moved, [kind]: [...new Set([...draft.moved[kind], id])] } }
 }
 export function contentNavigation(draft: ContentDraft): NavigationData {
-  const data = draftNavigation(draft.fields)
+  const data = visibleContentData(draft)
   const original = navigationOrders(data, draft.locale)
   const ranked = <T extends Category | NavLink>(kind: InlineKind, rows: T[]): T[] => {
     // Match server normalization only for groups whose sequence changed.
@@ -93,7 +115,7 @@ export function contentNavigation(draft: ContentDraft): NavigationData {
 export type ContentMove = { kind: 'category' | 'link'; id: string; beforeId: string | null; categoryId?: string | null }
 /** Fields are applied first on the server, then the final-position moves, right to left. */
 export function buildContentEdit(draft: ContentDraft) {
-  const data = draftNavigation(draft.fields), newCategories = new Set(draft.created.categories), newLinks = new Set(draft.created.links)
+  const data = visibleContentData(draft), newCategories = new Set(draft.created.categories), newLinks = new Set(draft.created.links)
   // Validate even untouched empty fields in newly inserted rows.
   const fields = { ...draft.fields, categories: { ...draft.fields.categories }, links: { ...draft.fields.links } }
   for (const row of data.categories) if (newCategories.has(row.id)) fields.categories[row.id] ??= categoryDraft(row)
@@ -133,11 +155,11 @@ export function buildContentEdit(draft: ContentDraft) {
       }
     }
   }
-  const total = categories.length + links.length + createCategories.length + createLinks.length + moves.length
+  const total = categories.length + links.length + createCategories.length + createLinks.length + moves.length + draft.deletedLinkIds.length
   if (total > 500 && !built.errors.some(error => error.code === 'limit')) built.errors.push({ kind: 'links', id: '', field: '', code: 'limit' })
   return { body: { expectedRevision: fields.base.revision, categories, links, ...(createCategories.length ? { createCategories } : {}),
-    ...(createLinks.length ? { createLinks } : {}), ...(moves.length ? { moves } : {}) }, errors: built.errors,
-    count: new Set([...categories, ...createCategories].map(row => 'c:' + row.id).concat([...links, ...createLinks].map(row => 'l:' + row.id), moves.map(row => row.kind[0] + ':' + row.id))).size }
+    ...(createLinks.length ? { createLinks } : {}), ...(moves.length ? { moves } : {}), ...(draft.deletedLinkIds.length ? { deleteLinkIds: draft.deletedLinkIds } : {}) }, errors: built.errors,
+    count: new Set([...categories, ...createCategories].map(row => 'c:' + row.id).concat([...links, ...createLinks].map(row => 'l:' + row.id), moves.map(row => row.kind[0] + ':' + row.id), draft.deletedLinkIds.map(id => 'l:' + id))).size }
 
 }
 /** A page binding is a projection, never the authority for a write or a full reorder. */
@@ -166,11 +188,19 @@ export function rebaseContentDraft(draft: ContentDraft, latest: Dataset<Navigati
   const merged = rebaseInlineDraft(draft.fields, working)
   let next: ContentDraft = { ...freshContentDraft(working, draft.locale), fields: merged.draft,
     created: { categories: pending.categories.map(row => row.id), links: pending.links.map(row => row.id) } }
+  for (const id of draft.deletedLinkIds) {
+    const before = localBase.links.find(row => row.id === id), server = latest.data.links.find(row => row.id === id)
+    // A missing row confirms a previous deletion without replaying a write.
+    if (!server) continue
+    next = deleteContentLink(next, id)
+    if (!same(before, server)) merged.conflicts.push({ kind: 'links', id, field: '$delete', base: before, mine: null, server })
+  }
   const conflicts: OrderConflict[] = []
-  const originalOrders = navigationOrders(draft.fields.base.data, draft.locale)
-  const serverOrders = navigationOrders(latest.data, draft.locale)
+  const withoutDeleted = (data: NavigationData) => ({ ...data, links: data.links.filter(row => !draft.deletedLinkIds.includes(row.id)) })
+  const originalOrders = navigationOrders(withoutDeleted(draft.fields.base.data), draft.locale)
+  const serverOrders = navigationOrders(withoutDeleted(latest.data), draft.locale)
   // Reconstruct final memberships from the rebased fields before reapplying order.
-  next.orders = navigationOrders(draftNavigation(merged.draft), draft.locale)
+  next.orders = navigationOrders(visibleContentData(next), draft.locale)
   const moves = buildContentEdit(draft).body.moves || []
   for (const kind of ['categories', 'links'] as const) {
     // A rename is marked as potentially moving to preserve legacy ties. If it
@@ -199,7 +229,7 @@ export function rebaseContentDraft(draft: ContentDraft, latest: Dataset<Navigati
     for (const [group, wanted] of Object.entries(draft.orders[kind])) for (let i = wanted.length - 1; i >= 0; i--) {
       const id = wanted[i]!
       if (!ids.includes(id)) continue
-      const existing = draftNavigation(next.fields)[kind]
+      const existing = visibleContentData(next)[kind]
       const row = existing.find(item => item.id === id)
       if (!row || parent(row) !== (group || null)) continue
       const beforeId = wanted.slice(i + 1).find(candidate => existing.some(item => item.id === candidate && parent(item) === parent(row))) || null
@@ -209,6 +239,17 @@ export function rebaseContentDraft(draft: ContentDraft, latest: Dataset<Navigati
   return { draft: next, conflicts: merged.conflicts, orderConflicts: conflicts }
 }
 export function resolveContentField(draft: ContentDraft, conflict: InlineConflict, choice: 'mine' | 'server'): ContentDraft {
+  if (conflict.field === '$delete') {
+    if (choice === 'mine') return draft
+    const next = { ...draft, deletedLinkIds: draft.deletedLinkIds.filter(id => id !== conflict.id) }
+    const row = next.fields.base.data.links.find(item => item.id === conflict.id)
+    if (!row) return next
+    const group = key(row.categoryId), canonical = navigationOrders(visibleContentData(next), next.locale).links[group] || []
+    const ids = [...(next.orders.links[group] || [])]
+    const anchor = canonical.slice(canonical.indexOf(row.id) + 1).find(id => ids.includes(id))
+    ids.splice(anchor ? ids.indexOf(anchor) : ids.length, 0, row.id)
+    return { ...next, orders: { ...next.orders, links: { ...next.orders.links, [group]: ids } } }
+  }
   const fields = resolveInlineConflict(draft.fields, conflict, choice)
   if (conflict.field === '$deleted') {
     const groups = Object.fromEntries(Object.entries(draft.orders[conflict.kind]).map(([group, ids]) => [group, ids.filter(id => id !== conflict.id)]))
@@ -222,5 +263,5 @@ export function resolveContentField(draft: ContentDraft, conflict: InlineConflic
   return { ...draft, fields }
 }
 export function discardContentOrder(draft: ContentDraft, kind: InlineKind): ContentDraft {
-  return { ...draft, orders: { ...draft.orders, [kind]: navigationOrders(draftNavigation(draft.fields), draft.locale)[kind] }, moved: { ...draft.moved, [kind]: [] } }
+  return { ...draft, orders: { ...draft.orders, [kind]: navigationOrders(visibleContentData(draft), draft.locale)[kind] }, moved: { ...draft.moved, [kind]: [] } }
 }

@@ -4,6 +4,26 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-11-13
+
+### Homepage bookmark maintenance
+
+- Add bookmark deletion to both homepage cards and the content inspector, using the existing button-side confirmation. Deletion joins the same draft as creation, field edits and moves; Undo, Redo and Cancel apply before one explicit atomic Save.
+- Start a bookmark drag from the card body as well as its handle. Keep category, empty-group and sidebar destinations, complete hidden/paginated sibling order, and existing category drag behavior. Favorite cards can move the original bookmark without introducing a separate favorites ordering.
+- Compare pending deletions with a fresh navigation read. If another editor changed the bookmark, require a choice to keep it or continue deleting it. A missing bookmark on readback confirms that the deletion is already satisfied; an uncertain response is never automatically replayed.
+
+### Atomic HTTP and MCP editing
+
+- Add optional `deleteLinkIds` to `navigation/batch-edit` and `navigation_batch_edit`, sharing the existing `expectedRevision`, permissions, Cookie CSRF checks and combined 500-operation limit with creates, patches and moves.
+- Reject duplicate, missing or foreign deletion IDs, a bookmark both deleted and created/patched/moved, and a deleted move anchor. Validate and commit the complete batch transactionally; a failure rolls back deletions along with every other change.
+- Return optional `deletedLinkIds` for confirmed submitted IDs, including write-only receipts. `updatedCount` counts created/changed surviving rows and excludes deleted bookmarks. A changed batch advances navigation revision once. Clients remove those IDs and merge all returned rows into their next baseline.
+
+### Upgrade and rollback
+
+- No new SQLite/PostgreSQL migration, mount, environment variable or deployment setting. Retain existing data, keys, document mounts, language and HTTP/TLS configuration. Gate or other MCP clients using the new batch-delete field must rediscover the running upgraded Home schema.
+- Saved bookmark deletion uses existing cascades for click statistics, alternate URLs and document relations; it does not delete original Markdown files or attachments. Undo is available while the deletion remains a draft, not after Save. Reverting the image does not recover deleted records; use a matching data backup when recovery is required.
+- Compatibility rules from 0.0.10 still apply when reverting farther back: saved component bindings may contain `auto:true`, which older page validators reject. Preserve a compatible page configuration and matching data backup.
+
 ## [0.0.10] - 2026-11-04
 
 ### Navigation maintenance and click statistics

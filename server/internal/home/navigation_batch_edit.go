@@ -24,6 +24,7 @@ type navigationEditInput struct {
 	Categories       []navigationEditRow        `json:"categories"`
 	Links            []navigationEditRow        `json:"links"`
 	Moves            []navigationEditMove       `json:"moves"`
+	DeleteLinkIDs    []string                   `json:"deleteLinkIds"`
 }
 type navigationEditLink struct {
 	Old        Link
@@ -60,6 +61,9 @@ func (input navigationEditInput) writeOnlyError(err error) error {
 	if api.Entity == "category" {
 		rows = input.Categories
 	}
+	if api.Entity == "link" && slices.Contains(input.DeleteLinkIDs, api.ID) {
+		return err
+	}
 	for _, row := range input.CreateLinks {
 		if api.Entity == "link" && row.ID == api.ID {
 			return err
@@ -86,9 +90,9 @@ func (input navigationEditInput) writeOnlyError(err error) error {
 }
 
 func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEditInput) (*Response, error) {
-	count := len(input.CreateCategories) + len(input.CreateLinks) + len(input.Categories) + len(input.Links) + len(input.Moves)
+	count := len(input.CreateCategories) + len(input.CreateLinks) + len(input.Categories) + len(input.Links) + len(input.Moves) + len(input.DeleteLinkIDs)
 	if count == 0 || count > maxBatchLinks {
-		return nil, invalid(fmt.Sprintf("A batch must contain between 1 and %d creates, field patches and moves combined.", maxBatchLinks))
+		return nil, invalid(fmt.Sprintf("A batch must contain between 1 and %d creates, field patches, moves and deletes combined.", maxBatchLinks))
 	}
 	revision := strconv.FormatInt(space.DataRevision, 10)
 	if input.ExpectedRevision == "" {
@@ -97,7 +101,10 @@ func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEdi
 	if input.ExpectedRevision != revision {
 		return nil, &APIError{Status: 409, Code: "navigation_version_conflict", Message: "The bookmark list changed. Reload it and review your edits.", CurrentRevision: revision}
 	}
-	// All inserts, field changes and moves share the route transaction and one revision.
+	// All deletions, inserts, field changes and moves share one transaction and revision.
+	if err := a.deleteNavigationRows(r, space.ID, input); err != nil {
+		return nil, err
+	}
 	createdCategories, createdLinks, err := a.createNavigationRows(r, space.ID, input)
 	if err != nil {
 		return nil, err
@@ -320,7 +327,7 @@ func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEdi
 			}
 		}
 	}
-	if automaticChanged {
+	if automaticChanged || len(input.DeleteLinkIDs) > 0 {
 		if err = a.cleanAutomaticIconJobs(r, space.ID); err != nil {
 			return nil, err
 		}
@@ -348,13 +355,17 @@ func (a *App) applyNavigationEdits(r *Request, space *Space, input navigationEdi
 		}
 	}
 	updatedCount := len(changedCategories) + len(changedLinks)
-	if updatedCount > 0 {
+	if updatedCount > 0 || len(input.DeleteLinkIDs) > 0 {
 		if err = a.touchNavigation(r, space.ID); err != nil {
 			return nil, err
 		}
 		revision = strconv.FormatInt(space.DataRevision+1, 10)
 	}
 	receipt := map[string]any{"updatedCount": updatedCount, "revision": revision}
+	if len(input.DeleteLinkIDs) > 0 {
+		// Submitted identifiers are safe for a write-only caller; stored rows are not.
+		receipt["deletedLinkIds"] = input.DeleteLinkIDs
+	}
 	if !r.navigationWriteOnly() {
 		receipt["categories"] = changedCategories
 		receipt["links"] = changedLinks

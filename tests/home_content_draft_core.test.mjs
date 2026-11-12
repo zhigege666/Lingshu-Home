@@ -1,11 +1,70 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { addContentRow, newNavigationID, freshContentDraft, moveContent, changeContentField, buildContentEdit, contentNavigation, rebaseContentDraft, resolveContentField, discardContentOrder, projectContentNavigation } from '../web/src/core/home-content-draft.ts'
+import { addContentRow, newNavigationID, freshContentDraft, moveContent, changeContentField, deleteContentLink, buildContentEdit, contentNavigation, rebaseContentDraft, resolveContentField, discardContentOrder, projectContentNavigation } from '../web/src/core/home-content-draft.ts'
+import { committedInlineDataset } from '../web/src/core/navigation-inline.ts'
 import { createDraftHistory, recordDraft, undoDraft, redoDraft } from '../web/src/core/draft-history.ts'
 
 const category = (id, sortOrder = 0, parentId = null) => ({ id, name: id, spaceId: 's', parentId, sortOrder, icon: 'lucide:folder' })
 const link = (id, sortOrder, categoryId = 'one') => ({ id, title: id, spaceId: 's', categoryId, sortOrder, url: 'https://example.invalid/' + id, description: 'description', icon: 'lucide:link', iconMode: 'manual', tags: ['dev'], isFavorite: false, endpoints: [{ label: 'Internal', url: 'http://nas.invalid', route: 'internal' }], contextMarkdown: 'Agent notes', updatedAt: '2026-10-28T00:00:00Z' })
 const base = () => ({ datasetId: 'local-navigation', revision: '10', schemaId: 'navigation.collection', schemaVersion: 1, meta: {}, data: { categories: [category('one', 0), category('two', 1), category('child', 0, 'one')], links: ['a', 'b', 'c', 'd', 'e'].map((id, index) => link(id, index)) } })
+
+test('deleting an edited bookmark is one reversible draft operation without validating discarded fields', () => {
+  const initial = changeContentField(freshContentDraft(base()), 'links', 'b', { title: 'Edited', url: 'invalid' })
+  const deleted = deleteContentLink(initial, 'b'), built = buildContentEdit(deleted)
+  assert.deepEqual(built.body.deleteLinkIds, ['b']); assert.deepEqual(built.body.links, []); assert.deepEqual(built.errors, [])
+  assert.equal(built.count, 1); assert(!contentNavigation(deleted).links.some(row => row.id === 'b'))
+  assert.deepEqual(deleted.orders.links.one, ['a', 'c', 'd', 'e'])
+  assert(deleted.fields.base.data.links.some(row => row.id === 'b'), 'Keep the deletion baseline for conflict checks')
+  const history = recordDraft(createDraftHistory(initial), deleted)
+  assert.deepEqual(undoDraft(history).present, initial); assert.deepEqual(redoDraft(undoDraft(history)).present, deleted)
+  assert.equal(changeContentField(deleted, 'links', 'b', { title: 'Revived' }), deleted)
+  assert.equal(moveContent(deleted, 'links', 'b', 'two', null), deleted)
+})
+test('deleting a never-saved bookmark cancels its creation and its invalid empty fields', () => {
+  const original = freshContentDraft(base()), id = newNavigationID()
+  const added = addContentRow(original, 'links', id, 's', 'two'), deleted = deleteContentLink(added, id)
+  const built = buildContentEdit(deleted)
+  assert.equal(built.count, 0); assert.deepEqual(built.errors, [])
+  assert.equal(built.body.createLinks, undefined); assert.equal(built.body.deleteLinkIds, undefined)
+  assert.deepEqual(contentNavigation(deleted), base().data)
+  assert.deepEqual(undoDraft(recordDraft(createDraftHistory(added), deleted)).present, added)
+})
+test('deletion and moves compile with live anchors and share the operation limit', () => {
+  let draft = moveContent(freshContentDraft(base()), 'links', 'e', 'one', 'b')
+  draft = deleteContentLink(draft, 'b')
+  const built = buildContentEdit(draft)
+  assert.deepEqual(built.body.moves, [{ kind: 'link', id: 'e', categoryId: 'one', beforeId: 'c' }])
+  assert.deepEqual(built.body.deleteLinkIds, ['b']); assert.equal(built.count, 2)
+  const many = base(); many.data.links = Array.from({ length: 501 }, (_, i) => link('l' + i, i))
+  let bulk = freshContentDraft(many)
+  for (const row of many.data.links) bulk = deleteContentLink(bulk, row.id)
+  assert(buildContentEdit(bulk).errors.some(error => error.code === 'limit'))
+})
+test('readback retains an unchanged deletion and merges unrelated changes', () => {
+  const original = base(), draft = deleteContentLink(freshContentDraft(original), 'b')
+  const latest = structuredClone(original); latest.revision = '11'; latest.data.links[0].description = 'Remote edit'
+  const rebased = rebaseContentDraft(draft, latest)
+  assert.deepEqual(rebased.conflicts, []); assert.deepEqual(rebased.orderConflicts, [])
+  assert.deepEqual(buildContentEdit(rebased.draft).body.deleteLinkIds, ['b'])
+  assert.equal(contentNavigation(rebased.draft).links[0].description, 'Remote edit')
+})
+test('a changed deletion target needs a choice and keeping it restores the current row and order', () => {
+  const original = base(), draft = deleteContentLink(freshContentDraft(original), 'b')
+  const latest = structuredClone(original); latest.revision = '11'; latest.data.links[1].title = 'Changed elsewhere'
+  const rebased = rebaseContentDraft(draft, latest)
+  assert.equal(rebased.conflicts.length, 1); assert.equal(rebased.conflicts[0].field, '$delete')
+  const kept = resolveContentField(rebased.draft, rebased.conflicts[0], 'server')
+  assert.equal(buildContentEdit(kept).count, 0); assert.deepEqual(kept.orders.links.one, ['a', 'b', 'c', 'd', 'e'])
+  assert.equal(contentNavigation(kept).links.find(row => row.id === 'b').title, 'Changed elsewhere')
+  assert.deepEqual(buildContentEdit(resolveContentField(rebased.draft, rebased.conflicts[0], 'mine')).body.deleteLinkIds, ['b'])
+})
+test('confirmed deletion receipts and lost-response readback do not resurrect or replay the bookmark', () => {
+  const original = base(), draft = deleteContentLink(freshContentDraft(original), 'b')
+  const latest = committedInlineDataset(draft.fields, { revision: '11', updatedCount: 0, links: [], categories: [], deletedLinkIds: ['b'] })
+  assert(!latest.data.links.some(row => row.id === 'b')); assert.equal(latest.data.links.length, 4)
+  const rebased = rebaseContentDraft(draft, latest)
+  assert.deepEqual(rebased.conflicts, []); assert.deepEqual(rebased.orderConflicts, []); assert.equal(buildContentEdit(rebased.draft).count, 0)
+})
 
 test('hidden rows retain relative order and a move submits one stable ID', () => {
   const draft = moveContent(freshContentDraft(base()), 'links', 'e', 'one', 'c')

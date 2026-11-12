@@ -137,15 +137,18 @@ The site header, enabled custom header and enabled footer stay in view while the
 
 ### Edit categories and links on the homepage
 
-Since 0.0.7, the homepage **Edit** action opens a content draft for readers with maintenance permission:
+The homepage **Edit** action opens a content draft for readers with maintenance permission:
 
 1. Click a category name to rename it inline, or use its settings button for its icon/parent. Handles reorder sibling categories; the whole subtree follows a parent.
 2. Click a link name to open a compact inspector for title, URL, category, tags and favorite state. Expand additional fields for description, icons and alternate URLs. The inspector also shows recorded lifetime clicks and last-click time.
-3. Drag link handles within a category or into another, empty or Uncategorized group. Search and page through folders without truncating hidden records or losing their relative order. Favorite cards edit the same original link without a separate favorite order.
-4. Keep all changes in one memory draft, then Undo/Redo, Cancel or **Save**. Ctrl/Cmd+S uses the same save. Enter/Shift+Enter moves between fields without interfering with IME composition. Position buttons provide a non-drag alternative.
-5. One save submits additions, field edits and order atomically. Validation retains input; a version conflict triggers one read-only comparison. Resolve actual conflicts, and use **Read latest and compare** after an uncertain response; already committed changes are not replayed. A successful save with failed refresh keeps the confirmed result visible and offers another read.
+3. Drag a bookmark card or its handle within a category or into another, empty or Uncategorized group; the category sidebar also accepts bookmark drops. Search and page through folders without truncating hidden records or losing their relative order. Favorite cards can move the same original bookmark, with no separate favorite order.
+4. Use **Delete link** on the card or in the inspector, then confirm beside the button. The bookmark disappears from the draft and remains on the server until Save. Undo restores it before saving; Cancel discards the pending deletion. Deleting a newly added, unsaved bookmark makes no server deletion request.
+5. Keep all changes in one memory draft, then Undo/Redo, Cancel or **Save**. Ctrl/Cmd+S uses the same save. Enter/Shift+Enter moves between fields without interfering with IME composition. Position buttons and the category selector provide alternatives to dragging.
+6. One save submits additions, field edits, moves and deletions atomically. Validation retains input; a version conflict triggers one read-only comparison. If a bookmark marked for deletion changed, choose whether to keep it or continue deleting it. Use **Read latest and compare** after an uncertain response; already committed changes are not replayed. A successful save with failed refresh keeps the confirmed result visible and offers another read.
 
-In edit mode, use **Add** to create a category or bookmark, or add a bookmark inside its category. New categories and links are drafts until Save; Cancel or Undo also applies to additions. A draft accepts up to 500 creates, patches and moves combined. Deletion, imports and bookmark usage notes keep their existing paths. Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **More → Adjust layout**. Content editing does not save layout, theme or component placement.
+In edit mode, use **Add** to create a category or bookmark, or add a bookmark inside its category. New categories and links are drafts until Save. A draft accepts up to 500 creates, patches, moves and bookmark deletions combined. Imports, category deletion and bookmark usage notes retain their existing paths. Saved bookmark deletion removes its click statistics, alternate URLs and document relations, while document originals remain intact. Undo applies only before Save; this version has no recycle bin.
+
+Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **More → Adjust layout**. Content editing does not save layout, theme or component placement.
 
 ### View click statistics
 
@@ -474,6 +477,7 @@ Homepage editing also preserves a conflicting draft. Record the intended changes
 | --- | --- |
 | Ordinary homepage search, category selection, card/directory and color buttons | Temporary viewing state; no page write or upstream synchronization |
 | Ordinary category panel/branch folding | Browser-tab preference, scoped to page and component |
+| Homepage content additions, field edits, moves and bookmark deletions | One in-memory draft until **Save** commits atomically; Undo/Redo and Cancel apply before saving |
 | Component/theme/chrome changes, **Fit content** or whole-category folding in the editable canvas | In-memory page draft until **Save page** |
 | Opening/closing homepage preview; changing resolution/enlarging admin preview; preview search/folding | Read-only preview and isolated temporary state |
 | **Save page** in either editor | Saved complete page configuration, checked against its revision |

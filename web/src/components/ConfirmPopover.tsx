@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, type ReactNode } from 'react'
+import { useId, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
 import { Popover } from 'radix-ui'
 import './confirm-popover.css'
 
@@ -10,11 +10,13 @@ type Props = {
   busy?: boolean
   onClose: () => void
   getReturnFocus?: () => HTMLElement | null
+  className?: string
+  style?: CSSProperties
   children: ReactNode
 }
 
 /** A keyboard-accessible confirmation next to an existing action button. */
-export function ConfirmPopover({ id, kind, anchor, title, busy = false, onClose, getReturnFocus, children }: Props) {
+export function ConfirmPopover({ id, kind, anchor, title, busy = false, onClose, getReturnFocus, className = '', style, children }: Props) {
   const generatedId = useId(), titleId = `${id || generatedId}-title`
   const content = useRef<HTMLDivElement>(null), restoreFocus = useRef(true)
   const virtualAnchor = useMemo(() => ({ current: anchor }), [anchor])
@@ -22,7 +24,7 @@ export function ConfirmPopover({ id, kind, anchor, title, busy = false, onClose,
     <Popover.Anchor virtualRef={virtualAnchor}/>
     <Popover.Portal>
       <Popover.Content ref={content} id={id} role="dialog" aria-labelledby={titleId} aria-describedby={undefined} aria-busy={busy || undefined}
-        className="admin-ui lh-confirm-popover" data-confirm-kind={kind} side="bottom" align="end" sideOffset={8} collisionPadding={12} sticky="always" hideWhenDetached
+        className={`admin-ui lh-confirm-popover ${className}`} style={style} data-confirm-kind={kind} side="bottom" align="end" sideOffset={8} collisionPadding={12} sticky="always" hideWhenDetached
         onOpenAutoFocus={event => {
           event.preventDefault()
           content.current?.querySelector<HTMLButtonElement>('[data-confirm-cancel]')?.focus({ preventScroll: true })

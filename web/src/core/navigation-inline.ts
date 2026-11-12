@@ -9,7 +9,7 @@ export type InlineDraft = DraftChanges & { base: Dataset<NavigationData> }
 export type InlineError = { kind: InlineKind; id: string; field: string; code: string; message?: string }
 export type InlineConflict = { kind: InlineKind; id: string; field: string; base: unknown; mine: unknown; server: unknown }
 export type BatchEditBody = { expectedRevision: string; categories: { id: string; patch: Partial<Omit<Category, 'id' | 'spaceId'>> }[]; links: { id: string; patch: Partial<LinkInput> }[] }
-export type BatchEditResult = { updatedCount: number; revision: string; categories: Category[]; links: NavLink[] }
+export type BatchEditResult = { updatedCount: number; revision: string; categories: Category[]; links: NavLink[]; deletedLinkIds?: string[] }
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 export const categoryDraft = (row: Category): CategoryDraft => ({ name: row.name, parentId: row.parentId || null, icon: row.icon, sortOrder: String(row.sortOrder) })
 export const linkDraft = (row: NavLink): LinkDraft => ({ title: row.title, url: row.url, categoryId: row.categoryId || null, description: row.description, icon: row.icon, iconMode: row.iconMode || 'manual', tags: (row.tags || []).join(', '), sortOrder: String(row.sortOrder), isFavorite: row.isFavorite, endpoints: structuredClone(row.endpoints || []) })
@@ -131,7 +131,8 @@ export function resolveInlineConflict(draft: InlineDraft, conflict: InlineConfli
 }
 export function committedInlineDataset(draft: InlineDraft, result: BatchEditResult): Dataset<NavigationData> {
   const categories = new Map(result.categories.map(row => [row.id, row])), links = new Map(result.links.map(row => [row.id, row]))
-  return { ...draft.base, revision: result.revision, data: { categories: draft.base.data.categories.map(row => categories.get(row.id) || row), links: draft.base.data.links.map(row => links.get(row.id) || row) } }
+  const deleted = new Set(result.deletedLinkIds || [])
+  return { ...draft.base, revision: result.revision, data: { categories: draft.base.data.categories.map(row => categories.get(row.id) || row), links: draft.base.data.links.filter(row => !deleted.has(row.id)).map(row => links.get(row.id) || row) } }
 }
 export function endpointsForDraft(endpoints: Endpoint[]) { return structuredClone(endpoints) }
 

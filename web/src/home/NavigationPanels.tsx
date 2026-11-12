@@ -15,6 +15,7 @@ import { readNavigationAppearanceSettings, type NavigationAppearanceSettings } f
 import './navigation-appearance.css';
 import './navigation-edit.css';
 import type { NavigationEditor } from './navigation-editor-types';
+import { HomeContentDeleteButton } from './HomeContentDeleteButton';
 
 export type NavigationCategory = Category;
 export type NavigationLink = NavLink;
@@ -23,7 +24,7 @@ export type NavigationFilter = { search: string; categoryId: string | null; favo
 export const EMPTY_FILTER: NavigationFilter = { search: '', categoryId: null, favoritesOnly: false };
 
 type NavigationDrag = { kind: 'link' | 'category'; id: string; spaceId: string; ownerDocument: Document };
-// Only an active handle in this document can initiate a navigation move. Do not
+// Only an active bookmark card or handle in this document can initiate a navigation move. Do not
 // interpret arbitrary dropped text/URLs, external snapshots or other spaces.
 let navigationDrag: NavigationDrag | null = null;
 const navigationDragResets = new Set<() => void>();
@@ -38,6 +39,16 @@ function useNavigationDragReset(enabled: boolean, reset: () => void) {
 }
 function activeDrag(editor: NavigationEditor | undefined, element: HTMLElement) {
   return editor && !editor.busy && navigationDrag?.spaceId === editor.spaceId && navigationDrag.ownerDocument === element.ownerDocument ? navigationDrag : null;
+}
+function startNavigationDrag(event: DragEvent<HTMLElement>, kind: NavigationDrag['kind'], id: string, editor: NavigationEditor) {
+  if (editor.busy) { event.preventDefault(); return false; }
+  event.stopPropagation(); clearNavigationDrag();
+  navigationDrag = { kind, id, spaceId: editor.spaceId, ownerDocument: event.currentTarget.ownerDocument };
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/x-lingshu-navigation', JSON.stringify({ kind, id, spaceId: editor.spaceId }));
+  const visual = event.currentTarget.closest<HTMLElement>(kind === 'link' ? '.lh-bookmark' : '.lh-group-heading,.lh-category-row');
+  if (visual) event.dataTransfer.setDragImage(visual, 16, 16);
+  return true;
 }
 function dragScroll(element: HTMLElement, clientY: number) {
   const win = element.ownerDocument.defaultView;
@@ -65,15 +76,7 @@ function NavigationDragHandle({ kind, id, name, editor }: { kind: 'link' | 'cate
   return <button type="button" className={`lh-nav-drag-handle${dragging ? ' is-dragging' : ''}`} draggable={!editor.busy} disabled={editor.busy} aria-label={label} title={label}
     onClick={event => event.stopPropagation()}
     onDragStart={event => {
-      if (editor.busy) { event.preventDefault(); return; }
-      event.stopPropagation();
-      clearNavigationDrag();
-      navigationDrag = { kind, id, spaceId: editor.spaceId, ownerDocument: event.currentTarget.ownerDocument };
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('application/x-lingshu-navigation', JSON.stringify({ kind, id, spaceId: editor.spaceId }));
-      const visual = event.currentTarget.closest<HTMLElement>(kind === 'link' ? '.lh-bookmark' : '.lh-group-heading,.lh-category-row');
-      if (visual) event.dataTransfer.setDragImage(visual, 16, 16);
-      setDragging(true);
+      if (startNavigationDrag(event, kind, id, editor)) setDragging(true);
     }}
     onDragEnd={event => { event.stopPropagation(); clearNavigationDrag(); }}><GripVertical size={15} aria-hidden="true" /></button>;
 }
@@ -295,7 +298,9 @@ const BookmarkItem = memo(function BookmarkItem({ link, directory, presentation,
   const { preview } = useHomeEnvironment();
   const routing = useBookmarkEndpointRouting(link);
   const [dropSide, setDropSide] = useState<'before' | 'after' | null>(null);
-  useNavigationDragReset(!!editor, () => setDropSide(null));
+  const [dragging, setDragging] = useState(false);
+  useNavigationDragReset(!!editor, () => { setDropSide(null); setDragging(false); });
+  useEffect(() => () => { if (navigationDrag?.kind === 'link' && navigationDrag.id === link.id && navigationDrag.spaceId === editor?.spaceId) clearNavigationDrag(); }, [link.id, editor?.spaceId]);
   const href = routing.href, inert = preview || !!editor;
   const routes = link.endpoints.filter(endpoint => endpoint.route === 'internal' || endpoint.route === 'external');
   const additional = link.endpoints.filter(endpoint => endpoint.route !== 'internal' && endpoint.route !== 'external');
@@ -331,11 +336,15 @@ const BookmarkItem = memo(function BookmarkItem({ link, directory, presentation,
   const showURL = presentation.urlDisplay === 'always' || presentation.urlDisplay === 'fallback' && !description;
   // Keep a manual recovery route available when the browser blocked opening a tab.
   const showEndpoints = presentation.showEndpoints || routing.state !== 'idle' && routing.state !== 'pending';
-  return <article className={`lh-bookmark ${directory ? 'is-directory' : ''}${editor ? ' is-content-editable' : ''}${editor?.selectedLinkId === link.id ? ' is-content-selected' : ''}`} data-link-id={link.id} data-routing={routing.state}
+  return <article className={`lh-bookmark ${directory ? 'is-directory' : ''}${editor ? ' is-content-editable' : ''}${editor?.selectedLinkId === link.id ? ' is-content-selected' : ''}${dragging ? ' is-dragging' : ''}`} data-link-id={link.id} data-routing={routing.state}
+    draggable={editor && !editor.busy ? true : undefined}
+    onDragStart={editor ? event => { if (startNavigationDrag(event, 'link', link.id, editor)) setDragging(true); } : undefined}
+    onDragEnd={editor ? event => { event.stopPropagation(); clearNavigationDrag(); } : undefined}
     data-drop-side={dropSide || undefined} data-drop-axis={directory ? 'y' : 'x'}
     onDragOver={editor && sortable ? event => acceptDrop(event) : undefined} onDrop={editor && sortable ? event => acceptDrop(event, true) : undefined}
     onDragLeave={editor ? event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropSide(null); } : undefined}>
     {editor && sortable && <NavigationDragHandle kind="link" id={link.id} name={link.title} editor={editor} />}
+    {editor && <HomeContentDeleteButton name={link.title} disabled={editor.busy} compact onDelete={() => editor.onDeleteLink(link.id)}/>}
     <div className="lh-bookmark-icon"><NavigationIcon name={link.icon} size={directory ? 18 : 21} /></div>
     <div className="lh-bookmark-body">
       {editor ? <button type="button" className="lh-bookmark-title lh-bookmark-edit-title" disabled={editor.busy} aria-label={t('编辑链接 {name}', 'Edit link {name}', { name: link.title })} aria-pressed={editor.selectedLinkId === link.id} title={link.title} onClick={event => { event.stopPropagation(); editor.onEditLink(link.id); }}><span>{link.title}</span><Pencil size={13} aria-hidden="true" /></button>

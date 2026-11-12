@@ -293,7 +293,7 @@ A stale revision returns HTTP 409 with `code:"navigation_version_conflict"`. Rel
 
 ## Atomic category and link editing
 
-`POST /api/v1/spaces/{spaceId}/navigation/batch-edit` edits different fields on different records in one transaction. It accepts 1–500 operations combined across `createCategories`, `createLinks`, `categories`, `links` and `moves`; unused arrays may be omitted. It retains the existing space permissions, scoped `navigation:write` PAT rules and Cookie CSRF checks.
+`POST /api/v1/spaces/{spaceId}/navigation/batch-edit` edits different fields on different records in one transaction. It accepts 1–500 operations combined across `createCategories`, `createLinks`, `categories`, `links`, `moves` and `deleteLinkIds`; unused arrays may be omitted. Each deletion ID counts as one operation. It retains the existing space permissions, scoped `navigation:write` PAT rules and Cookie CSRF checks.
 
 ~~~json
 {
@@ -303,7 +303,21 @@ A stale revision returns HTTP 409 with `code:"navigation_version_conflict"`. Rel
 }
 ~~~
 
-Since 0.0.10, `createCategories` and `createLinks` accept flat creation records with caller-generated, stable IDs (32 lowercase hexadecimal characters). Use the ordinary category/bookmark create fields, and put new parents before children. A new link can use a category created in this batch. Insertions never replace existing IDs; a late validation failure rolls back every insertion, patch and move. A read/write receipt includes newly created rows at their final positions. Write-only tokens still receive counts and the new revision only. After an uncertain response, read back the proposed IDs and fields before deciding whether to retry.
+Since 0.0.10, `createCategories` and `createLinks` accept flat creation records with caller-generated, stable IDs (32 lowercase hexadecimal characters). Use the ordinary category/bookmark create fields, and put new parents before children. A new link can use a category created in this batch. Insertions never replace existing IDs; a late validation failure rolls back every deletion, insertion, patch and move. A read/write receipt includes newly created rows at their final positions. Write-only tokens receive counts, the new revision and submitted deletion IDs when present, without stored row fields. After an uncertain response, read back the proposed IDs and fields before deciding whether to retry.
+
+Since 0.0.11, `deleteLinkIds` accepts unique existing bookmark IDs in the same space. IDs must be 32 lowercase hexadecimal characters. A bookmark selected for deletion cannot also appear in `createLinks`, `links` or a link `moves` entry, or be another link move's `beforeId` anchor. Duplicate/conflicting selections return 400; missing and foreign IDs both return 404 when the supplied revision is current. Category deletion retains its separate endpoint.
+
+```json
+{
+  "expectedRevision": "42",
+  "deleteLinkIds": ["11111111111111111111111111111111"],
+  "moves": [
+    {"kind":"link","id":"22222222222222222222222222222222","beforeId":null,"categoryId":null}
+  ]
+}
+```
+
+Validate the complete deletion selection and remove it within the same transaction before creating, patching and moving the surviving records. The existing cascades remove the deleted bookmarks' alternate URLs, click statistics and document relations; document originals and attachments are not removed. Prune automatic-icon jobs only when their origin is no longer referenced. Any later failure rolls back this entire batch. A saved deletion has no editor Undo or recycle bin.
 
 Category patch fields: `name`, `parentId`, `icon`, `sortOrder`. Link patch fields: `categoryId`, `title`, `url`, `description`, `icon`, `iconMode`, `tags`, `isFavorite`, `sortOrder`, `endpoints`. Omitted fields are retained. Only nullable category references accept null; false, zero and empty arrays are explicit values. Empty patches, unknown fields, duplicate IDs and references outside the space are rejected. Entity/row/field details accompany validation errors when applicable.
 
@@ -320,17 +334,17 @@ Since 0.0.7, `moves` supports stable anchors without sending every hidden or pag
 }
 ```
 
-Insert categories and links first, apply field patches, then moves in array order. Each move requires `kind`, `id` and explicit `beforeId` (`null` appends). Link moves also require explicit `categoryId` (`null` means Uncategorized); their anchor must be in that category after previous moves. Category moves must omit `categoryId` and use an anchor sharing their final `parentId`; change a parent through its field patch. Reject self anchors, unknown/foreign IDs, missing required fields and repeated moves of the same entity. A row can have both one patch and one move; those count as two request operations.
+After the validated deletions, insert categories and links, apply field patches, then moves in array order. Each move requires `kind`, `id` and explicit `beforeId` (`null` appends). Link moves also require explicit `categoryId` (`null` means Uncategorized); their anchor must be in that category after previous moves. Category moves must omit `categoryId` and use an anchor sharing their final `parentId`; change a parent through its field patch. Reject self anchors, unknown/foreign IDs, missing required fields and repeated moves of the same entity. A row can have both one patch and one move; those count as two request operations.
 
 Moves operate on complete same-space sibling groups. Existing untouched siblings retain relative order, and a changed group's sort values are normalized to distinct integers. A true no-op preserves old sort values, timestamps and revision. Responses can include more than 500 affected records when one move normalizes a large group; the 500 limit is on submitted operations. Clients must merge every returned row into their new baseline. The hierarchy and link ownership remain independent from page composition.
 
-MCP `navigation_get` returns the same complete local dataset/revision; `navigation_batch_edit` accepts `{spaceId,input:{expectedRevision,categories?,links?,moves?}}` and invokes this same atomic handler. Never derive write IDs or missing sibling order from a filtered dashboard or external snapshot. A late validation error or stale revision cannot partially apply earlier moves.
+MCP `navigation_get` returns the same complete local dataset/revision; `navigation_batch_edit` accepts `{spaceId?,input:{expectedRevision,createCategories?,createLinks?,categories?,links?,moves?,deleteLinkIds?}}` and invokes this same atomic handler. Never derive write IDs or missing sibling order from a filtered dashboard or external snapshot. A late validation error or stale revision cannot partially apply deletions or earlier moves.
 
 The final merged category tree must have same-space parents, no cycles and at most 32 levels. Valid simultaneous reparenting is checked against that final tree. A stale navigation revision returns `409 navigation_version_conflict` with `currentRevision`. Any validation, authorization or commit failure rolls back the entire batch.
 
-Success returns `{updatedCount,revision,categories,links}`; the arrays contain only normalized changed rows. Actual changes advance the dataset revision once. A normalized no-op leaves revision, timestamps and icon jobs unchanged. Existing automatic-icon behavior is preserved for URL/icon changes; ordinary title/tag edits do not reset an icon or schedule a fetch. Existing `contextMarkdown` usage notes are retained and remain editable through the dedicated bookmark-context endpoint.
+With read permission, success returns `{updatedCount,revision,categories,links,deletedLinkIds?}`; the row arrays contain only normalized created/changed surviving rows. `updatedCount` excludes deleted bookmarks. `deletedLinkIds` is present only when the batch deleted bookmarks and echoes the confirmed submitted IDs; write-only callers also receive those IDs, `updatedCount` and `revision`, without row arrays. Clients remove deleted IDs and merge all returned rows into the next baseline. Actual changes, including a delete-only batch, advance the dataset revision once. A normalized no-op leaves revision, timestamps and icon jobs unchanged. Existing automatic-icon behavior is preserved for URL/icon changes; ordinary title/tag edits do not reset an icon or schedule a fetch. Existing `contextMarkdown` usage notes on surviving bookmarks are retained and remain editable through the dedicated bookmark-context endpoint.
 
-The frontend retains drafts across both lists, filters and pages. More settings apply locally to the draft. Network uncertainty and conflicts require a fresh read and explicit conflict resolution, without automatic retries. Successfully committed fields detected on readback are removed from the draft. Drafts are memory-only and scoped to the account and space.
+The frontend retains field drafts across both lists, filters and pages. Homepage deletion joins its content draft and supports Undo/Redo or Cancel before Save. More settings apply locally to the draft. Network uncertainty and conflicts require a fresh read and explicit conflict resolution, without automatic retries. Successfully committed fields and already absent deletion targets are removed from the pending draft. If a deletion target has changed, the homepage asks whether to keep the current bookmark or continue deleting it. Drafts are memory-only and scoped to the account and space.
 
 ## Link click statistics
 

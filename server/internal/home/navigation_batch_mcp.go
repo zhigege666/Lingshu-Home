@@ -46,5 +46,6 @@ func navigationBatchEditSchema(link, category map[string]any) map[string]any {
 		"categories":       rows(patch(category)),
 		"links":            rows(patch(link, "contextMarkdown", "expectedUpdatedAt")),
 		"moves":            map[string]any{"type": "array", "maxItems": maxBatchLinks, "items": move},
+		"deleteLinkIds":    map[string]any{"type": "array", "maxItems": maxBatchLinks, "uniqueItems": true, "items": map[string]any{"type": "string", "pattern": "^[0-9a-f]{32}$"}},
 	}, "expectedRevision")
 }
