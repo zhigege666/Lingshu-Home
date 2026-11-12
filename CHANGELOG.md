@@ -14,7 +14,7 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ### HTTP, MCP and private working data
 
-- Reuse HTTP handlers for MCP work operations with independent work:read/work:write actions; existing tokens gain no permissions. Require a signed-in space editor and reject source-bound tokens.
+- Reuse HTTP handlers for MCP work operations with independent work:read/work:write actions; existing tokens gain no permissions. Require a signed-in space editor and reject source-bound tokens. Extend discovery with ten uniquely named work tools while retaining the existing catalog, and align its integration acceptance contract.
 - Validate bookmark/document references with their respective read scopes and current-space ownership. Work access does not grant document content access. Write-only callers receive operational receipts.
 - Use stable creation IDs, replay the same normalized intent without duplicate insertion, and reject ID reuse with different content. Bind pagination cursors to filters and board revision.
 - Page column summaries and resource selection, defer board code, and keep Markdown bodies and external service calls out of board reads.

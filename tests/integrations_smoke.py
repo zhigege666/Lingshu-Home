@@ -196,8 +196,20 @@ def run(base):
     discovered = anon.mcp(full, "server/discover")["result"]
     require(set(discovered["supportedVersions"]) == {"2026-07-28", "2025-11-25"}, "MCP supported versions differ from the contract.")
     require(discovered["cacheScope"] == "private" and discovered["ttlMs"] == 0, "MCP discovery must be private and uncached.")
-    tools = {tool["name"] for tool in anon.mcp(full, "tools/list")["result"]["tools"]}
-    require(len(tools) == 34 and {"space_current", "document_sources_list", "dashboard_get", "categories_create", "documents_list"} <= tools, "Missing required MCP tools.")
+    registered_tools = anon.mcp(full, "tools/list")["result"]["tools"]
+    tools = {tool["name"] for tool in registered_tools}
+    expected_tools = {
+        "space_current", "document_sources_list",
+        "navigation_get", "navigation_batch_edit", "navigation_click_stats",
+        "bookmarks_list", "bookmarks_get", "bookmarks_create", "bookmarks_update", "bookmarks_context_update", "bookmarks_delete",
+        "categories_list", "categories_get", "categories_create", "categories_update", "categories_delete",
+        "dashboard_get", "sources_list", "sources_get", "sources_create", "sources_update", "sources_snapshot_get", "sources_snapshot_push", "sources_sync",
+        "page_get", "page_update", "documents_activity_list", "documents_list", "documents_get", "documents_create", "documents_update", "documents_rename", "documents_delete", "documents_metadata_update",
+        "work_board_get", "work_items_list", "work_items_get", "work_items_create", "work_items_update", "work_items_move",
+        "work_projects_list", "work_projects_create", "work_projects_update", "work_resources_search",
+    }
+    require(len(registered_tools) == len(tools) == 44 and tools == expected_tools,
+            "MCP tool catalog must contain exactly the 44 unique contracted names.")
     require(anon.tool(full, "space_current", {})["spaceId"] == shared, "MCP returned the wrong token space.")
     anon.tool(readonly, "dashboard_get", {"spaceId": shared}, error="forbidden")
     category = anon.tool(full, "categories_create", {"input": {"name": "Local fixture", "icon": "lucide:folder"}})

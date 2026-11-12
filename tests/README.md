@@ -56,6 +56,8 @@ LINGSHU_WORK_PERFORMANCE=1 go test ./internal/home -run '^TestWorkPerformance$' 
 
 配置 `PLAYWRIGHT_MODULE`、`CHROMIUM_PATH` 及有效中英文字体后，运行 `node tests/browser_work_items.cjs`。`UI_CHECK_MATCH` 可选择某些检查组；脚本会创建必要的最小前置记录，未选中的组不计为通过。`UI_BASELINE=1` 只测首页，不调用工作项 API。报告不写入密码、Cookie、令牌或连接串。夹具必须在运行结束后停止，临时凭据应删除；本轮专用 PostgreSQL 数据库已经确认无活动连接后清理，测试证据保留。
 
+初次主线 [CI 43269357501](https://github.com/zhigege666/Lingshu-Home/actions/runs/43269357501) 在旧 `TestIntegrationHTTPMCPAndTraffic` 的工具总数断言失败：预期 34，实际新增后为 44。该失败发生在打标签前，发布步骤未执行；修正目录契约时同时核对十个新增工具的名称和唯一性，保留旧目录的检查。Go SQLite 定向用例修正后通过；Python HTTP/MCP 验收脚本完成语法检查，并与 Go 核对完整 44 个唯一名称一致。未重复本地全套测试，后续托管运行单独记录。
+
 正式版本以相同提交的托管 CI、标签打包、公开资产校验和、匿名镜像读回及真实发布程序重启检查为准。本节记录的是提交前已完成的候选验证，不预先声称发布成功。
 
 ## 首页书签删除与跨分类拖动：0.0.11
