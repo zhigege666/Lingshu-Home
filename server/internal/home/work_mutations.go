@@ -8,16 +8,36 @@ import (
 )
 
 type workCreateInput struct {
-	ID             string   `json:"id"`
-	Title          string   `json:"title"`
-	ProjectID      *string  `json:"projectId"`
-	Status         string   `json:"status"`
-	Description    string   `json:"description"`
-	NextStep       string   `json:"nextStep"`
-	Result         string   `json:"result"`
-	NeedsAttention bool     `json:"needsAttention"`
-	BookmarkIDs    []string `json:"bookmarkIds"`
-	DocumentIDs    []string `json:"documentIds"`
+	ID             string              `json:"id"`
+	Title          string              `json:"title"`
+	ProjectID      *string             `json:"projectId"`
+	Status         string              `json:"status"`
+	Description    string              `json:"description"`
+	NextStep       string              `json:"nextStep"`
+	Result         string              `json:"result"`
+	NeedsAttention bool                `json:"needsAttention"`
+	BookmarkIDs    []string            `json:"bookmarkIds"`
+	DocumentIDs    []string            `json:"documentIds"`
+	Placement      workCreatePlacement `json:"placement,omitempty"`
+}
+
+// Omitted placement and explicit end retain the original creation hash.
+type workCreatePlacement string
+
+func (p *workCreatePlacement) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	switch value {
+	case "start":
+		*p = "start"
+	case "end":
+		*p = ""
+	default:
+		return errors.New("placement must be start or end")
+	}
+	return nil
 }
 
 func validateWorkText(in *workCreateInput) error {
@@ -197,6 +217,16 @@ func (a *App) beforeWorkRank(r *Request, space, status, id, before string) (int6
 	}
 	return 0, conflict("Unable to place this item. Refresh the board.")
 }
+func (a *App) createWorkRank(r *Request, space, status, id string, placement workCreatePlacement) (int64, error) {
+	var before string
+	if placement == "start" {
+		err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT id FROM work_items WHERE space_id=? AND status=? AND archived=? ORDER BY sort_order,id LIMIT 1"), space, status, false).Scan(&before)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return 0, err
+		}
+	}
+	return a.beforeWorkRank(r, space, status, id, before)
+}
 func (a *App) createWorkItem(r *Request) (*Response, error) {
 	s, err := r.workSpace(true)
 	if err != nil {
@@ -248,7 +278,7 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err = a.validateWorkRefs(r, s.ID, in.ID, "document", in.DocumentIDs); err != nil {
 		return nil, err
 	}
-	rank, err := a.appendWorkRank(r, s.ID, in.Status, false, "")
+	rank, err := a.createWorkRank(r, s.ID, in.Status, in.ID, in.Placement)
 	if err != nil {
 		return nil, err
 	}

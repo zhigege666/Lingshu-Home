@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.1.1 Go implementation in `server/`, including storage selection, browser-session policy, profiles and private avatars, atomic navigation editing, the work board, the file-backed library, direct HTTPS and document activity. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the current Go implementation in `server/`, including storage selection, browser-session policy, profiles and private avatars, atomic navigation editing, the work board, the file-backed library, direct HTTPS and document activity. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Storage bootstrap API
 
@@ -684,7 +684,7 @@ The internal work board, introduced in 0.1.0, uses `/api/v1/spaces/{spaceId}/wor
 | Method and path suffix | Result / guard |
 | --- | --- |
 | `GET /board` | `{revision,canEdit,statuses,statusRevision,defaultStatus,columns:[{status,total,items,nextCursor}]}`; columns follow the current status catalog |
-| `GET /items` | `{revision,canEdit,statuses,statusRevision,defaultStatus,items,total,nextCursor}`; optional project/status/text/archive/attention filters |
+| `GET /items` | `{revision,canEdit,statuses,statusRevision,defaultStatus,items,total,nextCursor}`; optional exact-item/project/status/text/archive/attention filters |
 | `GET /items/{id}` | Current authorized item detail, `statusDefinition` and references |
 | `POST /items` | Stable caller-generated ID and title; optional project, status, notes, attention and resource IDs |
 | `PATCH /items/{id}` | Supplied fields plus item `expectedRevision`; includes archive/restore |
@@ -706,6 +706,8 @@ Status batches accept `create:[{id,name,type,color?,description?}]`, `patches:[{
 Work always requires a signed-in account with edit access to the space, including for reads. Anonymous public/open-edit access does not expose work. PATs additionally require `work:read` or `work:write`; source-specific PATs cannot access the board. Reading or adding linked bookmarks/documents requires the corresponding `navigation:read`/`documents:read` action; a work scope does not grant document body access. References and their counts omit unauthorized types.
 
 Ordinary edits check only the edited entity's revision. Moves also check the board revision and resolve anchors against the complete active target column, including hidden/unloaded items. A null `beforeId` appends to that full column. Query cursors are bound to their filters and board snapshot; `409 work_version_conflict` requires a fresh first page. Preserve drafts on conflicts and read back uncertain results before deciding on another write.
+
+Board and item queries accept optional `itemId` (32 lowercase hexadecimal characters). It intersects the space and every other filter; missing and out-of-space IDs return no matches. Changing it invalidates a previous filter's cursor, while omitted `itemId` retains legacy cursor fingerprints. Creation accepts optional `placement:"start"|"end"`: start inserts before the complete active status column; omission/end preserves append behavior and historical creation hashes. Existing relative order is retained, and a successful create replay never repositions the item. Placement is create-only; PATCH rejects it. These additions require no schema migration.
 
 Omitting `status` on item creation uses `defaultStatus`. Repeating the same item/project ID and normalized original creation payload is replay-safe; reusing an ID with different content returns `work_id_conflict`. Item create replay is resolved before applying the current default or checking whether the original status was retired, so subsequent configuration changes do not reinterpret an already successful creation. Historical create hashes retain their original interpretation. Retain the same ID and payload after a timeout. Status batches instead require a current catalog revision and comparison before retrying; they are not unconditional replay operations.
 

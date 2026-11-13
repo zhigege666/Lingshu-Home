@@ -21,13 +21,13 @@ export type WorkSummary = {
   revision: string; archived: boolean; updatedAt: string; nextStep: string; needsAttention: boolean; referenceCount: number
 }
 export type WorkItem = WorkSummary & {
-  boardRevision: string; description: string; result: string; bookmarkIds: string[]; documentIds: string[]; references: WorkReference[]; statusDefinition?: WorkStatusDefinition
+  boardRevision: string; description: string; result: string; createdAt: string; bookmarkIds: string[]; documentIds: string[]; references: WorkReference[]; statusDefinition?: WorkStatusDefinition
 }
 export type WorkColumn = { status: WorkStatus; total: number; items: WorkSummary[]; nextCursor: string | null }
 export type WorkBoard = WorkStatusContext & { revision: string; canEdit: boolean; columns: WorkColumn[] }
 export type WorkPage = WorkStatusContext & { revision: string; canEdit: boolean; items: WorkSummary[]; total: number; nextCursor: string | null }
 export type WorkDraft = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'result' | 'needsAttention' | 'bookmarkIds' | 'documentIds'>
-export type WorkSelection = { id: string; create?: boolean; status?: WorkStatus; projectId?: string | null; reference?: WorkReference }
+export type WorkSelection = { id: string; create?: boolean; status?: WorkStatus; projectId?: string | null; needsAttention?: boolean; reference?: WorkReference }
 export const workPath = (spaceId: string) => `/spaces/${encodeURIComponent(spaceId)}/work`
 export function newWorkId(): string {
   return [...crypto.getRandomValues(new Uint8Array(16))].map(value => value.toString(16).padStart(2, '0')).join('')
@@ -49,4 +49,7 @@ export function workLibraryHref(spaceId: string, reference?: WorkReference): str
 }
 export function workCreateHref(spaceId: string, kind: 'bookmark' | 'document', id: string, title: string): string {
   return '#/library?' + new URLSearchParams({ view: 'board', space: spaceId, new: '1', resourceKind: kind, resourceId: id, title })
+}
+export function workItemHref(spaceId: string, itemId: string): string {
+  return '#/library?' + new URLSearchParams({ view: 'board', space: spaceId, item: itemId })
 }

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Archive, ArchiveRestore, ArrowUpRight, FileText, Link2, Plus, Save, X } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowUpRight, Crosshair, FileText, Link2, Plus, Save, X } from 'lucide-react'
 import { ApiError, messageOf, request } from '../core/api'
 import { t } from '../core/i18n'
 import { requestNavigation } from '../core/navigation'
 import { safeHref, formatUpdated } from '../core/presentation'
 import { useUnsavedChanges } from '../core/useUnsavedChanges'
-import { changedWorkFields, normalizeWorkDraft, workDraft, workLibraryHref, workPath, type WorkStatusCatalog, type WorkStatusDefinition, type WorkDraft, type WorkItem, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
+import { changedWorkFields, normalizeWorkDraft, workDraft, workItemHref, workLibraryHref, workPath, type WorkStatusCatalog, type WorkStatusDefinition, type WorkDraft, type WorkItem, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
 import { Button } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
 import { Input } from '../components/ui/input'
@@ -25,18 +25,20 @@ function useWideEditor() {
   return wide
 }
 
-export default function WorkEditor({ spaceId, selection, projects, statuses, defaultStatus, canEdit, onClose, onSaved, onStatusesChanged }: { spaceId: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void }) {
+export default function WorkEditor({ spaceId, selection, projects, statuses, defaultStatus, canEdit, onClose, onSaved, onStatusesChanged, onReveal, onNotice }: { spaceId: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string, created: boolean) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void; onReveal: (item: WorkItem) => void; onNotice: (message: string) => void }) {
   const theme = useWorkTheme()
   const initial = useRef(selection), alive = useRef(true), running = useRef(false), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement)
   const [creating, setCreating] = useState(!!selection.create), [baseline, setBaseline] = useState<WorkItem | null>(null)
-  const [draft, setDraft] = useState<WorkDraft>(() => workDraft({ title: selection.reference?.title || '', status: selection.status || defaultStatus, projectId: selection.projectId || null, bookmarkIds: selection.reference?.kind === 'bookmark' ? [selection.reference.id] : [], documentIds: selection.reference?.kind === 'document' ? [selection.reference.id] : [] }))
-  const [references, setReferences] = useState<WorkReference[]>(selection.reference ? [selection.reference] : [])
-  const [loading, setLoading] = useState(!selection.create), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
+  const initialDraft = useRef(workDraft({ title: selection.reference?.title || '', status: selection.status || defaultStatus, projectId: selection.projectId || null, needsAttention: selection.needsAttention || false, bookmarkIds: selection.reference?.kind === 'bookmark' ? [selection.reference.id] : [], documentIds: selection.reference?.kind === 'document' ? [selection.reference.id] : [] }))
+  const initialReferences = useRef<WorkReference[]>(selection.reference ? [selection.reference] : [])
+  const [draft, setDraft] = useState<WorkDraft>(() => workDraft(initialDraft.current))
+  const [references, setReferences] = useState<WorkReference[]>(() => [...initialReferences.current])
+  const [loading, setLoading] = useState(!selection.create), [busy, setBusy] = useState(false), [error, setError] = useState(''), [linkError, setLinkError] = useState('')
   const [remote, setRemote] = useState<WorkItem | null>(null), [conflict, setConflict] = useState(false), [uncertain, setUncertain] = useState(false), [picker, setPicker] = useState(false)
   const [statusesStale, setStatusesStale] = useState(false)
   const wide = useWideEditor()
-  const dirty = creating ? !!draft.title || !!draft.description || !!draft.nextStep || !!draft.result || draft.bookmarkIds.length > 0 || draft.documentIds.length > 0 : !!baseline && Object.keys(changedWorkFields(workDraft(baseline), draft)).length > 0
-  const guard = useUnsavedChanges(dirty, busy, () => { setDraft(workDraft(baseline || { status: defaultStatus })); setPicker(false) })
+  const dirty = (creating || !!baseline) && Object.keys(changedWorkFields(creating ? initialDraft.current : workDraft(baseline || undefined), draft)).length > 0
+  const guard = useUnsavedChanges(dirty, busy, () => { setDraft(workDraft(baseline || initialDraft.current)); setReferences([...(baseline?.references || initialReferences.current)]); setPicker(false) })
   const path = `${workPath(spaceId)}/items/${encodeURIComponent(selection.id)}`
   useEffect(() => {
     alive.current = true
@@ -51,11 +53,11 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     const title = document.querySelector<HTMLInputElement>('.work-detail [data-work-title]')
     title?.focus({ preventScroll: true })
   }, [wide, loading])
-  function close() { guard.requestLeave(() => { onClose(); requestAnimationFrame(() => { if (returningTo.current?.isConnected) returningTo.current.focus({ preventScroll: true }) }) }) }
+  function close() { guard.requestLeave(() => { onClose(); requestAnimationFrame(() => { const target = returningTo.current?.isConnected ? returningTo.current : document.querySelector<HTMLElement>(`[data-work-id="${CSS.escape(selection.id)}"] .work-card-title, [data-work-id="${CSS.escape(selection.id)}"] .work-list-title`) || document.querySelector<HTMLElement>('[data-work-new]'); target?.focus({ preventScroll: true }) }) }) }
   function adopt(item: WorkItem, message: string) {
     if (!alive.current) return
-    setCreating(false); setBaseline(item); setDraft(workDraft(item)); setReferences(item.references || []); setConflict(false); setRemote(null); setUncertain(false); setError(''); setNotice(message); setPicker(false)
-    onSaved(item, message)
+    setCreating(false); setBaseline(item); setDraft(workDraft(item)); setReferences(item.references || []); setConflict(false); setRemote(null); setUncertain(false); setError(''); setLinkError(''); setPicker(false)
+    onSaved(item, message, creating)
   }
   async function readLatest() {
     if (running.current) return
@@ -91,9 +93,9 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     for (const [key, max] of [['title', 160], ['description', 4000], ['nextStep', 1000], ['result', 4000]] as const) if ([...intended[key]].length > max) { setError(t('{field}最多允许 {count} 个字符。', '{field} allows at most {count} characters.', { field: fieldLabel(key), count: max })); return }
     const changes = creating ? intended : changedWorkFields(workDraft(baseline || undefined), intended)
     if (!creating && !Object.keys(changes).length) return
-    running.current = true; setBusy(true); setError(''); setNotice('')
+    running.current = true; setBusy(true); setError('')
     try {
-      const item = await request<WorkItem>(creating ? `${workPath(spaceId)}/items` : path, { method: creating ? 'POST' : 'PATCH', body: creating ? { id: selection.id, ...intended } : { expectedRevision: against || baseline?.revision, ...changes } })
+      const item = await request<WorkItem>(creating ? `${workPath(spaceId)}/items` : path, { method: creating ? 'POST' : 'PATCH', body: creating ? { id: selection.id, ...intended, placement: 'start' } : { expectedRevision: against || baseline?.revision, ...changes } })
       adopt(item, creating ? t('事项已创建', 'Item created') : t('事项已保存', 'Item saved'))
     } catch (cause) {
       if (!alive.current) return
@@ -125,6 +127,12 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     setDraft(current => ({ ...current, [key]: present ? current[key].filter(id => id !== item.id) : [...current[key], item.id] }))
     setReferences(current => present ? current.filter(value => value.kind !== item.kind || value.id !== item.id) : [...current, item])
   }
+  async function copyLink() {
+    if (!baseline) return
+    setLinkError('')
+    try { await navigator.clipboard.writeText(new URL(workItemHref(spaceId, baseline.id), window.location.href).href); onNotice(t('事项链接已复制', 'Item link copied')) }
+    catch { setLinkError(t('无法复制链接，请使用地址栏中的事项链接。', 'The link could not be copied. Use the item link in the address bar.')) }
+  }
   const projectOptions = [{ value: '', label: t('未分组', 'No project') }, ...projects.filter(project => !project.archived || project.id === draft.projectId).map(project => ({ value: project.id, label: project.name + (project.archived ? t('（已归档）', ' (archived)') : '') }))]
   const comparison = remote ? Object.keys(changedWorkFields(workDraft(remote), draft)) as (keyof WorkDraft)[] : []
   function displayValue(key: keyof WorkDraft, value: WorkDraft) {
@@ -135,10 +143,10 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     return value[key] || t('空', 'Empty')
   }
   const content = <>
-    <header className="work-detail-heading"><div><h2 id="work-editor-title">{creating ? t('新建事项', 'New item') : t('事项详情', 'Item details')}</h2>{baseline?.archived && <span className="work-archived-label">{t('已归档', 'Archived')}</span>}</div><Button type="button" variant="ghost" size="icon" disabled={busy} onClick={close} aria-label={t('关闭事项', 'Close item')}><X size={19}/></Button></header>
+    <header className="work-detail-heading"><div><h2 id="work-editor-title">{creating ? t('新建事项', 'New item') : t('事项详情', 'Item details')}</h2>{baseline?.archived && <span className="work-archived-label">{t('已归档', 'Archived')}</span>}</div><div className="work-detail-actions">{baseline && <><Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onReveal(baseline)} aria-label={t('定位事项', 'Locate item')} title={t('清除筛选并定位此事项', 'Clear filters and locate this item')}><Crosshair size={16}/><span>{t('定位', 'Locate')}</span></Button><Button type="button" variant="ghost" size="icon-sm" disabled={busy} onClick={() => void copyLink()} aria-label={t('复制事项链接', 'Copy item link')} title={t('复制事项链接', 'Copy item link')}><Link2 size={16}/></Button></>}<Button type="button" variant="ghost" size="icon" disabled={busy} onClick={close} aria-label={t('关闭事项', 'Close item')}><X size={19}/></Button></div></header>
     {loading ? <Loading/> : !creating && !baseline ? <div className="work-detail-body"><ErrorMessage error={error}/><Button onClick={close}>{t('关闭', 'Close')}</Button></div> : <form className="work-detail-form" onSubmit={event => void save(event)} onInvalidCapture={event => handleFormInvalid(event, setError)} onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault() }}>
       <div className="work-detail-body">
-        <ErrorMessage error={error}/>{notice && <p className="work-notice" role="status">{notice}</p>}{statusesStale && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void readStatuses()}>{t('读取最新状态', 'Reload statuses')}</Button>}
+        <ErrorMessage error={error}/><ErrorMessage error={linkError}/>{statusesStale && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void readStatuses()}>{t('读取最新状态', 'Reload statuses')}</Button>}
         {(conflict || uncertain) && <section className="work-conflict"><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void readLatest()}>{t('读取最新版本', 'Read latest version')}</Button>{remote && <><dl>{comparison.map(key => <div key={key}><dt>{fieldLabel(key)}</dt><dd><span>{t('最新', 'Latest')}</span><pre>{displayValue(key, workDraft(remote))}</pre></dd><dd><span>{t('草稿', 'Draft')}</span><pre>{displayValue(key, draft)}</pre></dd></div>)}</dl><div className="work-conflict-actions"><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => adopt(remote, t('已使用最新版本', 'Using the latest version'))}>{t('使用最新版本', 'Use latest version')}</Button>{!creating && <Button type="button" size="sm" disabled={busy} onClick={() => void save(undefined, remote.revision)}>{t('保存草稿中的改动', 'Save my draft changes')}</Button>}</div></>}</section>}
         <fieldset disabled={busy || !canEdit} className="admin-plain-fieldset">
           <Field label={t('事项标题', 'Item title')}><Input data-work-title autoFocus={creating} required maxLength={320} value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))}/></Field>
@@ -152,7 +160,7 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
           <div className="work-references">{references.map(item => <div key={`${item.kind}:${item.id}`} className={!item.available ? 'unavailable' : ''}>{item.kind === 'document' ? <FileText size={16}/> : <Link2 size={16}/>}<a href={workLibraryHref(spaceId, item)} onClick={event => { if (event.button || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return; event.preventDefault(); requestNavigation(() => { window.location.hash = workLibraryHref(spaceId, item) }) }} aria-disabled={!item.available} title={item.title}>{item.available ? item.title : t('资料暂不可用', 'Resource unavailable')}</a>{item.kind === 'bookmark' && item.available && item.url && <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" aria-label={t('打开书签：{title}', 'Open bookmark: {title}', { title: item.title })}><ArrowUpRight size={14}/></a>}{canEdit && <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('取消关联：{title}', 'Unlink: {title}', { title: item.title })} onClick={() => toggleReference(item)}><X size={13}/></Button>}</div>)}</div>
           {picker && <ResourcePicker spaceId={spaceId} selected={references} disabled={busy} onToggle={toggleReference} onClose={() => setPicker(false)}/>}
         </section>
-        {baseline && <time className="work-updated" dateTime={baseline.updatedAt}>{t('更新于 {time}', 'Updated {time}', { time: formatUpdated(baseline.updatedAt) })}</time>}
+        {baseline && <div className="work-item-times">{baseline.createdAt && <time className="work-updated" dateTime={baseline.createdAt}>{t('创建于 {time}', 'Created {time}', { time: formatUpdated(baseline.createdAt) })}</time>}<time className="work-updated" dateTime={baseline.updatedAt}>{t('更新于 {time}', 'Updated {time}', { time: formatUpdated(baseline.updatedAt) })}</time></div>}
       </div>
       <footer className="work-detail-footer">{baseline && canEdit && <Button type="button" variant="ghost" disabled={busy} onClick={() => guard.requestLeave(() => void toggleArchive())}>{baseline.archived ? <ArchiveRestore size={16}/> : <Archive size={16}/>}<span>{baseline.archived ? t('恢复事项', 'Restore item') : t('归档事项', 'Archive item')}</span></Button>}<span className="grow"/><Button type="button" variant="outline" disabled={busy} onClick={close}>{t('关闭', 'Close')}</Button>{canEdit && <Button type="submit" disabled={busy || !draft.title.trim() || (!creating && !dirty) || uncertain || conflict}><Save size={15}/>{busy ? t('正在保存…', 'Saving…') : creating ? t('创建事项', 'Create item') : t('保存事项', 'Save item')}</Button>}</footer>
     </form>}

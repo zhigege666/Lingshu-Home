@@ -51,14 +51,25 @@
 .work-context-heading h1 { margin:0; font-size:16px; line-height:1.4; font-weight:600; color:var(--work-ink); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .work-total { flex:none; }
 .work-page-actions { display:flex; align-items:center; gap:8px; flex:none; }
+.work-page-actions>.work-search { width:clamp(180px,18vw,360px); min-width:180px; max-width:360px; flex:none; margin-right:6px; }
 .work-page-actions>.work-view-toggle { margin:0 4px 0 0; }
 .work-page-actions>[data-work-new] { min-height:36px; padding:8px 13px; font-size:13px; }
 .work-account { margin-left:0; padding-left:18px; border-left:1px solid var(--work-line); flex:none; gap:3px; }
 .work-account>.lh-control-select { width:145px; max-width:165px; }
 .work-main,.work-shell.has-detail .work-main { padding:16px 24px 18px; }
-.work-toolbar { min-height:36px; margin-bottom:14px; gap:12px; }
-.work-search { max-width:360px; }
+.work-toolbar { display:none; min-height:32px; margin-bottom:12px; gap:12px; }
+.work-toolbar.has-controls { display:flex; }
+.work-focus-filter { display:inline-flex; align-items:center; gap:6px; min-width:0; max-width:min(480px,100%); padding:4px 7px; border-radius:5px; background:var(--work-tint); color:var(--work-accent); font-size:12px; }
+.work-focus-filter>span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.work-focus-filter>svg { flex:none; }
+.work-focus-filter>button { display:flex; align-items:center; justify-content:center; width:24px; height:24px; flex:none; border:0; background:none; color:inherit; cursor:pointer; }
 .work-sync-action { margin-left:auto; color:var(--work-accent); font-size:12px; }
+.work-detail-heading>.work-detail-actions { gap:3px; flex:none; }
+.work-detail-actions>.cn-button { min-height:30px; padding:5px 7px; font-size:11px; }
+.work-detail-actions>.cn-button-size-icon,.work-detail-actions>.cn-button-size-icon-sm { width:30px; padding:5px; }
+.work-item-times { display:flex; flex-wrap:wrap; gap:5px 14px; margin-top:22px; }
+.work-item-times>.work-updated { margin:0; }
+.work-lane-actions>button:disabled { opacity:.4; cursor:not-allowed; }
 .work-lane>header { padding:13px 13px 12px; min-height:52px; }
 .work-lane>header>h2 { flex:1; font-size:13px; }
 .work-status-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -130,6 +141,7 @@
   .work-context-heading { padding-left:16px; }
   .work-account { padding-left:12px; }
   .work-account>.lh-control-select { width:130px; }
+  .work-page-actions>.work-search { width:220px; min-width:180px; }
   .work-main,.work-shell.has-detail .work-main { padding:14px 18px 16px; }
   .work-board { gap:12px; }
 }
@@ -141,14 +153,19 @@
   .work-account>.lh-control-select { width:120px; }
   .work-page-actions .work-view-toggle button>span { display:none; }
   .work-page-actions .work-view-toggle button { padding:6px 8px; }
+  .work-page-actions>.work-search { width:170px; min-width:150px; }
+}
+@media(max-width:999px) {
+  .work-toolbar { display:flex; }
 }
 @media(max-width:899px) {
-  .work-shell { grid-template-rows:108px minmax(0,1fr); }
-  .work-topbar { display:grid; grid-template-columns:auto minmax(0,1fr) auto; grid-template-rows:54px 54px; height:auto; gap:0 12px; }
+  .work-shell { grid-template-rows:148px minmax(0,1fr); }
+  .work-topbar { display:grid; grid-template-columns:auto minmax(0,1fr) auto; grid-template-rows:50px 44px 48px; height:auto; gap:0 12px; }
   .work-topbar nav { grid-column:2; grid-row:1; justify-self:start; }
   .work-topbar .work-account { grid-column:3; grid-row:1; border:0; padding:0; }
-  .work-context-heading { grid-column:1/3; grid-row:2; padding:0; border:0; }
-  .work-page-actions { grid-column:3; grid-row:2; justify-self:end; }
+  .work-context-heading { grid-column:1/-1; grid-row:2; padding:0; border:0; }
+  .work-page-actions { grid-column:1/-1; grid-row:3; width:100%; }
+  .work-page-actions>.work-search { width:auto; min-width:80px; max-width:none; flex:1; margin-right:0; }
   .work-context-heading h1 { font-size:15px; }
   .work-page-actions .work-view-toggle button>span { display:inline; }
   .admin-ui.work-drawer.cn-dialog-content { top:0; height:100dvh; }

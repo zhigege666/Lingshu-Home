@@ -9,6 +9,7 @@ import (
 
 type workFilter struct {
 	Q         string `json:"q"`
+	ItemID    string `json:"itemId"`
 	ProjectID string `json:"projectId"`
 	Status    string `json:"status"`
 	Archived  bool   `json:"archived"`
@@ -49,6 +50,7 @@ func readWorkFilter(r *Request) (workFilter, error) {
 	} else {
 		q := r.HTTP.URL.Query()
 		in.Q = q.Get("q")
+		in.ItemID = q.Get("itemId")
 		in.ProjectID = q.Get("projectId")
 		in.Status = q.Get("status")
 		in.Cursor = q.Get("cursor")
@@ -84,10 +86,17 @@ func readWorkFilter(r *Request) (workFilter, error) {
 	if in.ProjectID != "" && in.ProjectID != "none" && !validID(in.ProjectID) {
 		return in, invalid("Invalid projectId.")
 	}
+	if in.ItemID != "" && !validID(in.ItemID) {
+		return in, invalid("Invalid itemId.")
+	}
 	return in, nil
 }
 func (in workFilter) fingerprint(space string) string {
-	return workPayloadHash([]any{space, in.Q, in.ProjectID, in.Status, in.Archived, in.Attention})
+	values := []any{space, in.Q, in.ProjectID, in.Status, in.Archived, in.Attention}
+	if in.ItemID != "" {
+		values = append(values, in.ItemID)
+	}
+	return workPayloadHash(values)
 }
 func workLike(value string) string {
 	return "%" + strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(strings.ToLower(value)) + "%"
@@ -95,6 +104,10 @@ func workLike(value string) string {
 func (in workFilter) where(space string) (string, []any) {
 	where := "w.space_id=? AND w.archived=?"
 	args := []any{space, in.Archived}
+	if in.ItemID != "" {
+		where += " AND w.id=?"
+		args = append(args, in.ItemID)
+	}
 	if in.Status != "" {
 		where += " AND w.status=?"
 		args = append(args, in.Status)

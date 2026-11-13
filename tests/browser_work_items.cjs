@@ -49,7 +49,7 @@ async function main() {
       const g = await page.evaluate(() => {
         const rect = selector => { const e = document.querySelector(selector); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, height: r.height }; };
         const board = document.querySelector('.work-board');
-        return { width: innerWidth, height: innerHeight, scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth), panel: rect('[data-work-detail-id]'), header: rect('.work-topbar'), heading: rect('.work-context-heading'), actions: rect('.work-page-actions'), search: rect('.work-toolbar'), board: board && { ...rect('.work-board'), clientWidth: board.clientWidth, scrollWidth: board.scrollWidth, overflowX: getComputedStyle(board).overflowX }, controls: [...document.querySelectorAll('.work-toolbar button,.work-topbar button,.work-detail-footer button,[data-work-detail-id] header button')].filter(e => e.getClientRects().length).map(e => { const r = e.getBoundingClientRect(); return { name: e.textContent || e.getAttribute('aria-label'), x: r.x, y: r.y, right: r.right, bottom: r.bottom }; }) };
+        return { width: innerWidth, height: innerHeight, scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth), panel: rect('[data-work-detail-id]'), header: rect('.work-topbar'), heading: rect('.work-context-heading'), actions: rect('.work-page-actions'), search: rect('.work-topbar .work-search'), board: board && { ...rect('.work-board'), clientWidth: board.clientWidth, scrollWidth: board.scrollWidth, overflowX: getComputedStyle(board).overflowX }, controls: [...document.querySelectorAll('.work-toolbar button,.work-topbar button,.work-detail-footer button,[data-work-detail-id] header button')].filter(e => e.getClientRects().length).map(e => { const r = e.getBoundingClientRect(); return { name: e.textContent || e.getAttribute('aria-label'), x: r.x, y: r.y, right: r.right, bottom: r.bottom }; }) };
       });
       assert(g.scrollWidth <= g.width + 1, name + ' horizontal overflow');
       if (g.panel) assert(g.panel.x >= -1 && g.panel.y >= -1 && g.panel.right <= g.width + 1 && g.panel.bottom <= g.height + 1, name + ' detail panel outside viewport');
@@ -57,7 +57,7 @@ async function main() {
       assert(g.header && g.heading && g.actions && g.search, name + ' contextual header and search exist');
       for (const [key, r] of [['title', g.heading], ['actions', g.actions]]) assert(r.y >= g.header.y && r.bottom <= g.header.bottom + 1, name + ' ' + key + ' stays in topbar');
       assert(g.heading.right <= g.actions.x + 1, name + ' title does not overlap actions');
-      assert(g.header.height <= 65 && g.search.y >= g.header.bottom - 1, name + ' one compact header above search');
+      assert(g.header.height <= 65 && g.search.y >= g.header.y && g.search.bottom <= g.header.bottom + 1, name + ' search stays in the compact header');
       if (g.board) {
         assert(g.board.x >= -1 && g.board.right <= g.width + 1, name + ' board container stays in viewport');
         assert(g.search.bottom <= g.board.y + 1, name + ' search stays above board');
@@ -198,7 +198,7 @@ async function main() {
         };
         await context.route(pattern, lostResponse);
         await title.fill(prefix + ' lost response'); await button('保存事项', 'Save item', detail()).click();
-        await detail().getByText(l('已读到与当前草稿一致的内容。', 'The current record matches your draft.'), { exact: true }).waitFor();
+        await page.locator('.app-toast').getByText(l('已读到与当前草稿一致的内容。', 'The current record matches your draft.'), { exact: true }).waitFor();
         assert.equal(patches, 1, 'No blind write replay');
         await context.unroute(pattern, lostResponse);
         latest = await api(work + '/items/' + uiItem.id); assert.equal(latest.title, prefix + ' lost response');
