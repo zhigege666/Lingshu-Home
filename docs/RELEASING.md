@@ -8,6 +8,10 @@ Each change set updates `CHANGELOG.md` under `Unreleased` and the relevant publi
 
 Pull requests and pushes to `main` run application CI. Ordinary application changes do not create a release or publish an image. Changes to the latest-promotion workflow, script or its tests also run the alias-maintenance workflow described below; that workflow reuses an already published stable image.
 
+## Version selection during 0.x development
+
+Small fixes and compatible improvements to existing modules stay in the current minor line: for example, 0.2.0 advances to 0.2.1. Reserve a new minor version for a deliberately planned, substantial feature milestone. A new field, configuration switch or database migration alone does not require a minor-version bump. Keep migration and recovery instructions complete regardless of the version increment.
+
 ## Preparing an authorized release
 
 1. Complete implementation, review, application tests and documentation, including any migration/recovery instructions.

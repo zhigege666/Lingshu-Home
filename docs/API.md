@@ -106,7 +106,7 @@ Bootstrap capabilities distinguish the built-in theme package (`builtin`), its f
 
 ### Optional Library and Work modules
 
-Since 0.3.0, bootstrap and settings results include `modules:{documents:boolean,work:boolean}`. Both default to `true` for existing and new databases. `PUT /settings` accepts a partial `modules` object in addition to its existing required fields; omitted module fields retain saved values. Explicit `null`, non-boolean values and unknown module keys return 400.
+Since 0.2.1, bootstrap and settings results include `modules:{documents:boolean,work:boolean}`. Both default to `true` for existing and new databases. `PUT /settings` accepts a partial `modules` object in addition to its existing required fields; omitted module fields retain saved values. Explicit `null`, non-boolean values and unknown module keys return 400.
 
 Changing a module requires a signed-in Owner with browser Cookie/CSRF authentication. PATs, Members and anonymous open-edit visitors cannot change these instance-wide settings. Subsequent requests use the saved state without changing the authentication epoch, sessions, token secrets or scopes.
 
@@ -741,7 +741,7 @@ Since 0.0.9, a space-scoped MCP call may omit `spaceId`; Home resolves it from t
 
 The catalog contains 46 tools, including 12 [work-board/project/item/status tools](WORK_ITEMS.md), alongside navigation, library and integration operations. Tool inputs contain resource identifiers and, for mutations, a structured `input` object. Results retain their documented `items`, `columns`, cursors and metadata. Work descriptions and parameter schemas explain discovery, stable IDs, defaults, revisions and recovery without requiring external Skills. Dynamic statuses are response data, so changing columns does not require a new MCP schema or catalog publication.
 
-Since 0.3.0, `space_current` includes `contextVersion,serverVersion,modules,capabilities,workflow,entrypoints`, retaining its original three space fields. `capabilities.work/documents/navigation` each report effective read/write access. `LINGSHU_MCP_WORKFLOW_ENABLED` / `--mcp-workflow-enabled` controls optional workflow guidance, defaults false and is read at startup. It is independent of the default-on module switches. See [workflow and Gate behavior](INTEGRATIONS.md#optional-workflow-guidance-and-module-state).
+Since 0.2.1, `space_current` includes `contextVersion,serverVersion,modules,capabilities,workflow,entrypoints`, retaining its original three space fields. `capabilities.work/documents/navigation` each report effective read/write access. `LINGSHU_MCP_WORKFLOW_ENABLED` / `--mcp-workflow-enabled` controls optional workflow guidance, defaults false and is read at startup. It is independent of the default-on module switches. See [workflow and Gate behavior](INTEGRATIONS.md#optional-workflow-guidance-and-module-state).
 
 Authenticated `tools/list` lists registered tools without hiding work tools based on PAT actions. Missing work scopes cause a call-time permission error; absent tools instead require checking the running version, endpoint and any gateway discovery/exposure configuration. Every tool invocation reloads the current account, permission epoch and token scope. Mutations use the same write gate, transaction, authorization and business handlers as the HTTP API. Long-lived clients cannot retain revoked permissions. MCP responses are private and not cacheable across accounts.
 

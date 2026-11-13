@@ -4,7 +4,11 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-11-13
+## [0.2.1] - 2026-11-13
+
+### Release versioning
+
+- Keep this compatible set of existing-module improvements in the 0.2.x line as 0.2.1. Document the 0.x policy for small releases; migration and recovery requirements remain unchanged.
 
 ### Module navigation, configuration and work history
 
