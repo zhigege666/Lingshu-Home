@@ -15,7 +15,7 @@ import (
 
 var workStatuses = []string{"todo", "doing", "waiting", "done"}
 
-const workStatusOrder = "CASE w.status WHEN 'todo' THEN 0 WHEN 'doing' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END"
+const workStatusOrder = "ws.sort_order"
 const workRankStep int64 = 1024
 
 type WorkSummary struct {
@@ -43,14 +43,15 @@ type WorkReference struct {
 }
 type WorkItem struct {
 	WorkSummary
-	Description   string          `json:"description"`
-	Result        string          `json:"result"`
-	CreatedAt     string          `json:"createdAt"`
-	BoardRevision string          `json:"boardRevision"`
-	BookmarkIDs   []string        `json:"bookmarkIds"`
-	DocumentIDs   []string        `json:"documentIds"`
-	References    []WorkReference `json:"references"`
-	createHash    string
+	StatusDefinition *WorkStatusDefinition `json:"statusDefinition"`
+	Description      string                `json:"description"`
+	Result           string                `json:"result"`
+	CreatedAt        string                `json:"createdAt"`
+	BoardRevision    string                `json:"boardRevision"`
+	BookmarkIDs      []string              `json:"bookmarkIds"`
+	DocumentIDs      []string              `json:"documentIds"`
+	References       []WorkReference       `json:"references"`
+	createHash       string
 }
 type WorkProject struct {
 	ID         string `json:"id"`
@@ -64,6 +65,9 @@ type WorkProject struct {
 
 func (a *App) registerWorkRoutes() {
 	base := "/api/v1/spaces/{spaceId}/work"
+	a.route("GET "+base+"/statuses", false, a.getWorkStatuses)
+	a.route("POST "+base+"/statuses/batch-edit", true, a.batchEditWorkStatuses)
+	a.route("GET "+base+"/revision", false, a.getWorkRevision)
 	a.route("GET "+base+"/board", false, a.getWorkBoard)
 	a.route("GET "+base+"/items", false, a.listWorkItems)
 	a.route("POST "+base+"/items", true, a.createWorkItem)
@@ -104,21 +108,15 @@ func (r *Request) workSpace(write bool) (*Space, error) {
 	return s, nil
 }
 func (r *Request) workReads(action string) bool { return !r.Bearer || r.AllowedActions[action] }
+
+// Keys are stable data identifiers. Membership is checked against the space catalog.
 func workStatusValid(status string) bool {
 	for _, value := range workStatuses {
 		if value == status {
 			return true
 		}
 	}
-	return false
-}
-func workOrdinal(status string) int {
-	for i, value := range workStatuses {
-		if value == status {
-			return i
-		}
-	}
-	return -1
+	return validID(status)
 }
 func workStamp() string { return time.Now().UTC().Format(time.RFC3339Nano) }
 func workConflict(code, message, revision string) error {
@@ -242,6 +240,10 @@ func (a *App) workItemReply(r *Request, item *WorkItem, flags map[string]any) (*
 		return ok(result), nil
 	}
 	item.BoardRevision = revision
+	item.StatusDefinition, err = a.requireWorkStatus(r, item.SpaceID, item.Status)
+	if err != nil {
+		return nil, err
+	}
 	if err = a.loadWorkReferences(r, item); err != nil {
 		return nil, err
 	}

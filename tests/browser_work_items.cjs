@@ -45,11 +45,28 @@ async function main() {
     const prefix = 'Work ' + crypto.randomBytes(4).toString('hex');
     const bookmark = await api(space + '/links', 'POST', { title: prefix + ' reference', url: 'https://example.invalid/work', iconMode: 'manual', icon: 'lucide:link', description: 'Owned work fixture', tags: [] }, 201);
     async function shot(name) { const file = provider + '-' + name + '.png'; await page.screenshot({ path: path.join(out, file), animations: 'disabled' }); report.screenshots.push(file); }
-    async function geometry(name) {
-      const g = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth), panel: (() => { const e = document.querySelector('[data-work-detail-id]'); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom }; })(), controls: [...document.querySelectorAll('.work-toolbar button,.work-topbar button,.work-detail-footer button,[data-work-detail-id] header button')].filter(e => e.getClientRects().length).map(e => { const r = e.getBoundingClientRect(); return { name: e.textContent || e.getAttribute('aria-label'), x: r.x, y: r.y, right: r.right, bottom: r.bottom }; }) }));
+    async function geometry(name, overflowingBoard = false) {
+      const g = await page.evaluate(() => {
+        const rect = selector => { const e = document.querySelector(selector); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, height: r.height }; };
+        const board = document.querySelector('.work-board');
+        return { width: innerWidth, height: innerHeight, scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth), panel: rect('[data-work-detail-id]'), header: rect('.work-topbar'), heading: rect('.work-context-heading'), actions: rect('.work-page-actions'), search: rect('.work-toolbar'), board: board && { ...rect('.work-board'), clientWidth: board.clientWidth, scrollWidth: board.scrollWidth, overflowX: getComputedStyle(board).overflowX }, controls: [...document.querySelectorAll('.work-toolbar button,.work-topbar button,.work-detail-footer button,[data-work-detail-id] header button')].filter(e => e.getClientRects().length).map(e => { const r = e.getBoundingClientRect(); return { name: e.textContent || e.getAttribute('aria-label'), x: r.x, y: r.y, right: r.right, bottom: r.bottom }; }) };
+      });
       assert(g.scrollWidth <= g.width + 1, name + ' horizontal overflow');
       if (g.panel) assert(g.panel.x >= -1 && g.panel.y >= -1 && g.panel.right <= g.width + 1 && g.panel.bottom <= g.height + 1, name + ' detail panel outside viewport');
       for (const c of g.controls) assert(c.x >= -1 && c.y >= -1 && c.right <= g.width + 1 && c.bottom <= g.height + 1, name + ' offscreen control ' + c.name);
+      assert(g.header && g.heading && g.actions && g.search, name + ' contextual header and search exist');
+      for (const [key, r] of [['title', g.heading], ['actions', g.actions]]) assert(r.y >= g.header.y && r.bottom <= g.header.bottom + 1, name + ' ' + key + ' stays in topbar');
+      assert(g.heading.right <= g.actions.x + 1, name + ' title does not overlap actions');
+      assert(g.header.height <= 65 && g.search.y >= g.header.bottom - 1, name + ' one compact header above search');
+      if (g.board) {
+        assert(g.board.x >= -1 && g.board.right <= g.width + 1, name + ' board container stays in viewport');
+        assert(g.search.bottom <= g.board.y + 1, name + ' search stays above board');
+        if (overflowingBoard) {
+          assert(g.board.scrollWidth > g.board.clientWidth + 1 && ['auto', 'scroll'].includes(g.board.overflowX), name + ' extra columns scroll within board');
+          const moved = await page.locator('.work-board').evaluate(e => { const old = e.scrollLeft; e.scrollLeft = e.scrollWidth; const moved = e.scrollLeft > 0; e.scrollLeft = old; return moved; });
+          assert(moved, name + ' internal horizontal scrolling works');
+        }
+      }
       await shot(name);
     }
     await check(provider + '/home_initial_loading_baseline', async () => {
@@ -117,6 +134,14 @@ async function main() {
         await action(); const r = await waiting; assert.equal(r.status(), status); return r.json();
       }
       async function closeDetail() { if (await detail().count()) { await button('关闭事项', 'Close item', detail()).click(); await detail().waitFor({ state: 'hidden' }); } }
+      async function openStatuses() {
+        await button('看板操作', 'Board actions').click();
+        await page.getByRole('menuitem', { name: l('管理状态', 'Manage statuses'), exact: true }).click();
+        const dialog = page.locator('.work-status-manager'); await dialog.locator('[data-status-id]').first().waitFor(); return dialog;
+      }
+      async function setStatusColor(row, color) {
+        await row.locator('input[type=color]').evaluate((input, value) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); }, color);
+      }
       let uiItem, uiProject;
       await check(provider + '/ui_create_project_item_edit_and_persistence', async () => {
         await openBoard();
@@ -264,18 +289,91 @@ async function main() {
         assert.equal(fs.readFileSync(path.join(f.documentRoot, 'plan.md'), 'utf8'), '# Work fixture\n\nOriginal mounted document.\n');
         await closeDetail(); await page.setViewportSize({ width: 2560, height: 1440 }); await openBoard();
       });
+      await check(provider + '/ui_dynamic_status_configuration_and_migration', async () => {
+        await closeDetail(); await page.setViewportSize({ width: 2560, height: 1440 }); await openBoard();
+        const original = await api(work + '/statuses');
+        let manager = await openStatuses();
+        await button('新增状态', 'Add status', manager).click();
+        let row = manager.locator('[data-status-id]').last();
+        const statusId = await row.getAttribute('data-status-id'), initialName = prefix + ' review', editedName = prefix + ' final review';
+        await row.locator('[data-status-name]').fill(initialName);
+        await row.locator('.work-status-description').fill('Ready for a person to review the result.');
+        await setStatusColor(row, '#517d9b');
+        await choose(row.getByRole('combobox'), l('进行中', 'In progress'));
+        await row.getByRole('radio').check();
+        let catalog = await mutation(() => button('保存状态', 'Save statuses', manager).click(), work + '/statuses/batch-edit', 'POST');
+        await manager.waitFor({ state: 'hidden' });
+        assert.match(statusId, /^[a-f0-9]{32}$/); assert.equal(catalog.defaultStatus, statusId);
+        let custom = catalog.items.find(x => x.id === statusId);
+        assert.equal(custom.name, initialName); assert.equal(custom.type, 'doing'); assert.equal(custom.color, '#517d9b');
+        await page.locator('.work-lane[data-work-status="' + statusId + '"]').waitFor();
+        await button('新建事项', 'New item').click(); await detail().waitFor();
+        assert.equal((await label('状态', 'Status', detail()).innerText()).trim(), initialName, 'New items use the space default');
+        await label('事项标题', 'Item title', detail()).fill(prefix + ' review decision');
+        await label('下一步', 'Next step', detail()).fill('Review the completed dashboard before publishing.');
+        await label('说明', 'Description', detail()).fill('Keep the original work and archived records when the workflow changes.');
+        const activeItem = await mutation(() => button('创建事项', 'Create item', detail()).click(), work + '/items', 'POST');
+        assert.equal(activeItem.status, statusId); await closeDetail();
+        let archivedItem = await api(work + '/items', 'POST', { id: newID(), title: prefix + ' archived review', status: statusId });
+        archivedItem = await api(work + '/items/' + archivedItem.id, 'PATCH', { expectedRevision: archivedItem.revision, archived: true });
+        manager = await openStatuses(); row = manager.locator('[data-status-id="' + statusId + '"]');
+        await row.locator('[data-status-name]').fill(editedName);
+        await row.locator('.work-status-description').fill('Waiting for a reviewer; preserve the decision and all references.');
+        await choose(row.getByRole('combobox'), l('等待', 'Waiting'));
+        await setStatusColor(row, '#a97831');
+        await button('上移：' + editedName, 'Move up: ' + editedName, row).click();
+        catalog = await mutation(() => button('保存状态', 'Save statuses', manager).click(), work + '/statuses/batch-edit', 'POST');
+        await manager.waitFor({ state: 'hidden' });
+        custom = catalog.items.find(x => x.id === statusId);
+        assert.equal(custom.name, editedName); assert.equal(custom.type, 'waiting'); assert.equal(custom.color, '#a97831');
+        assert.equal(custom.description, 'Waiting for a reviewer; preserve the decision and all references.');
+        assert.equal(catalog.items[original.items.length - 1].id, statusId, 'Custom status order is persisted');
+        await page.locator('.work-lane[data-work-status="' + statusId + '"] .work-status-name').filter({ hasText: editedName }).waitFor();
+        await card(activeItem.id).locator('.work-card-title').click(); await detail().waitFor();
+        assert.equal((await label('状态', 'Status', detail()).innerText()).trim(), editedName, 'Existing item keeps its stable status ID after rename');
+        await closeDetail();
+        manager = await openStatuses(); row = manager.locator('[data-status-id="' + statusId + '"]');
+        await shot('status-manager-with-custom-stage');
+        await manager.locator('[data-status-id="' + original.defaultStatus + '"]').getByRole('radio').check();
+        await button('删除状态：' + editedName, 'Remove status: ' + editedName, row).click();
+        await row.getByText(l('迁移 2 个事项（含 1 个已归档）', 'Move 2 items (1 archived)'), { exact: true }).waitFor();
+        const destination = catalog.items.find(x => x.id === 'doing');
+        await choose(row.getByRole('combobox'), destination.name);
+        catalog = await mutation(() => button('保存状态', 'Save statuses', manager).click(), work + '/statuses/batch-edit', 'POST');
+        await manager.waitFor({ state: 'hidden' });
+        assert.equal(catalog.items.some(x => x.id === statusId), false); assert.equal(catalog.defaultStatus, original.defaultStatus);
+        const migrated = await api(work + '/items/' + activeItem.id), migratedArchive = await api(work + '/items/' + archivedItem.id);
+        assert.equal(migrated.status, destination.id); assert.equal(migrated.description, activeItem.description);
+        assert.equal(migratedArchive.status, destination.id); assert.equal(migratedArchive.archived, true);
+        await page.locator('.work-lane[data-work-status="' + statusId + '"]').waitFor({ state: 'hidden' });
+        await page.locator('.work-lane[data-work-status="doing"] [data-work-id="' + activeItem.id + '"]').waitFor();
+      });
       await check(provider + '/ui_view_switch_and_four_screen_sizes', async () => {
+        await closeDetail(); await page.setViewportSize({ width: 2560, height: 1440 });
+        const original = await api(work + '/statuses');
+        const extra = ['todo', 'doing', 'waiting', 'done', 'canceled'].map((type, index) => ({ id: newID(), name: prefix + ' stage ' + (index + 1) + ' with a longer name', type, color: ['#778899', '#4b879f', '#b18c35', '#4d8967', '#977986'][index], description: 'Owned layout fixture' }));
+        await api(work + '/statuses/batch-edit', 'POST', { expectedRevision: original.revision, create: extra, order: [...original.items.map(x => x.id), ...extra.map(x => x.id)] });
+        await openBoard();
+        await page.locator('.work-lane[data-work-status="' + extra[0].id + '"]').waitFor();
         await button('列表', 'List').click(); await page.locator('.work-table').waitFor();
         await page.locator('.work-table [data-work-id="' + uiItem.id + '"]').waitFor();
         await button('看板', 'Board').click(); await page.locator('.work-board').waitFor();
+        assert.equal(await page.locator('.work-lane').count(), original.items.length + extra.length);
+        assert((await page.locator('.work-card').count()) > 0, 'Responsive screenshots include real item content');
         for (const [width, height] of [[2560,1440],[1920,1080],[1600,900],[2560,1080]]) {
-          await page.setViewportSize({ width, height }); await geometry('board-' + width + 'x' + height);
-          await card(uiItem.id).locator('.work-card-title').click(); await detail().waitFor(); await geometry('detail-' + width + 'x' + height); await closeDetail();
+          await page.setViewportSize({ width, height }); await geometry('board-' + width + 'x' + height, true);
+          await card(uiItem.id).locator('.work-card-title').click(); await detail().waitFor(); await geometry('detail-' + width + 'x' + height, true); await closeDetail();
         }
         await page.setViewportSize({ width: 2560, height: 1440 });
-        let requests = 0; const countRequest = r => { if (new URL(r.url()).pathname.includes('/work/')) requests++; };
+        const latest = await api(work + '/statuses');
+        await api(work + '/statuses/batch-edit', 'POST', { expectedRevision: latest.revision, deletions: extra.map(x => ({ id: x.id })), order: original.items.map(x => x.id) });
+        await openBoard();
+        const requests = []; const countRequest = r => { if (new URL(r.url()).pathname.includes('/work/')) requests.push({ path: new URL(r.url()).pathname, method: r.method() }); };
         await page.waitForLoadState('networkidle'); page.on('request', countRequest);
-        await page.waitForTimeout(5000); page.off('request', countRequest); assert.equal(requests, 0, 'No board polling during a settled foreground observation');
+        const revisionCheck = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1' + work + '/revision');
+        await page.evaluate(() => window.dispatchEvent(new Event('focus'))); assert.equal((await revisionCheck).status(), 200);
+        await page.waitForLoadState('networkidle'); page.off('request', countRequest);
+        assert(requests.length > 0 && requests.every(r => r.path.endsWith('/revision') && r.method === 'GET'), 'Returning to an unchanged board only checks the lightweight revision');
       });
       await check(provider + '/project_archive_preserves_open_items_and_originals', async () => {
         project = await api(work + '/projects/' + project.id, 'PATCH', { expectedRevision: project.revision, archived: true });

@@ -15,18 +15,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
-var integrationActions = map[string]bool{
-	"navigation:read": true, "navigation:write": true, "sources:read": true, "sources:write": true,
-	"datasets:write": true, "pages:read": true, "pages:write": true,
-	"documents:read": true, "documents:write": true,
-	"work:read": true, "work:write": true,
-}
 var integrationTokenPattern = regexp.MustCompile(`^lhp_[A-Za-z0-9_-]{43}$`)
 var integrationExternalID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 var integrationOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`)
@@ -65,15 +58,17 @@ type IntegrationSource struct {
 	credentialCipher     string
 }
 type IntegrationCredential struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	SpaceID   string     `json:"spaceId"`
-	SourceID  *string    `json:"sourceId"`
-	Actions   []string   `json:"actions"`
-	CreatedAt time.Time  `json:"createdAt"`
-	ExpiresAt time.Time  `json:"expiresAt"`
-	RevokedAt *time.Time `json:"revokedAt"`
-	Status    string     `json:"status"`
+	ID             string     `json:"id"`
+	Revision       string     `json:"revision"`
+	Name           string     `json:"name"`
+	SpaceID        string     `json:"spaceId"`
+	SourceID       *string    `json:"sourceId"`
+	Actions        []string   `json:"actions"`
+	PermissionMode string     `json:"permissionMode"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	ExpiresAt      *time.Time `json:"expiresAt"`
+	RevokedAt      *time.Time `json:"revokedAt"`
+	Status         string     `json:"status"`
 }
 type integrationTime struct {
 	Time  time.Time
@@ -257,15 +252,17 @@ func (a *App) authenticateBearerHash(r *Request, hash string) error {
 	var source sql.NullString
 	var actions []byte
 	var epoch, version int64
+	var neverExpires bool
+	var permissionMode string
 	var expires, revoked integrationTime
-	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query(`SELECT user_id,space_id,source_id,actions_json,permission_epoch,user_version,expires_at,revoked_at FROM integration_tokens WHERE token_hash=?`), hash).Scan(&userID, &spaceID, &source, &actions, &epoch, &version, &expires, &revoked)
+	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query(`SELECT user_id,space_id,source_id,actions_json,permission_epoch,user_version,expires_at,revoked_at,never_expires,permission_mode FROM integration_tokens WHERE token_hash=?`), hash).Scan(&userID, &spaceID, &source, &actions, &epoch, &version, &expires, &revoked, &neverExpires, &permissionMode)
 	if errors.Is(err, sql.ErrNoRows) {
 		return unauthorized()
 	}
 	if err != nil {
 		return err
 	}
-	if !expires.Valid || !expires.Time.After(time.Now()) || revoked.Valid || epoch != r.Settings.AuthEpoch {
+	if (!neverExpires && (!expires.Valid || !expires.Time.After(time.Now()))) || revoked.Valid || epoch != r.Settings.AuthEpoch {
 		return unauthorized()
 	}
 	user, err := a.loadUser(r.HTTP.Context(), r.Q, userID)
@@ -285,171 +282,20 @@ func (a *App) authenticateBearerHash(r *Request, hash string) error {
 	r.TokenSpaceID = spaceID
 	r.TokenSourceID = source.String
 	r.AllowedActions = map[string]bool{}
+	space, err := r.requireSpace(spaceID, false)
+	if err != nil {
+		return unauthorized()
+	}
+	if permissionMode == "all" {
+		_, canWrite := r.spaceAccess(space)
+		scopes = integrationAllTokenActions(source.Valid, canWrite)
+	} else if permissionMode != "selected" {
+		return unauthorized()
+	}
 	for _, scope := range scopes {
 		r.AllowedActions[scope] = true
 	}
-	if _, err := r.requireSpace(spaceID, false); err != nil {
-		return unauthorized()
-	}
 	return nil
-}
-func (a *App) listIntegrationTokens(r *Request) (*Response, error) {
-	if r.User == nil {
-		return nil, unauthorized()
-	}
-	if r.Bearer {
-		return nil, forbidden()
-	}
-	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query(`SELECT id,name,space_id,source_id,actions_json,created_at,expires_at,revoked_at,permission_epoch,user_version FROM integration_tokens WHERE user_id=? ORDER BY created_at,id`), r.User.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []IntegrationCredential{}
-	for rows.Next() {
-		var c IntegrationCredential
-		var source sql.NullString
-		var actions []byte
-		var created, expires, revoked integrationTime
-		var epoch, version int64
-		if err := rows.Scan(&c.ID, &c.Name, &c.SpaceID, &source, &actions, &created, &expires, &revoked, &epoch, &version); err != nil {
-			return nil, err
-		}
-		if source.Valid {
-			s := source.String
-			c.SourceID = &s
-		}
-		if err := json.Unmarshal(actions, &c.Actions); err != nil {
-			return nil, err
-		}
-		c.CreatedAt = created.Time
-		c.ExpiresAt = expires.Time
-		c.RevokedAt = revoked.Pointer()
-		c.Status = "active"
-		if revoked.Valid {
-			c.Status = "revoked"
-		} else if !expires.Time.After(time.Now()) {
-			c.Status = "expired"
-		} else if epoch != r.Settings.AuthEpoch || version != r.User.Version {
-			c.Status = "invalidated"
-		}
-		items = append(items, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ok(items), nil
-}
-func (a *App) createIntegrationToken(r *Request) (*Response, error) {
-	if r.User == nil {
-		return nil, unauthorized()
-	}
-	if r.Bearer {
-		return nil, forbidden()
-	}
-	var in struct {
-		Name      string    `json:"name"`
-		SpaceID   string    `json:"spaceId"`
-		SourceID  *string   `json:"sourceId"`
-		Actions   []string  `json:"actions"`
-		ExpiresAt time.Time `json:"expiresAt"`
-	}
-	if err := r.decode(&in); err != nil {
-		return nil, err
-	}
-	name, nameErr := required(in.Name, "token name", 100)
-	if nameErr != nil {
-		return nil, nameErr
-	}
-	in.Name = name
-	if _, err := r.requireSpace(in.SpaceID, false); err != nil {
-		return nil, err
-	}
-	// PostgreSQL timestamps retain microseconds; use the same instant in SQL and
-	// the one-time creation response so listing the credential does not change it.
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	in.ExpiresAt = in.ExpiresAt.UTC().Truncate(time.Microsecond)
-	if !in.ExpiresAt.After(now.Add(time.Minute)) || in.ExpiresAt.After(now.Add(365*24*time.Hour)) {
-		return nil, invalid("token expiry must be between one minute and 365 days in the future")
-	}
-	if len(in.Actions) == 0 || len(in.Actions) > len(integrationActions) {
-		return nil, invalid("select at least one supported action")
-	}
-	seen := map[string]bool{}
-	for _, action := range in.Actions {
-		if !integrationActions[action] || seen[action] {
-			return nil, invalid("unknown or duplicate token action")
-		}
-		seen[action] = true
-	}
-	if seen["documents:write"] && !seen["documents:read"] {
-		return nil, invalid("documents:write also requires documents:read so a saved document can be returned safely")
-	}
-	if in.SourceID != nil {
-		if *in.SourceID == "" {
-			return nil, invalid("sourceId must be null or an existing source")
-		}
-		source, err := a.loadIntegrationSource(r.HTTP.Context(), r.Q, *in.SourceID)
-		if err != nil {
-			return nil, err
-		}
-		if source.SpaceID != in.SpaceID {
-			return nil, missing()
-		}
-		for _, action := range in.Actions {
-			if action != "sources:read" && action != "datasets:write" {
-				return nil, invalid("source-scoped tokens only allow sources:read and datasets:write")
-			}
-		}
-	}
-	for _, action := range in.Actions {
-		if strings.HasSuffix(action, ":write") {
-			if _, err := r.requireSpace(in.SpaceID, true); err != nil {
-				return nil, err
-			}
-			break
-		}
-	}
-	var count int
-	if err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT COUNT(*) FROM integration_tokens WHERE user_id=? AND revoked_at IS NULL"), r.User.ID).Scan(&count); err != nil {
-		return nil, err
-	}
-	if count >= 64 {
-		return nil, conflict("revoke an existing token before creating another; maximum 64 non-revoked tokens")
-	}
-	sort.Strings(in.Actions)
-	actions, _ := json.Marshal(in.Actions)
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return nil, err
-	}
-	raw := "lhp_" + base64.RawURLEncoding.EncodeToString(secret)
-	c := IntegrationCredential{ID: integrationID(), Name: in.Name, SpaceID: in.SpaceID, SourceID: in.SourceID, Actions: in.Actions, CreatedAt: now, ExpiresAt: in.ExpiresAt.UTC(), Status: "active"}
-	_, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query(`INSERT INTO integration_tokens(id,user_id,name,token_hash,space_id,source_id,actions_json,permission_epoch,user_version,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`), c.ID, r.User.ID, c.Name, integrationHash(raw), c.SpaceID, integrationNullableString(c.SourceID), string(actions), r.Settings.AuthEpoch, r.User.Version, integrationStamp(now), integrationStamp(c.ExpiresAt))
-	if err != nil {
-		return nil, err
-	}
-	return &Response{Status: 201, Data: map[string]any{"token": raw, "credential": c}}, nil
-}
-func (a *App) revokeIntegrationToken(r *Request) (*Response, error) {
-	if r.User == nil {
-		return nil, unauthorized()
-	}
-	if r.Bearer {
-		return nil, forbidden()
-	}
-	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE integration_tokens SET revoked_at=COALESCE(revoked_at,?) WHERE id=? AND user_id=?"), integrationStamp(time.Now()), r.param("id"), r.User.ID)
-	if err != nil {
-		return nil, err
-	}
-	n, err := result.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
-	if n == 0 {
-		return nil, missing()
-	}
-	return ok(map[string]any{"success": true}), nil
 }
 
 const integrationSourceColumns = `s.id,s.space_id,s.created_by,s.name,s.kind,s.schema_id,s.schema_version,s.connection_json,s.sync_json,s.enabled,s.config_revision,s.credential_cipher,s.created_at,s.updated_at,s.next_sync_at,s.last_success_at,s.last_error_json,COALESCE(p.revision,0)`

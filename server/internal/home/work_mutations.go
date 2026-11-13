@@ -34,11 +34,8 @@ func validateWorkText(in *workCreateInput) error {
 			return err
 		}
 	}
-	if in.Status == "" {
-		in.Status = "todo"
-	}
-	if !workStatusValid(in.Status) {
-		return invalid("Unknown status.")
+	if in.Status != "" && !workStatusValid(in.Status) {
+		return invalid("status must be a stable ID from the current space status catalog.")
 	}
 	if in.ProjectID != nil && !validID(*in.ProjectID) {
 		return invalid("projectId must be null or an existing project ID.")
@@ -223,20 +220,23 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Hash the caller's normalized intent before resolving the mutable default.
 	hash := workPayloadHash(in)
-	var existingSpace, existingHash string
-	err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT space_id,create_hash FROM work_items WHERE id=?"), in.ID).Scan(&existingSpace, &existingHash)
-	if err == nil {
-		if existingSpace != s.ID || existingHash != hash {
-			return nil, workConflict("work_id_conflict", "This ID is already used by a different create request.", "")
-		}
-		item, err := a.loadWorkItem(r, s.ID, in.ID)
+	existing, err := a.existingWorkCreation(r, s.ID, in, hash)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return a.workItemReply(r, existing, map[string]any{"replayed": true})
+	}
+	if in.Status == "" {
+		catalog, err := a.loadWorkStatuses(r, s.ID, false)
 		if err != nil {
 			return nil, err
 		}
-		return a.workItemReply(r, item, map[string]any{"replayed": true})
+		in.Status = catalog.DefaultStatus
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if _, err = a.requireWorkStatus(r, s.ID, in.Status); err != nil {
 		return nil, err
 	}
 	if err = a.validateWorkProject(r, s.ID, in.ProjectID); err != nil {
@@ -253,7 +253,7 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 		return nil, err
 	}
 	now := workStamp()
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)"), in.ID, s.ID, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2)"), in.ID, s.ID, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +319,9 @@ func (a *App) updateWorkItem(r *Request) (*Response, error) {
 		return nil, invalid("Unknown status.")
 	}
 	if err = validateWorkText(&in); err != nil {
+		return nil, err
+	}
+	if _, err = a.requireWorkStatus(r, s.ID, in.Status); err != nil {
 		return nil, err
 	}
 	if !reflect.DeepEqual(in.ProjectID, item.ProjectID) {
@@ -418,6 +421,9 @@ func (a *App) moveWorkItem(r *Request) (*Response, error) {
 	}
 	if revision != item.Revision {
 		return nil, workConflict("work_item_version_conflict", "The item changed. Refresh before moving it.", item.Revision)
+	}
+	if _, err = a.requireWorkStatus(r, s.ID, status); err != nil {
+		return nil, err
 	}
 	actual, err := a.workRevision(r, s.ID)
 	if err != nil {

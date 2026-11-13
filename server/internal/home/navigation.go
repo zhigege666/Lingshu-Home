@@ -41,6 +41,9 @@ func (a *App) insertSpace(r *Request, name, kind, ownerID string, published bool
 	if err != nil {
 		return nil, err
 	}
+	if err = a.initializeWorkStatuses(r, s.ID); err != nil {
+		return nil, err
+	}
 	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO pages(id,space_id,name,revision,config) VALUES(?,?,?,?,?)"), newID(), s.ID, a.localized("我的导航", "Home"), 1, jsonString(defaultPageConfig()))
 	return s, err
 }

@@ -4,6 +4,34 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
+### Board layout and dynamic workflow
+
+- Place navigation's View all entry in one card slot instead of spanning the full grid row. Release unused auto-fit tracks on wide screens while retaining configured preview limits, bookmark order, keyboard folder access and directory presentation.
+- Move the current board scope, Board/List toggle and New item action into the header. Keep search above the content, constrain horizontal scrolling to status columns and support 2560×1440, 1920×1080, 1600×900 and 2560×1080 layouts. Reuse the browser's Home theme preference and check lightweight revisions while preserving editors, drafts, dragging and loaded pages.
+- Maintain space-wide status names, colors, descriptions, order and default through one revision-checked batch. Stable IDs retain Todo/Doing/Waiting/Done/Canceled semantics independently from names, attention and archive flags. Preserve current four states on upgrade; projects use the same space catalog.
+- Retire a status only with a valid remaining default and, when occupied, an explicit destination. Migrate active and archived items atomically, retaining references and destination ordering. Retired IDs cannot be reused. Preserve local drafts on configuration conflicts and merge only intended changes against a freshly read catalog.
+- Resolve omitted item status from the current default, while preserving successful creation replay across default changes and retired states. Keep compatibility with creation hashes saved by earlier releases.
+
+### Access-token lifecycle
+
+- Edit an existing token's name, action selection and expiry without replacing its secret, bound space/source or MCP configuration. Add optional Never expires and an explicit All permissions mode that includes future supported business actions within the same binding and current account permissions. Existing tokens retain selected permissions and finite expiry.
+- Serve permission options and dependencies from one backend catalog used by creation, editing and authentication. Apply increases and reductions to subsequent HTTP/MCP requests using the original token; all permissions never grants account/token administration or bypasses space, source, account-version or site-epoch checks.
+- Require an explicit new expiry or permanent choice to renew expired tokens; revoked or security-invalidated tokens cannot be reactivated. Preserve Cookie ownership and CSRF checks, reject PAT credential management and protect edits with revisions. Keep drafts on conflicts or uncertain responses.
+- Keep the existing DELETE token route as revocation. Add a separate owner-only, revision-checked deletion of already-revoked records; active tokens cannot be removed through that path. Revocation remains effective for permanent tokens.
+
+### HTTP and MCP contracts
+
+- Add work_statuses_get and work_statuses_batch_edit: twelve work tools and 46 total tools. Typed arrays/objects, catalog metadata, stable-ID descriptions and concrete recovery messages support agents without extra Skills. State edits do not change tool schemas or require new tokens.
+- Keep Home tools/list independent of action scopes; insufficient grants are rejected at invocation. Editing a Home token does not refresh an MCP gateway's discovered, published or authorized tool catalog. Verify the actual Home connection and rediscover new tool definitions in the gateway when upgrading.
+- Include real active/archive usage counts only in status catalog reads and saved configuration responses; board/list/detail metadata do not fabricate unqueried counts. Preserve write-only operational receipts and avoid readable error details without read permission.
+
+### Upgrade and rollback
+
+- Add separately maintained SQLite/PostgreSQL migrations 014 (work_statuses) and 015 (integration_token_management). Preserve work items, references, revisions, original creation hashes and existing token secrets/bindings. Existing tokens default to selected permissions and retain their expiry; no implicit expansion to all permissions or permanent validity.
+- Back up complete database/data, matching keys and deployment configuration before upgrading; mounted originals require their own backup. Returning to 0.1.1 or earlier requires the matching pre-upgrade restore set. Changing only the image tag or removing migration records is not a rollback. No new mount, service or environment variable is required.
+
 ## [0.1.1] - 2026-11-13
 
 ### Homepage controls

@@ -625,13 +625,16 @@ Import returns `{imported,skipped,invalid,categoriesCreated}`. It reparses the o
 
 ## Personal access tokens and source management
 
-Token management requires a signed-in browser account; it cannot be delegated to another PAT.
+Token management requires the current account's signed-in browser Cookie; mutations also require CSRF protection. A PAT cannot manage tokens, and another account's token ID returns `404`.
 
 | Method and path | Input / behavior |
 | --- | --- |
+| `GET /integrations/token-actions` | `{items:[{id,label,requires,sourceScoped,write}],defaultActions}`; localized action labels, dependencies and selectable scope metadata |
 | `GET /integrations/tokens` | List the current account's token metadata, never raw secrets |
-| `POST /integrations/tokens` | `{name,spaceId,sourceId?,actions,expiresAt}`; secret returned once |
+| `POST /integrations/tokens` | `{name,spaceId,sourceId?,permissionMode?,actions?,expiresAt}`; HTTP `201` returns `{token,credential}`, with the secret returned once |
+| `PATCH /integrations/tokens/{id}` | `{expectedRevision,name?,permissionMode?,actions?,expiresAt?}`; HTTP `200` returns the updated credential directly, with no new secret |
 | `DELETE /integrations/tokens/{id}` | Revoke the current account's token; returns HTTP 200 with `{ "success": true }`, and retains a revoked entry in the token list |
+| `DELETE /integrations/tokens/{id}/record` | `{expectedRevision}`; permanently remove an already revoked record; HTTP `200` returns `{ "success": true }` |
 | `GET /spaces/{spaceId}/sources` | List permitted source metadata |
 | `POST /spaces/{spaceId}/sources` | Create a supported source |
 | `GET /sources/{id}` | Read safe connection and status metadata |
@@ -642,16 +645,24 @@ Token management requires a signed-in browser account; it cannot be delegated to
 | `POST /sources/{id}/calendar-import` | `{requestId,expectedRevision,icsText,timezone,pastDays?,futureDays?}`; calendar push source only |
 | `DELETE /sources/{id}` | `{expectedConfigRevision,detachUnusedBindings?}`; component references block deletion |
 
-Each PAT belongs to one account and one space. Optional `sourceId` further restricts it to one source. Source-specific tokens accept only `sources:read` and `datasets:write`. Tokens expire between one minute and 365 days after creation. Only a cryptographic token hash is stored.
+Each PAT belongs to one account and one space. Optional `sourceId` further restricts it to one source. These bindings cannot be changed by PATCH. Source-specific tokens accept only `sources:read` and `datasets:write`, further limited by the account's current access. Only a cryptographic token hash is stored; editing metadata or permissions preserves the original token and immediately changes the permissions checked for later requests.
+
+Credential metadata is `{id,revision,name,spaceId,sourceId,permissionMode,actions,createdAt,expiresAt,revokedAt,status}`. `revision` is a string; `sourceId`, `expiresAt` and `revokedAt` are nullable. Status is `active`, `expired`, `revoked` or `invalidated`. Creation requires an explicit `expiresAt`: an RFC3339 timestamp more than one minute and at most 365 days ahead, or `null` for permanent validity. PATCH omission preserves the existing expiry, including permanent validity; `null` explicitly makes the token permanent. An expired token requires an explicit new expiry or `null` before it can be edited. Revoked or invalidated credentials cannot be reactivated by editing. Each account may have at most 64 non-revoked entries; revocation frees a slot without requiring record deletion.
+
+`permissionMode` defaults to `selected`, whose nonempty `actions` list must satisfy the catalog's `requires` dependencies. The explicit `all` mode includes every currently supported and subsequently added business action that the account may use within the original space/source binding. It does not grant account or token management, change the binding, or bypass security-version invalidation or revocation. In `all` mode, credential `actions` reports the currently expanded effective set; writes must omit `actions` or use `[]`, rather than mix in a selected list. Switching from `all` to `selected` requires an explicit `actions` list. Existing credentials retain `selected` mode and do not gain new permissions automatically. Catalog `defaultActions` remains `navigation:read` plus `pages:read`.
+
+Stale PATCH or record-deletion versions return `409 integration_token_version_conflict` with `currentRevision`. Read the token list, retain the local draft, compare the current record, and only resubmit the reviewed changes; after an uncertain response, read back the intended fields before retrying. Editing an expired token without an explicit expiry returns `400 integration_token_expiry_required`; editing a revoked/invalidated token returns `409 integration_token_not_editable`; deleting a record before revocation returns `409 integration_token_not_revoked`. Revocation and later record deletion both leave the original secret unusable. SQLite and PostgreSQL migration `015_integration_token_management.sql` adds token revisions, permanent-expiry state and permission mode while retaining existing finite expiries and selected permissions.
 
 | Action | Grants, subject to account and space permissions |
 | --- | --- |
 | `navigation:read` | Local navigation reads and HTML export |
 | `navigation:write` | Bookmark/category maintenance and bookmark import |
-| `work:read` | Internal work-board/project/item reads; linked resources retain separate read scopes |
-| `work:write` | Internal work/project creation, edits, moves, archive and restore |
+| `work:read` | Internal work-board/project/item and status-catalog reads; linked resources retain separate read scopes |
+| `work:write` | Internal work/project creation, edits, moves, archive and restore; space-wide status maintenance |
 | `pages:read` | Page reads; dashboard and JSON export also require navigation read |
 | `pages:write` | Page replacement; bound local/external datasets also require their read actions |
+| `documents:read` | Authorized document reads; directory discovery and activity queries additionally require working-document access |
+| `documents:write` | Authorized document maintenance; also requires `documents:read` |
 | `sources:read` | Permitted source metadata and snapshots |
 | `sources:write` | Source create/update/synchronization requests |
 | `datasets:write` | External snapshot writes |
@@ -668,13 +679,13 @@ The GitHub adapter only calls fixed HTTPS repository Traffic endpoints on `api.g
 
 ## Work items and projects
 
-Version 0.1.0 adds the internal work board under `/api/v1/spaces/{spaceId}/work`, backed by additive migration 012 for SQLite and PostgreSQL. The [work guide and complete contract](WORK_ITEMS.md) cover the browser flow, fields, limits, HTTP/MCP mapping, archive behavior and upgrade recovery.
+The internal work board, introduced in 0.1.0, uses `/api/v1/spaces/{spaceId}/work`. Migration 012 creates the work tables; migration 014 adds configurable space-wide statuses for SQLite and PostgreSQL while retaining existing items and stable status keys. The [work guide and complete contract](WORK_ITEMS.md) cover the browser flow, fields, limits, HTTP/MCP mapping, archive behavior and upgrade recovery.
 
 | Method and path suffix | Result / guard |
 | --- | --- |
-| `GET /board` | `{revision,canEdit,columns:[{status,total,items,nextCursor}]}`; four paginated summary columns |
-| `GET /items` | `{revision,canEdit,items,total,nextCursor}`; optional project/status/text/archive/attention filters |
-| `GET /items/{id}` | Current authorized item detail and references |
+| `GET /board` | `{revision,canEdit,statuses,statusRevision,defaultStatus,columns:[{status,total,items,nextCursor}]}`; columns follow the current status catalog |
+| `GET /items` | `{revision,canEdit,statuses,statusRevision,defaultStatus,items,total,nextCursor}`; optional project/status/text/archive/attention filters |
+| `GET /items/{id}` | Current authorized item detail, `statusDefinition` and references |
 | `POST /items` | Stable caller-generated ID and title; optional project, status, notes, attention and resource IDs |
 | `PATCH /items/{id}` | Supplied fields plus item `expectedRevision`; includes archive/restore |
 | `POST /items/{id}/move` | Item `expectedRevision`, `expectedBoardRevision`, target `status` and explicit `beforeId` |
@@ -682,12 +693,25 @@ Version 0.1.0 adds the internal work board under `/api/v1/spaces/{spaceId}/work`
 | `POST /projects` | Stable caller-generated ID and name |
 | `PATCH /projects/{id}` | Project `expectedRevision` plus name and/or archive state |
 | `GET /resources` | Authorized bookmark/document summaries, with bounded cursor pagination |
+| `GET /statuses` | `{revision,defaultStatus,canEdit,items}`; full space-wide catalog with active and archived usage counts |
+| `POST /statuses/batch-edit` | Catalog `expectedRevision` plus typed `create`, `patches`, `order`, `deletions` arrays and/or `defaultStatus`; all changes are atomic |
+| `GET /revision` | `{revision,statusRevision}` for lightweight page change detection |
+
+`status` remains a stable string key, not a display name or a fixed enumeration. Initial keys are `todo`, `doing`, `waiting` and `done`; new status IDs are caller-generated 32-character lowercase hexadecimal strings. Each definition contains `{id,name,type,color,description,position,isDefault}`. `type` is one of `todo|doing|waiting|done|canceled`: canceled work has ended but is not successful completion. Built-in types retain their original meaning; custom types can change. Renaming or reordering does not change the key. `needsAttention` and `archived` remain independent.
+
+A space has 1–64 active statuses shared by all its projects. Names are at most 80 characters and unique among active statuses after trimming and lowercasing; descriptions are at most 1,000 characters; colors use `#RRGGBB`. Catalog reads and successful read-authorized catalog edits include `total` and `archivedTotal`. Board/list/detail status metadata omits these counts; `columns[].total` is the count matching the board's current filters.
+
+Status batches accept `create:[{id,name,type,color?,description?}]`, `patches:[{id,name?,type?,color?,description?}]`, `order:[stableId,...]`, `deletions:[{id,moveToStatus?}]` and `defaultStatus`. Each array is limited to 64 entries. A supplied order must include every surviving status, including new ones, exactly once. Deleting an occupied status requires a surviving destination: both active and archived items migrate atomically, preserving their archive state and appending to the corresponding destination ordering. Deleting the default also requires an explicit surviving `defaultStatus`. Removed keys are retired and cannot be reused; items and referenced originals are not deleted. Catalog changes advance catalog and board revisions; custom-type changes and migrations also advance affected item revisions.
 
 Work always requires a signed-in account with edit access to the space, including for reads. Anonymous public/open-edit access does not expose work. PATs additionally require `work:read` or `work:write`; source-specific PATs cannot access the board. Reading or adding linked bookmarks/documents requires the corresponding `navigation:read`/`documents:read` action; a work scope does not grant document body access. References and their counts omit unauthorized types.
 
 Ordinary edits check only the edited entity's revision. Moves also check the board revision and resolve anchors against the complete active target column, including hidden/unloaded items. A null `beforeId` appends to that full column. Query cursors are bound to their filters and board snapshot; `409 work_version_conflict` requires a fresh first page. Preserve drafts on conflicts and read back uncertain results before deciding on another write.
 
-Work creates and mutations return HTTP 200. Read/write callers receive the current authorized object; write-only PATs receive `{id,revision,boardRevision}`, with optional creation/replay flags and no stored content. Existing PATs gain no work actions automatically. Work has no permanent-delete endpoint or external execution engine; archive and restore do not modify referenced originals.
+Omitting `status` on item creation uses `defaultStatus`. Repeating the same item/project ID and normalized original creation payload is replay-safe; reusing an ID with different content returns `work_id_conflict`. Item create replay is resolved before applying the current default or checking whether the original status was retired, so subsequent configuration changes do not reinterpret an already successful creation. Historical create hashes retain their original interpretation. Retain the same ID and payload after a timeout. Status batches instead require a current catalog revision and comparison before retrying; they are not unconditional replay operations.
+
+Status errors include `work_status_unavailable`, `work_default_status_required`, `work_status_version_conflict`, `work_status_in_use`, `work_status_id_conflict` and `work_status_name_conflict`. Errors may contain `currentRevision`, `entity`, `id`, `field` and authorized `details`. An unavailable status can return `statusRevision`, `defaultStatus`, `availableStatuses`, an optional `replacementStatus` and `recoveryTool`; occupied-status errors can return active/archived counts. Such readable metadata is omitted for write-only callers. Use returned recovery metadata when sufficient; never only replace a revision and blindly resend an edit.
+
+Work creates and mutations return HTTP 200. Read/write callers receive the current authorized object; write-only item/project calls receive `{id,revision,boardRevision}`, with optional creation/replay flags and no stored content. Status batches return the current catalog, or `{revision,boardRevision,applied:true}` for write-only callers. Existing PATs gain no work actions automatically. Work items and projects have no permanent-delete endpoint or external execution engine; archive and restore do not modify referenced originals.
 
 ## MCP
 
@@ -695,9 +719,9 @@ The endpoint is `/mcp` on the same server. It uses the official MCP Go SDK and s
 
 Since 0.0.9, a space-scoped MCP call may omit `spaceId`; Home resolves it from the PAT authenticated for that request. This applies to reads and writes. `space_current` accepts no parameters and returns the bound space’s `spaceId`, `name` and `kind`. HTTP routes still take their documented identifiers. Read-only tools whose filters are all optional accept `{}` with no `input` for their defaults. Explicit `null`, missing required resource IDs and missing mutation `input` objects remain invalid. `document_sources_list` returns only enabled directories in the current working-document scope, including empty directories. See the [document guide](DOCUMENT_LIBRARY.md) for the destination fields and read failures.
 
-Tools cover dashboard/page reads, page updates, category and bookmark CRUD, source management, snapshot reads/pushes, synchronization requests and the [work-board/project/item operations](WORK_ITEMS.md). Tool inputs contain resource identifiers and, for mutations, an `input` object. List results use an `items` array. Discover exact schemas using the negotiated protocol rather than duplicating JSON-RPC assumptions in clients.
+The catalog contains 46 tools, including 12 [work-board/project/item/status tools](WORK_ITEMS.md), alongside navigation, library and integration operations. Tool inputs contain resource identifiers and, for mutations, a structured `input` object. Results retain their documented `items`, `columns`, cursors and metadata. Work descriptions and parameter schemas explain discovery, stable IDs, defaults, revisions and recovery without requiring external Skills. Dynamic statuses are response data, so changing columns does not require a new MCP schema or catalog publication.
 
-Every tool invocation reloads the current account, permission epoch and token scope. Mutations use the same write gate, transaction, authorization and business handlers as the HTTP API. Long-lived clients cannot retain revoked permissions. MCP responses are private and not cacheable across accounts.
+Authenticated `tools/list` lists registered tools without hiding work tools based on PAT actions. Missing work scopes cause a call-time permission error; absent tools instead require checking the running version, endpoint and any gateway discovery/exposure configuration. Every tool invocation reloads the current account, permission epoch and token scope. Mutations use the same write gate, transaction, authorization and business handlers as the HTTP API. Long-lived clients cannot retain revoked permissions. MCP responses are private and not cacheable across accounts.
 
 
 ## File-backed library API

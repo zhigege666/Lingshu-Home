@@ -5,6 +5,15 @@
 .lh-folder-more-copy{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;min-width:0}
 .lh-folder-more-copy strong{font-size:12px;font-weight:600}
 .lh-folder-more-copy small{font-size:11px;color:var(--lh-muted)}
+/* A card occupies one track. Spanning the entire grid keeps otherwise empty
+   auto-fit tracks alive and leaves unused space beside the preview cards. */
+.lh-home .lh-links:not(.is-directory)>.lh-folder-more{grid-column:auto;align-self:stretch;min-height:0;padding:8px 10px;gap:8px}
+.lh-links:not(.is-directory)>.lh-folder-more .lh-folder-more-copy{flex-direction:column;align-items:flex-start;gap:2px;line-height:1.4}
+.lh-home .lh-navigation-panel[data-link-appearance="minimal"] .lh-links:not(.is-directory)>.lh-folder-more>svg:first-child{display:none}
+.lh-home .lh-navigation-panel[data-link-appearance="app-icons"] .lh-links:not(.is-directory)>.lh-folder-more{flex-direction:column;justify-content:center;padding:8px;gap:6px;border-radius:16px}
+.lh-navigation-panel[data-link-appearance="app-icons"] .lh-links:not(.is-directory)>.lh-folder-more>svg:first-child{width:28px;height:28px}
+.lh-navigation-panel[data-link-appearance="app-icons"] .lh-links:not(.is-directory)>.lh-folder-more>svg:last-child{display:none}
+.lh-navigation-panel[data-link-appearance="app-icons"] .lh-links:not(.is-directory)>.lh-folder-more .lh-folder-more-copy{align-items:center;text-align:center;gap:3px}
 .lh-home.lh-folder-portal{display:contents}
 .lh-folder-overlay{position:fixed;inset:0;z-index:1000;background:#0e191e73;backdrop-filter:blur(3px)}
 .lh-home .lh-folder-dialog{position:fixed;top:50%;left:50%;z-index:1001;transform:translate(-50%,-50%);display:flex;flex-direction:column;width:min(1280px,calc(100vw - 64px));max-height:min(960px,calc(100dvh - 64px));min-width:0;min-height:0;overflow:hidden;margin:0;padding:0;border:1px solid var(--lh-line);border-radius:16px;background:var(--lh-bg,#f4f7f5);color:var(--lh-ink,#243e31);box-shadow:0 20px 90px #0005;outline:none;box-sizing:border-box}

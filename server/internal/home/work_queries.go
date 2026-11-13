@@ -24,11 +24,14 @@ type workCursor struct {
 	ID       string `json:"i"`
 }
 type workPage struct {
-	Revision   string        `json:"revision"`
-	CanEdit    bool          `json:"canEdit"`
-	Items      []WorkSummary `json:"items"`
-	Total      int           `json:"total"`
-	NextCursor *string       `json:"nextCursor"`
+	Statuses       []WorkStatusDefinition `json:"statuses"`
+	StatusRevision string                 `json:"statusRevision"`
+	DefaultStatus  string                 `json:"defaultStatus"`
+	Revision       string                 `json:"revision"`
+	CanEdit        bool                   `json:"canEdit"`
+	Items          []WorkSummary          `json:"items"`
+	Total          int                    `json:"total"`
+	NextCursor     *string                `json:"nextCursor"`
 }
 type workColumn struct {
 	Status     string        `json:"status"`
@@ -113,8 +116,11 @@ func (in workFilter) where(space string) (string, []any) {
 	}
 	return where, args
 }
-func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string, total *int) (*workPage, error) {
-	result := &workPage{Revision: revision, CanEdit: s.CanEdit, Items: []WorkSummary{}}
+func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string, total *int, catalog *WorkStatusCatalog) (*workPage, error) {
+	result := &workPage{Revision: revision, CanEdit: s.CanEdit, Items: []WorkSummary{}, Statuses: catalog.Items, StatusRevision: catalog.Revision, DefaultStatus: catalog.DefaultStatus}
+	if in.Status != "" && catalog.find(in.Status) == nil {
+		return nil, a.unavailableWorkStatus(r, s.ID, in.Status, catalog)
+	}
 	where, args := in.where(s.ID)
 	if total == nil {
 		if err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT COUNT(*) FROM work_items w WHERE "+where), args...).Scan(&result.Total); err != nil {
@@ -140,7 +146,11 @@ func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string
 			args = append(args, cursor.Rank, cursor.Rank, cursor.ID)
 		} else {
 			where += " AND (" + workStatusOrder + ",w.sort_order,w.id)>(?,?,?)"
-			args = append(args, workOrdinal(cursor.Status), cursor.Rank, cursor.ID)
+			definition := catalog.find(cursor.Status)
+			if definition == nil {
+				return nil, invalid("Invalid status cursor.")
+			}
+			args = append(args, definition.Position, cursor.Rank, cursor.ID)
 		}
 	}
 	order := "w.sort_order,w.id"
@@ -148,7 +158,7 @@ func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string
 		order = workStatusOrder + "," + order
 	}
 	args = append(args, in.Limit+1)
-	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT "+a.workSummaryColumns(r)+" FROM work_items w LEFT JOIN work_projects p ON p.id=w.project_id WHERE "+where+" ORDER BY "+order+" LIMIT ?"), args...)
+	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT "+a.workSummaryColumns(r)+" FROM work_items w JOIN work_statuses ws ON ws.space_id=w.space_id AND ws.id=w.status LEFT JOIN work_projects p ON p.id=w.project_id WHERE "+where+" ORDER BY "+order+" LIMIT ?"), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +199,11 @@ func (a *App) listWorkItems(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	page, err := a.queryWorkPage(r, s, in, revision, nil)
+	catalog, err := a.loadWorkStatuses(r, s.ID, false)
+	if err != nil {
+		return nil, err
+	}
+	page, err := a.queryWorkPage(r, s, in, revision, nil, catalog)
 	if err != nil {
 		return nil, err
 	}
@@ -231,17 +245,22 @@ func (a *App) getWorkBoard(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	catalog, err := a.loadWorkStatuses(r, s.ID, false)
+	if err != nil {
+		return nil, err
+	}
 	columns := []workColumn{}
-	for _, status := range workStatuses {
+	for _, definition := range catalog.Items {
+		status := definition.ID
 		in.Status = status
 		total := counts[status]
-		page, err := a.queryWorkPage(r, s, in, revision, &total)
+		page, err := a.queryWorkPage(r, s, in, revision, &total, catalog)
 		if err != nil {
 			return nil, err
 		}
 		columns = append(columns, workColumn{Status: status, Total: page.Total, Items: page.Items, NextCursor: page.NextCursor})
 	}
-	return ok(map[string]any{"revision": revision, "canEdit": s.CanEdit, "columns": columns}), nil
+	return ok(map[string]any{"revision": revision, "canEdit": s.CanEdit, "columns": columns, "statuses": catalog.Items, "statusRevision": catalog.Revision, "defaultStatus": catalog.DefaultStatus}), nil
 }
 
 type workResourceFilter struct {

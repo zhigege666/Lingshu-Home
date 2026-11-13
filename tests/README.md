@@ -4,7 +4,7 @@
 
 本文记录 HTTP、Go 集成、Docker、开发启动器与发布边界的不同验证范围。正式标签打包、GitHub 托管工作流和浏览器交互的状态单独说明；已经通过的服务测试不替代这些检查。
 
-**当前源码 `VERSION` 为 0.1.1；本轮首页入口与个人头像的定向验证结果见下文。** 0.1.0 的事项看板验证保留在对应章节。 0.0.11 的首页删除与跨分类拖动记录保留在对应章节。 0.0.10 的首页、资料库、组件与配置验证保留在对应章节。 0.0.9 的 MCP 默认空间、文档目录发现、只写回执和缺失原件验证保留在对应章节。 0.0.8 的首页操作收拢与页眉页脚常驻，以及 0.0.7 的首页分类／链接内容编辑、拖动排序与点击统计原始验收保留在对应章节。0.0.6 的文档活动、登录保持、行内编辑、分类文件夹和存储初始化记录保留在对应章节。导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
+**当前源码版本以 [VERSION](../VERSION) 为准；动态状态与 MCP 的维护验证入口见下文。** 0.1.1 的首页入口与个人头像、0.1.0 的事项看板验证保留在各自章节。 0.0.11 的首页删除与跨分类拖动记录保留在对应章节。 0.0.10 的首页、资料库、组件与配置验证保留在对应章节。 0.0.9 的 MCP 默认空间、文档目录发现、只写回执和缺失原件验证保留在对应章节。 0.0.8 的首页操作收拢与页眉页脚常驻，以及 0.0.7 的首页分类／链接内容编辑、拖动排序与点击统计原始验收保留在对应章节。0.0.6 的文档活动、登录保持、行内编辑、分类文件夹和存储初始化记录保留在对应章节。导航内容与管理交互的开发验收、0.0.3 发布前复核分别记录于文末。0.0.2 的一次性实例语言、公共表单间距、数据格式说明及导航批量/草稿历史保留其原始验收记录；“0.0.2 发布前部署验收”不计作本次发行产物的验证。
 
 **0.0.4 开发轮次为分类图标、链接删除、内网获取、弹窗、空间偏好和组件内容设置。** 这些变更已整理到 0.0.4 的日期版本记录；开发时的源码与独立浏览器结果见文末“2026-10-24 开发验收：导航内容与管理交互”，不计入 0.0.2 的既有发布记录。
 
@@ -15,6 +15,86 @@
 `http_smoke.py` 使用 Python 3.10+ 标准库向真实运行的服务发送 HTTP 请求，不导入后端实现。测试会创建随机账号、空间内容、书签和布局，并切换访问模式；**只能对空的、可丢弃的测试数据库执行**。不要使用演示实例或个人正在使用的数据目录。
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
+
+## 动态状态、令牌生命周期与首页预览：0.2.0
+
+2026-11-13 在独立 SQLite 回环夹具和专用 PostgreSQL 测试环境完成受影响路径验证。旧令牌不自动扩权；编辑权限、有效期或名称保留原令牌值，全部权限由用户显式选择。浏览器验证使用新建测试账号和数据，没有操作日常实例。
+
+| 验证 | 实际结果与范围 |
+| --- | --- |
+| 动态状态与事项回归 | `TestWorkStatusesCatalogAndSemantics`、`TestWorkStatusesRetirementReferencesAndReplay`、`TestWorkStatusesConcurrencyAndScope`、`TestWorkStatusesLateFailureRollsBackBatch`、`TestWorkBoardHTTPAndMCP` 的 SQLite/PostgreSQL 分支通过。覆盖状态语义、默认值、退役迁移、归档关联、原请求重放、并发及整体回滚。 |
+| 数据迁移 | `TestWorkStatusesMigrationPreservesAndRollsBack` 与 `TestIntegrationTokenMigrationPreservesLegacyTokens` 的 SQLite/PostgreSQL 分支通过；014 另含注入失败后的事务回滚。保留既有事项、引用、排序及旧令牌绑定与摘要，不把旧令牌改成全部权限或永久有效。 |
+| 令牌权限关键路径 | 令牌编辑、有效期与失效、全部权限与范围、创建/编辑共享校验 4 个后端测试组的 SQLite/PostgreSQL 分支通过。验证原 PAT 的即时增减权、Cookie/CSRF/本人边界、未来业务动作展开、只读及来源限定、撤销与删除记录。 |
+| MCP 与既有集成 | `TestMCPWorkStatusDiscoveryAndMutation`、`TestIntegrationHTTPMCPAndTraffic` 通过；后者覆盖 SQLite/PostgreSQL，PostgreSQL 使用全新独立 Schema。当前目录为 46 个工具，其中 12 个 work 工具；校验缺少 work 权限仍可发现工具、调用授权、结构化输入、稳定 Schema 及只写信息边界。 |
+| 看板浏览器 | `browser_work_items.cjs` 的 7 个检查组通过。覆盖编辑、拖动/键盘移动、冲突草稿、归档恢复、动态状态维护和迁移、列表切换及轻量版本刷新。 |
+| 令牌浏览器 | `browser_integration_tokens.cjs` 的 6 个检查组通过。原 PAT 由无 Cookie 的独立上下文验证；覆盖同一令牌编辑、永久/有限有效期、全部/自定义权限切换、冲突读回、撤销后删除，2560×1440 与 1600×900 表单可达。 |
+| 首页预览浏览器 | `browser_navigation_preview.cjs` 的 4 个检查组通过：四种桌面尺寸的默认 6 张预览和同行“查看全部”、键盘打开与隐藏记录访问、简约/应用图标布局、目录视图整行入口。首次焦点断言早于弹窗关闭后的焦点恢复；只修正等待条件后定向重测相关组，未改产品代码或重复通过的四尺寸组。 |
+| 构建和静态检查 | Go 服务构建、TypeScript/Vite 生产构建、修改脚本的语法检查、版本一致性、仓库结构检查及 `git diff --check` 通过。Vite 既有入口体积警告保留。 |
+
+看板与首页预览覆盖 **2560×1440、1920×1080、1600×900、2560×1080**。浏览器报告没有未处理页面异常；最终目视复核了四尺寸看板、动态状态管理、令牌编辑及修复后的首页预览。浏览器使用 SQLite，不能据此推算 PostgreSQL 浏览器已执行。后端首次执行中的两个夹具问题（旧共享测试库的加密键不匹配、旧令牌迁移夹具引用了错误来源类型）已改用隔离 Schema／正确来源夹具，并只重跑失败用例通过。
+
+本节记录发布前源码验证；正式 CI、发行镜像、Release 资产与用户实际运行实例的升级另行核对，不由这些测试结果推算已发布或已部署。
+
+## 动态状态与 MCP 自描述：维护验证入口
+
+当前契约是每空间 1～64 个动态状态，事项继续引用稳定键；详情、看板和列表返回语义元数据，目录接口额外返回未归档/已归档使用计数。MCP 共 46 个工具，其中 12 个属于事项领域；日常维护状态不改变 MCP Schema。下面记录测试入口和覆盖范围，实际运行结果与发布证据应按对应源码和环境另外记录，不将历史报告换标为本轮结果。
+
+| 用例 | 覆盖范围 |
+| --- | --- |
+| `TestWorkStatusesCatalogAndSemantics` | 状态目录、默认状态、名称/类型规则及动态查询语义 |
+| `TestWorkStatusesRetirementReferencesAndReplay` | 状态退役、包含归档事项的迁移、资料关联和原创建请求重放 |
+| `TestWorkStatusesConcurrencyAndScope` | 并发版本、空间和 PAT 权限边界 |
+| `TestWorkStatusesLateFailureRollsBackBatch` | 批次后段失败时整体回滚 |
+| `TestWorkStatusesMigrationPreservesAndRollsBack` | SQLite/PostgreSQL 的 014 迁移、既有数据保留与失败回滚 |
+| `TestMCPWorkStatusDiscoveryAndMutation` | 12 个 work 工具发现、默认空间、结构化批次、动态默认值与元数据、目录变化不改 Schema、HTTP/MCP 错误等值及只写回执/错误信息边界 |
+| `TestWorkBoardHTTPAndMCP` | 既有事项/项目、排序、关联、归档与权限回归 |
+
+从 `server/` 运行定向后端入口；PostgreSQL 的 `LINGSHU_TEST_STORAGE_POSTGRES_URL` 必须指向专用可丢弃测试库，跳过分支不能记为通过：
+
+```bash
+go test ./internal/home -run '^(TestWorkStatusesCatalogAndSemantics|TestWorkStatusesRetirementReferencesAndReplay|TestWorkStatusesConcurrencyAndScope|TestWorkStatusesLateFailureRollsBackBatch|TestWorkStatusesMigrationPreservesAndRollsBack|TestMCPWorkStatusDiscoveryAndMutation|TestWorkBoardHTTPAndMCP)$' -count=1 -v
+```
+
+`integrations_smoke.py` 核对当前 46 个唯一工具名称，`TestIntegrationHTTPMCPAndTraffic` 的目录断言应与其保持一致。`TestMCPWorkStatusDiscoveryAndMutation` 使用缺少 work scope 的有效旧 Token 验证工具仍可发现，实际调用才被拒绝；因此“网关看不到看板工具”和“调用没有权限”应分别诊断。工具说明、字段来源及错误恢复数据直接经 MCP 提供，不要求 Agent 安装额外 Skills。浏览器布局、迁移恢复、发行镜像和实际运行实例仍按各自检查范围记录。
+
+## 访问令牌编辑与生命周期：维护验证入口
+
+`tests/browser_integration_tokens.cjs` 复用事项浏览器套件的独立夹具配置与 Cookie/CSRF 认证方式，默认 `UI_PROVIDER=sqlite`。脚本仅接受回环 HTTP 地址，在任何写入前核对 `Release UI fixture <provider>` 站点名与已初始化状态，并确认测试账号可见所给空间。必须使用新建的可丢弃夹具，不能把日常实例改名后运行。
+
+| 检查组 | 覆盖范围 |
+| --- | --- |
+| `create_token_and_close_one_time_secret` | 创建仅导航读取的令牌，核对并关闭一次性明文框；原 PAT 读取看板被拒绝 |
+| `edit_original_token_scopes_preserves_expiry` | 编辑同一令牌名称并增加事项读写，原 PAT 立即可用；默认编辑保留原到期时间 |
+| `permanent_all_permissions_on_same_token` | 将同一令牌改为永久有效和全部权限，核对列表中的 `expiresAt:null`、`permissionMode:all` 及当前有效动作展开，原 PAT 继续可用 |
+| `return_to_selected_and_revoke_scopes_immediately` | 改回自定义权限和有限期，再逐次去除事项写入/读取，原 PAT 的后续请求立即被拒绝 |
+| `revision_conflict_keeps_draft_and_reads_current` | 真实并发修改造成版本冲突，保留草稿；读回不覆盖草稿，采用最新值不再发送写请求 |
+| `revoke_then_delete_only_the_revoked_record` | 有效令牌不提供删除记录；撤销后原 PAT 为 `401`，记录可删除，列表移除后旧 PAT 仍被拒绝 |
+
+运行方式：
+
+```bash
+UI_FIXTURES=/absolute/path/to/ui-fixtures.json UI_PROVIDER=sqlite OUTPUT_DIR=/absolute/path/to/token-ui-output PLAYWRIGHT_MODULE=/absolute/path/to/playwright CHROMIUM_PATH=/absolute/path/to/chromium node tests/browser_integration_tokens.cjs
+```
+
+夹具 JSON 的 provider 条目需要 `url`、`username`、`password`、`shared`；服务应由测试者独立准备和停止，脚本不启动服务或直接修改数据库。原 PAT 保存在内存，并使用没有 Cookie 的独立浏览器上下文探测权限，避免登录态掩盖授权失败。操作选项从 `/integrations/token-actions` 获取，不硬编码当前中文标签或权限列表。脚本同时检查未处理的页面异常、2560×1440 和 1600×900 表单边界与保存控件可达性，保存两张关闭明文框后的表单截图；不会截图一次性令牌框或把明文令牌、密码、Cookie 写入报告。
+
+`integration-tokens-report.json` 记录各检查组、几何结果、HTTP 状态与截图文件名。结束时仅清理本轮创建的令牌（先撤销再删除记录），探测用事项会归档。断言覆盖范围不代表已执行通过；实际结果须随对应源码、数据库和浏览器环境单独记录，不能由单一 SQLite UI 结果推算双数据库通过。
+
+后端维护入口包含以下 SQLite/PostgreSQL 用例：
+
+| 用例 | 覆盖范围 |
+| --- | --- |
+| `TestIntegrationTokenEditingAndLivePermissions` | 原 PAT 的 HTTP/MCP 权限立即增减、固定绑定、并发版本、Cookie/CSRF/本人边界、撤销和记录删除 |
+| `TestIntegrationTokenExpiryAndInvalidation` | 有限期、永久有效、过期显式续期、失效与撤销不可复活 |
+| `TestIntegrationTokenCatalogAllModeAndScope` | 动作元数据、全权展开、自定义模式切换、源限定和只读账户边界 |
+| `TestIntegrationTokenCreateAndEditShareValidation` | 创建和编辑的权限依赖、非法动作、固定范围及显式有效期校验 |
+| `TestIntegrationTokenMigrationPreservesLegacyTokens` | `015_integration_token_management.sql` 保留已有四种状态的令牌字段，新列默认不扩权 |
+
+从 `server/` 执行；PostgreSQL 必须配置专用可丢弃测试库的 `LINGSHU_TEST_STORAGE_POSTGRES_URL`，跳过结果不能算作通过：
+
+```bash
+go test ./internal/home -run '^TestIntegrationToken(EditingAndLivePermissions|ExpiryAndInvalidation|CatalogAllModeAndScope|CreateAndEditShareValidation|MigrationPreservesLegacyTokens)$' -count=1 -v
+```
 
 ## 首页入口与个人头像：0.1.1
 

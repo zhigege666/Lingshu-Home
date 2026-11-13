@@ -5,7 +5,7 @@ import { t } from '../core/i18n'
 import { requestNavigation } from '../core/navigation'
 import { safeHref, formatUpdated } from '../core/presentation'
 import { useUnsavedChanges } from '../core/useUnsavedChanges'
-import { changedWorkFields, normalizeWorkDraft, workDraft, workLibraryHref, workPath, workStatuses, type WorkDraft, type WorkItem, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
+import { changedWorkFields, normalizeWorkDraft, workDraft, workLibraryHref, workPath, type WorkStatusCatalog, type WorkStatusDefinition, type WorkDraft, type WorkItem, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
 import { Button } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
 import { Input } from '../components/ui/input'
@@ -15,8 +15,9 @@ import { Dialog, DialogContent, DialogTitle } from '../components/ui/dialog'
 import { ErrorMessage, Field, handleFormInvalid, Loading } from '../components/Shared'
 import DiscardChangesDialog from '../components/DiscardChangesDialog'
 import ResourcePicker from './ResourcePicker'
+import { useWorkTheme } from './work-theme'
 
-export const workStatusLabel = (status: WorkStatus) => ({ todo: t('待办', 'To do'), doing: t('进行中', 'In progress'), waiting: t('等待', 'Waiting'), done: t('完成', 'Done') })[status]
+export const workStatusLabel = (status: WorkStatus, statuses: WorkStatusDefinition[]) => statuses.find(item => item.id === status)?.name || status
 const fieldLabel = (key: keyof WorkDraft) => ({ title: t('事项标题', 'Item title'), projectId: t('项目', 'Project'), status: t('状态', 'Status'), description: t('说明', 'Description'), nextStep: t('下一步', 'Next step'), result: t('结果', 'Result'), needsAttention: t('待我处理', 'Needs my attention'), bookmarkIds: t('关联书签', 'Linked bookmarks'), documentIds: t('关联文档', 'Linked documents') })[key]
 function useWideEditor() {
   const [wide, setWide] = useState(() => matchMedia('(min-width: 2200px)').matches)
@@ -24,16 +25,18 @@ function useWideEditor() {
   return wide
 }
 
-export default function WorkEditor({ spaceId, selection, projects, canEdit, onClose, onSaved }: { spaceId: string; selection: WorkSelection; projects: WorkProject[]; canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string) => void }) {
+export default function WorkEditor({ spaceId, selection, projects, statuses, defaultStatus, canEdit, onClose, onSaved, onStatusesChanged }: { spaceId: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void }) {
+  const theme = useWorkTheme()
   const initial = useRef(selection), alive = useRef(true), running = useRef(false), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement)
   const [creating, setCreating] = useState(!!selection.create), [baseline, setBaseline] = useState<WorkItem | null>(null)
-  const [draft, setDraft] = useState<WorkDraft>(() => workDraft({ title: selection.reference?.title || '', status: selection.status || 'todo', projectId: selection.projectId || null, bookmarkIds: selection.reference?.kind === 'bookmark' ? [selection.reference.id] : [], documentIds: selection.reference?.kind === 'document' ? [selection.reference.id] : [] }))
+  const [draft, setDraft] = useState<WorkDraft>(() => workDraft({ title: selection.reference?.title || '', status: selection.status || defaultStatus, projectId: selection.projectId || null, bookmarkIds: selection.reference?.kind === 'bookmark' ? [selection.reference.id] : [], documentIds: selection.reference?.kind === 'document' ? [selection.reference.id] : [] }))
   const [references, setReferences] = useState<WorkReference[]>(selection.reference ? [selection.reference] : [])
   const [loading, setLoading] = useState(!selection.create), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [remote, setRemote] = useState<WorkItem | null>(null), [conflict, setConflict] = useState(false), [uncertain, setUncertain] = useState(false), [picker, setPicker] = useState(false)
+  const [statusesStale, setStatusesStale] = useState(false)
   const wide = useWideEditor()
   const dirty = creating ? !!draft.title || !!draft.description || !!draft.nextStep || !!draft.result || draft.bookmarkIds.length > 0 || draft.documentIds.length > 0 : !!baseline && Object.keys(changedWorkFields(workDraft(baseline), draft)).length > 0
-  const guard = useUnsavedChanges(dirty, busy, () => { setDraft(workDraft(baseline || undefined)); setPicker(false) })
+  const guard = useUnsavedChanges(dirty, busy, () => { setDraft(workDraft(baseline || { status: defaultStatus })); setPicker(false) })
   const path = `${workPath(spaceId)}/items/${encodeURIComponent(selection.id)}`
   useEffect(() => {
     alive.current = true
@@ -68,10 +71,22 @@ export default function WorkEditor({ spaceId, selection, projects, canEdit, onCl
     } catch (cause) { if (alive.current) { setError(cause instanceof ApiError && cause.status === 404 ? t('暂未读到该事项，草稿已保留。可以重新读取后再决定。', 'The item was not found. Your draft is retained; read it again before deciding what to do.') : messageOf(cause)); if (cause instanceof ApiError && cause.status === 404 && creating) setUncertain(false) } }
     finally { running.current = false; if (alive.current) setBusy(false) }
   }
+  async function loadStatuses() {
+    try {
+      const catalog = await request<WorkStatusCatalog>(`${workPath(spaceId)}/statuses`)
+      if (alive.current) { onStatusesChanged(catalog); setStatusesStale(false); setError(t('状态配置已更新，草稿已保留。请选择可用状态后保存。', 'Statuses have changed. Your draft is retained; choose an available status before saving.')) }
+    } catch { if (alive.current) { setStatusesStale(true); setError(t('该状态已不可用，草稿已保留。请重新读取状态后选择。', 'This status is unavailable. Your draft is retained; reload the statuses before choosing another.')) } }
+  }
+  async function readStatuses() {
+    if (running.current) return
+    running.current = true; setBusy(true)
+    try { await loadStatuses() } finally { running.current = false; if (alive.current) setBusy(false) }
+  }
   async function save(event?: FormEvent, against?: string) {
     event?.preventDefault()
     if (running.current || !canEdit || loading || (uncertain && !against)) return
     const intended = normalizeWorkDraft(draft)
+    if (!statuses.some(status => status.id === intended.status)) { setError(t('该状态已不可用，请选择当前空间中的状态。', 'This status is unavailable. Choose a current status in this space.')); return }
     if (!intended.title) { setError(t('请填写事项标题。', 'Enter an item title.')); return }
     for (const [key, max] of [['title', 160], ['description', 4000], ['nextStep', 1000], ['result', 4000]] as const) if ([...intended[key]].length > max) { setError(t('{field}最多允许 {count} 个字符。', '{field} allows at most {count} characters.', { field: fieldLabel(key), count: max })); return }
     const changes = creating ? intended : changedWorkFields(workDraft(baseline || undefined), intended)
@@ -83,7 +98,8 @@ export default function WorkEditor({ spaceId, selection, projects, canEdit, onCl
     } catch (cause) {
       if (!alive.current) return
       const definite = cause instanceof ApiError && cause.status < 500
-      if (cause instanceof ApiError && cause.status === 409) { setConflict(true); setError(t('事项已被更新，当前草稿已保留。读取最新版本后比较。', 'This item changed elsewhere. Your draft is retained. Read the latest version to compare.')) }
+      if (cause instanceof ApiError && cause.code === 'work_status_unavailable') await loadStatuses()
+      else if (cause instanceof ApiError && cause.status === 409) { setConflict(true); setError(t('事项已被更新，当前草稿已保留。读取最新版本后比较。', 'This item changed elsewhere. Your draft is retained. Read the latest version to compare.')) }
       else if (!definite) {
         setUncertain(true); setError(t('保存结果尚未确认。正在读取现有记录，草稿会保留。', 'The save result is unconfirmed. Reading the current record; your draft is retained.'))
         try {
@@ -113,7 +129,7 @@ export default function WorkEditor({ spaceId, selection, projects, canEdit, onCl
   const comparison = remote ? Object.keys(changedWorkFields(workDraft(remote), draft)) as (keyof WorkDraft)[] : []
   function displayValue(key: keyof WorkDraft, value: WorkDraft) {
     if (key === 'projectId') return projects.find(item => item.id === value.projectId)?.name || t('未分组', 'No project')
-    if (key === 'status') return workStatusLabel(value.status)
+    if (key === 'status') return workStatusLabel(value.status, statuses)
     if (key === 'needsAttention') return value.needsAttention ? t('是', 'Yes') : t('否', 'No')
     if (key === 'bookmarkIds' || key === 'documentIds') return t('{count} 项', '{count} items', { count: value[key].length })
     return value[key] || t('空', 'Empty')
@@ -122,13 +138,13 @@ export default function WorkEditor({ spaceId, selection, projects, canEdit, onCl
     <header className="work-detail-heading"><div><h2 id="work-editor-title">{creating ? t('新建事项', 'New item') : t('事项详情', 'Item details')}</h2>{baseline?.archived && <span className="work-archived-label">{t('已归档', 'Archived')}</span>}</div><Button type="button" variant="ghost" size="icon" disabled={busy} onClick={close} aria-label={t('关闭事项', 'Close item')}><X size={19}/></Button></header>
     {loading ? <Loading/> : !creating && !baseline ? <div className="work-detail-body"><ErrorMessage error={error}/><Button onClick={close}>{t('关闭', 'Close')}</Button></div> : <form className="work-detail-form" onSubmit={event => void save(event)} onInvalidCapture={event => handleFormInvalid(event, setError)} onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault() }}>
       <div className="work-detail-body">
-        <ErrorMessage error={error}/>{notice && <p className="work-notice" role="status">{notice}</p>}
+        <ErrorMessage error={error}/>{notice && <p className="work-notice" role="status">{notice}</p>}{statusesStale && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void readStatuses()}>{t('读取最新状态', 'Reload statuses')}</Button>}
         {(conflict || uncertain) && <section className="work-conflict"><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void readLatest()}>{t('读取最新版本', 'Read latest version')}</Button>{remote && <><dl>{comparison.map(key => <div key={key}><dt>{fieldLabel(key)}</dt><dd><span>{t('最新', 'Latest')}</span><pre>{displayValue(key, workDraft(remote))}</pre></dd><dd><span>{t('草稿', 'Draft')}</span><pre>{displayValue(key, draft)}</pre></dd></div>)}</dl><div className="work-conflict-actions"><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => adopt(remote, t('已使用最新版本', 'Using the latest version'))}>{t('使用最新版本', 'Use latest version')}</Button>{!creating && <Button type="button" size="sm" disabled={busy} onClick={() => void save(undefined, remote.revision)}>{t('保存草稿中的改动', 'Save my draft changes')}</Button>}</div></>}</section>}
         <fieldset disabled={busy || !canEdit} className="admin-plain-fieldset">
           <Field label={t('事项标题', 'Item title')}><Input data-work-title autoFocus={creating} required maxLength={320} value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))}/></Field>
-          <div className="work-fields-row"><Field label={t('状态', 'Status')}><StyledSelect value={draft.status} onValueChange={value => setDraft(current => ({ ...current, status: value as WorkStatus }))} disabled={busy || !canEdit} options={workStatuses.map(status => ({ value: status, label: workStatusLabel(status) }))}/></Field><Field label={t('项目', 'Project')}><StyledSelect value={draft.projectId || ''} onValueChange={value => setDraft(current => ({ ...current, projectId: value || null }))} disabled={busy || !canEdit} options={projectOptions}/></Field></div>
+          <div className="work-fields-row"><Field label={t('状态', 'Status')}><StyledSelect value={draft.status} onValueChange={value => setDraft(current => ({ ...current, status: value as WorkStatus }))} disabled={busy || !canEdit} tone="home" theme={theme} options={[...statuses.map(status => ({ value: status.id, label: status.name, title: status.description })), ...(!statuses.some(status => status.id === draft.status) ? [{ value: draft.status, label: t('{name}（已不可用）', '{name} (unavailable)', { name: baseline?.statusDefinition?.name || draft.status }), disabled: true }] : [])]}/></Field><Field label={t('项目', 'Project')}><StyledSelect value={draft.projectId || ''} onValueChange={value => setDraft(current => ({ ...current, projectId: value || null }))} disabled={busy || !canEdit} tone="home" theme={theme} options={projectOptions}/></Field></div>
           <label className="work-attention-check"><Checkbox checked={draft.needsAttention} disabled={busy || !canEdit} onCheckedChange={value => setDraft(current => ({ ...current, needsAttention: !!value }))}/><span>{t('待我处理', 'Needs my attention')}</span></label>
-          <Field label={t('下一步', 'Next step')}><Textarea rows={2} maxLength={2000} value={draft.nextStep} onChange={event => setDraft(current => ({ ...current, nextStep: event.target.value }))} placeholder={draft.status === 'waiting' ? t('在等待什么？', 'What are you waiting for?') : ''}/></Field>
+          <Field label={t('下一步', 'Next step')}><Textarea rows={2} maxLength={2000} value={draft.nextStep} onChange={event => setDraft(current => ({ ...current, nextStep: event.target.value }))} placeholder={statuses.find(status => status.id === draft.status)?.type === 'waiting' ? t('在等待什么？', 'What are you waiting for?') : ''}/></Field>
           <Field label={t('说明', 'Description')}><Textarea rows={3} maxLength={8000} value={draft.description} onChange={event => setDraft(current => ({ ...current, description: event.target.value }))}/></Field>
           <Field label={t('结果', 'Result')}><Textarea rows={3} maxLength={8000} value={draft.result} onChange={event => setDraft(current => ({ ...current, result: event.target.value }))}/></Field>
         </fieldset>
@@ -141,5 +157,5 @@ export default function WorkEditor({ spaceId, selection, projects, canEdit, onCl
       <footer className="work-detail-footer">{baseline && canEdit && <Button type="button" variant="ghost" disabled={busy} onClick={() => guard.requestLeave(() => void toggleArchive())}>{baseline.archived ? <ArchiveRestore size={16}/> : <Archive size={16}/>}<span>{baseline.archived ? t('恢复事项', 'Restore item') : t('归档事项', 'Archive item')}</span></Button>}<span className="grow"/><Button type="button" variant="outline" disabled={busy} onClick={close}>{t('关闭', 'Close')}</Button>{canEdit && <Button type="submit" disabled={busy || !draft.title.trim() || (!creating && !dirty) || uncertain || conflict}><Save size={15}/>{busy ? t('正在保存…', 'Saving…') : creating ? t('创建事项', 'Create item') : t('保存事项', 'Save item')}</Button>}</footer>
     </form>}
   </>
-  return <>{wide ? <aside className="work-detail" aria-labelledby="work-editor-title" data-work-detail-id={selection.id}>{content}</aside> : <Dialog open onOpenChange={value => { if (!value && !busy) close() }}><DialogContent className="admin-ui work-drawer" showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }} onCloseAutoFocus={event => { if (!returningTo.current?.isConnected) { event.preventDefault(); document.querySelector<HTMLElement>('[data-work-new]')?.focus() } }}><DialogTitle className="sr-only">{creating ? t('新建事项', 'New item') : t('事项详情', 'Item details')}</DialogTitle><div className="work-detail" data-work-detail-id={selection.id}>{content}</div></DialogContent></Dialog>}{guard.blocked && <DiscardChangesDialog onKeep={guard.keep} onDiscard={guard.discard}/>}</>
+  return <>{wide ? <aside className="work-detail" aria-labelledby="work-editor-title" data-work-detail-id={selection.id}>{content}</aside> : <Dialog open onOpenChange={value => { if (!value && !busy) close() }}><DialogContent className={`admin-ui work-theme work-theme-${theme} work-drawer`} data-theme={theme} showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }} onCloseAutoFocus={event => { if (!returningTo.current?.isConnected) { event.preventDefault(); document.querySelector<HTMLElement>('[data-work-new]')?.focus() } }}><DialogTitle className="sr-only">{creating ? t('新建事项', 'New item') : t('事项详情', 'Item details')}</DialogTitle><div className="work-detail" data-work-detail-id={selection.id}>{content}</div></DialogContent></Dialog>}{guard.blocked && <DiscardChangesDialog onKeep={guard.keep} onDiscard={guard.discard}/>}</>
 }

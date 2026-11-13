@@ -140,6 +140,7 @@ type APIError struct {
 	Entity          string `json:"entity,omitempty"`
 	ID              string `json:"id,omitempty"`
 	Field           string `json:"field,omitempty"`
+	Details         any    `json:"details,omitempty"`
 }
 
 func (e *APIError) Error() string { return e.Message }

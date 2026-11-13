@@ -115,3 +115,156 @@ func TestMCPDefaultFiltersAndBatchErrorDetails(t *testing.T) {
 		t.Fatalf("REST and MCP error details differ: %v / %v", httpErr, mcpErr)
 	}
 }
+
+func TestMCPWorkStatusDiscoveryAndMutation(t *testing.T) {
+	f := newDocumentFixture(t, false)
+	owner := &integrationTestBrowser{t: t, base: f.server.URL, client: f.owner.client, csrf: f.owner.csrf}
+	agent := integrationBrowser(t, f.server.URL)
+	old, _ := owner.token(f.shared, "", "navigation:read")
+	read, _ := owner.token(f.shared, "", "work:read")
+	write, _ := owner.token(f.shared, "", "work:write")
+	both, _ := owner.token(f.shared, "", "work:read", "work:write")
+	listTools := func(token string) map[string]map[string]any {
+		wire, _ := agent.mcp(token, "tools/list", map[string]any{}, http.StatusOK)
+		result := map[string]map[string]any{}
+		for _, raw := range integrationObject(t, wire["result"])["tools"].([]any) {
+			tool := integrationObject(t, raw)
+			result[tool["name"].(string)] = tool
+		}
+		return result
+	}
+	// Catalog discovery is independent of action grants. Old tokens can see
+	// newly registered tools, while the calls still enforce their own scopes.
+	toolsBefore := listTools(old)
+	for _, name := range []string{
+		"work_board_get", "work_items_list", "work_items_get", "work_items_create", "work_items_update", "work_items_move",
+		"work_projects_list", "work_projects_create", "work_projects_update", "work_resources_search", "work_statuses_get", "work_statuses_batch_edit",
+	} {
+		if toolsBefore[name] == nil {
+			t.Fatalf("old token did not discover registered tool %s", name)
+		}
+	}
+	for _, name := range []string{"work_items_list", "work_items_create", "work_items_update", "work_items_move"} {
+		schema := integrationObject(t, toolsBefore[name]["inputSchema"])
+		input := integrationObject(t, integrationObject(t, schema["properties"])["input"])
+		status := integrationObject(t, integrationObject(t, input["properties"])["status"])
+		if status["type"] != "string" || status["enum"] != nil {
+			t.Fatalf("%s still restricts dynamic statuses with its schema: %v", name, status)
+		}
+	}
+	batchSchema := integrationObject(t, toolsBefore["work_statuses_batch_edit"]["inputSchema"])
+	batchInput := integrationObject(t, integrationObject(t, batchSchema["properties"])["input"])
+	batchFields := integrationObject(t, batchInput["properties"])
+	for _, field := range []string{"create", "patches", "deletions"} {
+		array := integrationObject(t, batchFields[field])
+		if array["type"] != "array" || integrationObject(t, array["items"])["type"] != "object" {
+			t.Fatalf("%s must be an array of typed objects: %v", field, array)
+		}
+	}
+
+	agent.tool(old, "work_statuses_get", map[string]any{}, "forbidden")
+	agent.tool(write, "work_statuses_get", map[string]any{}, "forbidden")
+	catalog := agent.tool(both, "work_statuses_get", map[string]any{}, "")
+	readCatalog := agent.tool(read, "work_statuses_get", map[string]any{}, "")
+	if catalog["canEdit"] != true || readCatalog["canEdit"] != false || catalog["defaultStatus"] != "todo" {
+		t.Fatalf("status catalog did not preserve token permissions or initial default: %v / %v", catalog, readCatalog)
+	}
+	agent.tool(both, "work_statuses_get", map[string]any{"spaceId": f.personal}, "not_found")
+	customID := newID()
+	order := []string{}
+	for _, raw := range catalog["items"].([]any) {
+		order = append(order, integrationObject(t, raw)["id"].(string))
+	}
+	order = append(order, customID)
+	batch := map[string]any{
+		"expectedRevision": catalog["revision"],
+		"create": []map[string]any{{
+			"id": customID, "name": "待分派", "type": "todo", "color": "#22795E", "description": "尚未安排具体执行者的事项。",
+		}},
+		"order": order, "defaultStatus": customID,
+	}
+	agent.tool(read, "work_statuses_batch_edit", map[string]any{"input": batch}, "forbidden")
+	catalog = agent.tool(both, "work_statuses_batch_edit", map[string]any{"input": batch}, "")
+	if catalog["defaultStatus"] != customID || len(catalog["items"].([]any)) != 5 {
+		t.Fatalf("status batch did not return the updated catalog: %v", catalog)
+	}
+	item := agent.tool(both, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Dynamic default through MCP"}}, "")
+	if item["status"] != customID {
+		t.Fatalf("MCP item did not use the configured default status: %v", item)
+	}
+	detail := agent.tool(both, "work_items_get", map[string]any{"id": item["id"]}, "")
+	if integrationObject(t, detail["statusDefinition"])["id"] != customID {
+		t.Fatalf("MCP item detail did not explain its current status: %v", detail)
+	}
+	page := agent.tool(both, "work_items_list", map[string]any{"input": map[string]any{"status": customID}}, "")
+	if page["total"] != float64(1) || page["defaultStatus"] != customID || page["statusRevision"] != catalog["revision"] {
+		t.Fatalf("MCP list lost custom status filtering or metadata: %v", page)
+	}
+	board := agent.tool(both, "work_board_get", map[string]any{}, "")
+	if len(board["columns"].([]any)) != 5 || len(board["statuses"].([]any)) != 5 || board["statusRevision"] != catalog["revision"] {
+		t.Fatalf("MCP board did not reflect the dynamic catalog: %v", board)
+	}
+	for _, definition := range board["statuses"].([]any) {
+		metadata := integrationObject(t, definition)
+		if _, present := metadata["total"]; present {
+			t.Fatal("board status metadata must not report unqueried space counts")
+		}
+	}
+	counted := agent.tool(both, "work_statuses_get", map[string]any{}, "")
+	for _, definition := range counted["items"].([]any) {
+		metadata := integrationObject(t, definition)
+		if metadata["total"] == nil || metadata["archivedTotal"] == nil {
+			t.Fatal("status directory must explicitly return real active and archived counts")
+		}
+	}
+	if !reflect.DeepEqual(toolsBefore, listTools(old)) {
+		t.Fatal("changing status data changed MCP tool schemas and would require rediscovery")
+	}
+
+	// A write-only status edit keeps the same receipt boundary as item edits.
+	receipt := agent.tool(write, "work_statuses_batch_edit", map[string]any{"input": map[string]any{
+		"expectedRevision": catalog["revision"],
+		"patches":          []map[string]any{{"id": customID, "name": "待领取"}},
+	}}, "")
+	if receipt["items"] != nil || receipt["statuses"] != nil || receipt["name"] != nil || receipt["description"] != nil {
+		t.Fatalf("write-only status mutation returned readable catalog content: %v", receipt)
+	}
+	current := agent.tool(both, "work_statuses_get", map[string]any{}, "")
+	found := false
+	for _, raw := range current["items"].([]any) {
+		status := integrationObject(t, raw)
+		if status["id"] == customID {
+			found = status["name"] == "待领取"
+		}
+	}
+	if !found {
+		t.Fatal("write-only catalog edit did not persist")
+	}
+	// MCP must preserve the handler's error context exactly, including details,
+	// while a write-only token must not gain counts through an error response.
+	occupiedDeletion := map[string]any{
+		"expectedRevision": current["revision"],
+		"deletions":        []map[string]any{{"id": customID}},
+	}
+	httpErr := integrationObject(t, owner.call("POST", "/api/v1/spaces/"+f.shared+"/work/statuses/batch-edit", occupiedDeletion, http.StatusConflict, both))
+	mcpErr := agent.tool(both, "work_statuses_batch_edit", map[string]any{"input": occupiedDeletion}, "work_status_in_use")
+	details := integrationObject(t, mcpErr["details"])
+	if mcpErr["httpStatus"] != float64(http.StatusConflict) || mcpErr["entity"] != "work_status" || mcpErr["id"] != customID || mcpErr["field"] != "moveToStatus" || details["total"] != float64(1) || details["archivedTotal"] != float64(0) {
+		t.Fatalf("MCP lost status conflict details: %v", mcpErr)
+	}
+	delete(mcpErr, "httpStatus")
+	if !reflect.DeepEqual(httpErr, mcpErr) {
+		t.Fatalf("status HTTP and MCP error details differ: %v / %v", httpErr, mcpErr)
+	}
+	writeErr := agent.tool(write, "work_statuses_batch_edit", map[string]any{"input": occupiedDeletion}, "work_status_in_use")
+	if writeErr["details"] != nil {
+		t.Fatalf("write-only status conflict exposed readable counts: %v", writeErr)
+	}
+	// The SDK must reject stringified JSON instead of accepting an opaque batch.
+	wire, _ := agent.mcp(both, "tools/call", map[string]any{"name": "work_statuses_batch_edit", "arguments": map[string]any{"input": map[string]any{
+		"expectedRevision": current["revision"], "create": `[{"id":"opaque"}]`,
+	}}}, http.StatusOK)
+	if wire["error"] == nil && integrationObject(t, wire["result"])["isError"] != true {
+		t.Fatal("status batch accepted stringified JSON instead of typed array input")
+	}
+}

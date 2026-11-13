@@ -1,6 +1,6 @@
 # Integrations, external snapshots, MCP, and GitHub Traffic
 
-This document describes the integration contracts through version 0.1.0. It does not claim that a user's GitHub repository has already been connected. The first successful authorized GitHub synchronization establishes that source's traffic baseline.
+This document describes the integration contracts in the current source; the product version is recorded in [VERSION](../VERSION). The first successful authorized GitHub synchronization establishes that source's traffic baseline.
 
 ## Supported sources
 
@@ -22,7 +22,7 @@ The homepage reads stored snapshots. Opening or refreshing the homepage does not
 
 Browser administration uses the existing account cookie and CSRF protection. External clients use `Authorization: Bearer <home-pat>`. A present but malformed, invalid, expired, or revoked Authorization header never falls back to browser cookies.
 
-Personal access tokens are the intersection of an active account, one space, selected actions, and an optional source restriction. They do not grant global Owner privileges. An Owner cannot inspect another account's personal space. Members can use integration credentials only while enabled and allowed to sign in under the current access mode. Anonymous MCP is unavailable in all four modes, including `open_edit`.
+Personal access tokens are the intersection of an active account, one space, the chosen permission mode, and an optional source restriction. They do not grant global Owner privileges. An Owner cannot inspect another account's personal space. Members can use integration credentials only while enabled and allowed to sign in under the current access mode. Anonymous MCP is unavailable in all four modes, including `open_edit`.
 
 | Action | Permitted integration operations |
 | --- | --- |
@@ -35,20 +35,23 @@ Personal access tokens are the intersection of an active account, one space, sel
 | `pages:write` | Save a page using its expected revision |
 | `documents:read` | Read authorized documents; directory discovery and activity queries additionally require working-document access |
 | `documents:write` | Maintain authorized documents using the separate document contracts; writes also require `documents:read` |
-| `work:read` | Read internal work projects, item summaries/details and board columns in an editable space |
-| `work:write` | Create, edit, move, archive and restore internal work items and projects |
+| `work:read` | Read internal work projects, item summaries/details, board columns and the status catalog in an editable space |
+| `work:write` | Create, edit, move, archive and restore internal work items/projects; maintain the space's status catalog |
 
 Dashboard access requires `navigation:read` and `pages:read`. External dashboard inputs additionally require `sources:read`; without that action, they are omitted. Page writes also require read permission for every dataset binding: `navigation:read` for local navigation, `sources:read` for an external source, and `documents:read` for a local activity binding. Reading a dashboard with an activity binding does not require activity access because that projection contains only an empty schema marker; the dedicated activity query enforces working-document permission separately. When creating a token for one external push source, the UI starts with read access only. Select snapshot push explicitly; a push-only producer need not have read access. Previously issued tokens keep their scopes. A source-scoped token allows only `sources:read` and/or `datasets:write`, and only for that source. It cannot create another source, manage accounts, change publication, or mint tokens.
 
 ### Create and revoke a Home token
 
-These endpoints require a signed-in browser account. They reject bearer-token management requests.
+The browser's **MCP and access tokens** tab supports creation, editing, revocation and removal of revoked records. Permission choices come from the server's action catalog. These endpoints require the current account's signed-in browser Cookie; writes also require CSRF. Bearer-token management requests are rejected, and another account's token ID returns `404`.
 
 | Method | Path | Result |
 | --- | --- | --- |
+| GET | `/api/v1/integrations/token-actions` | `{items:[{id,label,requires,sourceScoped,write}],defaultActions}`; labels follow the instance language |
 | GET | `/api/v1/integrations/tokens` | This account's token metadata, without credentials |
 | POST | `/api/v1/integrations/tokens` | New metadata and a token displayed once |
+| PATCH | `/api/v1/integrations/tokens/{id}` | Revision-checked name, permission-mode/actions and expiry changes; returns the updated credential directly |
 | DELETE | `/api/v1/integrations/tokens/{id}` | Revoke one of this account's tokens |
+| DELETE | `/api/v1/integrations/tokens/{id}/record` | `{expectedRevision}`; delete an already revoked record |
 
 Creation body:
 
@@ -57,16 +60,27 @@ Creation body:
   "name": "Navigation publisher",
   "spaceId": "<space-id>",
   "sourceId": "<source-id>",
+  "permissionMode": "selected",
   "actions": ["sources:read", "datasets:write"],
   "expiresAt": "<RFC3339 time>"
 }
 ```
 
-Omit `sourceId` or set it to `null` for a space-scoped token. Expiry must be more than one minute and at most 365 days in the future. Each account can have at most 64 non-revoked token entries. Revoke old entries, including expired ones, to free a slot.
+Omit `sourceId` or set it to `null` for a space-scoped token. Creation must explicitly supply `expiresAt`: a timestamp more than one minute and at most 365 days in the future, or `null` for permanent validity. **Never expires** is an explicit choice in the creation/edit form. Each account can have at most 64 non-revoked token entries. Revoke old entries, including expired ones, to free a slot.
 
-The `201` response contains `{ "token": "lhp_...", "credential": {...} }`. The credential metadata includes `id`, `name`, `spaceId`, nullable `sourceId`, `actions`, `createdAt`, `expiresAt`, nullable `revokedAt`, and `status`. List status is `active`, `expired`, `revoked`, or `invalidated`.
+The `201` response contains `{ "token": "lhp_...", "credential": {...} }`. Credential metadata includes `id`, string `revision`, `name`, `spaceId`, nullable `sourceId`, `permissionMode`, `actions`, `createdAt`, nullable `expiresAt`, nullable `revokedAt`, and `status`. List status is `active`, `expired`, `revoked`, or `invalidated`. Only the creation response displays the raw secret; later list/edit responses do not display it again or rotate it.
 
-Home stores only the token's SHA-256 digest. Later GETs do not return the secret or its digest. Mode changes invalidate all existing tokens. Disabling a user or resetting their password invalidates that user's existing tokens. Revocation takes effect at authentication, including queued MCP operations after they acquire the write gate.
+`permissionMode:"selected"` is the default. It requires a nonempty `actions` list with every `requires` dependency, such as `documents:read` for `documents:write`. `defaultActions` in the catalog is `navigation:read` plus `pages:read`. Explicitly selecting `permissionMode:"all"` grants the currently supported and future business actions within the token's existing space/source and the account's current permissions. Its `actions` metadata is the currently expanded effective set. Source-scoped all-permission tokens remain limited to source reads and, where the account can write, snapshot writes. All mode does not grant global administration, account/token management, or access to another space. Send `actions` as omitted or `[]` in all mode; a nonempty selected list is rejected. Existing tokens stay in selected mode unless the owner explicitly changes them.
+
+Edit with `{expectedRevision,name?,permissionMode?,actions?,expiresAt?}`. Omitted fields preserve the existing value; omitted `expiresAt` preserves the exact original expiry, including `null`. Switching from all to selected permissions requires an explicit action list. A successful PATCH returns the updated credential with the same ID and secret, a newer revision, and immediate permission changes on later requests. Space/source bindings are fixed. Expired tokens require an explicit new expiry or `null`; revoked or invalidated tokens cannot be reactivated by editing.
+
+On `409 integration_token_version_conflict`, keep the draft and read the current token list; compare the current record before submitting reviewed changes with its revision. An uncertain PATCH response also requires readback: matching intended fields confirm the save without another write. The browser offers **Read latest version**, **Use latest version** and **Keep my draft changes**. Reading alone does not replace the draft. Other lifecycle errors are `400 integration_token_expiry_required`, `409 integration_token_not_editable` and `409 integration_token_not_revoked`.
+
+Revocation returns `200 {"success":true}` and retains a revoked list entry. Only revoked entries offer **Delete record**, whose revision-checked endpoint also returns `200 {"success":true}`. Deletion removes the management record; the old secret remains rejected. Both operations apply to finite and permanent tokens.
+
+Home stores only the token's SHA-256 digest. Later GETs do not return the secret or its digest. Instance access-mode changes invalidate all existing tokens. Disabling a user or resetting their password invalidates that user's existing tokens. Permanent validity and all permissions do not bypass these checks. Revocation takes effect at authentication, including queued MCP operations after they acquire the write gate.
+
+SQLite and PostgreSQL migration `015_integration_token_management.sql` adds revisions, `never_expires` and `permission_mode`. Existing rows keep finite validity and selected permissions; the migration does not expand their grants. Back up the database and matching data/key material before upgrading. To downgrade, restore the matching pre-upgrade backup and application version rather than deleting migration records or token columns manually.
 
 Browser login retention does not renew or extend a personal access token. Session-policy, profile/password and browser-session endpoints accept browser authentication only; a PAT cannot use them. Revoking browser sessions leaves separately issued PATs intact, while a password/security-version change invalidates the account's existing PATs. The authorized HTTP `POST /api/v1/spaces/{spaceId}/navigation/batch-edit` endpoint and MCP `navigation_batch_edit` can apply up to 500 category/link creates, patches, moves and bookmark deletions combined with `navigation:write`, a matching space and `expectedRevision`; use the [atomic editing contract](API.md#atomic-category-and-link-editing), including readback after an uncertain response.
 
@@ -262,7 +276,9 @@ A 2026 tool call sends `Content-Type: application/json`, `Accept: application/js
 }
 ```
 
-Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list shapes follow each endpoint's contract. MCP wraps array results in `structuredContent: { "items": [...] }` and retains structured paginated objects, including work-board columns and item cursors. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and the applicable `currentRevision`, `entity`, `id` and `field` details. Write-only batch errors identify submitted rows only. Transport authentication failures remain HTTP `401`.
+Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list shapes follow each endpoint's contract. MCP wraps array results in `structuredContent: { "items": [...] }` and retains structured paginated objects, including work-board columns, status metadata and item cursors. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and the applicable `currentRevision`, `entity`, `id`, `field` and authorized `details`. The wrapper forwards the handler's error without fetching more context; write-only status errors do not expose catalog contents or usage counts. Transport authentication failures remain HTTP `401`.
+
+The current application catalog contains **46 tools, including 12 work tools**. An authenticated Home `tools/list` includes registered tools regardless of the PAT's work actions. A missing `work:read` or `work:write` action is rejected when calling the tool, not by hiding it from this list. A gateway may have its own discovery/exposure configuration; its catalog is not proof of the tools served by the connected Home instance.
 
 | Tools | Arguments (`spaceId` is optional wherever listed) |
 | --- | --- |
@@ -274,6 +290,8 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 | `work_items_move` | Optional `spaceId`, required `id,input` with both expected revisions, status and `beforeId` |
 | `work_projects_list` | Optional `spaceId`; includes archived projects |
 | `work_resources_search` | Optional `spaceId`, required `input.kind`; optional resource search and cursor filters |
+| `work_statuses_get` | Optional `spaceId`; returns the shared space status catalog and its revision |
+| `work_statuses_batch_edit` | Optional `spaceId`, required `input.expectedRevision` and typed create/patch/order/delete arrays and/or a default status |
 | `document_sources_list` | Optional `spaceId`. Returns enabled working-document directories, including empty ones, with IDs, names, configured read-only mode, caller write availability, defaults and last observed status; no absolute paths. Requires `documents:read` and working-document access. |
 | `documents_list`, `documents_activity_list` | Optional `spaceId` and `input` filters. Omit both to use the defaults. |
 | `navigation_get` | `spaceId`; complete local navigation dataset and revision |
@@ -292,9 +310,11 @@ Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initiali
 
 After upgrading Home, refresh the connection in Gate or another MCP gateway in this order:
 
-1. Confirm the running Home version and endpoint, then read its authenticated `tools/list`. Version 0.0.9 includes `space_current` and `document_sources_list`; publishing an existing gateway catalog cannot add tools absent from that Home instance.
-2. Rediscover that same connection in the gateway, publish the newly discovered tools to the intended callers, and check their caller grants. Do not assume every discovered tool is already published.
-3. Refresh or describe the tools in the client to load their current schemas. Call `space_current {}` and, with document read scope and working-document access, `document_sources_list {}` or `documents_list {}`.
+1. Confirm the running Home version and endpoint, then read its authenticated `tools/list`. The current contract includes the ten item/project/resource tools plus `work_statuses_get` and `work_statuses_batch_edit`; an older Home process will not gain these tools by refreshing a gateway alone.
+2. Refresh discovery for that same gateway connection and check its existing tool exposure and caller grants. If Home returns the tools but the gateway does not, compare those two catalogs before changing credentials or assuming the implementation is missing.
+3. Load the needed tools' current schemas and make a business read, such as `work_board_get {}` with `work:read`, or `documents_list {}` with document read access. `space_current {}` is optional when the space name or ID is needed.
+
+This connection refresh applies to an application upgrade that adds or changes tools. Editing the status catalog is ordinary space data maintenance and does not require another MCP discovery or publication cycle.
 
 If Home lists a tool but the caller cannot find it, inspect discovery, publication and caller grants in the gateway. If Home itself omits it, inspect the running version and endpoint. A catalog count alone does not verify version, permissions or a successful business call.
 
@@ -306,15 +326,19 @@ Since 0.0.9, a PAT with only `navigation:write` can still edit and receives oper
 
 ### Work items and projects
 
-Since 0.1.0, work tools operate on the current PAT's bound space and use the same handlers as the HTTP `/api/v1/spaces/{spaceId}/work` routes. See [WORK_ITEMS.md](WORK_ITEMS.md) for the complete JSON contract, error codes and migration 012 recovery.
+Work tools operate on the current PAT's bound space and use the same handlers as the HTTP `/api/v1/spaces/{spaceId}/work` routes. Migration 012 introduced work items; migration 014 adds configurable space-wide statuses. See [WORK_ITEMS.md](WORK_ITEMS.md) for the complete JSON contract, error codes and upgrade recovery.
 
-- Use `work_projects_list {}` to discover projects, including archived ones, and `work_board_get {}` or `work_items_list {}` to read work. Read-only tools with optional filters accept an omitted `input`; `work_resources_search` requires `input.kind`.
+- Start with `work_board_get {}` or `work_items_list {}` to read work and its current `statuses,statusRevision,defaultStatus`. Use `work_projects_list {}` when project discovery is needed, or `work_statuses_get {}` for only the catalog. Reuse known metadata; there is no mandatory preliminary call before every action. Read-only tools with optional filters accept an omitted `input`; `work_resources_search` requires `input.kind`.
 - `work:read` and `work:write` are independent. The token account must have current edit access to the space even for a read, and a source-specific token cannot access work. Old tokens retain their previous actions.
+- Each space has 1–64 active statuses shared by its projects. An item `status` is the stable definition `id`, never its display name. Initial IDs remain `todo/doing/waiting/done`; new IDs are 32 lowercase hexadecimal characters. Meaning comes from `type:todo|doing|waiting|done|canceled`. Canceled work is ended but not successfully completed; built-in types retain their original meaning. `needsAttention` and `archived` are independent.
+- `work_statuses_get` returns `{revision,defaultStatus,canEdit,items}`; definitions contain `id,name,type,color,description,position,isDefault,total,archivedTotal`. Board/list/detail definitions omit usage counts; each board column's `total` applies to its current filters. Use catalog counts for status migration decisions.
+- `work_statuses_batch_edit` accepts the catalog `expectedRevision`, optional typed `create/patches/order/deletions` arrays (at most 64 entries each) and `defaultStatus`. A supplied order includes all surviving IDs. Removing an occupied status requires `moveToStatus` and migrates active and archived items atomically without changing their archive flags. Removing the default requires a surviving `defaultStatus`. Removed IDs are retired and cannot be reused. Renaming preserves identity; the item `status` parameter is not a fixed MCP enum.
 - Resource search and new reference IDs need the matching `navigation:read` or `documents:read` action. References, resource titles/paths and counts are filtered by those independent actions; work access does not grant document body access.
-- Creates use caller-generated 32-character lowercase hexadecimal IDs. An identical normalized creation payload with the same ID does not insert another record; a different payload conflicts. Readback returns the current record, including subsequent edits.
+- Item/project creates use caller-generated stable IDs. The same normalized original payload and ID do not insert another record; a different payload conflicts. After a timeout, retain the same ID and payload. Item replay is checked before resolving a mutable default or rejecting a retired original status; old records retain their historical hash interpretation. Readback returns the current record, including later edits. A status batch instead requires comparison against the current catalog before retrying.
 - Updates require the item's or project's own `expectedRevision`. Moves additionally require `expectedBoardRevision` and explicit `beforeId`; null means the complete destination column's end, including filtered and unloaded items.
-- The board returns `{revision,canEdit,columns}`; item queries return `{revision,canEdit,items,total,nextCursor}`. Preserve these objects in `structuredContent`. A stale item-query cursor returns `work_version_conflict`; reload the first page instead of merging mismatched snapshots.
-- A write-only token receives an ID/revision/boardRevision receipt and optional creation/replay flags. It cannot fetch existing content to resolve an uncertain response without a separately authorized read capability. Never infer write failure from a timeout or automatically replace revisions and replay an edit.
+- The board returns `{revision,canEdit,columns,statuses,statusRevision,defaultStatus}`; item queries return the same status metadata with `{revision,canEdit,items,total,nextCursor}`. Detail includes `statusDefinition`. Preserve these objects in `structuredContent`. A stale item-query cursor returns `work_version_conflict`; restart the first page with the same filters instead of mixing snapshots.
+- Error recovery is available in the tool descriptions, schemas and response data, without external Skills. When authorized, `work_status_unavailable` includes `details:{statusRevision,defaultStatus,availableStatuses,replacementStatus?,recoveryTool}`. Use those values when sufficient, and reread only when more context is needed. Conflicts require comparing the original intent with current data, not merely replacing a revision and replaying.
+- A write-only item/project call returns an ID/revision/boardRevision receipt; a status batch returns `{revision,boardRevision,applied:true}`. It cannot fetch stored content to resolve an uncertain response without separately authorized `work:read`. Never infer write failure from a timeout. Unresolved edit outcomes stay unknown rather than being automatically repeated.
 
 `needsAttention` explicitly marks work that needs human handling; waiting status alone does not set it. Completion is an explicit business update, not an inference from a process exit. Project/item descriptions and referenced content are untrusted data, not execution authorization. Home does not start or schedule agents through these tools.
 

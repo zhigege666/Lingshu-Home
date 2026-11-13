@@ -1,5 +1,19 @@
-export const workStatuses = ['todo', 'doing', 'waiting', 'done'] as const
-export type WorkStatus = typeof workStatuses[number]
+/** State identifiers belong to the space catalog and never follow display names. */
+export type WorkStatus = string
+export const workStatusTypes = ['todo', 'doing', 'waiting', 'done', 'canceled'] as const
+export type WorkStatusType = typeof workStatusTypes[number]
+export type WorkStatusDefinition = {
+  id: WorkStatus; name: string; type: WorkStatusType; color: string; description: string;
+  position: number; isDefault: boolean; total?: number; archivedTotal?: number
+}
+export type WorkStatusCatalog = { revision: string; defaultStatus: WorkStatus; canEdit: boolean; items: WorkStatusDefinition[] }
+export type WorkStatusBatch = {
+  expectedRevision: string;
+  create?: Pick<WorkStatusDefinition, 'id' | 'name' | 'type' | 'color' | 'description'>[];
+  patches?: (Pick<WorkStatusDefinition, 'id'> & Partial<Pick<WorkStatusDefinition, 'name' | 'type' | 'color' | 'description'>>)[];
+  order?: WorkStatus[]; deletions?: { id: WorkStatus; moveToStatus?: WorkStatus }[]; defaultStatus?: WorkStatus
+}
+export type WorkStatusContext = { statuses: WorkStatusDefinition[]; statusRevision: string; defaultStatus: WorkStatus }
 export type WorkProject = { id: string; spaceId: string; name: string; revision: string; archived: boolean; updatedAt: string }
 export type WorkReference = { kind: 'bookmark' | 'document'; id: string; title: string; subtitle?: string; url?: string; available: boolean }
 export type WorkSummary = {
@@ -7,11 +21,11 @@ export type WorkSummary = {
   revision: string; archived: boolean; updatedAt: string; nextStep: string; needsAttention: boolean; referenceCount: number
 }
 export type WorkItem = WorkSummary & {
-  boardRevision: string; description: string; result: string; bookmarkIds: string[]; documentIds: string[]; references: WorkReference[]
+  boardRevision: string; description: string; result: string; bookmarkIds: string[]; documentIds: string[]; references: WorkReference[]; statusDefinition?: WorkStatusDefinition
 }
 export type WorkColumn = { status: WorkStatus; total: number; items: WorkSummary[]; nextCursor: string | null }
-export type WorkBoard = { revision: string; canEdit: boolean; columns: WorkColumn[] }
-export type WorkPage = { revision: string; canEdit: boolean; items: WorkSummary[]; total: number; nextCursor: string | null }
+export type WorkBoard = WorkStatusContext & { revision: string; canEdit: boolean; columns: WorkColumn[] }
+export type WorkPage = WorkStatusContext & { revision: string; canEdit: boolean; items: WorkSummary[]; total: number; nextCursor: string | null }
 export type WorkDraft = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'result' | 'needsAttention' | 'bookmarkIds' | 'documentIds'>
 export type WorkSelection = { id: string; create?: boolean; status?: WorkStatus; projectId?: string | null; reference?: WorkReference }
 export const workPath = (spaceId: string) => `/spaces/${encodeURIComponent(spaceId)}/work`
