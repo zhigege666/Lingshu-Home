@@ -4,6 +4,8 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
 ### Module navigation, configuration and work history
 
 - Share the left-side Home / Library / Work navigation across the homepage, library, board and administration. Keep search and page actions separate from module navigation, retain unsaved-change protection and support the four desktop sizes.
@@ -25,7 +27,7 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 - Preserve the complete creation context and linked resources when discarding edits. Guard project, attention and archive switches, inherit the selected project/status/attention, and immediately adopt newly saved projects. Disable creation in archived views or archived projects.
 - Show newly created items at the beginning of their full active status column without changing existing relative order. Follow the saved item's actual scope and clear blocking search filters; list creation and the detail Locate action use an explicit, removable exact-item filter. Replace source-create URLs with the saved item link and provide Copy link.
 - Reuse the existing temporary application confirmation for item/project/status saves instead of duplicate permanent banners. Keep actionable errors, conflicts and unknown write outcomes visible. Show creation and update times in item details.
-- Add optional create-only `placement:start|end` and query `itemId` to the existing HTTP/MCP contracts. Omission/end retains legacy append behavior and historical creation hashes; replay does not reposition work. Exact lookup intersects all filters and preserves authorization. No database migration or additional MCP tool is required.
+- Add optional create-only `placement:start|end` and query `itemId` to the existing HTTP/MCP contracts. Omission/end retains legacy append behavior and historical creation hashes; replay does not reposition work. Exact lookup intersects all filters and preserves authorization. These two extensions require no separate migration or additional MCP tool; the complete release includes migrations 016–017 described above.
 
 ## [0.2.0] - 2026-11-13
 

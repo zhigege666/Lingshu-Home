@@ -326,7 +326,7 @@ Since 0.0.9, a PAT with only `navigation:write` can still edit and receives oper
 
 ### Optional workflow guidance and module state
 
-Current source provides a server-owned guide through the existing `space_current` tool. Enable it at startup:
+Since 0.3.0, Home provides a server-owned guide through the existing `space_current` tool. Enable it at startup:
 
 ```bash
 LINGSHU_MCP_WORKFLOW_ENABLED=true ./lingshu-home
@@ -351,7 +351,7 @@ The guide covers existing-work reuse, goal/scope/acceptance criteria, stable IDs
 
 Library/Work switches are independent of workflow guidance. A signed-in Owner changes them in **Site settings → Modules**; subsequent HTTP/MCP calls enforce the state and return `module_disabled` for disabled operations. Files, records, associations, tokens and sessions remain intact. See [module contracts](API.md#optional-library-and-work-modules). Context responses remain private and must not be shared across users or tokens.
 
-**Gate and other gateways:** the guide appears in an ordinary tool result, with matching JSON text and `structuredContent`. It does not depend on forwarding initialization/discovery instructions, resources or prompts. Work-tool description prefixes point to `space_current` within a bounded catalog summary. After first installing these source changes, refresh/publish gateway metadata for the new descriptions and optional history parameters. Later module changes or workflow-flag changes do not alter schemas or require a new token. Gateway exposure/authorization remains independent of Home permissions.
+**Gate and other gateways:** the guide appears in an ordinary tool result, with matching JSON text and `structuredContent`. It does not depend on forwarding initialization/discovery instructions, resources or prompts. Work-tool description prefixes point to `space_current` within a bounded catalog summary. When first upgrading to 0.3.0, refresh/publish gateway metadata for the new descriptions and optional history parameters. Later module changes or workflow-flag changes do not alter schemas or require a new token. Gateway exposure/authorization remains independent of Home permissions.
 
 Read context for a new task without valid context, changed authorization or a reconnected session; reuse valid context during ordinary work. A server cannot force all clients to adopt a guide or retract text already in an Agent context. This project instruction selects the behavior without duplicating the workflow:
 
