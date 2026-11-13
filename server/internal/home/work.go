@@ -43,15 +43,17 @@ type WorkReference struct {
 }
 type WorkItem struct {
 	WorkSummary
-	StatusDefinition *WorkStatusDefinition `json:"statusDefinition"`
-	Description      string                `json:"description"`
-	Result           string                `json:"result"`
-	CreatedAt        string                `json:"createdAt"`
-	BoardRevision    string                `json:"boardRevision"`
-	BookmarkIDs      []string              `json:"bookmarkIds"`
-	DocumentIDs      []string              `json:"documentIds"`
-	References       []WorkReference       `json:"references"`
-	createHash       string
+	StatusDefinition  *WorkStatusDefinition `json:"statusDefinition"`
+	Description       string                `json:"description"`
+	Result            string                `json:"result"`
+	CreatedAt         string                `json:"createdAt"`
+	BoardRevision     string                `json:"boardRevision"`
+	BookmarkIDs       []string              `json:"bookmarkIds"`
+	DocumentIDs       []string              `json:"documentIds"`
+	References        []WorkReference       `json:"references"`
+	Activity          *WorkActivityPage     `json:"activity,omitempty"`
+	createHash        string
+	activityStartedAt string
 }
 type WorkProject struct {
 	ID         string `json:"id"`
@@ -72,6 +74,7 @@ func (a *App) registerWorkRoutes() {
 	a.route("GET "+base+"/items", false, a.listWorkItems)
 	a.route("POST "+base+"/items", true, a.createWorkItem)
 	a.route("GET "+base+"/items/{id}", false, a.getWorkItem)
+	a.route("GET "+base+"/items/{id}/activity", false, a.getWorkActivity)
 	a.route("PATCH "+base+"/items/{id}", true, a.updateWorkItem)
 	a.route("POST "+base+"/items/{id}/move", true, a.moveWorkItem)
 	a.route("GET "+base+"/projects", false, a.listWorkProjects)
@@ -104,10 +107,18 @@ func (r *Request) workSpace(write bool) (*Space, error) {
 	if !edit {
 		return nil, forbidden()
 	}
+	if err = r.requireModule("work"); err != nil {
+		return nil, err
+	}
 	s.CanEdit = !r.Bearer || r.AllowedActions["work:write"]
 	return s, nil
 }
-func (r *Request) workReads(action string) bool { return !r.Bearer || r.AllowedActions[action] }
+func (r *Request) workReads(action string) bool {
+	if strings.HasPrefix(action, "documents:") && !r.Settings.Modules.Documents {
+		return false
+	}
+	return !r.Bearer || r.AllowedActions[action]
+}
 
 // Keys are stable data identifiers. Membership is checked against the space catalog.
 func workStatusValid(status string) bool {
@@ -169,8 +180,8 @@ func (a *App) loadWorkItem(r *Request, space, id string) (*WorkItem, error) {
 	}
 	item := &WorkItem{BookmarkIDs: []string{}, DocumentIDs: []string{}, References: []WorkReference{}}
 	targets, project, revision := workSummaryScan(&item.WorkSummary)
-	targets = append(targets, &item.Description, &item.Result, &item.CreatedAt, &item.createHash)
-	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT "+a.workSummaryColumns(r)+",w.description,w.result,w.created_at,w.create_hash FROM work_items w LEFT JOIN work_projects p ON p.id=w.project_id WHERE w.id=? AND w.space_id=?"), id, space).Scan(targets...)
+	targets = append(targets, &item.Description, &item.Result, &item.CreatedAt, &item.createHash, &item.activityStartedAt)
+	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT "+a.workSummaryColumns(r)+",w.description,w.result,w.created_at,w.create_hash,w.activity_started_at FROM work_items w LEFT JOIN work_projects p ON p.id=w.project_id WHERE w.id=? AND w.space_id=?"), id, space).Scan(targets...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, missing()
 	}
@@ -257,6 +268,16 @@ func (a *App) getWorkItem(r *Request) (*Response, error) {
 	item, err := a.loadWorkItem(r, s.ID, r.param("id"))
 	if err != nil {
 		return nil, err
+	}
+	activity, err := workDetailActivityInput(r)
+	if err != nil {
+		return nil, err
+	}
+	if activity != nil {
+		item.Activity, err = a.loadWorkActivity(r, item, *activity)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return a.workItemReply(r, item, nil)
 }

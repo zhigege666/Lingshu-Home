@@ -1,0 +1,61 @@
+.lh-module-nav {
+  display:flex;
+  align-items:stretch;
+  align-self:stretch;
+  flex:none;
+  gap:0;
+  min-width:0;
+}
+.lh-module-nav>a,.lh-module-nav>span {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-height:40px;
+  padding:0 12px;
+  border:0;
+  border-bottom:3px solid transparent;
+  background:none;
+  color:inherit;
+  font:inherit;
+  font-size:13px;
+  line-height:1.4;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.lh-module-nav>a:hover { background:var(--module-nav-hover,var(--work-soft,#eef3f0)); }
+.lh-module-nav>a:focus-visible { outline:2px solid var(--module-nav-accent,var(--work-accent,#287863)); outline-offset:-4px; border-radius:4px; }
+.lh-module-nav>[aria-current="page"] {
+  background:var(--module-nav-active,var(--work-tint,#e5f1e9));
+  border-bottom-color:var(--module-nav-accent,var(--work-accent,#287863));
+  color:var(--module-nav-accent,var(--work-accent,#287863));
+  font-weight:600;
+}
+.lh-module-nav svg { flex:none; }
+.lh-home .lh-module-nav { --module-nav-hover:var(--lh-soft); --module-nav-active:var(--lh-tint); --module-nav-accent:var(--lh-accent); color:var(--lh-ink); min-height:44px; }
+.library-topbar>.lh-module-nav { --module-nav-hover:#f1f5ef; --module-nav-active:#edf5ef; --module-nav-accent:var(--library-accent); }
+.admin-topbar>.lh-module-nav { --module-nav-hover:var(--admin-soft,#f3f7f4); --module-nav-active:var(--admin-tint,#e5f1e9); --module-nav-accent:var(--admin-accent,#287863); }
+@media(min-width:1281px) {
+  .lh-home .lh-header-identity { flex-wrap:nowrap; gap:14px; }
+  .lh-home .lh-home-heading { min-width:90px; max-width:240px; padding-left:14px; }
+  .lh-home .lh-header-identity>.lh-brand { max-width:210px; }
+}
+@media(max-width:1199px) {
+  .lh-module-nav>a,.lh-module-nav>span { gap:5px; padding:0 9px; font-size:12px; }
+}
+@media(max-width:999px) {
+  .lh-module-nav>a>span { display:none; }
+  .library-topbar .library-brand strong { display:none; }
+}
+@media(max-width:700px) {
+  .library-shell>.library-topbar { grid-template-columns:auto minmax(0,1fr) auto; }
+  .library-topbar>.lh-module-nav { grid-column:2; grid-row:1; justify-self:start; }
+  .library-topbar>.library-account { grid-column:3; }
+  .lh-home .lh-header-identity { flex-wrap:wrap; }
+  .lh-home .lh-header-identity>.lh-home-heading { flex:1 1 140px; }
+  .lh-home .lh-header-identity>.lh-space-holder { margin-left:0; }
+}
+@media(max-width:639px) {
+  .lh-module-nav>a,.lh-module-nav>span { padding:0 8px; }
+  .lh-module-nav>[aria-current="page"]>span { display:none; }
+}

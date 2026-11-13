@@ -99,6 +99,11 @@ func (a *App) storedWorkIDs(r *Request, itemID, kind string) ([]string, error) {
 	return ids, rows.Err()
 }
 func (a *App) validateWorkRefs(r *Request, space, itemID, kind string, ids []string) error {
+	if kind == "document" {
+		if err := r.requireModule("documents"); err != nil {
+			return err
+		}
+	}
 	old, err := a.storedWorkIDs(r, itemID, kind)
 	if err != nil {
 		return err
@@ -232,9 +237,21 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	var in workCreateInput
-	if err = r.decode(&in); err != nil {
+	// Preserve whether documentIds was supplied, including []/null. Omission
+	// must allow plain work creation when the optional document module is off.
+	var decoded struct {
+		workCreateInput
+		DocumentIDs json.RawMessage `json:"documentIds"`
+	}
+	if err = r.decode(&decoded); err != nil {
 		return nil, err
+	}
+	in := decoded.workCreateInput
+	docsSet := decoded.DocumentIDs != nil
+	if docsSet {
+		if err = json.Unmarshal(decoded.DocumentIDs, &in.DocumentIDs); err != nil {
+			return nil, invalid("documentIds must be an array of IDs.")
+		}
 	}
 	if !validID(in.ID) {
 		return nil, invalid("id must be 32 lowercase hexadecimal characters.")
@@ -275,15 +292,17 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err = a.validateWorkRefs(r, s.ID, in.ID, "bookmark", in.BookmarkIDs); err != nil {
 		return nil, err
 	}
-	if err = a.validateWorkRefs(r, s.ID, in.ID, "document", in.DocumentIDs); err != nil {
-		return nil, err
+	if docsSet {
+		if err = a.validateWorkRefs(r, s.ID, in.ID, "document", in.DocumentIDs); err != nil {
+			return nil, err
+		}
 	}
 	rank, err := a.createWorkRank(r, s.ID, in.Status, in.ID, in.Placement)
 	if err != nil {
 		return nil, err
 	}
 	now := workStamp()
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2)"), in.ID, s.ID, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version,activity_started_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2,?)"), in.ID, s.ID, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash, now)
 	if err != nil {
 		return nil, err
 	}
@@ -291,6 +310,9 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 		return nil, err
 	}
 	if err = a.replaceWorkRefs(r, in.ID, "document", in.DocumentIDs); err != nil {
+		return nil, err
+	}
+	if err = a.recordWorkActivity(r, s.ID, in.ID, "create", now, nil); err != nil {
 		return nil, err
 	}
 	if _, err = a.bumpWorkRevision(r, s.ID); err != nil {
@@ -379,6 +401,13 @@ func (a *App) updateWorkItem(r *Request) (*Response, error) {
 			return nil, err
 		}
 	}
+	changes, err := a.workItemChanges(r, item, in, archived, linksSet, docsSet)
+	if err != nil {
+		return nil, err
+	}
+	if len(changes) == 0 {
+		return a.workItemReply(r, item, map[string]any{"unchanged": true})
+	}
 	rank := item.rank
 	if in.Status != item.Status || archived != item.Archived {
 		rank, err = a.appendWorkRank(r, s.ID, in.Status, archived, item.ID)
@@ -386,7 +415,8 @@ func (a *App) updateWorkItem(r *Request) (*Response, error) {
 			return nil, err
 		}
 	}
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET title=?,project_id=?,status=?,description=?,next_step=?,result=?,needs_attention=?,archived=?,sort_order=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), in.Title, in.ProjectID, in.Status, in.Description, in.NextStep, in.Result, in.NeedsAttention, archived, rank, workStamp(), item.ID, s.ID)
+	now := workStamp()
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET title=?,project_id=?,status=?,description=?,next_step=?,result=?,needs_attention=?,archived=?,sort_order=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), in.Title, in.ProjectID, in.Status, in.Description, in.NextStep, in.Result, in.NeedsAttention, archived, rank, now, item.ID, s.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -399,6 +429,16 @@ func (a *App) updateWorkItem(r *Request) (*Response, error) {
 		if err = a.replaceWorkRefs(r, item.ID, "document", in.DocumentIDs); err != nil {
 			return nil, err
 		}
+	}
+	action := "update"
+	if archived != item.Archived {
+		action = "restore"
+		if archived {
+			action = "archive"
+		}
+	}
+	if err = a.recordWorkActivity(r, s.ID, item.ID, action, now, changes); err != nil {
+		return nil, err
 	}
 	if _, err = a.bumpWorkRevision(r, s.ID); err != nil {
 		return nil, err
@@ -469,12 +509,44 @@ func (a *App) moveWorkItem(r *Request) (*Response, error) {
 	if before != nil {
 		anchor = *before
 	}
+	if anchor == item.ID {
+		return nil, invalid("An item cannot be its own move anchor.")
+	}
+	if status == item.Status {
+		// Compare logical neighbors, not fractional ranks: placing an item
+		// before its existing successor (or leaving the tail at the end) is
+		// a no-op even if beforeWorkRank would choose a different number.
+		var successor string
+		err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT id FROM work_items WHERE space_id=? AND status=? AND archived=? AND (sort_order>? OR (sort_order=? AND id>?)) ORDER BY sort_order,id LIMIT 1"), s.ID, status, false, item.rank, item.rank, item.ID).Scan(&successor)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		if successor == anchor {
+			return a.workItemReply(r, item, map[string]any{"unchanged": true})
+		}
+	}
 	rank, err := a.beforeWorkRank(r, s.ID, status, item.ID, anchor)
 	if err != nil {
 		return nil, err
 	}
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET status=?,sort_order=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), status, rank, workStamp(), item.ID, s.ID)
+	changes := []WorkActivityChange{{Field: "order"}}
+	if status != item.Status {
+		oldStatus, err := a.requireWorkStatus(r, s.ID, item.Status)
+		if err != nil {
+			return nil, err
+		}
+		newStatus, err := a.requireWorkStatus(r, s.ID, status)
+		if err != nil {
+			return nil, err
+		}
+		changes = append([]WorkActivityChange{workActivityStatusChange(oldStatus, newStatus)}, changes...)
+	}
+	now := workStamp()
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET status=?,sort_order=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), status, rank, now, item.ID, s.ID)
 	if err != nil {
+		return nil, err
+	}
+	if err = a.recordWorkActivity(r, s.ID, item.ID, "move", now, changes); err != nil {
 		return nil, err
 	}
 	if _, err = a.bumpWorkRevision(r, s.ID); err != nil {

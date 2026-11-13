@@ -384,7 +384,11 @@ func (a *App) batchEditWorkStatuses(r *Request) (*Response, error) {
 			return nil, err
 		}
 		if old := catalog.find(id); old != nil && old.Type != item.Type {
-			if _, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET revision=revision+1,updated_at=? WHERE space_id=? AND status=?"), workStamp(), s.ID, id); err != nil {
+			stamp := workStamp()
+			if _, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET revision=revision+1,updated_at=? WHERE space_id=? AND status=?"), stamp, s.ID, id); err != nil {
+				return nil, err
+			}
+			if err = a.recordWorkStatusDefinitionChanges(r, s.ID, stamp, old, &item); err != nil {
 				return nil, err
 			}
 		}
@@ -418,7 +422,12 @@ func (a *App) batchEditWorkStatuses(r *Request) (*Response, error) {
 				return nil, e
 			}
 			for _, id := range ids {
-				if _, e = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET status=?,sort_order=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), deletion.MoveToStatus, rank, workStamp(), id, s.ID); e != nil {
+				stamp := workStamp()
+				if _, e = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET status=?,sort_order=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), deletion.MoveToStatus, rank, stamp, id, s.ID); e != nil {
+					return nil, e
+				}
+				newStatus := final[deletion.MoveToStatus]
+				if e = a.recordWorkActivity(r, s.ID, id, "status_migrate", stamp, []WorkActivityChange{workActivityStatusChange(catalog.find(deletion.ID), &newStatus)}); e != nil {
 					return nil, e
 				}
 				rank += workRankStep

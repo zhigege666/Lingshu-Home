@@ -289,7 +289,7 @@ func (a *App) enabledDocumentSources(ctx context.Context) ([]*DocumentSource, er
 	if err := a.store.CheckLease(ctx); err != nil {
 		return nil, err
 	}
-	rows, err := a.store.DB.QueryContext(ctx, a.store.Query("SELECT "+documentSourceColumns+" FROM document_sources WHERE enabled=?"), true)
+	rows, err := a.store.DB.QueryContext(ctx, a.store.Query("SELECT "+documentSourceColumns+" FROM document_sources WHERE enabled=? AND EXISTS(SELECT 1 FROM settings WHERE id=1 AND documents_enabled=?)"), true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -312,9 +312,19 @@ func (a *App) scanDocumentInBackground(ctx context.Context, source *DocumentSour
 	case <-ctx.Done():
 		return documentScan{}, false
 	}
+	var enabled bool
+	if err := a.store.DB.QueryRowContext(ctx, "SELECT documents_enabled FROM settings WHERE id=1").Scan(&enabled); err != nil || !enabled {
+		return documentScan{}, false
+	}
 	scan := a.collectDocumentDirectory(ctx, source)
 	r := &Request{App: a, HTTP: (&http.Request{}).WithContext(ctx)}
 	_, err := a.documentTransaction(r, func(rr *Request) (*Response, error) {
+		if err := rr.Q.QueryRowContext(ctx, "SELECT documents_enabled FROM settings WHERE id=1").Scan(&enabled); err != nil {
+			return nil, err
+		}
+		if !enabled {
+			return nil, moduleDisabled("documents")
+		}
 		current, err := scanDocumentSource(rr.Q.QueryRowContext(ctx, a.store.Query("SELECT "+documentSourceColumns+" FROM document_sources WHERE id=?"), source.ID))
 		if err != nil {
 			return nil, err

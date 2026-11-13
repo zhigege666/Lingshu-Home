@@ -348,6 +348,59 @@ async function main() {
         await page.locator('.work-lane[data-work-status="' + statusId + '"]').waitFor({ state: 'hidden' });
         await page.locator('.work-lane[data-work-status="doing"] [data-work-id="' + activeItem.id + '"]').waitFor();
       });
+      await check(provider + '/ui_status_manager_layout_and_scrolling', async () => {
+        await closeDetail(); await openBoard();
+        const original = await api(work + '/statuses');
+        async function assertManagerLayout(manager, name, scrollExpected) {
+          const before = await manager.evaluate(el => {
+            const rect = node => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; };
+            const body = el.querySelector('.work-detail-body');
+            return { viewport: { width: innerWidth, height: innerHeight }, dialog: rect(el), heading: rect(el.querySelector('.work-detail-heading')), body: { ...rect(body), clientHeight: body.clientHeight, scrollHeight: body.scrollHeight, overflow: getComputedStyle(body).overflowY }, footer: rect(el.querySelector('.work-detail-footer')), display: getComputedStyle(el).display };
+          });
+          report.layouts ||= []; report.layouts.push({ name, ...before });
+          await shot(name);
+          assert(Math.abs(before.footer.bottom - before.dialog.bottom) <= 1, name + ' footer must touch drawer bottom: ' + JSON.stringify(before));
+          assert(before.dialog.left >= -1 && before.dialog.right <= before.viewport.width + 1 && Math.abs(before.dialog.bottom - before.viewport.height) <= 1, name + ' drawer stays in viewport');
+          assert(before.body.top >= before.heading.bottom - 1 && before.body.bottom <= before.footer.top + 1, name + ' content stays between heading and footer');
+          assert(['auto', 'scroll'].includes(before.body.overflow), name + ' only content owns scrolling');
+          if (scrollExpected) {
+            assert(before.body.scrollHeight > before.body.clientHeight + 1, name + ' long status list has internal overflow');
+            const after = await manager.evaluate(el => {
+              const body = el.querySelector('.work-detail-body'); body.scrollTop = body.scrollHeight;
+              return { scrollTop: body.scrollTop, footerBottom: el.querySelector('.work-detail-footer').getBoundingClientRect().bottom, headingTop: el.querySelector('.work-detail-heading').getBoundingClientRect().top, windowScroll: scrollY };
+            });
+            assert(after.scrollTop > 0 && after.windowScroll === 0, name + ' list scroll does not move the page');
+            assert(Math.abs(after.footerBottom - before.footer.bottom) <= 1 && Math.abs(after.headingTop - before.heading.top) <= 1, name + ' heading/footer remain fixed');
+            const add = await button('新增状态', 'Add status', manager).boundingBox();
+            assert(add && add.y + add.height <= before.footer.top + 1, name + ' add action stays reachable above footer');
+            await shot(name + '-scrolled');
+          }
+        }
+        for (const [width, height] of [[2560,1440],[1920,1080],[1600,900],[2560,1080]]) {
+          await page.setViewportSize({ width, height });
+          const manager = await openStatuses();
+          await assertManagerLayout(manager, 'status-manager-short-' + width + 'x' + height, false);
+          await button('关闭状态管理', 'Close status manager', manager).click();
+          await manager.waitFor({ state: 'hidden' });
+        }
+        const extra = Array.from({ length: 10 }, (_, index) => ({ id: newID(), name: prefix + ' layout ' + (index + 1), type: 'doing', color: '#517d9b', description: 'Review the result before moving this item to the next stage.' }));
+        const added = await api(work + '/statuses/batch-edit', 'POST', { expectedRevision: original.revision, create: extra, order: [...original.items.map(x => x.id), ...extra.map(x => x.id)] });
+        await openBoard();
+        for (const [width, height] of [[2560,1440],[1920,1080],[1600,900],[2560,1080]]) {
+          await page.setViewportSize({ width, height });
+          const manager = await openStatuses();
+          await assertManagerLayout(manager, 'status-manager-long-' + width + 'x' + height, true);
+          const last = manager.locator('[data-status-id="' + extra.at(-1).id + '"]');
+          await last.getByRole('combobox').click();
+          const popup = await page.getByRole('listbox').boundingBox();
+          assert(popup && popup.x >= 0 && popup.y >= 0 && popup.x + popup.width <= width + 1 && popup.y + popup.height <= height + 1, 'Status menu stays within viewport after scrolling');
+          await page.keyboard.press('Escape');
+          await button('关闭状态管理', 'Close status manager', manager).click();
+          await manager.waitFor({ state: 'hidden' });
+        }
+        await api(work + '/statuses/batch-edit', 'POST', { expectedRevision: added.revision, deletions: extra.map(x => ({ id: x.id })), order: original.items.map(x => x.id) });
+        await page.setViewportSize({ width: 2560, height: 1440 }); await openBoard();
+      });
       await check(provider + '/ui_view_switch_and_four_screen_sizes', async () => {
         await closeDetail(); await page.setViewportSize({ width: 2560, height: 1440 });
         const original = await api(work + '/statuses');

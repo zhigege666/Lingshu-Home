@@ -217,6 +217,143 @@ async function main() {
       report.observations.push({ viewport: [width, height], geometry }); await shot('header-search-' + width + 'x' + height);
     }
   });
+  await check('module_navigation_consistency_four_sizes', async () => {
+    await closeDetail();
+    const routes = [
+      ['home', '/#/', '.lh-home', '.lh-brand'],
+      ['library', '/#/library?space=' + fixture.shared, '.library-shell', '.library-brand'],
+      ['work', '/#/library?view=board&space=' + fixture.shared, '.work-shell', '.work-brand'],
+      ['admin', '/#/admin?tab=access', '.admin-shell', '.admin-brand'],
+    ];
+    for (const [width, height] of [[2560,1440],[1920,1080],[1600,900],[2560,1080]]) {
+      await page.setViewportSize({ width, height });
+      for (const [name, route, shell, brand] of routes) {
+        await page.goto(origin + route, { waitUntil: 'domcontentloaded' }); await page.locator(shell).waitFor();
+        const nav = page.locator('nav.lh-module-nav'); await nav.waitFor();
+        assert.equal(await nav.count(), 1, name + ' has one module navigation');
+        assert.deepEqual(await nav.locator(':scope > a > span,:scope > span > span').allTextContents(), [l('导航','Home'),l('资料库','Library'),l('事项','Work')]);
+        const geometry = await page.evaluate(brand => {
+          const rect = e => { const r = e.getBoundingClientRect(); return { left:r.left,right:r.right,top:r.top,bottom:r.bottom }; };
+          const nav = document.querySelector('nav.lh-module-nav'), header = nav.closest('header');
+          return { nav:rect(nav), brand:rect(document.querySelector(brand)), header:rect(header), width:innerWidth, scrollWidth:Math.max(document.body.scrollWidth,document.documentElement.scrollWidth) };
+        }, brand);
+        assert(geometry.brand.right <= geometry.nav.left + 1, name + ' modules follow brand on the left');
+        assert(geometry.nav.right < width / 2 && geometry.nav.top >= geometry.header.top - 1 && geometry.nav.bottom <= geometry.header.bottom + 1, name + ' module nav stays in left half of header');
+        assert(geometry.scrollWidth <= width + 1, name + ' has no page horizontal overflow');
+        report.observations.push({ name:'modules-' + name, viewport:[width,height], geometry });
+        await shot('modules-' + name + '-' + width + 'x' + height);
+      }
+    }
+  });
+  await check('module_switches_preserve_data_and_block_disabled_routes', async () => {
+    await page.setViewportSize({ width:2560,height:1440 });
+    assert.deepEqual((await boot()).modules, { documents:true,work:true }, 'Existing installations enable both modules by default');
+    const source = await api(space + '/document-sources', 'POST', { name:prefix + ' module notes', path:fixture.documentRoot, readOnly:true, defaultWrite:false, defaultFolder:'', scanIntervalSeconds:0 }, 201);
+    await api(space + '/document-sources/' + source.id + '/scan', 'POST', {});
+    const document = (await api(space + '/documents?sourceId=' + source.id)).items.find(x => x.relativePath === 'plan.md');
+    assert(document, 'Owned document fixture exists');
+    let linked = await api(work + '/items', 'POST', { id:id(),title:prefix + ' retained links',projectId:projectA.id,bookmarkIds:[bookmark.id],documentIds:[document.id] });
+    async function settingsUI(modules) {
+      await page.goto(origin + '/#/admin?tab=access', { waitUntil:'domcontentloaded' });
+      const library = label('启用资料库','Enable library'), items = label('启用事项','Enable work');
+      await library.waitFor();
+      await library.setChecked(modules.documents); await items.setChecked(modules.work);
+      const saved = await mutation(() => button('保存访问设置','Save access settings').click(), '/settings', 'PUT');
+      assert.deepEqual(saved.modules, modules);
+      await page.waitForFunction(expected => document.querySelectorAll('nav.lh-module-nav > *').length === expected, 1 + Number(modules.documents) + Number(modules.work));
+      assert.deepEqual((await boot()).modules, modules);
+    }
+    await settingsUI({ documents:false,work:true }); await shot('modules-documents-off');
+    const docsDenied = await api(space + '/documents?sourceId=' + source.id, 'GET', undefined, 403);
+    assert.equal(docsDenied.code,'module_disabled');
+    await page.goto(origin + '/#/library?space=' + fixture.shared + '&document=' + document.id, { waitUntil:'domcontentloaded' });
+    await page.locator('.app-module-disabled[data-disabled-module="documents"]').waitFor();
+    await button('返回导航','Return to navigation').click(); await page.locator('.lh-home').waitFor();
+    await page.goto(boardURL + '&item=' + linked.id, { waitUntil:'domcontentloaded' }); await detail().waitFor();
+    await title().fill(prefix + ' edited with documents off');
+    const editBody = page.waitForRequest(r => new URL(r.url()).pathname === '/api/v1' + work + '/items/' + linked.id && r.method() === 'PATCH');
+    linked = await mutation(() => button('保存事项','Save item',detail()).click(), work + '/items/' + linked.id, 'PATCH');
+    assert(!Object.hasOwn((await editBody).postDataJSON(),'documentIds'),'Disabled document module must not clear hidden document references');
+    await closeDetail(); await createDraft(); await title().fill(prefix + ' create while documents off');
+    const createBody = page.waitForRequest(r => new URL(r.url()).pathname === '/api/v1' + work + '/items' && r.method() === 'POST');
+    const created = await saveCreate(); assert(!Object.hasOwn((await createBody).postDataJSON(),'documentIds')); await card(created.id).waitFor(); await closeDetail();
+    await settingsUI({ documents:false,work:false });
+    assert.equal((await api(work + '/items/' + linked.id, 'GET', undefined, 403)).code,'module_disabled');
+    await page.goto(boardURL + '&item=' + linked.id, { waitUntil:'domcontentloaded' }); await page.locator('.app-module-disabled[data-disabled-module="work"]').waitFor();
+    await shot('modules-all-off-deep-link');
+    await button('返回导航','Return to navigation').click(); await page.locator('.lh-home').waitFor();
+    assert.equal(await page.locator('nav.lh-module-nav > *').count(),1);
+    const navigation = await api(space + '/navigation');
+    assert(navigation.data.links.some(row => row.id === bookmark.id), 'Navigation remains available with both optional modules off');
+    await settingsUI({ documents:true,work:true });
+    const restored = await api(work + '/items/' + linked.id);
+    assert.deepEqual(restored.documentIds,[document.id]); assert.deepEqual(restored.bookmarkIds,[bookmark.id]);
+    assert.equal(restored.title,prefix + ' edited with documents off');
+    assert.equal((await api(space + '/documents/' + document.id)).id,document.id);
+    await page.goto(boardURL + '&item=' + linked.id, { waitUntil:'domcontentloaded' }); await detail().waitFor();
+    await detail().locator('.work-references').getByText(document.title,{exact:true}).waitFor(); await closeDetail();
+  });
+  await check('module_navigation_and_shutdown_preserve_unsaved_drafts', async () => {
+    // The wide layout keeps navigation interactive beside the editor; narrower layouts use a modal drawer.
+    await page.setViewportSize({width:2560,height:1440}); await openBoard(); await createDraft();
+    await title().fill(prefix + ' navigation draft');
+    const homeLink = () => page.locator('nav.lh-module-nav').getByRole('link',{name:l('导航','Home'),exact:true});
+    await homeLink().click(); await button('继续编辑','Keep editing',page.getByRole('dialog')).click();
+    assert.equal(await title().inputValue(),prefix + ' navigation draft');
+    await homeLink().click(); await button('放弃修改','Discard changes',page.getByRole('dialog')).click();
+    await page.locator('.lh-home').waitFor(); assert.equal(await page.getByRole('dialog').count(),0,'One discard decision completes navigation');
+    await page.goto(boardURL + '&item=' + seed.id,{waitUntil:'domcontentloaded'}); await detail().waitFor();
+    const intended = prefix + ' retained after module shutdown'; await title().fill(intended);
+    const settings = await api('/settings');
+    const setWork = workEnabled => api('/settings','PUT',{siteName:settings.siteName,mode:settings.mode,registrationEnabled:settings.registrationEnabled,modules:{work:workEnabled}});
+    await setWork(false);
+    const rejected = await mutation(()=>button('保存事项','Save item',detail()).click(),work + '/items/' + seed.id,'PATCH',403);
+    assert.equal(rejected.code,'module_disabled'); assert.equal(await title().inputValue(),intended);
+    assert.equal(await detail().locator('.work-conflict').count(),0,'A definite module rejection is not an unknown write result');
+    await detail().locator('.admin-error').filter({hasText:l('草稿已保留','draft')}).waitFor(); await shot('work-draft-retained-module-disabled');
+    await setWork(true);
+    const saved = await mutation(()=>button('保存事项','Save item',detail()).click(),work + '/items/' + seed.id,'PATCH');
+    assert.equal(saved.title,intended); await closeDetail();
+  });
+  await check('work_activity_timestamps_pagination_and_live_update', async () => {
+    const itemId = id();
+    let item = await api(work + '/items','POST',{id:itemId,title:prefix + ' activity',projectId:projectA.id});
+    for (let n=0;n<23;n++) item = await api(work + '/items/' + itemId,'PATCH',{expectedRevision:item.revision,result:'Verified milestone ' + (n+1)});
+    const expected = await api(work + '/items/' + itemId + '/activity?limit=100');
+    assert.equal(expected.items.length,24); assert.equal(expected.historyComplete,true);
+    await page.goto(boardURL + '&item=' + itemId,{waitUntil:'domcontentloaded'}); await detail().waitFor();
+    await page.waitForFunction(() => document.querySelectorAll('.work-activity [data-work-activity-id]').length === 20);
+    // Opening another detail keeps the current board snapshot; explicitly locate this API-created item.
+    await detail().getByRole('button',{name:l('定位事项','Locate item'),exact:true}).click();
+    await card(itemId).waitFor();
+    assert.equal(await card(itemId).locator('time.work-updated-time').getAttribute('datetime'),item.updatedAt);
+    assert.deepEqual(await detail().locator('.work-activity [data-work-activity-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.workActivityId)),expected.items.slice(0,20).map(e=>e.id));
+    await detail().locator('.work-activity-more').click();
+    await page.waitForFunction(() => document.querySelectorAll('.work-activity [data-work-activity-id]').length === 24);
+    const rendered = await detail().locator('.work-activity [data-work-activity-id] time').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('datetime')));
+    assert.deepEqual(rendered,expected.items.map(e=>e.occurredAt));
+    await shot('work-activity-real-history');
+    await label('下一步','Next step',detail()).fill('Review the recorded timeline');
+    item = await mutation(()=>button('保存事项','Save item',detail()).click(),work + '/items/' + itemId,'PATCH');
+    const latest = await api(work + '/items/' + itemId + '/activity?limit=1');
+    await detail().locator('[data-work-activity-id="' + latest.items[0].id + '"]').waitFor();
+    assert.equal(latest.items[0].itemRevision,item.revision);
+    for (const [width,height] of [[2560,1440],[1920,1080],[1600,900],[2560,1080]]) {
+      await page.setViewportSize({width,height});
+      await detail().locator('.work-activity').scrollIntoViewIfNeeded();
+      const geometry = await detail().evaluate(el=>{
+        const body=el.querySelector('.work-detail-body'),footer=el.querySelector('.work-detail-footer'),r=el.getBoundingClientRect(),f=footer.getBoundingClientRect();
+        return {left:r.left,right:r.right,bottom:r.bottom,footerBottom:f.bottom,footerTop:f.top,width:innerWidth,height:innerHeight,bodyWidth:body.clientWidth,bodyScrollWidth:body.scrollWidth};
+      });
+      assert(geometry.left>=0 && geometry.right<=width+1 && geometry.bottom<=height+1 && Math.abs(geometry.footerBottom-geometry.bottom)<=1,'Timeline detail and save footer fit viewport');
+      assert(geometry.bodyScrollWidth<=geometry.bodyWidth+1,'Timeline does not overflow horizontally');
+      await shot('work-activity-' + width + 'x' + height);
+    }
+    await closeDetail(); await button('列表','List',page.locator('.work-topbar')).click();
+    await page.locator('.work-table').waitFor();
+    assert.equal(await card(itemId).locator('time.work-updated-time').getAttribute('datetime'),item.updatedAt);
+    await button('看板','Board',page.locator('.work-topbar')).click();
+  });
   assert.equal(report.errors.length, 0, 'Unhandled browser errors'); report.passed = true;
 }
 main().catch(async error => { report.failure = scrub(error.stack || error); console.error(report.failure); process.exitCode = 1; if (page) { try { await page.screenshot({ path: path.join(output, 'failure.png'), animations: 'disabled' }); } catch {} } })

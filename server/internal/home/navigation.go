@@ -177,7 +177,11 @@ func (a *App) dashboard(r *Request) (*Response, error) {
 			// This is only a public renderer contract. Personal activity is read
 			// by the separate, document-authorized endpoint, never this snapshot.
 			now := time.Now().UTC()
-			dashboard.Datasets[alias] = Dataset{DatasetID: "local-document-activity", SchemaID: "documents.activity", SchemaVersion: 1, Revision: "1", Data: map[string]any{}, Meta: DatasetMeta{ReceivedAt: now, LastSuccessAt: now, Freshness: "fresh"}}
+			data := map[string]any{}
+			if !r.Settings.Modules.Documents {
+				data["moduleDisabled"] = true
+			}
+			dashboard.Datasets[alias] = Dataset{DatasetID: "local-document-activity", SchemaID: "documents.activity", SchemaVersion: 1, Revision: "1", Data: data, Meta: DatasetMeta{ReceivedAt: now, LastSuccessAt: now, Freshness: "fresh"}}
 			continue
 		}
 		if binding["datasetId"] != "local-navigation" {
@@ -660,6 +664,9 @@ func (a *App) updateLinkContext(r *Request) (*Response, error) {
 func (a *App) deleteLink(r *Request) (*Response, error) {
 	space, err := r.navigationSpace(r.param("spaceId"), true)
 	if err != nil {
+		return nil, err
+	}
+	if err = a.recordWorkBookmarkRemovals(r, space.ID, []string{r.param("id")}); err != nil {
 		return nil, err
 	}
 	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("DELETE FROM links WHERE id=? AND space_id=?"), r.param("id"), space.ID)

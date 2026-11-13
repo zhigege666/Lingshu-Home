@@ -23,6 +23,7 @@ import { BookmarkImporter, CategoryEditor, LinkEditor } from './ContentForms'
 import { AccessSettings, MembersPanel } from './Accounts'
 import LayoutEditor from './LayoutEditor'
 import { ProjectLogo } from '../components/ProjectLogo'
+import { ModuleNav } from '../components/ModuleNav'
 import IntegrationsPanel from './IntegrationsPanel'
 import NetworkSettings from './NetworkSettings'
 import DocumentDirectories from './DocumentDirectories'
@@ -85,12 +86,12 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   const [editingLink, setEditingLink] = useState<NavLink | null>(null), [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [deleting, setDeleting] = useState<{ type: 'links' | 'categories'; id: string; title: string; anchor: HTMLButtonElement; spaceId: string } | null>(null), [deleteError, setDeleteError] = useState(''), [deleteStale, setDeleteStale] = useState(false), [busy, setBusy] = useState(false)
   const siteManager = bootstrap.user?.role === 'Owner' || bootstrap.mode === 'open_edit'
-  const menu = useMemo(() => [...standardMenu(),
+  const menu = useMemo(() => [...standardMenu().filter(item => item.id !== 'documents' || bootstrap.modules?.documents !== false),
     ...(siteManager ? [{ id: 'network', name: t('网络设置', 'Network settings'), icon: Network }, { id: 'access', name: t("站点设置", "Site settings"), icon: Shield }] : []),
     ...(bootstrap.user?.role === 'Owner' && bootstrap.mode === 'private_multi' ? [{ id: 'members', name: t("成员管理", "Member management"), icon: Users }] : []),
     ...(bootstrap.user ? [{ id: 'profile', name: t('我的资料', 'My profile'), icon: UserRound }] : []),
     { id: 'about', name: t("关于 Home", "About Home"), icon: Compass }
-  ], [siteManager, bootstrap.user?.role, bootstrap.mode])
+  ], [siteManager, bootstrap.user?.role, bootstrap.mode, bootstrap.modules?.documents])
   const current = menu.find(item => item.id === tab) || menu[0]!
   const localDashboard: Dashboard | null = dashboard && localData ? { ...dashboard, datasets: { ...dashboard.datasets, navigation: localData } } : null
   const canEditContent = !!localDashboard?.space.canEdit && bootstrap.spaces.some(space => space.id === spaceId && space.canEdit)
@@ -266,9 +267,8 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   return <div className="admin-ui admin-shell" inert={busy || bulkBusy}>
     <header className="admin-topbar">
       <a className="admin-brand" href="#/" onClick={event => { event.preventDefault(); onHome() }}><span className="admin-brand-mark"><ProjectLogo size={39}/></span><span>Lingshu<span className="admin-brand-light"> / Home</span></span></a>
+      <ModuleNav modules={bootstrap.modules} canViewWork={!!bootstrap.user && !!dashboard?.space.canEdit} spaceId={dashboard?.space.id} onHome={onHome}/>
       <h1 className="admin-top-title" id="admin-page-title">{current.name}</h1><span className="grow"/>
-      <Button variant="ghost" onClick={() => requestNavigation(() => { window.location.hash = '/library' })}><BookOpen size={16}/>{t('资料库', 'Library')}</Button>
-      <Button variant="ghost" onClick={onHome}>{t("返回导航", "Back to Home")}<ArrowUpRight size={16}/></Button>
       {dashboard && <div className="admin-global-space"><span className="admin-global-space-label">{t('当前空间', 'Current space')}</span><StyledSelect className="lh-space-control" aria-label={t('当前空间', 'Current space')} value={dashboard.space.id} onValueChange={id => { if (id !== dashboard.space.id) requestNavigation(() => onSwitchSpace(id)) }} options={bootstrap.spaces.map(space => ({ value: space.id, label: `${space.name} · ${space.kind === 'personal' ? t('个人', 'Personal') : t('共享', 'Shared')}` }))}/><SpacePreferenceMenu bootstrap={bootstrap}/></div>}
       {bootstrap.user ? <AccountMenu user={bootstrap.user} onProfile={() => selectTab('profile')} onLogout={() => requestNavigation(() => { void onLogout() })}/> : <Button variant="outline" size="sm" onClick={onLogin}>{t("管理员登录", "Administrator sign-in")}</Button>}
     </header>

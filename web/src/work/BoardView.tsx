@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { AlertCircle, Archive, ArchiveRestore, ArrowRight, BellDot, BookOpen, Check, Crosshair, Folder, GripVertical, Home, LayoutDashboard, List, LogOut, MoreHorizontal, Moon, Pencil, Plus, RefreshCw, Search, Settings2, Sun, X } from 'lucide-react'
+import { AlertCircle, Archive, ArchiveRestore, ArrowRight, BellDot, BookOpen, Check, Crosshair, Folder, GripVertical, LayoutDashboard, List, LogOut, MoreHorizontal, Moon, Pencil, Plus, RefreshCw, Search, Settings2, Sun, X } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { ApiError, messageOf, request } from '../core/api'
 import { getLocale, t } from '../core/i18n'
@@ -7,6 +7,8 @@ import { notifyRouteCommitted, requestNavigation } from '../core/navigation'
 import type { Bootstrap, Dashboard } from '../core/types'
 import { newWorkId, workPath, type WorkStatusContext, type WorkStatusDefinition, type WorkBoard, type WorkColumn, type WorkItem, type WorkPage, type WorkProject, type WorkSelection, type WorkStatus, type WorkSummary } from '../core/work-types'
 import { ProjectLogo } from '../components/ProjectLogo'
+import { ModuleNav } from '../components/ModuleNav'
+import { WorkUpdatedTime } from './WorkUpdatedTime'
 import { SpacePreferenceMenu } from '../components/SpacePreferenceMenu'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -42,6 +44,7 @@ function routeSelection(route: string): WorkSelection | null {
 export default function BoardView({ bootstrap, dashboard, route, onHome, onLibrary, onLogin, onLogout, onSpaceChange, onNotice }: Props) {
   const { theme, setTheme } = useBoardTheme(bootstrap, dashboard)
   const space = dashboard.space, identity = `${bootstrap.user?.id || 'visitor'}:${space.id}`
+  const moduleEnabled = bootstrap.modules?.work !== false
   const authorized = !!bootstrap.user && space.canEdit
   const [projects, setProjects] = useState<WorkProject[]>([]), [projectId, setProjectId] = useState(''), [projectSearch, setProjectSearch] = useState(''), [projectLimit, setProjectLimit] = useState(40)
   const [query, setQuery] = useState(''), [search, setSearch] = useState(''), [attention, setAttention] = useState(false), [archived, setArchived] = useState(false), [view, setView] = useState<'board' | 'list'>('board')
@@ -52,7 +55,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
   const [feedback, setFeedback] = useState<{ text: string; itemId?: string } | null>(null), [busy, setBusy] = useState(false), [loadingMore, setLoadingMore] = useState<string[]>([]), [dragId, setDragId] = useState(''), [dropBefore, setDropBefore] = useState('')
   const [focusedItem, setFocusedItem] = useState<{ id: string; title: string } | null>(null), [revealId, setRevealId] = useState('')
   const generation = useRef(0), alive = useRef(true), mutating = useRef(false), paging = useRef(new Set<string>()), dragging = useRef<WorkSummary | null>(null), previousRoute = useRef(route), previousIdentity = useRef(identity), previousQuery = useRef('')
-  const path = workPath(space.id), canEdit = authorized && (board?.canEdit ?? list?.canEdit ?? false)
+  const path = workPath(space.id), canEdit = authorized && moduleEnabled && (board?.canEdit ?? list?.canEdit ?? false)
   const statuses = statusContext.statuses
   const project = projects.find(item => item.id === projectId)
   const createUnavailable = archived ? t('请返回未归档事项后新建。', 'Return to active items to create an item.') : project?.archived ? t('请先恢复项目，再新建事项。', 'Restore this project before creating an item.') : projectId && !project ? t('正在读取所选项目，请稍候。', 'The selected project is loading. Please wait.') : ''
@@ -88,7 +91,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
     previousQuery.current = queryKey
     if (!quiet) { setLoading(true); setBoard(null); setList(null) }
     setError(''); paging.current.clear(); setLoadingMore([])
-    if (!authorized) { setLoading(false); return () => abort.abort() }
+    if (!authorized || !moduleEnabled) { setLoading(false); return () => abort.abort() }
     const endpoint = view === 'board' ? '/board' : '/items'
     Promise.all([
       request<WorkBoard | WorkPage>(`${path}${endpoint}?${parameters()}`, { signal: abort.signal }),
@@ -100,7 +103,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
     }).catch(cause => { if (!abort.signal.aborted && token === generation.current) setError(messageOf(cause)) })
       .finally(() => { if (!abort.signal.aborted && token === generation.current) setLoading(false) })
     return () => abort.abort()
-  }, [identity, authorized, path, projectId, search, attention, archived, view, focusedItem?.id, refresh])
+  }, [identity, authorized, moduleEnabled, path, projectId, search, attention, archived, view, focusedItem?.id, refresh])
   useEffect(() => {
     if (!revealId || loading) return
     const visible = view === 'board' ? board?.columns.some(column => column.items.some(item => item.id === revealId)) : list?.items.some(item => item.id === revealId)
@@ -112,7 +115,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
     return () => cancelAnimationFrame(frame)
   }, [revealId, loading, view, board, list])
   useEffect(() => {
-    if (!authorized) return
+    if (!authorized || !moduleEnabled) return
     let checking = false, stopped = false
     const abort = new AbortController()
     async function check() {
@@ -132,11 +135,11 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
     const timer = window.setInterval(() => void check(), 15000)
     window.addEventListener('focus', visible); document.addEventListener('visibilitychange', visible)
     return () => { stopped = true; abort.abort(); window.clearInterval(timer); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', visible) }
-  }, [authorized, path])
+  }, [authorized, moduleEnabled, path])
   useEffect(() => { if (updatesAvailable && !pauseSync && !hasExtraPages && !loading) reload() }, [updatesAvailable, pauseSync, hasExtraPages, loading, reload])
   async function more(column?: WorkColumn) {
     const key = column?.status || 'list', cursor = column?.nextCursor || (!column ? list?.nextCursor : null)
-    if (!cursor || paging.current.has(key)) return
+    if (!moduleEnabled || !cursor || paging.current.has(key)) return
     const token = generation.current
     paging.current.add(key); setLoadingMore([...paging.current]); setError('')
     try {
@@ -231,7 +234,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
     return <article key={item.id} className={`work-card ${selection?.id === item.id ? 'selected' : ''} ${dragId === item.id ? 'dragging' : ''} ${dropBefore === item.id ? 'drop-before' : ''}`} data-work-id={item.id} data-work-status={item.status} draggable={canEdit && !busy && !item.archived} onDragStart={event => dragStart(event, item)} onDragEnd={() => { dragging.current = null; setDragId(''); setDropBefore('') }} onDragOver={event => dragOver(event, item.id)} onDrop={event => acceptDrop(event, item.status, item.id)}>
       <div className="work-card-top"><button type="button" className="work-card-title" onClick={() => open(item)} aria-label={t('打开事项：{title}', 'Open item: {title}', { title: item.title })}>{item.title}</button>{canEdit && <Menu item={item} statuses={statuses} disabled={busy} onMove={status => move(item, status, null)} onArchive={() => changeArchive(item)}/>}</div>
       {item.nextStep && <p className="work-card-next" title={item.nextStep}>{item.nextStep}</p>}
-      {(item.projectName || item.needsAttention || item.referenceCount > 0) && <footer>{item.projectName && <span className="work-project-badge" title={item.projectName}><Folder size={12}/>{item.projectName}</span>}{item.needsAttention && <span className="work-attention-badge" title={t('待我处理', 'Needs my attention')}><BellDot size={13}/></span>}{item.referenceCount > 0 && <span className="work-reference-count" aria-label={t('{count} 个关联资料', '{count} linked resources', { count: item.referenceCount })}><BookOpen size={13}/>{item.referenceCount}</span>}</footer>}
+      <footer>{item.projectName && <span className="work-project-badge" title={item.projectName}><Folder size={12}/>{item.projectName}</span>}{item.needsAttention && <span className="work-attention-badge" title={t('待我处理', 'Needs my attention')}><BellDot size={13}/></span>}{item.referenceCount > 0 && <span className="work-reference-count" aria-label={t('{count} 个关联资料', '{count} linked resources', { count: item.referenceCount })}><BookOpen size={13}/>{item.referenceCount}</span>}<WorkUpdatedTime value={item.updatedAt}/></footer>
       {canEdit && !item.archived && <span className="work-drag-cue" aria-hidden="true"><GripVertical size={12}/></span>}
     </article>
   }
@@ -241,7 +244,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
   return <WorkThemeContext.Provider value={theme}><div className={`admin-ui work-theme work-theme-${theme} work-shell ${selection ? 'has-detail' : ''}`} data-work-view={view} data-theme={theme}>
     <header className="work-topbar">
       <a className="work-brand" href="#/" onClick={event => { event.preventDefault(); requestNavigation(onHome) }}><ProjectLogo size={30}/><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
-      <nav aria-label={t('主要导航', 'Primary navigation')}><button onClick={() => requestNavigation(onHome)} title={t('导航', 'Home')}><Home size={17}/><span>{t('导航', 'Home')}</span></button><button onClick={() => requestNavigation(onLibrary)} title={t('资料库', 'Library')}><BookOpen size={17}/><span>{t('资料库', 'Library')}</span></button><span aria-current="page"><LayoutDashboard size={17}/><span>{t('事项', 'Work')}</span></span></nav>
+      <ModuleNav active="work" modules={bootstrap.modules} canViewWork={authorized} spaceId={space.id} onHome={onHome} onLibrary={onLibrary}/>
       {authorized && <>
         <div className="work-context-heading"><h1 title={title}>{title}</h1>{!loading && total > 0 && <span className="work-total" aria-label={t('共 {count} 个事项', '{count} items total', { count: total })}>{total}</span>}</div>
         <div className="work-page-actions">
@@ -262,6 +265,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
         <footer><button className={archived ? 'active' : ''} onClick={() => changeScope(() => setArchived(value => !value))} aria-pressed={archived}><Archive size={17}/>{t('已归档', 'Archived')}</button></footer>
       </aside>
       <main className="work-main" id="main-content">
+        {!moduleEnabled && <div className="work-feedback" role="status"><span>{t('事项已关闭。当前页面与草稿保留，重新开启后可继续保存。', 'Work is disabled. This page and its draft are retained; re-enable Work to save changes.')}</span></div>}
         <div className={`work-toolbar ${focusedItem || updatesAvailable || syncError ? 'has-controls' : ''}`}>
           <div className="work-mobile-project"><StyledSelect tone="home" theme={theme} aria-label={t('筛选项目', 'Filter projects')} value={projectId} onValueChange={changeProject} options={[{ value: '', label: t('全部项目', 'All projects') }, ...projects.map(item => ({ value: item.id, label: item.name + (item.archived ? t('（已归档）', ' (archived)') : '') }))]}/></div>
           {focusedItem && <span className="work-focus-filter"><Crosshair size={14}/><span title={focusedItem.title}>{t('定位：{title}', 'Located: {title}', { title: focusedItem.title })}</span><button aria-label={t('清除事项定位', 'Clear item focus')} onClick={() => { setFocusedItem(null); setRevealId('') }}><X size={13}/></button></span>}
@@ -278,9 +282,9 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
               <div className="work-lane-body">{column.items.map(card)}{!column.items.length && <div className="work-lane-empty">{total === 0 && status.id === statusContext.defaultStatus && canCreate && !search ? <button type="button" className="work-empty-add" onClick={() => create(status.id)}><Plus size={16}/>{t('添加事项', 'Add item')}</button> : <span>{t('暂无事项', 'No items')}</span>}</div>}{column.nextCursor && <button className="work-load-more" disabled={loadingMore.includes(status.id)} onClick={() => void more(column)}>{loadingMore.includes(status.id) ? t('正在加载…', 'Loading…') : t('加载更多（{shown}/{total}）', 'Load more ({shown}/{total})', { shown: column.items.length, total: column.total })}</button>}<div className="work-drop-tail" aria-hidden="true"/></div>
             </section>
           })}
-        </div> : list ? <div className="work-list-scroll"><table className="work-table"><thead><tr><th>{t('事项', 'Item')}</th><th>{t('状态', 'Status')}</th><th>{t('项目', 'Project')}</th><th>{t('下一步', 'Next step')}</th><th><span className="sr-only">{t('操作', 'Actions')}</span></th></tr></thead><tbody>{list.items.map(item => <tr key={item.id} data-work-id={item.id} data-work-status={item.status}><td><button className="work-list-title" onClick={() => open(item)}>{item.needsAttention && <BellDot size={15}/>}<span>{item.title}</span>{item.referenceCount > 0 && <small><BookOpen size={12}/>{item.referenceCount}</small>}</button></td><td><span className="work-list-status"><span className="work-status-dot" style={{ backgroundColor: statuses.find(status => status.id === item.status)?.color }}/>{workStatusLabel(item.status, statuses)}</span></td><td className="work-table-project">{item.projectName || '—'}</td><td className="work-table-next">{item.nextStep || '—'}</td><td>{canEdit && <Menu item={item} statuses={statuses} disabled={busy} onMove={status => move(item, status, null)} onArchive={() => changeArchive(item)}/>}</td></tr>)}</tbody></table>{!list.items.length && <div className="work-list-empty">{t('没有匹配的事项', 'No matching items')}</div>}{list.nextCursor && <button className="work-load-more" disabled={loadingMore.includes('list')} onClick={() => void more()}>{loadingMore.includes('list') ? t('正在加载…', 'Loading…') : t('加载更多（{shown}/{total}）', 'Load more ({shown}/{total})', { shown: list.items.length, total: list.total })}</button>}</div> : null}
+        </div> : list ? <div className="work-list-scroll"><table className="work-table"><thead><tr><th>{t('事项', 'Item')}</th><th>{t('状态', 'Status')}</th><th>{t('项目', 'Project')}</th><th>{t('下一步', 'Next step')}</th><th>{t('更新时间', 'Updated')}</th><th><span className="sr-only">{t('操作', 'Actions')}</span></th></tr></thead><tbody>{list.items.map(item => <tr key={item.id} data-work-id={item.id} data-work-status={item.status}><td><button className="work-list-title" onClick={() => open(item)}>{item.needsAttention && <BellDot size={15}/>}<span>{item.title}</span>{item.referenceCount > 0 && <small><BookOpen size={12}/>{item.referenceCount}</small>}</button></td><td><span className="work-list-status"><span className="work-status-dot" style={{ backgroundColor: statuses.find(status => status.id === item.status)?.color }}/>{workStatusLabel(item.status, statuses)}</span></td><td className="work-table-project">{item.projectName || '—'}</td><td className="work-table-next">{item.nextStep || '—'}</td><td className="work-table-updated"><WorkUpdatedTime value={item.updatedAt} label={false}/></td><td>{canEdit && <Menu item={item} statuses={statuses} disabled={busy} onMove={status => move(item, status, null)} onArchive={() => changeArchive(item)}/>}</td></tr>)}</tbody></table>{!list.items.length && <div className="work-list-empty">{t('没有匹配的事项', 'No matching items')}</div>}{list.nextCursor && <button className="work-load-more" disabled={loadingMore.includes('list')} onClick={() => void more()}>{loadingMore.includes('list') ? t('正在加载…', 'Loading…') : t('加载更多（{shown}/{total}）', 'Load more ({shown}/{total})', { shown: list.items.length, total: list.total })}</button>}</div> : null}
       </main>
-      {selection && statuses.length > 0 && <WorkEditor key={selection.id} spaceId={space.id} selection={selection} projects={projects} statuses={statuses} defaultStatus={statusContext.defaultStatus} canEdit={canEdit} onClose={() => selectItem(null)} onStatusesChanged={catalog => setStatusContext({ statuses: catalog.items, statusRevision: catalog.revision, defaultStatus: catalog.defaultStatus })} onSaved={saved} onReveal={reveal} onNotice={onNotice}/>}
+      {selection && statuses.length > 0 && <WorkEditor key={selection.id} spaceId={space.id} selection={selection} projects={projects} statuses={statuses} defaultStatus={statusContext.defaultStatus} canEdit={canEdit} documentsEnabled={bootstrap.modules?.documents !== false} onClose={() => selectItem(null)} onStatusesChanged={catalog => setStatusContext({ statuses: catalog.items, statusRevision: catalog.revision, defaultStatus: catalog.defaultStatus })} onSaved={saved} onReveal={reveal} onNotice={onNotice}/>}
       {projectEditor && <ProjectDialog spaceId={space.id} project={projectEditor.project} onClose={() => setProjectEditor(null)} onSaved={(item, created) => { generation.current++; setProjectEditor(null); setProjects(current => current.some(project => project.id === item.id) ? current.map(project => project.id === item.id ? item : project) : [...current, item]); if (created) { setProjectId(item.id); setArchived(false); setFocusedItem(null) } onNotice(created ? t('项目已创建', 'Project created') : t('项目已保存', 'Project saved')); reload() }}/>}
       {statusEditor && <StatusManager spaceId={space.id} focusId={statusEditor.focusId} onClose={() => setStatusEditor(null)} onSaved={catalog => { setStatusContext({ statuses: catalog.items, statusRevision: catalog.revision, defaultStatus: catalog.defaultStatus }); setStatusEditor(null); onNotice(t('状态已更新', 'Statuses updated')); reload() }}/>}
     </> : <main className="work-access-message" id="main-content"><LayoutDashboard size={36}/><h1>{bootstrap.user ? t('当前空间不可访问事项', 'Work items are not available in this space') : t('登录后查看事项', 'Sign in to view work items')}</h1><div><Button onClick={bootstrap.user ? onLibrary : onLogin}>{bootstrap.user ? t('打开资料库', 'Open library') : t('登录', 'Sign in')}</Button><Button variant="outline" onClick={onHome}>{t('返回首页', 'Return home')}</Button></div></main>}

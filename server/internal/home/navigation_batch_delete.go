@@ -56,6 +56,9 @@ func (a *App) deleteNavigationRows(r *Request, spaceID string, input navigationE
 		// Missing and foreign rows are indistinguishable, including to write-only callers.
 		return missing()
 	}
+	if err := a.recordWorkBookmarkRemovals(r, spaceID, input.DeleteLinkIDs); err != nil {
+		return err
+	}
 	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("DELETE FROM links WHERE space_id=? AND id IN ("+placeholders+")"), args...)
 	if err != nil {
 		return err

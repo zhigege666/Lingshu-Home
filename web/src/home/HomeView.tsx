@@ -19,6 +19,7 @@ import { validatePageChrome } from '../core/chrome-validation';
 import { panelLocked, panelTitle, type ComposerSource, type HomeSelection } from './composition';
 import { getLocale, t } from '../core/i18n';
 import { ProjectLogo } from '../components/ProjectLogo';
+import { ModuleNav } from '../components/ModuleNav';
 import { HomeEnvironment } from './HomeEnvironment';
 import { DocumentActivityProvider } from './DocumentActivityProvider';
 import { useHomeEndpointRouting } from './useEndpointRouting';
@@ -316,7 +317,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
     else if (view.panel.id === 'builtin/category-navigation') content = <CategoryPanel data={collection || scopeData.get(scope) || { categories: [], links: [] }} filter={filter} onChange={update}
       orientation={narrow || (placement.kind !== 'hidden' && ['top', 'bottom'].includes(placement.region)) ? 'horizontal' : 'vertical'} settings={readCategoryNavigationSettings(view.settings)}
       editor={navigationEditor} collapsed={categoryCollapsed(view)} onCollapsedChange={collapsed => changeCategoryCollapse(view.id, collapsed)} stateKey={`${dashboard.page.id}:${view.id}${editing ? ':draft' : ''}`} persistState={!preview && !editing} theme={color} />;
-    else if (view.panel.id === 'builtin/document-activity') content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在读取…', 'Loading…')}</section>}><DocumentActivityPanel view={view}/></Suspense>;
+    else if (view.panel.id === 'builtin/document-activity') content = bootstrap.modules?.documents === false ? <section className="lh-panel lh-panel-empty"><strong>{t('资料库已关闭', 'Library is disabled')}</strong></section> : <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在读取…', 'Loading…')}</section>}><DocumentActivityPanel view={view}/></Suspense>;
     else if (view.panel.id === 'builtin/github-traffic') content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在加载流量组件…', 'Loading traffic component…')}</section>}><TrafficPanel dataset={dataset} title={heading} /></Suspense>;
     else if (['builtin/calendar', 'builtin/weather', 'builtin/metrics', 'builtin/status'].includes(view.panel.id)) content = <Suspense fallback={<section className="lh-panel lh-panel-empty" role="status">{t('正在加载组件…', 'Loading component…')}</section>}><DataPanel view={view} dataset={dataset} loading={!dataset && loadingData} failed={!dataset && failedData} /></Suspense>;
     else if (['builtin/navigation', 'builtin/favorites'].includes(view.panel.id)) content = collection ? <NavigationPanel data={collection} filter={filter} title={heading} settings={view.settings}
@@ -358,12 +359,13 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
       if (target && scrollElement) scrollElement.scrollTo({ top: scrollElement.scrollTop + target.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top });
     }}>{t('跳到链接区域', 'Skip to links')}</a>
     {(!editing || editorPreview) && <header className="lh-header"><div className="lh-header-identity"><a className="lh-brand" href={preview || editing ? undefined : '#/'} aria-label={t('{name} 首页', '{name} home', { name: bootstrap.siteName || 'Lingshu-Home' })}><span><ProjectLogo /></span><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
+        {!preview && !editing && <ModuleNav active="home" modules={bootstrap.modules} canViewWork={!!bootstrap.user && canEdit} spaceId={dashboard.space.id} onLibrary={() => contentEditor.requestLeave(() => { window.location.hash = '/library' })} onWork={() => contentEditor.requestLeave(() => { window.location.hash = '/library?view=board' })}/>}
         <div className="lh-home-heading"><h1>{dashboard.page.name || t('我的导航', 'My bookmarks')}</h1><p className="lh-home-summary">{t('{count} 个链接', '{count} links', { count: number.format(totals.links) })}<span>·</span>{t('{count} 个分类', '{count} categories', { count: number.format(totals.categories) })}{dashboard.space.kind === 'personal' && <><span>·</span>{t('仅自己可见', 'Private')}</>}</p></div>
         {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing || contentEditor.busy} theme={color} onChange={id => contentEditor.requestLeave(() => onSpaceChange(id))} bootstrap={bootstrap}/></Suspense></div>}
       </div>
       <div className="lh-header-search">{renderRegion(topSearch)}</div>
       <div className="lh-header-actions">
-        <HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} canViewWork={!!bootstrap.user && canEdit} preview={preview} editing={editing} contentEditing={contentEditing}
+        <HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} preview={preview} editing={editing} contentEditing={contentEditing}
           busy={busy} loadingContent={contentEditor.busy} user={bootstrap.user || null} managementLabel={managementLabel}
           onProfile={() => contentEditor.requestLeave(() => onProfile?.())} onLogout={onLogout ? () => contentEditor.requestLeave(() => { void onLogout(); }) : undefined}
           onEdit={() => { void contentEditor.start(); }} onLayout={() => contentEditor.requestLeave(startEditing)}
@@ -393,7 +395,7 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
     </div>
     <PageChromeArea area={chrome.footer} placement="footer" version={bootstrap.version} editing={inspecting} selectedSlot={selection.kind === 'chrome' && selection.area === 'footer' ? selection.alignment || 'right' : undefined} onSelect={alignment => setSelection({ kind: 'chrome', area: 'footer', alignment })} />
   </div>;
-  return <HomeEnvironment.Provider value={environment}><DocumentActivityProvider key={`${identity}:${dashboard.space.id}:${bootstrap.mode}:${bootstrap.user?.role || 'visitor'}:${canEdit}:${preview || editing}`} spaceId={dashboard.space.id} userKey={bootstrap.user?.id || 'visitor'} enabled={!!bootstrap.user && canEdit}>{editing ? <Suspense fallback={<div className="lh-home lh-composer-loading"><LoaderCircle className="lh-spin" size={20} /><span>{t('正在加载页面编辑器', 'Loading the page editor')}</span><button className="lh-quiet-button" onClick={() => { void cancel(); }}><X size={14}/>{t('取消', 'Cancel')}</button></div>}>
+  return <HomeEnvironment.Provider value={environment}><DocumentActivityProvider key={`${identity}:${dashboard.space.id}:${bootstrap.mode}:${bootstrap.user?.role || 'visitor'}:${canEdit}:${preview || editing}`} spaceId={dashboard.space.id} userKey={bootstrap.user?.id || 'visitor'} enabled={bootstrap.modules?.documents !== false && !!bootstrap.user && canEdit}>{editing ? <Suspense fallback={<div className="lh-home lh-composer-loading"><LoaderCircle className="lh-spin" size={20} /><span>{t('正在加载页面编辑器', 'Loading the page editor')}</span><button className="lh-quiet-button" onClick={() => { void cancel(); }}><X size={14}/>{t('取消', 'Cancel')}</button></div>}>
     <HomeEditor config={config} theme={color} pageName={dashboard.page.name} busy={busy} dirty={dirty} narrow={narrow} historyBusy={gridInteracting} canUndo={canUndo} canRedo={canRedo} onUndo={() => historyAction(false)} onRedo={() => historyAction(true)}
       selection={selection} onSelect={setSelection} previewing={editorPreview} onPreviewChange={value => { setPreviewCollapses({}); setEditorPreview(value); }}
       datasets={datasets} spaceId={dashboard.space.id} space={dashboard.space} canManageSources={!!bootstrap.user && dashboard.space.canEdit} onSourcesChange={updateSources}

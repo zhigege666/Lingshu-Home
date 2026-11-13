@@ -104,7 +104,7 @@
 .work-theme .lh-control-checkbox[data-state=checked] { background:var(--work-primary); border-color:var(--work-primary); color:var(--work-primary-ink); }
 
 /* State configuration is one draft and one atomic save. */
-.admin-ui.work-status-manager.cn-dialog-content { width:min(600px,100vw); background:var(--work-surface); }
+.admin-ui.work-status-manager.cn-dialog-content { display:flex; flex-direction:column; width:min(600px,100vw); background:var(--work-surface); }
 .work-status-manager .work-detail-body { padding:20px; }
 .work-status-rows { display:grid; gap:12px; }
 .work-status-row { padding:12px; border:1px solid var(--work-line); border-radius:8px; background:var(--work-surface); }

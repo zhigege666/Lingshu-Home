@@ -16,16 +16,17 @@ const (
 )
 
 type Settings struct {
-	SessionPolicy       SessionPolicy `json:"-"`
-	Initialized         bool          `json:"initialized"`
-	Language            string        `json:"language"`
-	SiteName            string        `json:"siteName"`
-	Mode                string        `json:"mode"`
-	RegistrationEnabled bool          `json:"registrationEnabled"`
-	AutoFetchIcons      bool          `json:"autoFetchIcons"`
-	AutoSelectEndpoint  bool          `json:"autoSelectEndpoint"`
-	HasOwner            bool          `json:"hasOwner"`
-	AuthEpoch           int64         `json:"-"`
+	SessionPolicy       SessionPolicy  `json:"-"`
+	Modules             ModuleSettings `json:"modules"`
+	Initialized         bool           `json:"initialized"`
+	Language            string         `json:"language"`
+	SiteName            string         `json:"siteName"`
+	Mode                string         `json:"mode"`
+	RegistrationEnabled bool           `json:"registrationEnabled"`
+	AutoFetchIcons      bool           `json:"autoFetchIcons"`
+	AutoSelectEndpoint  bool           `json:"autoSelectEndpoint"`
+	HasOwner            bool           `json:"hasOwner"`
+	AuthEpoch           int64          `json:"-"`
 }
 
 type User struct {

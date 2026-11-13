@@ -20,10 +20,15 @@ func TestMCPBoundSpace(t *testing.T) {
 		id := space["id"].(string)
 		token, tokenID := owner.token(id, "", "documents:read", "pages:read", "navigation:read")
 		wire, _ := agent.mcp(token, "tools/call", map[string]any{"name": "space_current"}, http.StatusOK)
-		got := integrationObject(t, wire["result"])["structuredContent"]
+		got := integrationObject(t, integrationObject(t, wire["result"])["structuredContent"])
 		want := map[string]any{"spaceId": id, "name": space["name"], "kind": space["kind"]}
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("space_current = %v, want only %v", got, want)
+		for field, value := range want {
+			if !reflect.DeepEqual(got[field], value) {
+				t.Fatalf("space_current.%s = %v, want %v", field, got[field], value)
+			}
+		}
+		if got["contextVersion"] != float64(1) || got["capabilities"] == nil || got["workflow"] == nil || got["modules"] == nil {
+			t.Fatalf("space_current did not return its additive context: %v", got)
 		}
 		dashboard := agent.tool(token, "dashboard_get", map[string]any{}, "")
 		if integrationObject(t, dashboard["space"])["id"] != id {

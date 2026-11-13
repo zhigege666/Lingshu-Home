@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { DropdownMenu } from 'radix-ui'
-import { BarChart3, BookOpen, Check, ChevronDown, LayoutDashboard, LayoutGrid, List, LogOut, Moon, Pencil, Settings2, SlidersHorizontal, Sun } from 'lucide-react'
+import { BarChart3, Check, ChevronDown, LayoutGrid, List, LogOut, Moon, Pencil, Settings2, SlidersHorizontal, Sun } from 'lucide-react'
 import { t } from '../core/i18n'
 import type { User } from '../core/types'
 import { AccountAvatar } from '../components/AccountMenu'
@@ -11,7 +11,6 @@ export type HomeActionsProps = {
   variant: 'cards' | 'directory'
   canEdit: boolean
   canViewStats: boolean
-  canViewWork: boolean
   preview: boolean
   editing: boolean
   contentEditing: boolean
@@ -31,7 +30,7 @@ export type HomeActionsProps = {
 }
 
 /** Navigation stays visible; account and page options share one themed menu. */
-export function HomeActions({ theme, variant, canEdit, canViewStats, canViewWork, preview, editing, contentEditing, busy, loadingContent, user, onProfile, onLogout,
+export function HomeActions({ theme, variant, canEdit, canViewStats, preview, editing, contentEditing, busy, loadingContent, user, onProfile, onLogout,
   managementLabel, onEdit, onLayout, onStatistics, onVariantChange, onThemeChange, onNavigate }: HomeActionsProps) {
   const [open, setOpen] = useState(false)
   const [palette, setPalette] = useState<CSSProperties>({})
@@ -75,20 +74,10 @@ export function HomeActions({ theme, variant, canEdit, canViewStats, canViewWork
     closeThen(() => onNavigate(href))
   }
 
-  function navigateDirect(event: MouseEvent<HTMLAnchorElement>, href: '#/library' | '#/library?view=board') {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
-    event.preventDefault()
-    onNavigate(href)
-  }
-
   if (editing) return null
   const account = maintenance ? user : null
   const accountName = account?.displayName || account?.username || ''
   return <>
-    {maintenance && <nav className="lh-header-navigation" aria-label={t('常用入口', 'Quick navigation')}>
-      <a className="lh-nav-link" href="#/library" aria-label={t('资料库', 'Library')} title={t('资料库', 'Library')} onClick={event => navigateDirect(event, '#/library')}><BookOpen size={17} aria-hidden="true"/><span>{t('资料库', 'Library')}</span></a>
-      {canViewWork && <a className="lh-nav-link" href="#/library?view=board" aria-label={t('事项看板', 'Work board')} title={t('事项看板', 'Work board')} onClick={event => navigateDirect(event, '#/library?view=board')}><LayoutDashboard size={17} aria-hidden="true"/><span>{t('看板', 'Board')}</span></a>}
-    </nav>}
     {maintenance && canEdit && !contentEditing && <button type="button" className="lh-quiet-button lh-edit-trigger" title={t('编辑分类与链接', 'Edit categories and links')} aria-label={t('编辑', 'Edit')} disabled={busy || loadingContent} onClick={onEdit}>
       <Pencil size={14} aria-hidden="true"/><span>{loadingContent ? t('正在读取…', 'Loading…') : t('编辑', 'Edit')}</span>
     </button>}

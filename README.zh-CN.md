@@ -10,6 +10,14 @@
 
 Web 界面统一使用玉绿色折带房屋 Logo。[品牌资产、用法与来源](docs/BRANDING.md)记录原生 SVG、浏览器图标和触屏图标。
 
+## 当前源码变化（Unreleased）
+
+`main` 分支统一了左侧 **导航 / 资料库 / 事项**，将事项搜索移到页眉，修复新建上下文和状态抽屉保存栏的位置。已登录 Owner 可在 **站点设置 → 功能模块** 关闭资料库或事项，两者默认开启，关闭保留数据。卡片与列表显示更新时间，详情提供真实变更时间轴；历史从开始记录时起保留，不补造更早的活动。
+
+通过 `LINGSHU_MCP_WORKFLOW_ENABLED=true` 或 `--mcp-workflow-enabled` 开启可选 MCP 工作流引导。二进制进程带新配置重启后生效；Compose 需要保留数据卷并重建容器，才能载入变化的环境变量。它默认关闭，与两个功能模块开关独立。Agent 从 `space_current` 获取当前能力和指南，Gate 按需暴露工具时也有入口；不需要额外 Skills 或更换令牌。详见 [MCP 工作流契约](docs/INTEGRATIONS.md#optional-workflow-guidance-and-module-state)。
+
+这些源码改动尚未包含在下方的 0.2.0 下载或镜像中。安装本分支构建会增加迁移 **016–017**，升级前保留一致的数据库与数据备份；详见[存储与回退](docs/STORAGE.md)。
+
 ## 0.2.0 新变化
 
 - **看板操作集中到顶栏。** 当前范围、看板／列表切换和新建事项放在同一行，搜索保留在内容上方；状态列增多时只在看板内横向滚动。深浅色沿用首页浏览偏好，后台版本检查保留打开的草稿。
@@ -272,6 +280,7 @@ python3 scripts/dev.py run --listen 127.0.0.1:5180 --language zh-CN
 | `LINGSHU_LANGUAGE` | 尚未保存语言时可指定 `zh-CN` 或 `en`；未指定/空值进入首次选择；已保存语言优先 |
 | `LINGSHU_SECURE_COOKIES` | Cookie 是否仅允许 HTTPS；本地 HTTP 默认 `false` |
 | `LINGSHU_DOCUMENT_ROOTS` | 允许接入的绝对文档路径 JSON 数组；默认 `[]`，不开放文件访问 |
+| `LINGSHU_MCP_WORKFLOW_ENABLED` | MCP 工作登记与交接引导，默认 `false`，启动生效；命令行 `--mcp-workflow-enabled` 可覆盖 |
 | `LINGSHU_TLS_CERT_FILE` | PEM 证书链路径；默认空，与私钥路径同时配置 |
 | `LINGSHU_TLS_KEY_FILE` | 匹配的 PEM 私钥路径；默认空，原生 TLS 需要两项同时配置 |
 

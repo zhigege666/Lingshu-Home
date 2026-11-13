@@ -9,9 +9,10 @@ export type Role = 'Owner' | 'Member'
 export type User = { id: string; username: string; displayName: string; role: Role; avatarUrl?: string; avatarDigest?: string }
 export type AdminUser = User & { isEnabled: boolean; modeSuspended?: boolean; createdAt?: string }
 export type Space = { id: string; name: string; kind: 'shared' | 'personal'; published: boolean; canEdit: boolean }
+export type Modules = { documents: boolean; work: boolean }
 export type Bootstrap = {
   version: string; language: 'zh-CN' | 'en'; languageSelectionRequired: boolean; initialized: boolean; siteName: string; mode: AuthMode; registrationEnabled: boolean; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean;
-  sessionOptions?: SessionOptions; session?: SessionStatus | null;
+  sessionOptions?: SessionOptions; session?: SessionStatus | null; modules?: Modules;
   user: User | null; spaces: Space[]; defaultSpaceId: string | null; csrfToken: string;
   capabilities: { sourceKinds: string[]; deliveryModes: string[]; datasetSchemas: { id: string; version: number }[];
     pageSchemaVersions: number[]; themePackages: string[]; pageThemes: string[]; panelThemes: string[];
@@ -39,7 +40,7 @@ export type PageChrome = { header: ChromeArea; footer: ChromeArea }
 export type PageConfig = { schemaVersion: 2; pageTheme: { id: string }; appearance: { colorMode: 'light' | 'dark' | 'system'; density: 'comfortable' | 'compact' }; chrome?: PageChrome; bindings: Record<string, Binding>; views: View[]; layout: { mode: 'regions-grid'; gap: number; grid: { columns: 24 }; placements: Record<string, { base: Placement; overrides?: { narrow?: Placement } }> } }
 export type Page = { id: string; spaceId: string; name: string; revision: string; config: PageConfig }
 export type Dashboard = { space: Space; page: Page; datasets: Record<string, Dataset<unknown>> }
-export type Settings = { siteName: string; mode: AuthMode; registrationEnabled: boolean; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean; hasOwner: boolean }
+export type Settings = { siteName: string; mode: AuthMode; registrationEnabled: boolean; autoFetchIcons?: boolean; autoSelectEndpoint?: boolean; hasOwner: boolean; modules?: Modules }
 export type NetworkProxySettings = { revision: string; mode: 'direct' | 'proxy'; url: string; credentialConfigured: boolean }
 export type BookmarkPreviewItem = { title: string; url: string; folderPath: string[]; status: 'valid' | 'duplicate' | 'invalid'; reason?: string }
 export type BookmarkPreview = { total: number; valid: number; invalid: number; duplicates: number; truncated: boolean; items: BookmarkPreviewItem[] }

@@ -127,7 +127,7 @@ func canLogin(user *User, s Settings) bool {
 
 func (a *App) loadSettings(ctx context.Context, q Queryer) (Settings, error) {
 	var s Settings
-	err := q.QueryRowContext(ctx, "SELECT initialized,site_name,mode,registration_enabled,auth_epoch,auto_fetch_icons,auto_select_endpoint,language,default_session_mode,default_idle_days,max_idle_days,allow_until_logout,session_policy_version FROM settings WHERE id=1").Scan(&s.Initialized, &s.SiteName, &s.Mode, &s.RegistrationEnabled, &s.AuthEpoch, &s.AutoFetchIcons, &s.AutoSelectEndpoint, &s.Language, &s.SessionPolicy.DefaultMode, &s.SessionPolicy.DefaultIdleDays, &s.SessionPolicy.MaxIdleDays, &s.SessionPolicy.AllowUntilLogout, &s.SessionPolicy.PolicyVersion)
+	err := q.QueryRowContext(ctx, "SELECT initialized,site_name,mode,registration_enabled,auth_epoch,auto_fetch_icons,auto_select_endpoint,language,default_session_mode,default_idle_days,max_idle_days,allow_until_logout,session_policy_version,documents_enabled,work_enabled FROM settings WHERE id=1").Scan(&s.Initialized, &s.SiteName, &s.Mode, &s.RegistrationEnabled, &s.AuthEpoch, &s.AutoFetchIcons, &s.AutoSelectEndpoint, &s.Language, &s.SessionPolicy.DefaultMode, &s.SessionPolicy.DefaultIdleDays, &s.SessionPolicy.MaxIdleDays, &s.SessionPolicy.AllowUntilLogout, &s.SessionPolicy.PolicyVersion, &s.Modules.Documents, &s.Modules.Work)
 	if err != nil {
 		return s, err
 	}

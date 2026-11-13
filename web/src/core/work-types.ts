@@ -23,6 +23,15 @@ export type WorkSummary = {
 export type WorkItem = WorkSummary & {
   boardRevision: string; description: string; result: string; createdAt: string; bookmarkIds: string[]; documentIds: string[]; references: WorkReference[]; statusDefinition?: WorkStatusDefinition
 }
+export type WorkActivityChange = {
+  field: string; before?: boolean | { id: string; name: string; type?: WorkStatusType } | null;
+  after?: boolean | { id: string; name: string; type?: WorkStatusType } | null; added?: number; removed?: number
+}
+export type WorkActivityEvent = {
+  id: string; action: 'create' | 'update' | 'move' | 'archive' | 'restore' | 'status_migrate' | 'status_definition';
+  occurredAt: string; itemRevision: string; actor: { id: string; name: string } | null; origin: 'web' | 'api' | 'mcp'; changes: WorkActivityChange[]
+}
+export type WorkActivityPage = { itemId: string; revision: string; historyStartedAt: string; historyComplete: boolean; items: WorkActivityEvent[]; nextCursor: string | null }
 export type WorkColumn = { status: WorkStatus; total: number; items: WorkSummary[]; nextCursor: string | null }
 export type WorkBoard = WorkStatusContext & { revision: string; canEdit: boolean; columns: WorkColumn[] }
 export type WorkPage = WorkStatusContext & { revision: string; canEdit: boolean; items: WorkSummary[]; total: number; nextCursor: string | null }

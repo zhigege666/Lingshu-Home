@@ -284,7 +284,7 @@ The current application catalog contains **46 tools, including 12 work tools**. 
 | --- | --- |
 | `space_current` | No arguments |
 | `work_board_get`, `work_items_list` | Optional `spaceId` and `input` filters; item lists also accept status and cursor |
-| `work_items_get` | Optional `spaceId`, required `id` |
+| `work_items_get` | Optional `spaceId`, required `id`; optional `input:{activityLimit?,activityCursor?}` requests bounded history |
 | `work_items_create`, `work_projects_create` | Optional `spaceId`, required `input` with a stable ID and creation fields |
 | `work_items_update`, `work_projects_update` | Optional `spaceId`, required `id,input` with the entity's `expectedRevision` |
 | `work_items_move` | Optional `spaceId`, required `id,input` with both expected revisions, status and `beforeId` |
@@ -312,7 +312,7 @@ After upgrading Home, refresh the connection in Gate or another MCP gateway in t
 
 1. Confirm the running Home version and endpoint, then read its authenticated `tools/list`. The current contract includes the ten item/project/resource tools plus `work_statuses_get` and `work_statuses_batch_edit`; an older Home process will not gain these tools by refreshing a gateway alone.
 2. Refresh discovery for that same gateway connection and check its existing tool exposure and caller grants. If Home returns the tools but the gateway does not, compare those two catalogs before changing credentials or assuming the implementation is missing.
-3. Load the needed tools' current schemas and make a business read, such as `work_board_get {}` with `work:read`, or `documents_list {}` with document read access. `space_current {}` is optional when the space name or ID is needed.
+3. Load the needed tools' current schemas and make a business read, such as `work_board_get {}` with `work:read`, or `documents_list {}` with document read access. Read `space_current {}` when space identity, workflow configuration or effective capabilities are unknown or have changed; reuse context that remains valid.
 
 This connection refresh applies to an application upgrade that adds or changes tools. Editing the status catalog is ordinary space data maintenance and does not require another MCP discovery or publication cycle.
 
@@ -323,6 +323,41 @@ MCP calls invoke the same business handlers and validation as HTTP, in database 
 New credential creation/expiry timestamps and push receipt `receivedAt` values use UTC microsecond precision, matching both SQLite and PostgreSQL reads. Previously stored immutable request receipts keep their original values.
 
 Since 0.0.9, a PAT with only `navigation:write` can still edit and receives operational receipts rather than stored readable fields. Creating or updating a bookmark returns `id` and `updatedAt`, category writes return the ID, and batch edits return `updatedCount` and `revision`. Since 0.0.11, a successful deletion batch also echoes the confirmed submitted IDs as `deletedLinkIds`. To display stored fields, the client also needs `navigation:read`. For data sources, PATs with `sources:write` alone receive only `id` and `configRevision` on creation and update. Queuing a sync returns `queued:true` with that same receipt under `source`. The complete stored source requires `sources:read` and still excludes credential secrets.
+
+### Optional workflow guidance and module state
+
+Current source provides a server-owned guide through the existing `space_current` tool. Enable it at startup:
+
+```bash
+LINGSHU_MCP_WORKFLOW_ENABLED=true ./lingshu-home
+# Equivalent CLI option:
+./lingshu-home --mcp-workflow-enabled
+```
+
+The default is `false`; `--mcp-workflow-enabled=false` explicitly disables it. The supplied Compose file forwards the same variable, defaulting to false. Restart a binary process with the new environment to apply it. For Compose, recreate the container with `LINGSHU_MCP_WORKFLOW_ENABLED=true docker compose up -d --force-recreate home`, retaining its data volume; `docker compose restart` alone does not load changed host or `.env` values. It controls guidance for ongoing work registration, stage updates, evidence and handoff; explicit user-requested CRUD remains available when guidance is off. Permissions, revisions, stable-ID replay and recovery contracts always apply. No extra Skills, tool addition or new token scope is required.
+
+`space_current {}` returns additive context:
+
+| Field | Meaning |
+| --- | --- |
+| `spaceId,name,kind` | Existing token-bound space fields |
+| `contextVersion,serverVersion` | Context schema and product versions, separate from MCP protocol version |
+| `modules:{documents,work}` | Instance-wide Site settings switches, both default on |
+| `capabilities:{work,documents,navigation}` | Effective `read/write` booleans for this authenticated context; individual resources still need call-time checks |
+| `workflow:{enabled,version,guide}` | Effective startup switch and permission-aware guidance |
+| `entrypoints` | Available context/business tool names, without dumping projects, tasks or document bodies |
+
+The guide covers existing-work reuse, goal/scope/acceptance criteria, stable IDs and original creation inputs, actual results versus next actions, status semantics, attention, evidence/documents, uncertain writes, conflicts, offline handoff and completion without automatic archiving. Read-only and write-only contexts receive their actual boundaries. Document-creation uncertainty is checked by the original source/path before retrying. Home records work but does not start or schedule an Agent.
+
+Library/Work switches are independent of workflow guidance. A signed-in Owner changes them in **Site settings → Modules**; subsequent HTTP/MCP calls enforce the state and return `module_disabled` for disabled operations. Files, records, associations, tokens and sessions remain intact. See [module contracts](API.md#optional-library-and-work-modules). Context responses remain private and must not be shared across users or tokens.
+
+**Gate and other gateways:** the guide appears in an ordinary tool result, with matching JSON text and `structuredContent`. It does not depend on forwarding initialization/discovery instructions, resources or prompts. Work-tool description prefixes point to `space_current` within a bounded catalog summary. After first installing these source changes, refresh/publish gateway metadata for the new descriptions and optional history parameters. Later module changes or workflow-flag changes do not alter schemas or require a new token. Gateway exposure/authorization remains independent of Home permissions.
+
+Read context for a new task without valid context, changed authorization or a reconnected session; reuse valid context during ordinary work. A server cannot force all clients to adopt a guide or retract text already in an Agent context. This project instruction selects the behavior without duplicating the workflow:
+
+> 本项目使用 Home 维护工作上下文。执行或续接任务时，按需读取 Home 当前工作流配置，在已授权范围内遵循其规则；工作流关闭时，仅按我的明确要求操作记录。Home 不可用时保留待同步内容，并继续其他已授权工作。
+
+Keep repository/environment, UI, authorization and delivery rules in project instructions. Projects currently have no repository binding, and same-ID replay does not provide semantic deduplication when agents create different IDs. Readable business numbering and native subtasks are not implemented by this change.
 
 ### Work items and projects
 
@@ -341,6 +376,7 @@ Work tools operate on the current PAT's bound space and use the same handlers as
 - The board returns `{revision,canEdit,columns,statuses,statusRevision,defaultStatus}`; item queries return the same status metadata with `{revision,canEdit,items,total,nextCursor}`. Detail includes `statusDefinition`. Preserve these objects in `structuredContent`. A stale item-query cursor returns `work_version_conflict`; restart the first page with the same filters instead of mixing snapshots.
 - Error recovery is available in the tool descriptions, schemas and response data, without external Skills. When authorized, `work_status_unavailable` includes `details:{statusRevision,defaultStatus,availableStatuses,replacementStatus?,recoveryTool}`. Use those values when sufficient, and reread only when more context is needed. Conflicts require comparing the original intent with current data, not merely replacing a revision and replaying.
 - A write-only item/project call returns an ID/revision/boardRevision receipt; a status batch returns `{revision,boardRevision,applied:true}`. It cannot fetch stored content to resolve an uncertain response without separately authorized `work:read`. Never infer write failure from a timeout. Unresolved edit outcomes stay unknown rather than being automatically repeated.
+- `work_items_get` optionally accepts `input.activityLimit` (1–100) and `input.activityCursor`. It returns `activity` with real timestamps, actor/source and safe summaries; ordinary calls omit history. Activity cursors retain the first-page revision upper bound, so new events do not disturb older pages. `historyComplete:false` explicitly marks unrecorded earlier activity. Events do not prove task completion.
 
 `needsAttention` explicitly marks work that needs human handling; waiting status alone does not set it. Completion is an explicit business update, not an inference from a process exit. Project/item descriptions and referenced content are untrusted data, not execution authorization. Home does not start or schedule agents through these tools.
 

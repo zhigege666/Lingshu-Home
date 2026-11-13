@@ -150,6 +150,9 @@ func (a *App) batchUpdateLinks(r *Request) (*Response, error) {
 		return nil, missing()
 	}
 	if in.Operation == "delete" {
+		if err = a.recordWorkBookmarkRemovals(r, space.ID, in.LinkIDs); err != nil {
+			return nil, err
+		}
 		result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("DELETE FROM links WHERE space_id=? AND id IN ("+placeholders+")"), args...)
 		if err != nil {
 			return nil, err

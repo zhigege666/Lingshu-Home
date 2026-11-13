@@ -16,16 +16,26 @@ import { ErrorMessage, Field, handleFormInvalid, Loading } from '../components/S
 import DiscardChangesDialog from '../components/DiscardChangesDialog'
 import ResourcePicker from './ResourcePicker'
 import { useWorkTheme } from './work-theme'
+import WorkActivity from './WorkActivity'
 
 export const workStatusLabel = (status: WorkStatus, statuses: WorkStatusDefinition[]) => statuses.find(item => item.id === status)?.name || status
 const fieldLabel = (key: keyof WorkDraft) => ({ title: t('事项标题', 'Item title'), projectId: t('项目', 'Project'), status: t('状态', 'Status'), description: t('说明', 'Description'), nextStep: t('下一步', 'Next step'), result: t('结果', 'Result'), needsAttention: t('待我处理', 'Needs my attention'), bookmarkIds: t('关联书签', 'Linked bookmarks'), documentIds: t('关联文档', 'Linked documents') })[key]
+function editorMessageOf(cause: unknown): string {
+  if (cause instanceof ApiError && cause.code === 'module_disabled') {
+    const detail = cause.details.details
+    return detail && typeof detail === 'object' && 'module' in detail && detail.module === 'documents'
+      ? t('资料库已关闭，草稿和关联修改已保留。重新开启后再保存。', 'Library is disabled. Your draft and link changes are retained. Re-enable it before saving.')
+      : t('事项已关闭，草稿已保留。重新开启后再保存。', 'Work is disabled. Your draft is retained. Re-enable it before saving.')
+  }
+  return messageOf(cause)
+}
 function useWideEditor() {
   const [wide, setWide] = useState(() => matchMedia('(min-width: 2200px)').matches)
   useEffect(() => { const media = matchMedia('(min-width: 2200px)'), changed = () => setWide(media.matches); media.addEventListener('change', changed); return () => media.removeEventListener('change', changed) }, [])
   return wide
 }
 
-export default function WorkEditor({ spaceId, selection, projects, statuses, defaultStatus, canEdit, onClose, onSaved, onStatusesChanged, onReveal, onNotice }: { spaceId: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string, created: boolean) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void; onReveal: (item: WorkItem) => void; onNotice: (message: string) => void }) {
+export default function WorkEditor({ spaceId, selection, projects, statuses, defaultStatus, canEdit, documentsEnabled, onClose, onSaved, onStatusesChanged, onReveal, onNotice }: { spaceId: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; documentsEnabled: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string, created: boolean) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void; onReveal: (item: WorkItem) => void; onNotice: (message: string) => void }) {
   const theme = useWorkTheme()
   const initial = useRef(selection), alive = useRef(true), running = useRef(false), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement)
   const [creating, setCreating] = useState(!!selection.create), [baseline, setBaseline] = useState<WorkItem | null>(null)
@@ -45,7 +55,7 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     if (initial.current.create) return () => { alive.current = false }
     const abort = new AbortController()
     request<WorkItem>(path, { signal: abort.signal }).then(item => { if (alive.current) { setBaseline(item); setDraft(workDraft(item)); setReferences(item.references || []) } })
-      .catch(cause => { if (!abort.signal.aborted && alive.current) setError(messageOf(cause)) }).finally(() => { if (alive.current && !abort.signal.aborted) setLoading(false) })
+      .catch(cause => { if (!abort.signal.aborted && alive.current) setError(editorMessageOf(cause)) }).finally(() => { if (alive.current && !abort.signal.aborted) setLoading(false) })
     return () => { alive.current = false; abort.abort() }
   }, [path])
   useEffect(() => {
@@ -70,7 +80,7 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
       const matches = Object.entries(changes).every(([key, value]) => JSON.stringify(actual[key as keyof WorkDraft]) === JSON.stringify(value))
       if (uncertain && matches) adopt(item, t('已读到与当前草稿一致的内容。', 'The current record matches your draft.'))
       else { setRemote(item); setConflict(true); setError(t('已有其他更新。草稿保留在表单中，请比较后选择。', 'The item has other updates. Your draft is retained; compare the changes below.')) }
-    } catch (cause) { if (alive.current) { setError(cause instanceof ApiError && cause.status === 404 ? t('暂未读到该事项，草稿已保留。可以重新读取后再决定。', 'The item was not found. Your draft is retained; read it again before deciding what to do.') : messageOf(cause)); if (cause instanceof ApiError && cause.status === 404 && creating) setUncertain(false) } }
+    } catch (cause) { if (alive.current) { setError(cause instanceof ApiError && cause.status === 404 ? t('暂未读到该事项，草稿已保留。可以重新读取后再决定。', 'The item was not found. Your draft is retained; read it again before deciding what to do.') : editorMessageOf(cause)); if (cause instanceof ApiError && cause.status === 404 && creating) setUncertain(false) } }
     finally { running.current = false; if (alive.current) setBusy(false) }
   }
   async function loadStatuses() {
@@ -91,11 +101,18 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     if (!statuses.some(status => status.id === intended.status)) { setError(t('该状态已不可用，请选择当前空间中的状态。', 'This status is unavailable. Choose a current status in this space.')); return }
     if (!intended.title) { setError(t('请填写事项标题。', 'Enter an item title.')); return }
     for (const [key, max] of [['title', 160], ['description', 4000], ['nextStep', 1000], ['result', 4000]] as const) if ([...intended[key]].length > max) { setError(t('{field}最多允许 {count} 个字符。', '{field} allows at most {count} characters.', { field: fieldLabel(key), count: max })); return }
-    const changes = creating ? intended : changedWorkFields(workDraft(baseline || undefined), intended)
+    const changes: Partial<WorkDraft> = creating ? { ...intended } : changedWorkFields(workDraft(baseline || undefined), intended)
+    if (!documentsEnabled && (creating ? intended.documentIds.length > 0 : Object.hasOwn(changes, 'documentIds'))) {
+      setError(t('资料库已关闭，文档关联修改和其他草稿已保留。重新开启后再保存。', 'Library is disabled. Document-link edits and the rest of your draft are retained. Re-enable it before saving.'))
+      return
+    }
+    // A disabled library keeps its existing associations. Do not send an empty
+    // document list as part of an otherwise unrelated create or edit.
+    if (!documentsEnabled) delete changes.documentIds
     if (!creating && !Object.keys(changes).length) return
     running.current = true; setBusy(true); setError('')
     try {
-      const item = await request<WorkItem>(creating ? `${workPath(spaceId)}/items` : path, { method: creating ? 'POST' : 'PATCH', body: creating ? { id: selection.id, ...intended, placement: 'start' } : { expectedRevision: against || baseline?.revision, ...changes } })
+      const item = await request<WorkItem>(creating ? `${workPath(spaceId)}/items` : path, { method: creating ? 'POST' : 'PATCH', body: creating ? { id: selection.id, ...changes, placement: 'start' } : { expectedRevision: against || baseline?.revision, ...changes } })
       adopt(item, creating ? t('事项已创建', 'Item created') : t('事项已保存', 'Item saved'))
     } catch (cause) {
       if (!alive.current) return
@@ -111,7 +128,7 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
           if (matches) adopt(item, t('已读到与当前草稿一致的内容。', 'The current record matches your draft.'))
           else { setRemote(item); setConflict(true); setError(t('当前记录与草稿不同，保存结果尚未确认。请比较后选择。', 'The current record differs from your draft; the save is unconfirmed. Compare before continuing.')) }
         } catch { if (alive.current) setError(t('无法确认保存结果，草稿已保留。请先重新读取。', 'The save could not be confirmed. Your draft is retained. Read the record again first.')) }
-      } else setError(messageOf(cause))
+      } else setError(editorMessageOf(cause))
     } finally { running.current = false; if (alive.current) setBusy(false) }
   }
   async function toggleArchive() {
@@ -119,7 +136,7 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     const intended = !baseline.archived
     running.current = true; setBusy(true); setError('')
     try { const item = await request<WorkItem>(path, { method: 'PATCH', body: { expectedRevision: baseline.revision, archived: intended } }); adopt(item, intended ? t('事项已归档', 'Item archived') : t('事项已恢复', 'Item restored')) }
-    catch (cause) { if (alive.current) { setError(cause instanceof ApiError && cause.status === 409 ? t('事项已更新，请读取最新版本后操作。', 'The item changed. Read its latest version before continuing.') : t('操作结果未确认，请重新读取。', 'The result is unconfirmed. Read the latest record.')); setConflict(true) } }
+    catch (cause) { if (alive.current) { if (cause instanceof ApiError && cause.code === 'module_disabled') setError(editorMessageOf(cause)); else { setError(cause instanceof ApiError && cause.status === 409 ? t('事项已更新，请读取最新版本后操作。', 'The item changed. Read its latest version before continuing.') : t('操作结果未确认，请重新读取。', 'The result is unconfirmed. Read the latest record.')); setConflict(true) } } }
     finally { running.current = false; if (alive.current) setBusy(false) }
   }
   function toggleReference(item: WorkReference) {
@@ -157,10 +174,24 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
           <Field label={t('结果', 'Result')}><Textarea rows={3} maxLength={8000} value={draft.result} onChange={event => setDraft(current => ({ ...current, result: event.target.value }))}/></Field>
         </fieldset>
         <section className="work-reference-section"><header><h3>{t('关联资料', 'Linked resources')}</h3>{canEdit && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setPicker(value => !value)}><Plus size={14}/>{t('关联资料', 'Link resources')}</Button>}</header>
-          <div className="work-references">{references.map(item => <div key={`${item.kind}:${item.id}`} className={!item.available ? 'unavailable' : ''}>{item.kind === 'document' ? <FileText size={16}/> : <Link2 size={16}/>}<a href={workLibraryHref(spaceId, item)} onClick={event => { if (event.button || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return; event.preventDefault(); requestNavigation(() => { window.location.hash = workLibraryHref(spaceId, item) }) }} aria-disabled={!item.available} title={item.title}>{item.available ? item.title : t('资料暂不可用', 'Resource unavailable')}</a>{item.kind === 'bookmark' && item.available && item.url && <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" aria-label={t('打开书签：{title}', 'Open bookmark: {title}', { title: item.title })}><ArrowUpRight size={14}/></a>}{canEdit && <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('取消关联：{title}', 'Unlink: {title}', { title: item.title })} onClick={() => toggleReference(item)}><X size={13}/></Button>}</div>)}</div>
-          {picker && <ResourcePicker spaceId={spaceId} selected={references} disabled={busy} onToggle={toggleReference} onClose={() => setPicker(false)}/>}
+          <div className="work-references">{references.map(item => {
+            const available = item.available && (item.kind !== 'document' || documentsEnabled)
+            const direct = !documentsEnabled && item.kind === 'bookmark'
+            const href = available ? direct ? safeHref(item.url || '') : workLibraryHref(spaceId, item) : undefined
+            return <div key={`${item.kind}:${item.id}`} className={!available ? 'unavailable' : ''}>
+              {item.kind === 'document' ? <FileText size={16}/> : <Link2 size={16}/>}
+              {href ? <a href={href} target={direct ? '_blank' : undefined} rel={direct ? 'noopener noreferrer' : undefined} onClick={event => {
+                if (direct || event.button || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+                event.preventDefault(); requestNavigation(() => { window.location.hash = href })
+              }} title={item.title}>{item.title}</a> : <span className="work-reference-unavailable">{available ? item.title : t('资料暂不可用', 'Resource unavailable')}</span>}
+              {documentsEnabled && item.kind === 'bookmark' && available && item.url && <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" aria-label={t('打开书签：{title}', 'Open bookmark: {title}', { title: item.title })}><ArrowUpRight size={14}/></a>}
+              {canEdit && (item.kind !== 'document' || documentsEnabled) && <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('取消关联：{title}', 'Unlink: {title}', { title: item.title })} onClick={() => toggleReference(item)}><X size={13}/></Button>}
+            </div>
+          })}</div>
+          {picker && <ResourcePicker spaceId={spaceId} selected={references} disabled={busy} documentsEnabled={documentsEnabled} onToggle={toggleReference} onClose={() => setPicker(false)}/>}
         </section>
         {baseline && <div className="work-item-times">{baseline.createdAt && <time className="work-updated" dateTime={baseline.createdAt}>{t('创建于 {time}', 'Created {time}', { time: formatUpdated(baseline.createdAt) })}</time>}<time className="work-updated" dateTime={baseline.updatedAt}>{t('更新于 {time}', 'Updated {time}', { time: formatUpdated(baseline.updatedAt) })}</time></div>}
+        {baseline && <WorkActivity spaceId={spaceId} itemId={baseline.id} revision={baseline.revision}/>}
       </div>
       <footer className="work-detail-footer">{baseline && canEdit && <Button type="button" variant="ghost" disabled={busy} onClick={() => guard.requestLeave(() => void toggleArchive())}>{baseline.archived ? <ArchiveRestore size={16}/> : <Archive size={16}/>}<span>{baseline.archived ? t('恢复事项', 'Restore item') : t('归档事项', 'Archive item')}</span></Button>}<span className="grow"/><Button type="button" variant="outline" disabled={busy} onClick={close}>{t('关闭', 'Close')}</Button>{canEdit && <Button type="submit" disabled={busy || !draft.title.trim() || (!creating && !dirty) || uncertain || conflict}><Save size={15}/>{busy ? t('正在保存…', 'Saving…') : creating ? t('创建事项', 'Create item') : t('保存事项', 'Save item')}</Button>}</footer>
     </form>}

@@ -77,6 +77,9 @@ func (r *Request) documentSpace(write bool) (*Space, bool, error) {
 	if write && !edit {
 		return nil, false, unauthorized()
 	}
+	if err := r.requireModule("documents"); err != nil {
+		return nil, false, err
+	}
 	return s, edit, nil
 }
 

@@ -10,6 +10,14 @@ Maintain your links, import browser bookmarks, and compose your homepage from da
 
 The jade folded-house logo is shared throughout the Web interface. [Brand assets, usage and provenance](docs/BRANDING.md) cover the scalable SVG, browser icons and touch icon.
 
+## Current source changes (Unreleased)
+
+The `main` branch adds shared left-side **Home / Library / Work** navigation, header work search, creation-context fixes and a status drawer with a fixed save footer. **Site settings → Modules** lets a signed-in Owner disable Library or Work; both default on, and disabling preserves existing data. Cards and lists show work update times, while details provide a paginated history of actual changes. History starts when recording becomes available; earlier activity is not reconstructed.
+
+Optional MCP workflow guidance is enabled with `LINGSHU_MCP_WORKFLOW_ENABLED=true` or `--mcp-workflow-enabled`. Restart the binary process with the new setting; with Compose, recreate the container to load the changed environment, keeping its data volume. It defaults off, independently of the two module switches. Agents obtain current capabilities and guidance through `space_current`, including through gateways that expose tools on demand; no extra Skills or replacement token is required. See [MCP workflow guidance](docs/INTEGRATIONS.md#optional-workflow-guidance-and-module-state).
+
+These source changes are not part of the 0.2.0 download or image below. They add migrations **016–017**; keep a consistent pre-upgrade backup before installing a build from this source. See [storage and rollback](docs/STORAGE.md).
+
 ## New in 0.2.0
 
 - **Keep board controls in the header.** The current scope, Board/List choice and New item action share one row; search stays above the content. Additional status columns scroll inside the board. Light/dark viewing preferences match Home, and background revision checks preserve open drafts.
@@ -274,6 +282,7 @@ These options apply to **0.2.0**. A new instance can choose its language once at
 | `LINGSHU_LANGUAGE` | `zh-CN` or `en` for an instance without a saved language; omitted/empty asks once during first setup; a saved language takes precedence |
 | `LINGSHU_SECURE_COOKIES` | Whether browser cookies require HTTPS; default `false` for local HTTP |
 | `LINGSHU_DOCUMENT_ROOTS` | JSON array of absolute allowed document roots; default `[]` disables filesystem access |
+| `LINGSHU_MCP_WORKFLOW_ENABLED` | Optional MCP work-registration/handoff guidance; default `false`, startup setting; CLI `--mcp-workflow-enabled` overrides it |
 | `LINGSHU_TLS_CERT_FILE` | PEM certificate-chain path; empty by default, configure with the private-key path |
 | `LINGSHU_TLS_KEY_FILE` | Matching PEM private-key path; empty by default; direct TLS requires both paths |
 

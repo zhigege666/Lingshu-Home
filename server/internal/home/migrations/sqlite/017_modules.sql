@@ -1,0 +1,2 @@
+ALTER TABLE settings ADD COLUMN documents_enabled BOOLEAN NOT NULL DEFAULT TRUE CHECK(documents_enabled IN (FALSE,TRUE));
+ALTER TABLE settings ADD COLUMN work_enabled BOOLEAN NOT NULL DEFAULT TRUE CHECK(work_enabled IN (FALSE,TRUE));

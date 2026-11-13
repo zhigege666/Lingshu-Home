@@ -76,15 +76,15 @@ Changing the access mode or registration policy revokes all browser sessions and
 | Method and path | Input / behavior |
 | --- | --- |
 | `GET /health` | `{status:"ok",version}`; also available at `/health` outside the API prefix |
-| `GET /bootstrap` | Version, `language`, `languageSelectionRequired`, initialized state, site name, mode, `autoFetchIcons`, `autoSelectEndpoint`, current user, accessible spaces, default space, `sessionOptions`, current browser `session`, CSRF token and actual capabilities |
+| `GET /bootstrap` | Version, `language`, `languageSelectionRequired`, initialized state, site name, mode, `autoFetchIcons`, `autoSelectEndpoint`, `modules`, current user, accessible spaces, default space, `sessionOptions`, current browser `session`, CSRF token and actual capabilities |
 | `POST /setup/language` | `{language:"en"\|"zh-CN"}`; confirm an instance's language once, returning bootstrap |
 | `GET /starter-packs` | The saved language's single starter pack, or `[]` before language confirmation |
 | `POST /setup` | `{siteName,mode,username?,displayName?,password?,seedDemo,starterPack?,sessionMode?,rememberDays?}`; once only |
 | `POST /auth/login` | `{username,password,sessionMode?,rememberDays?}` |
 | `POST /auth/logout` | `{}` |
 | `POST /auth/register` | `{username,displayName,password,sessionMode?,rememberDays?}`; creates a Member and session only when multi-user registration is enabled |
-| `GET /settings` | `{siteName,mode,registrationEnabled,hasOwner,autoFetchIcons,autoSelectEndpoint}` for permitted administration |
-| `PUT /settings` | `{siteName,mode,registrationEnabled,owner?,autoFetchIcons?,autoSelectEndpoint?}`; omitted preferences retain their values |
+| `GET /settings` | `{siteName,mode,registrationEnabled,hasOwner,autoFetchIcons,autoSelectEndpoint,modules}` for permitted administration |
+| `PUT /settings` | `{siteName,mode,registrationEnabled,owner?,autoFetchIcons?,autoSelectEndpoint?,modules?}`; omitted preferences retain their values |
 | `PUT /settings/navigation` | `{autoSelectEndpoint:boolean}` only; default on, Owner or ownerless open-edit, no PAT |
 | `GET /network-proxy` | Owner browser only; `{revision,mode,url,credentialConfigured}` |
 | `PUT /network-proxy` | Owner browser only; `{expectedRevision,mode,url,secret?:{username,password},clearCredentials?}` |
@@ -103,6 +103,16 @@ An ownerless instance supplies `owner:{username,displayName,password}` when swit
 Usernames contain 3–40 ASCII letters, digits, dots, underscores or hyphens, and are unique ignoring case. Passwords contain 10–128 characters and cannot be entirely whitespace. Display names and site names are limited to 80 characters. Passwords use Argon2id with 64 MiB memory, three iterations, one lane, a random 16-byte salt and a 32-byte derived hash.
 
 Bootstrap capabilities distinguish the built-in theme package (`builtin`), its full-page exports (`builtin/dashboard` and `builtin/ios`), and its panel exports (ten, including the document-activity panel). Supported external delivery modes are `push` and `poll`. Local navigation and local document activity are application data, not external delivery adapters.
+
+### Optional Library and Work modules
+
+Current source adds `modules:{documents:boolean,work:boolean}` to bootstrap and settings results. Both default to `true` for existing and new databases. `PUT /settings` accepts a partial `modules` object in addition to its existing required fields; omitted module fields retain saved values. Explicit `null`, non-boolean values and unknown module keys return 400.
+
+Changing a module requires a signed-in Owner with browser Cookie/CSRF authentication. PATs, Members and anonymous open-edit visitors cannot change these instance-wide settings. Subsequent requests use the saved state without changing the authentication epoch, sessions, token secrets or scopes.
+
+After existing permission checks, disabled operations return `403`, `code:"module_disabled"`, `details:{module:"documents"|"work"}`. Work checks cover items, projects, statuses, resources and history. Document checks cover document/source CRUD, searches, scans, activity, history, attachments and publication; background scans pause and recheck before committing. Navigation bookmarks and their usage notes remain usable. Dashboard document-activity markers expose `data.moduleDisabled:true` without failing unrelated navigation datasets.
+
+Disabling preserves files, records and associations. Document references and their history summaries are hidden while the document module is off; unrelated item edits omit `documentIds` to retain relationships. Explicit association changes are rejected while disabled, except a successful original create replay that makes no new change. Re-enabling exposes the same permitted data. Already-loaded editor drafts may remain in memory; every subsequent server call still checks current module and account permissions.
 
 ### Instance language
 
@@ -715,6 +725,14 @@ Status errors include `work_status_unavailable`, `work_default_status_required`,
 
 Work creates and mutations return HTTP 200. Read/write callers receive the current authorized object; write-only item/project calls receive `{id,revision,boardRevision}`, with optional creation/replay flags and no stored content. Status batches return the current catalog, or `{revision,boardRevision,applied:true}` for write-only callers. Existing PATs gain no work actions automatically. Work items and projects have no permanent-delete endpoint or external execution engine; archive and restore do not modify referenced originals.
 
+### Work change history
+
+`GET /spaces/{spaceId}/work/items/{id}/activity?limit=20&cursor=...` returns `{itemId,revision,historyStartedAt,historyComplete,items,nextCursor}`. Event fields are `id,action,occurredAt,itemRevision,actor,origin,changes`. The default page size is 20, maximum 100; records are newest-first by item revision. A cursor is bound to its space, item and first-page upper revision. New events do not disturb older pages; omit the cursor to refresh.
+
+Events use existing work-read and space-editor checks and commit atomically with actual business changes. Original create replay and no-op edits/moves do not change timestamps or append events. Older items retain known creation/update times but have no fabricated pre-migration history. Structural summaries exclude long field text and private reference contents; reference-change counts follow current resource scopes/module state. See [work history](WORK_ITEMS.md#真实变更记录) for the full contract.
+
+The existing HTTP detail accepts optional `activityLimit/activityCursor` query parameters. MCP `work_items_get` accepts those fields in optional `input`; the returned detail gains `activity` only when requested. Existing detail calls stay compatible and lightweight.
+
 ## MCP
 
 The endpoint is `/mcp` on the same server. It uses the official MCP Go SDK and stateless Streamable HTTP, supporting protocol versions `2026-07-28` and `2025-11-25`. Browser cookies are not accepted as MCP authentication; supply a PAT. The SDK handles protocol negotiation, initialization/discovery, schemas and JSON-RPC framing.
@@ -722,6 +740,8 @@ The endpoint is `/mcp` on the same server. It uses the official MCP Go SDK and s
 Since 0.0.9, a space-scoped MCP call may omit `spaceId`; Home resolves it from the PAT authenticated for that request. This applies to reads and writes. `space_current` accepts no parameters and returns the bound space’s `spaceId`, `name` and `kind`. HTTP routes still take their documented identifiers. Read-only tools whose filters are all optional accept `{}` with no `input` for their defaults. Explicit `null`, missing required resource IDs and missing mutation `input` objects remain invalid. `document_sources_list` returns only enabled directories in the current working-document scope, including empty directories. See the [document guide](DOCUMENT_LIBRARY.md) for the destination fields and read failures.
 
 The catalog contains 46 tools, including 12 [work-board/project/item/status tools](WORK_ITEMS.md), alongside navigation, library and integration operations. Tool inputs contain resource identifiers and, for mutations, a structured `input` object. Results retain their documented `items`, `columns`, cursors and metadata. Work descriptions and parameter schemas explain discovery, stable IDs, defaults, revisions and recovery without requiring external Skills. Dynamic statuses are response data, so changing columns does not require a new MCP schema or catalog publication.
+
+Current source extends `space_current` with `contextVersion,serverVersion,modules,capabilities,workflow,entrypoints`, retaining its original three space fields. `capabilities.work/documents/navigation` each report effective read/write access. `LINGSHU_MCP_WORKFLOW_ENABLED` / `--mcp-workflow-enabled` controls optional workflow guidance, defaults false and is read at startup. It is independent of the default-on module switches. See [workflow and Gate behavior](INTEGRATIONS.md#optional-workflow-guidance-and-module-state).
 
 Authenticated `tools/list` lists registered tools without hiding work tools based on PAT actions. Missing work scopes cause a call-time permission error; absent tools instead require checking the running version, endpoint and any gateway discovery/exposure configuration. Every tool invocation reloads the current account, permission epoch and token scope. Mutations use the same write gate, transaction, authorization and business handlers as the HTTP API. Long-lived clients cannot retain revoked permissions. MCP responses are private and not cacheable across accounts.
 

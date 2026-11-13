@@ -39,7 +39,7 @@ func (a *App) bootstrap(r *Request) (*Response, error) {
 	if language == "" {
 		language = "zh-CN"
 	}
-	return ok(map[string]any{"version": a.version, "language": language, "languageSelectionRequired": r.Settings.Language == "" && !r.Settings.Initialized, "initialized": r.Settings.Initialized, "siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "user": r.User, "spaces": spaces, "defaultSpaceId": defaultID, "sessionOptions": sessionOptions(r.Settings.SessionPolicy), "session": sessionSummary(r.SessionInfo, r.Settings.SessionPolicy, sessionNow()), "csrfToken": a.csrfToken(r), "capabilities": capabilities}), nil
+	return ok(map[string]any{"version": a.version, "language": language, "languageSelectionRequired": r.Settings.Language == "" && !r.Settings.Initialized, "initialized": r.Settings.Initialized, "siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "modules": r.Settings.Modules, "user": r.User, "spaces": spaces, "defaultSpaceId": defaultID, "sessionOptions": sessionOptions(r.Settings.SessionPolicy), "session": sessionSummary(r.SessionInfo, r.Settings.SessionPolicy, sessionNow()), "csrfToken": a.csrfToken(r), "capabilities": capabilities}), nil
 }
 
 func (a *App) insertUser(r *Request, input accountInput, role string) (*User, error) {
@@ -233,7 +233,7 @@ func (a *App) getSettings(r *Request) (*Response, error) {
 			return nil, err
 		}
 	}
-	return ok(map[string]any{"siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "hasOwner": r.Settings.HasOwner}), nil
+	return ok(map[string]any{"siteName": r.Settings.SiteName, "mode": r.Settings.Mode, "registrationEnabled": r.Settings.RegistrationEnabled, "autoFetchIcons": r.Settings.AutoFetchIcons, "autoSelectEndpoint": r.Settings.AutoSelectEndpoint, "modules": r.Settings.Modules, "hasOwner": r.Settings.HasOwner}), nil
 }
 
 func (a *App) updateSettings(r *Request) (*Response, error) {
@@ -244,12 +244,13 @@ func (a *App) updateSettings(r *Request) (*Response, error) {
 		return nil, forbidden()
 	}
 	var in struct {
-		SiteName            string           `json:"siteName"`
-		Mode                string           `json:"mode"`
-		RegistrationEnabled bool             `json:"registrationEnabled"`
-		AutoFetchIcons      optionalIconBool `json:"autoFetchIcons"`
-		AutoSelectEndpoint  optionalIconBool `json:"autoSelectEndpoint"`
-		Owner               *accountInput    `json:"owner"`
+		SiteName            string              `json:"siteName"`
+		Mode                string              `json:"mode"`
+		RegistrationEnabled bool                `json:"registrationEnabled"`
+		AutoFetchIcons      optionalIconBool    `json:"autoFetchIcons"`
+		AutoSelectEndpoint  optionalIconBool    `json:"autoSelectEndpoint"`
+		Modules             moduleSettingsInput `json:"modules"`
+		Owner               *accountInput       `json:"owner"`
 	}
 	if err := r.decode(&in); err != nil {
 		return nil, err
@@ -275,6 +276,13 @@ func (a *App) updateSettings(r *Request) (*Response, error) {
 		autoSelectEndpoint = in.AutoSelectEndpoint.value
 	}
 	navigationChanged := autoSelectEndpoint != r.Settings.AutoSelectEndpoint
+	modules := in.Modules.apply(r.Settings.Modules)
+	if modules != r.Settings.Modules {
+		// Open-edit visitors may edit navigation, never instance-wide modules.
+		if err = r.requireOwner(); err != nil {
+			return nil, err
+		}
+	}
 	if r.Settings.HasOwner {
 		if in.Owner != nil {
 			return nil, invalid("The existing Owner cannot be replaced through settings.")
@@ -301,7 +309,7 @@ func (a *App) updateSettings(r *Request) (*Response, error) {
 	if securityChanged {
 		epoch++
 	}
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE settings SET site_name=?,mode=?,registration_enabled=?,auth_epoch=?,auto_fetch_icons=?,auto_select_endpoint=? WHERE id=1"), name, in.Mode, in.RegistrationEnabled, epoch, autoFetchIcons, autoSelectEndpoint)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE settings SET site_name=?,mode=?,registration_enabled=?,auth_epoch=?,auto_fetch_icons=?,auto_select_endpoint=?,documents_enabled=?,work_enabled=? WHERE id=1"), name, in.Mode, in.RegistrationEnabled, epoch, autoFetchIcons, autoSelectEndpoint, modules.Documents, modules.Work)
 	if err != nil {
 		return nil, err
 	}
@@ -311,6 +319,7 @@ func (a *App) updateSettings(r *Request) (*Response, error) {
 	r.Settings.AuthEpoch = epoch
 	r.Settings.AutoFetchIcons = autoFetchIcons
 	r.Settings.AutoSelectEndpoint = autoSelectEndpoint
+	r.Settings.Modules = modules
 	r.Settings.HasOwner = r.Settings.HasOwner || owner != nil
 	if iconsChanged && !autoFetchIcons {
 		if _, err = r.Q.ExecContext(r.HTTP.Context(), "DELETE FROM icon_favicon_jobs"); err != nil {
@@ -338,7 +347,7 @@ func (a *App) updateSettings(r *Request) (*Response, error) {
 			return nil, err
 		}
 	}
-	return ok(map[string]any{"siteName": name, "mode": in.Mode, "registrationEnabled": in.RegistrationEnabled, "autoFetchIcons": autoFetchIcons, "autoSelectEndpoint": autoSelectEndpoint, "hasOwner": r.Settings.HasOwner}), nil
+	return ok(map[string]any{"siteName": name, "mode": in.Mode, "registrationEnabled": in.RegistrationEnabled, "autoFetchIcons": autoFetchIcons, "autoSelectEndpoint": autoSelectEndpoint, "modules": modules, "hasOwner": r.Settings.HasOwner}), nil
 }
 
 func (a *App) requireUserAdmin(r *Request) error {

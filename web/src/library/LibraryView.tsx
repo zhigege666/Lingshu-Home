@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Home, LayoutDashboard, Link2, LockKeyhole, LogOut, Plus, RefreshCw, Search, Settings2, Star, X } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Link2, LockKeyhole, LogOut, Plus, RefreshCw, Search, Settings2, Star, X } from 'lucide-react'
 import { messageOf, request } from '../core/api'
 import { getLocale, t } from '../core/i18n'
 import { requestNavigation } from '../core/navigation'
@@ -7,6 +7,7 @@ import { formatUpdated } from '../core/presentation'
 import type { Bootstrap, Dashboard, Dataset, NavigationData } from '../core/types'
 import type { DocumentPage, ListedDocumentSource, DocumentSourceList, LibraryBookmark, LibraryDocument, LibraryItem } from '../core/library-types'
 import { ProjectLogo } from '../components/ProjectLogo'
+import { ModuleNav } from '../components/ModuleNav'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { StyledSelect } from '../components/ui/select'
@@ -52,8 +53,9 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
   const [newDocument, setNewDocument] = useState(false), [loading, setLoading] = useState(true), [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [refreshKey, setRefreshKey] = useState(0)
   const requestGeneration = useRef(0)
-  const canWrite = !!bootstrap.user && space.canEdit
-  const canManage = bootstrap.user?.role === 'Owner'
+  const moduleEnabled = bootstrap.modules?.documents !== false
+  const canWrite = moduleEnabled && !!bootstrap.user && space.canEdit
+  const canManage = moduleEnabled && bootstrap.user?.role === 'Owner'
   useEffect(() => {
     if (documentId) { setSelection({ kind: 'document', id: documentId }); setExpandedPreview(false) }
     else if (bookmarkId) { setSelection({ kind: 'bookmark', id: bookmarkId }); setExpandedPreview(false) }
@@ -61,12 +63,14 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
   useEffect(() => { const timer = setTimeout(() => setSearch(query.trim()), 250); return () => clearTimeout(timer) }, [query])
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 6500); return () => clearTimeout(timer) }, [notice])
   useEffect(() => {
+    if (!moduleEnabled) return
     const abort = new AbortController()
     request<Dataset<NavigationData>>(`/spaces/${space.id}/navigation`, { signal: abort.signal }).then(value => setBookmarks(value.data.links)).catch(cause => { if (!abort.signal.aborted) setError(messageOf(cause)) })
     if (bootstrap.user) request<DocumentSourceList>(`/spaces/${space.id}/document-sources`, { signal: abort.signal }).then(value => setSources(value.items)).catch(cause => { if (!abort.signal.aborted) setError(messageOf(cause)) })
     return () => abort.abort()
-  }, [identity, refreshKey])
+  }, [identity, refreshKey, moduleEnabled])
   useEffect(() => {
+    if (!moduleEnabled) { requestGeneration.current++; setLoading(false); setLoadingMore(false); return }
     const abort = new AbortController(), generation = ++requestGeneration.current
     setLoading(true); setError(''); setLoadingMore(false)
     const parameters = new URLSearchParams({ q: search, limit: '500', offset: '0' })
@@ -75,9 +79,9 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
       if (generation === requestGeneration.current) { setDocuments(value.items); setTotal(value.total) }
     }).catch(cause => { if (!abort.signal.aborted) { setDocuments([]); setTotal(0); setError(messageOf(cause)) } }).finally(() => { if (!abort.signal.aborted) setLoading(false) })
     return () => abort.abort()
-  }, [identity, sourceId, search, refreshKey])
+  }, [identity, sourceId, search, refreshKey, moduleEnabled])
   async function loadMore() {
-    if (loadingMore || documents.length >= total) return
+    if (!moduleEnabled || loadingMore || documents.length >= total) return
     const generation = requestGeneration.current
     setLoadingMore(true); setError('')
     const parameters = new URLSearchParams({ q: search, limit: '500', offset: String(documents.length) })
@@ -109,6 +113,7 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
   function pickSection(next: typeof section) { setSection(next); setSourceId(''); setFolder(''); setKind(next === 'favorites' ? 'bookmark' : 'all') }
   function pickSource(id: string, path = '') { setSourceId(id); setFolder(path); setSection('all'); setKind('document') }
   async function openDocumentLink(id: string, path: string) {
+    if (!moduleEnabled) return
     try {
       const parameters = new URLSearchParams({ sourceId: id, relativePath: path, limit: '1' })
       const value = await request<DocumentPage>(`/spaces/${space.id}/documents?${parameters}`)
@@ -120,13 +125,12 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
   return <div className={`admin-ui library-shell ${selection ? 'has-preview' : ''} ${expandedPreview ? 'preview-expanded' : ''}`}>
     <header className="library-topbar">
       <a className="library-brand" href="#/" onClick={event => { event.preventDefault(); onHome() }}><ProjectLogo size={33}/><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
-      <nav className="library-primary-nav" aria-label={t('主要导航', 'Primary navigation')}><button onClick={onHome}><Home size={18}/><span>{t('导航', 'Home')}</span></button><span aria-current="page"><BookOpen size={18}/>{t('资料库', 'Library')}</span></nav>
+      <ModuleNav active="documents" modules={bootstrap.modules} canViewWork={!!bootstrap.user && space.canEdit} spaceId={space.id} onHome={onHome}/>
       <label className="library-search"><Search size={18}/><Input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t('搜索书签、文档与说明', 'Search bookmarks, documents and notes')} aria-label={t('搜索资料库', 'Search library')}/></label>
       <div className="library-account"><div className="library-space"><StyledSelect value={space.id} onValueChange={id => requestNavigation(() => onSpaceChange(id))} aria-label={t('选择空间', 'Choose a space')} options={bootstrap.spaces.map(item => ({ value: item.id, label: item.name }))}/><SpacePreferenceMenu bootstrap={bootstrap}/></div>{bootstrap.user ? <Button variant="ghost" size="icon" title={t('退出登录', 'Sign out')} aria-label={t('退出登录', 'Sign out')} onClick={() => requestNavigation(() => { void onLogout() })}><span className="library-avatar">{(bootstrap.user.displayName || bootstrap.user.username).slice(0, 1).toUpperCase()}</span><LogOut size={13}/></Button> : <Button variant="outline" onClick={onLogin}>{t('登录', 'Sign in')}</Button>}<Button variant="ghost" size="icon" aria-label={t('管理面板', 'Administration')} title={t('管理面板', 'Administration')} onClick={onManage}><Settings2 size={19}/></Button></div>
     </header>
     <aside className="library-sidebar" aria-label={t('资料库筛选', 'Library filters')}>
       <nav className="library-sections">
-        {canWrite && <button onClick={() => requestNavigation(() => { window.location.hash = '/library?view=board' })}><LayoutDashboard size={19}/>{t('事项看板', 'Work board')}</button>}
         <button className={section === 'all' && !sourceId ? 'active' : ''} onClick={() => pickSection('all')}><FolderOpen size={19}/>{t('全部资料', 'All resources')}</button>
         <button className={section === 'favorites' ? 'active' : ''} onClick={() => pickSection('favorites')}><Star size={19}/>{t('收藏书签', 'Favorite bookmarks')}</button>
       </nav>
@@ -140,6 +144,7 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
       <footer><LockKeyhole size={14}/>{space.kind === 'personal' ? t('仅当前账号可见', 'Visible only to this account') : t('文档需单独发布', 'Documents are published individually')}</footer>
     </aside>
     <main className="library-content" id="main-content">
+      {!moduleEnabled && <div className="admin-info" role="status">{t('资料库已关闭。当前页面保留，未保存的文档草稿可以导出。', 'Library is disabled. This page is retained and unsaved document drafts can be exported.')}</div>}
       <div className="library-heading"><div><h1>{source?.name || t('资料库', 'Library')}</h1><p>{folder || (section === 'favorites' ? t('常用书签，随时查阅说明。', 'Your favorite bookmarks and their usage notes.') : t('书签与原始 Markdown，集中查阅与维护。', 'Browse and maintain bookmarks and original Markdown files.'))}</p></div><div className="library-create-actions">{canWrite && <Button onClick={() => requestNavigation(() => setNewDocument(true))}><Plus size={16}/>{t('新建文档', 'New document')}</Button>}{canManage && <Button variant="outline" onClick={onManage}><Folder size={16}/>{t('管理目录', 'Manage directories')}</Button>}<Button variant="ghost" size="icon" disabled={loading} onClick={refresh} aria-label={t('刷新资料库', 'Refresh library')}><RefreshCw size={17}/></Button></div></div>
       <div className="library-filters"><div role="group" aria-label={t('资料类型', 'Resource type')}>{(['all', 'bookmark', 'document'] as const).map(value => <button key={value} type="button" className={kind === value ? 'active' : ''} onClick={() => { setKind(value); if (value !== 'document') { setSourceId(''); setFolder('') }; if (value !== 'bookmark' && section === 'favorites') setSection('all') }}>{value === 'all' ? t('全部', 'All') : value === 'bookmark' ? t('书签', 'Bookmarks') : t('文档', 'Documents')}</button>)}</div><span>{t('按更新时间排序', 'Sorted by last update')}</span>{!!visibleSources.length && <label className="library-mobile-source"><span>{t('目录', 'Directory')}</span><StyledSelect aria-label={t('筛选文档目录', 'Filter document directory')} value={sourceId || 'all'} onValueChange={value => { if (value === 'all') { setSourceId(''); setFolder('') } else pickSource(value) }} options={[{ value: 'all', label: t('全部目录', 'All directories') }, ...visibleSources.map(item => ({ value: item.id, label: item.name }))]}/></label>}{sourceId && <button className="library-clear-filter" onClick={() => { setSourceId(''); setFolder('') }}>{t('清除目录筛选', 'Clear directory filter')}<X size={13}/></button>}</div>
       <ErrorMessage error={error}/>{notice && <p className="admin-info" role="status">{notice}</p>}

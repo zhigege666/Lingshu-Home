@@ -4,6 +4,21 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+### Module navigation, configuration and work history
+
+- Share the left-side Home / Library / Work navigation across the homepage, library, board and administration. Keep search and page actions separate from module navigation, retain unsaved-change protection and support the four desktop sizes.
+- Add Owner-controlled Library and Work switches to Site settings. Both default on; disabling a module blocks its HTTP/MCP operations while preserving records, files and associations. Navigation remains available. Reopening a module reuses the same data, sessions and tokens; existing editors retain their drafts if another session disables access.
+- Display work update times on cards and lists, and creation/update times plus a paginated change timeline in details. Record server-observed edits, moves, archive/restore, status migration/type changes and reference changes atomically. Bookmark deletions also record their actual reference removals without changing navigation authorization.
+- Keep create replay and no-op edits/moves from producing duplicate history or artificial update times. Store structural summaries instead of long text or private reference contents; filter reference changes by current read scopes. Earlier activity for existing items remains explicitly unknown.
+- Fix the status manager's height allocation so its header and save footer remain in place while long status lists scroll inside the drawer. Verify short/long lists and menus at 2560×1440, 1920×1080, 1600×900 and 2560×1080.
+- Add SQLite/PostgreSQL migrations 016 (work activity) and 017 (module settings). Preserve existing item timestamps and use the migration time as the history boundary. Returning to an older application requires its matching pre-upgrade database/data backup.
+
+### Optional MCP workflow guidance
+
+- Add `LINGSHU_MCP_WORKFLOW_ENABLED` / `--mcp-workflow-enabled`, default off and read at startup. The switch controls work-registration and handoff guidance; it does not change permissions or disable explicit CRUD requests.
+- Extend `space_current` with module state, effective read/write capabilities, versioned guidance and available entrypoints while retaining its original fields. Tool-description prefixes point to this result so gateways using on-demand tool discovery can reach the guide without additional Skills, resources or prompts.
+- Extend `work_items_get` with optional `input.activityLimit` / `activityCursor`; ordinary detail reads stay small. The catalog remains 46 tools including 12 work tools, with no new token scope. The first upgrade needs updated gateway metadata; later module or guidance settings do not require a replacement token.
+
 ### Work creation, location and feedback
 
 - Move work search into the contextual header beside the view switch. Remove the redundant project-reset label and unused desktop toolbar row; retain responsive project controls and explicit item-location filters.

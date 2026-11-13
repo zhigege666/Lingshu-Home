@@ -325,6 +325,11 @@ func (a *App) searchWorkResources(r *Request) (*Response, error) {
 	if err = r.requireAction(action); err != nil {
 		return nil, err
 	}
+	if in.Kind == "document" {
+		if err = r.requireModule("documents"); err != nil {
+			return nil, err
+		}
+	}
 	fingerprint := workPayloadHash([]string{s.ID, in.Kind, in.Q})
 	after := ""
 	if in.Cursor != "" {
