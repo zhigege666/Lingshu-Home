@@ -18,7 +18,8 @@ import { sessionVerifiedEvent } from '../core/session-requests';
 import { validatePageChrome } from '../core/chrome-validation';
 import { panelLocked, panelTitle, type ComposerSource, type HomeSelection } from './composition';
 import { getLocale, t } from '../core/i18n';
-import { ProjectLogo } from '../components/ProjectLogo';
+import { AppHeader } from '../components/AppHeader';
+import AccountMenu from '../components/AccountMenu';
 import { ModuleNav } from '../components/ModuleNav';
 import { HomeEnvironment } from './HomeEnvironment';
 import { DocumentActivityProvider } from './DocumentActivityProvider';
@@ -33,7 +34,7 @@ import './endpoint-routing.css';
 
 type HomeProps = { bootstrap: Bootstrap; dashboard: Dashboard; onRefresh: () => Promise<void>; onSessionChanged?: () => Promise<void>; onSpaceChange: (spaceId: string) => void; onLogout?: () => Promise<void>; onProfile?: () => void; preview?: boolean; viewportWindow?: Window };
 type EditDraft = { pageId: string; spaceId: string; identity: string; revision: string; history: DraftHistory<PageConfig>; original: PageConfig };
-const SpaceSelect = lazy(() => import('./SpaceSelect'));
+const HeaderSpaceSelect = lazy(() => import('../components/HeaderSpaceSelect'));
 const HomeEditor = lazy(() => import('./HomeEditor'));
 const HomeContentEditor = lazy(() => import('./HomeContentEditor'));
 const LinkClickStats = lazy(() => import('./LinkClickStats'));
@@ -358,21 +359,25 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
       target?.focus({ preventScroll: true });
       if (target && scrollElement) scrollElement.scrollTo({ top: scrollElement.scrollTop + target.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top });
     }}>{t('跳到链接区域', 'Skip to links')}</a>
-    {(!editing || editorPreview) && <header className="lh-header"><div className="lh-header-identity"><a className="lh-brand" href={preview || editing ? undefined : '#/'} aria-label={t('{name} 首页', '{name} home', { name: bootstrap.siteName || 'Lingshu-Home' })}><span><ProjectLogo /></span><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
-        {!preview && !editing && <ModuleNav active="home" modules={bootstrap.modules} canViewWork={!!bootstrap.user && canEdit} spaceId={dashboard.space.id} onLibrary={() => contentEditor.requestLeave(() => { window.location.hash = '/library' })} onWork={() => contentEditor.requestLeave(() => { window.location.hash = '/library?view=board' })}/>}
-        <div className="lh-home-heading"><h1>{dashboard.page.name || t('我的导航', 'My bookmarks')}</h1><p className="lh-home-summary">{t('{count} 个链接', '{count} links', { count: number.format(totals.links) })}<span>·</span>{t('{count} 个分类', '{count} categories', { count: number.format(totals.categories) })}{dashboard.space.kind === 'personal' && <><span>·</span>{t('仅自己可见', 'Private')}</>}</p></div>
-        {!preview && bootstrap.spaces.length > 1 && <div className={`lh-space-holder${bootstrap.user ? ' has-preference' : ''}`}><Suspense fallback={<button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}{dashboard.space.kind === 'personal' ? t(' · 私人', ' · Personal') : ''}</span><ChevronDown size={15}/></button>}><SpaceSelect spaces={bootstrap.spaces} value={dashboard.space.id} disabled={editing || contentEditor.busy} theme={color} onChange={id => contentEditor.requestLeave(() => onSpaceChange(id))} bootstrap={bootstrap}/></Suspense></div>}
-      </div>
-      <div className="lh-header-search">{renderRegion(topSearch)}</div>
-      <div className="lh-header-actions">
-        <HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} preview={preview} editing={editing} contentEditing={contentEditing}
-          busy={busy} loadingContent={contentEditor.busy} user={bootstrap.user || null} managementLabel={managementLabel}
-          onProfile={() => contentEditor.requestLeave(() => onProfile?.())} onLogout={onLogout ? () => contentEditor.requestLeave(() => { void onLogout(); }) : undefined}
-          onEdit={() => { void contentEditor.start(); }} onLayout={() => contentEditor.requestLeave(startEditing)}
-          onStatistics={() => setClickStatsContext(editContext)} onVariantChange={setTemporaryVariant} onThemeChange={changeViewerColor}
-          onNavigate={href => contentEditor.requestLeave(() => requestNavigation(() => { window.location.hash = href; }))}/>
-      </div>
-    </header>}
+    {(!editing || editorPreview) && <AppHeader className="lh-header" brandClassName="lh-brand" siteName={bootstrap.siteName} theme={color} brandDisabled={preview || editing}
+      onHome={() => contentEditor.requestLeave(() => requestNavigation(() => { window.location.hash = '/'; }))}
+      navigation={!preview && !editing && <ModuleNav active="home" modules={bootstrap.modules} canViewWork={!!bootstrap.user && canEdit} spaceId={dashboard.space.id} onLibrary={() => contentEditor.requestLeave(() => { window.location.hash = '/library'; })} onWork={() => contentEditor.requestLeave(() => { window.location.hash = '/library?view=board'; })}/>}
+      context={<div className="lh-home-heading"><h1 title={dashboard.page.name || t('我的导航', 'My bookmarks')}>{dashboard.page.name || t('我的导航', 'My bookmarks')}</h1><p className="lh-home-summary">{t('{count} 个链接', '{count} links', { count: number.format(totals.links) })}<span>·</span>{t('{count} 个分类', '{count} categories', { count: number.format(totals.categories) })}{dashboard.space.kind === 'personal' && <><span>·</span>{t('仅自己可见', 'Private')}</>}</p></div>}
+      search={topSearch.length > 0 ? renderRegion(topSearch) : undefined} searchClassName="lh-header-search"
+      actions={<HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} preview={preview} editing={editing} contentEditing={contentEditing}
+        busy={busy} loadingContent={contentEditor.busy} user={bootstrap.user || null} managementLabel={managementLabel}
+        onEdit={() => { void contentEditor.start(); }} onLayout={() => contentEditor.requestLeave(startEditing)}
+        onStatistics={() => setClickStatsContext(editContext)} onVariantChange={setTemporaryVariant} onThemeChange={changeViewerColor}
+        onNavigate={href => contentEditor.requestLeave(() => requestNavigation(() => { window.location.hash = href; }))}/>} actionsClassName="lh-header-actions"
+      utilities={!preview && !editing && <>
+        <Suspense fallback={<div className="app-header-space"><button className="lh-space-placeholder" disabled aria-label={t('正在加载空间选择', 'Loading space selector')} aria-busy="true"><span>{dashboard.space.name}</span><ChevronDown size={15}/></button></div>}>
+          <HeaderSpaceSelect bootstrap={bootstrap} value={dashboard.space.id} disabled={contentEditor.busy} theme={color} onChange={id => contentEditor.requestLeave(() => onSpaceChange(id))}/>
+        </Suspense>
+        {bootstrap.user && <AccountMenu user={bootstrap.user} theme={color} onThemeChange={!contentEditing ? changeViewerColor : undefined}
+          onProfile={() => contentEditor.requestLeave(() => onProfile?.())}
+          onAdmin={() => contentEditor.requestLeave(() => requestNavigation(() => { window.location.hash = '/admin'; }))}
+          onLogout={() => contentEditor.requestLeave(() => { void onLogout?.(); })}/>}
+      </>}/>}
     {contentEditing && <Suspense fallback={<div className="lh-content-toolbar" role="status">{t('正在加载编辑工具…', 'Loading edit controls…')}</div>}><HomeContentEditor controller={contentEditor} spaceId={dashboard.space.id} spaceName={dashboard.space.name} autoFetchIcons={bootstrap.autoFetchIcons} autoSelectEndpoint={bootstrap.autoSelectEndpoint} showClickStats={!!bootstrap.user}/></Suspense>}
     {clickStatsContext === editContext && !!bootstrap.user && !preview && !editing && !contentEditing && <Suspense fallback={null}><LinkClickStats key={editContext} spaceId={dashboard.space.id} spaceName={dashboard.space.name} onClose={() => setClickStatsContext(null)}/></Suspense>}
     {!contentEditing && contentEditor.error && <div className="lh-content-feedback" role="alert">{contentEditor.error}</div>}

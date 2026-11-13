@@ -25,17 +25,9 @@
 .lh-home .lh-page-chrome.is-disabled .lh-chrome-slot > :not(.lh-chrome-slot-label) { opacity: .65; }
 .lh-composer-loading { align-items: center; justify-content: center; gap: 16px; }
 /* The canvas can be narrower than the window because editor panels occupy space. */
-.lh-home[data-canvas-compact] .lh-header { padding: 18px 28px; gap: 15px; }
-.lh-home[data-canvas-compact] .lh-header-identity { gap: 12px; }
-.lh-home[data-canvas-compact] .lh-home-heading { padding-left: 12px; }
-.lh-home[data-canvas-compact] .lh-header-search .lh-region-item { width: 280px !important; }
 .lh-home[data-canvas-compact] .lh-workspace { --lh-left-width: 184px; --lh-right-width: 200px; gap: 20px; }
 .lh-home[data-canvas-compact] .lh-workspace.has-compact-left { --lh-left-width: 72px; }
 .lh-home[data-canvas-compact] .lh-workspace.has-compact-right { --lh-right-width: 72px; }
-.lh-home[data-canvas-narrow] .lh-header { grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 16px 20px; }
-.lh-home[data-canvas-narrow] .lh-header-search { grid-row: 2; grid-column: 1/-1; justify-content: flex-start; }
-.lh-home[data-canvas-narrow] .lh-header-search:empty { display: none; }
-.lh-home[data-canvas-narrow] .lh-header-actions { justify-content: flex-end; }
 .lh-home[data-canvas-narrow] .lh-workspace { display: flex; flex-direction: column; gap: 20px; padding: 8px 20px 26px; }
 .lh-home[data-canvas-narrow] :is(.lh-main,.lh-side-region) { width: 100%; }
 .lh-home[data-canvas-narrow] .lh-right-region { order: 3; }
@@ -43,7 +35,7 @@
 .lh-home[data-canvas-narrow] :is(.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 20px; padding-right: 20px; }
 .lh-home[data-canvas-narrow] .lh-main-flow { gap: 22px; }
 @media (max-width: 560px) {
-  .lh-home[data-canvas-narrow] :is(.lh-header,.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 12px; padding-right: 12px; }
+  .lh-home[data-canvas-narrow] :is(.lh-workspace,.lh-top-region,.lh-bottom-region,.lh-page-chrome) { padding-left: 12px; padding-right: 12px; }
   .lh-home[data-composing] .lh-page-chrome { gap: 5px; }
   .lh-home[data-composing] .lh-chrome-slot { min-height: 84px; padding-left: 7px; padding-right: 7px; }
   .lh-home .lh-page-chrome .lh-chrome-slot-label { left: 7px; display: block; }

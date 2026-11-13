@@ -1,24 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Link2, LockKeyhole, LogOut, Plus, RefreshCw, Search, Settings2, Star, X } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Link2, LockKeyhole, MoreHorizontal, Plus, RefreshCw, Search, Settings2, Star, X } from 'lucide-react'
+import { DropdownMenu } from 'radix-ui'
 import { messageOf, request } from '../core/api'
 import { getLocale, t } from '../core/i18n'
 import { requestNavigation } from '../core/navigation'
 import { formatUpdated } from '../core/presentation'
 import type { Bootstrap, Dashboard, Dataset, NavigationData } from '../core/types'
 import type { DocumentPage, ListedDocumentSource, DocumentSourceList, LibraryBookmark, LibraryDocument, LibraryItem } from '../core/library-types'
-import { ProjectLogo } from '../components/ProjectLogo'
+import { AppHeader } from '../components/AppHeader'
+import HeaderSpaceSelect from '../components/HeaderSpaceSelect'
+import AccountMenu from '../components/AccountMenu'
 import { ModuleNav } from '../components/ModuleNav'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { StyledSelect } from '../components/ui/select'
-import { SpacePreferenceMenu } from '../components/SpacePreferenceMenu'
 import { Empty, ErrorMessage, Loading } from '../components/Shared'
 import { BookmarkPanel, DocumentPanel, NewDocumentDialog } from './Panels'
 import './library.css'
 
-type Props = { bootstrap: Bootstrap; dashboard: Dashboard; documentId?: string; bookmarkId?: string; onHome: () => void; onManage: () => void; onLogin: () => void; onLogout: () => Promise<void>; onSpaceChange: (id: string) => void }
+type Props = { bootstrap: Bootstrap; dashboard: Dashboard; documentId?: string; bookmarkId?: string; onHome: () => void; onManage: () => void; onProfile: () => void; onLogin: () => void; onLogout: () => Promise<void>; onSpaceChange: (id: string) => void }
 type Selection = { kind: 'bookmark' | 'document'; id: string }
 type FolderNode = { path: string; name: string; children: Map<string, FolderNode> }
+function LibraryMenu({ canManage, loading, onManage, onRefresh }: { canManage: boolean; loading: boolean; onManage: () => void; onRefresh: () => void }) {
+  const afterClose = useRef<(() => void) | null>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  return <DropdownMenu.Root modal={false}><DropdownMenu.Trigger asChild><Button ref={trigger} type="button" variant="ghost" size="icon" aria-label={t('资料库操作', 'Library actions')}><MoreHorizontal size={19}/></Button></DropdownMenu.Trigger>
+    <DropdownMenu.Portal><DropdownMenu.Content className="admin-ui library-page-menu" align="end" sideOffset={6} collisionPadding={12} onCloseAutoFocus={event => { const action = afterClose.current; afterClose.current = null; if (action) { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); action() } }}>
+      {canManage && <DropdownMenu.Item onSelect={() => { afterClose.current = onManage }}><Folder size={16}/>{t('管理目录', 'Manage directories')}</DropdownMenu.Item>}
+      <DropdownMenu.Item disabled={loading} onSelect={() => { afterClose.current = onRefresh }}><RefreshCw size={16}/>{t('刷新资料库', 'Refresh library')}</DropdownMenu.Item>
+    </DropdownMenu.Content></DropdownMenu.Portal>
+  </DropdownMenu.Root>
+}
 function folderTree(documents: LibraryDocument[], sourceId: string): FolderNode[] {
   const root: FolderNode = { name: '', path: '', children: new Map() }
   for (const document of documents.filter(item => item.sourceId === sourceId)) {
@@ -42,7 +54,7 @@ function FolderBranch({ nodes, active, onSelect, depth = 0 }: { nodes: FolderNod
   </li>)}</ul>
 }
 
-export default function LibraryView({ bootstrap, dashboard, documentId, bookmarkId, onHome, onManage, onLogin, onLogout, onSpaceChange }: Props) {
+export default function LibraryView({ bootstrap, dashboard, documentId, bookmarkId, onHome, onManage, onProfile, onLogin, onLogout, onSpaceChange }: Props) {
   const space = dashboard.space, identity = `${bootstrap.user?.id || 'visitor'}:${space.id}`
   const [sources, setSources] = useState<ListedDocumentSource[]>([]), [bookmarks, setBookmarks] = useState<LibraryBookmark[]>([])
   const [documents, setDocuments] = useState<LibraryDocument[]>([]), [total, setTotal] = useState(0)
@@ -122,13 +134,14 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
     } catch (cause) { setError(messageOf(cause)) }
   }
   const visibleSources = sources.filter(item => item.enabled && item.status !== 'detached')
+  const title = source ? folder ? `${source.name} / ${folder}` : source.name : section === 'favorites' ? t('收藏书签', 'Favorite bookmarks') : kind === 'bookmark' ? t('书签', 'Bookmarks') : kind === 'document' ? t('文档', 'Documents') : t('资料库', 'Library')
   return <div className={`admin-ui library-shell ${selection ? 'has-preview' : ''} ${expandedPreview ? 'preview-expanded' : ''}`}>
-    <header className="library-topbar">
-      <a className="library-brand" href="#/" onClick={event => { event.preventDefault(); onHome() }}><ProjectLogo size={33}/><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
-      <ModuleNav active="documents" modules={bootstrap.modules} canViewWork={!!bootstrap.user && space.canEdit} spaceId={space.id} onHome={onHome}/>
-      <label className="library-search"><Search size={18}/><Input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t('搜索书签、文档与说明', 'Search bookmarks, documents and notes')} aria-label={t('搜索资料库', 'Search library')}/></label>
-      <div className="library-account"><div className="library-space"><StyledSelect value={space.id} onValueChange={id => requestNavigation(() => onSpaceChange(id))} aria-label={t('选择空间', 'Choose a space')} options={bootstrap.spaces.map(item => ({ value: item.id, label: item.name }))}/><SpacePreferenceMenu bootstrap={bootstrap}/></div>{bootstrap.user ? <Button variant="ghost" size="icon" title={t('退出登录', 'Sign out')} aria-label={t('退出登录', 'Sign out')} onClick={() => requestNavigation(() => { void onLogout() })}><span className="library-avatar">{(bootstrap.user.displayName || bootstrap.user.username).slice(0, 1).toUpperCase()}</span><LogOut size={13}/></Button> : <Button variant="outline" onClick={onLogin}>{t('登录', 'Sign in')}</Button>}<Button variant="ghost" size="icon" aria-label={t('管理面板', 'Administration')} title={t('管理面板', 'Administration')} onClick={onManage}><Settings2 size={19}/></Button></div>
-    </header>
+    <AppHeader className="library-topbar" brandClassName="library-brand" siteName={bootstrap.siteName || 'Lingshu-Home'} onHome={onHome}
+      navigation={<ModuleNav active="documents" modules={bootstrap.modules} canViewWork={!!bootstrap.user && space.canEdit} spaceId={space.id} onHome={onHome}/>}
+      context={<h1 className="library-context-title" title={title}>{title}</h1>}
+      search={<label className="library-search"><Search size={17}/><Input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t('搜索书签、文档与说明', 'Search bookmarks, documents and notes')} aria-label={t('搜索资料库', 'Search library')}/></label>}
+      actionsClassName="library-page-actions" actions={<>{canWrite && <Button onClick={() => requestNavigation(() => setNewDocument(true))}><Plus size={16}/>{t('新建文档', 'New document')}</Button>}<LibraryMenu canManage={canManage} loading={loading} onManage={onManage} onRefresh={refresh}/></>}
+      utilities={<><HeaderSpaceSelect bootstrap={bootstrap} value={space.id} onChange={id => requestNavigation(() => onSpaceChange(id))}/>{bootstrap.user ? <AccountMenu user={bootstrap.user} onProfile={onProfile} onAdmin={() => requestNavigation(() => { window.location.hash = '/admin' })} onLogout={() => requestNavigation(() => { void onLogout() })}/> : <Button variant="outline" onClick={onLogin}>{t('登录', 'Sign in')}</Button>}</>}/>
     <aside className="library-sidebar" aria-label={t('资料库筛选', 'Library filters')}>
       <nav className="library-sections">
         <button className={section === 'all' && !sourceId ? 'active' : ''} onClick={() => pickSection('all')}><FolderOpen size={19}/>{t('全部资料', 'All resources')}</button>
@@ -145,7 +158,6 @@ export default function LibraryView({ bootstrap, dashboard, documentId, bookmark
     </aside>
     <main className="library-content" id="main-content">
       {!moduleEnabled && <div className="admin-info" role="status">{t('资料库已关闭。当前页面保留，未保存的文档草稿可以导出。', 'Library is disabled. This page is retained and unsaved document drafts can be exported.')}</div>}
-      <div className="library-heading"><div><h1>{source?.name || t('资料库', 'Library')}</h1><p>{folder || (section === 'favorites' ? t('常用书签，随时查阅说明。', 'Your favorite bookmarks and their usage notes.') : t('书签与原始 Markdown，集中查阅与维护。', 'Browse and maintain bookmarks and original Markdown files.'))}</p></div><div className="library-create-actions">{canWrite && <Button onClick={() => requestNavigation(() => setNewDocument(true))}><Plus size={16}/>{t('新建文档', 'New document')}</Button>}{canManage && <Button variant="outline" onClick={onManage}><Folder size={16}/>{t('管理目录', 'Manage directories')}</Button>}<Button variant="ghost" size="icon" disabled={loading} onClick={refresh} aria-label={t('刷新资料库', 'Refresh library')}><RefreshCw size={17}/></Button></div></div>
       <div className="library-filters"><div role="group" aria-label={t('资料类型', 'Resource type')}>{(['all', 'bookmark', 'document'] as const).map(value => <button key={value} type="button" className={kind === value ? 'active' : ''} onClick={() => { setKind(value); if (value !== 'document') { setSourceId(''); setFolder('') }; if (value !== 'bookmark' && section === 'favorites') setSection('all') }}>{value === 'all' ? t('全部', 'All') : value === 'bookmark' ? t('书签', 'Bookmarks') : t('文档', 'Documents')}</button>)}</div><span>{t('按更新时间排序', 'Sorted by last update')}</span>{!!visibleSources.length && <label className="library-mobile-source"><span>{t('目录', 'Directory')}</span><StyledSelect aria-label={t('筛选文档目录', 'Filter document directory')} value={sourceId || 'all'} onValueChange={value => { if (value === 'all') { setSourceId(''); setFolder('') } else pickSource(value) }} options={[{ value: 'all', label: t('全部目录', 'All directories') }, ...visibleSources.map(item => ({ value: item.id, label: item.name }))]}/></label>}{sourceId && <button className="library-clear-filter" onClick={() => { setSourceId(''); setFolder('') }}>{t('清除目录筛选', 'Clear directory filter')}<X size={13}/></button>}</div>
       <ErrorMessage error={error}/>{notice && <p className="admin-info" role="status">{notice}</p>}
       {loading ? <Loading text={t('正在读取资料库…', 'Loading library…')}/> : items.length ? <div className="library-list-scroll" role="region" aria-label={t('资料列表', 'Resources')} tabIndex={0}><table className="library-table"><thead><tr><th>{t('名称', 'Name')}</th><th>{t('来源', 'Source')}</th><th>{t('更新', 'Updated')}</th></tr></thead><tbody>{items.map(item => {

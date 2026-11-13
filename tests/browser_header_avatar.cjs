@@ -20,7 +20,14 @@ async function api(route, method = 'GET', data, expected = 200, ctx = context) {
 }
 const b = (zh, en, scope) => (scope || page).getByRole('button', { name: new RegExp('^(' + zh + '|' + en + ')$') });
 async function home() { await page.goto(origin + '/#/'); await page.locator('.lh-home').waitFor(); }
-async function profile() { await page.locator('.lh-home-menu-trigger').click(); await page.getByRole('menuitem', { name: /^(我的资料|My profile)$/ }).click(); await page.locator('.profile-avatar-editor').waitFor(); }
+async function profile() { await page.locator('.home-account-trigger').click(); await page.getByRole('menuitem', { name: /^(我的资料|My profile)$/ }).click(); await page.locator('.profile-avatar-editor').waitFor(); }
+async function toggleTheme(tab = page, visitor = false) {
+  const trigger = tab.locator(visitor ? '.lh-home-menu-trigger' : '.home-account-trigger');
+  await trigger.click();
+  const menu = tab.locator(visitor ? '.lh-home-actions-menu' : '.home-account-menu'); await menu.waitFor();
+  await menu.getByRole('menuitemcheckbox', { name: /^(切换深浅色|Toggle light or dark)$/ }).click();
+  await tab.keyboard.press('Escape'); await menu.waitFor({ state: 'hidden' });
+}
 async function choose(file) { await page.locator('.profile-avatar-file').setInputFiles(file); await until(() => page.locator('.profile-avatar-editor img').getAttribute('src').then(s => s?.startsWith('data:')).catch(() => false), 'Avatar draft preview is missing'); }
 async function save(expected = 200, method = 'PUT') { const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/account/avatar' && r.request().method() === method); await b('保存头像', 'Save avatar').click(); assert.equal((await response).status(), expected); await until(() => b('上传头像|更换头像', 'Upload avatar|Change avatar').isEnabled(), 'Avatar editor remained locked'); }
 async function snap(name, clip) { const file = name + '.png'; await page.screenshot({ path: path.join(OUT, file), animations: 'disabled', ...(clip ? { clip } : {}) }); report.screenshots.push(file); }
@@ -37,48 +44,54 @@ async function snap(name, clip) { const file = name + '.png'; await page.screens
     for (const [width, height] of [[2560,1440], [1920,1080], [1600,900], [2560,1080], [390,844]]) {
       await page.setViewportSize({ width, height });
       await page.getByRole('link', { name: /^(资料库|Library)$/, exact: true }).waitFor();
-      await page.getByRole('link', { name: /^(事项看板|Work board)$/, exact: true }).waitFor();
+      await page.getByRole('link', { name: /^(事项|Work)$/, exact: true }).waitFor();
       assert.equal(await b('更多', 'More').count(), 0); assert.equal(await b('刷新内容', 'Refresh content').count(), 0);
-      const g = await page.locator('.lh-header-actions').evaluate(el => {
+      const g = await page.locator('header.app-header').evaluate(el => {
         const r = el.getBoundingClientRect(), controls = [...el.querySelectorAll('button,a')].filter(e => e.getClientRects().length).map(e => { const b = e.getBoundingClientRect(); return { x:b.x, y:b.y, right:b.right, bottom:b.bottom, width:b.width, height:b.height }; });
         return { width: innerWidth, height: innerHeight, right:r.right, documentWidth: document.documentElement.scrollWidth, controls };
       });
       assert(g.documentWidth <= width + 1 && g.right <= width + 1, 'Header overflow at ' + width);
       for (const r of g.controls) assert(r.x >= -1 && r.right <= width + 1 && r.y >= 0 && r.bottom <= height, 'Clipped header control');
       if (width >= 1600) assert(Math.max(...g.controls.map(r => r.y + r.height/2)) - Math.min(...g.controls.map(r => r.y + r.height/2)) < 3, 'Desktop controls wrapped');
+      await page.locator('.home-account-trigger').click();
+      const accountMenu = page.locator('.home-account-menu'); await accountMenu.waitFor();
+      for (const name of [/^(我的资料|My profile)$/, /^(管理中心|Admin)$/, /^(退出登录|Sign out)$/]) assert(await accountMenu.getByRole('menuitem', { name }).isVisible());
+      const accountRect = await accountMenu.boundingBox(); assert(accountRect.x >= 0 && accountRect.y >= 0 && accountRect.x + accountRect.width <= width + 1 && accountRect.y + accountRect.height <= height + 1, 'Account menu clipped');
+      const avatar = await page.locator('header.app-header .home-account-avatar').boundingBox(); assert(Math.abs(avatar.width - avatar.height) <= 1, 'Account avatar is stretched');
+      await page.keyboard.press('Escape');
       await page.locator('.lh-home-menu-trigger').click();
       const menu = page.locator('.lh-home-actions-menu'); await menu.waitFor();
       assert.equal(await menu.getByRole('menuitem', { name: /刷新|Refresh/ }).count(), 0);
-      for (const name of [/^(我的资料|My profile)$/, /^(点击统计|Click statistics)$/, /^(调整布局|Adjust layout)$/, /^(管理中心|Admin)$/, /^(退出登录|Sign out)$/]) assert(await menu.getByRole('menuitem', {name}).isVisible());
-      const rect = await menu.boundingBox(); assert(rect.x >= 0 && rect.y >= 0 && rect.x+rect.width <= width+1 && rect.y+rect.height <= height+1, 'Menu clipped');
-      const avatar = await menu.locator('.home-account-avatar').boundingBox(); assert(Math.abs(avatar.width-avatar.height) <= 1, 'Menu avatar is stretched');
+      for (const name of [/^(点击统计|Click statistics)$/, /^(调整布局|Adjust layout)$/]) assert(await menu.getByRole('menuitem', { name }).isVisible());
+      assert.equal(await menu.getByRole('menuitem', { name: /我的资料|My profile|退出登录|Sign out/ }).count(), 0, 'Page actions duplicate account actions');
+      const rect = await menu.boundingBox(); assert(rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= width + 1 && rect.y + rect.height <= height + 1, 'Page menu clipped');
       await page.keyboard.press('Escape');
       await snap('home-' + width + 'x' + height); report.viewports.push({width,height,passed:true});
     }
   });
   await page.setViewportSize({ width: 2560, height: 1440 });
   await check('theme_persists_and_account_menu_uses_page_palette', async () => {
-    await b('切换深浅色', 'Toggle light or dark').click(); await page.locator('.lh-home[data-theme=dark]').waitFor();
+    await toggleTheme(); await page.locator('.lh-home[data-theme=dark]').waitFor();
     await page.reload(); await page.locator('.lh-home[data-theme=dark]').waitFor();
-    const trigger=page.locator('.lh-home-menu-trigger'); await trigger.focus(); await page.keyboard.press('ArrowDown');
-    const menu=page.locator('.lh-home-actions-menu'); await menu.waitFor();
+    const trigger=page.locator('.home-account-trigger'); await trigger.focus(); await page.keyboard.press('ArrowDown');
+    const menu=page.locator('.home-account-menu'); await menu.waitFor();
     assert.equal(await menu.getAttribute('data-theme'), 'dark');
     assert.equal(await menu.evaluate(el=>getComputedStyle(el).backgroundColor), await page.locator('.lh-home').evaluate(el=>{ const s=document.createElement('span'); s.style.color=getComputedStyle(el).getPropertyValue('--lh-surface'); el.appendChild(s); const color=getComputedStyle(s).color; s.remove(); return color; }));
     await snap('header-account-dark', {x:1760,y:0,width:800,height:620});
     await page.keyboard.press('Escape'); await until(()=>trigger.evaluate(e=>document.activeElement===e),'Escape focus was lost');
-    await b('切换深浅色','Toggle light or dark').click(); await page.locator('.lh-home[data-theme=light]').waitFor();
+    await toggleTheme(); await page.locator('.lh-home[data-theme=light]').waitFor();
     await trigger.click(); await snap('header-account-light',{x:1760,y:0,width:800,height:620}); await page.keyboard.press('Escape');
   });
   await check('library_and_board_open_directly', async()=>{
     await page.getByRole('link',{name:/^(资料库|Library)$/}).click(); await page.locator('.library-shell').waitFor();
-    await home(); await page.getByRole('link',{name:/^(事项看板|Work board)$/}).click(); await page.locator('.work-shell').waitFor(); await home();
+    await home(); await page.getByRole('link',{name:/^(事项|Work)$/}).click(); await page.locator('.work-shell').waitFor(); await home();
   });
   if (process.env.UI_CHECK_MATCH === 'header') { assert.deepEqual(report.errors, []); report.passed = true; return; }
   const image=path.join(ROOT,'web/src/assets/apple-touch-icon.png'), other=path.join(ROOT,'web/src/assets/favicon-32.png');
   await profile();
   await check('avatar_preview_cancel_and_unsaved_navigation',async()=>{
     await choose(image); assert.equal((await boot()).user.avatarDigest,'');
-    await b('返回导航','Back to Home').click(); const dialog=page.getByRole('dialog',{name:/放弃未保存|Discard unsaved/}); await dialog.waitFor();
+    await page.locator('nav.lh-module-nav').getByRole('link', { name: /^(导航|Home)$/, exact: true }).click(); const dialog=page.getByRole('dialog',{name:/放弃未保存|Discard unsaved/}); await dialog.waitFor();
     await b('继续编辑','Keep editing',dialog).click(); assert((await page.locator('.profile-avatar-editor img').getAttribute('src')).startsWith('data:'));
     await b('取消','Cancel',page.locator('.profile-avatar-editor')).click(); assert.equal(await page.locator('.profile-avatar-editor img').count(),0);
   });
@@ -123,9 +136,9 @@ async function snap(name, clip) { const file = name + '.png'; await page.screens
   });
   await check('guest_keeps_library_view_options_and_theme_without_private_entries',async()=>{
     const visitor=await browser.newContext();const tab=await visitor.newPage();
-    try{await tab.goto(origin+'/#/');await tab.locator('.lh-home').waitFor();assert(await tab.getByRole('link',{name:/^(资料库|Library)$/}).isVisible());assert.equal(await tab.getByRole('link',{name:/^(事项看板|Work board)$/}).count(),0);
+    try{await tab.goto(origin+'/#/');await tab.locator('.lh-home').waitFor();assert(await tab.getByRole('link',{name:/^(资料库|Library)$/}).isVisible());assert.equal(await tab.getByRole('link',{name:/^(事项|Work)$/}).count(),0);
       await tab.getByRole('button',{name:/^(页面设置|Page options)$/}).click();const menu=tab.locator('.lh-home-actions-menu');await menu.waitFor();assert.equal(await menu.getByRole('menuitemradio').count(),2);assert.equal(await menu.getByRole('menuitem',{name:/我的资料|My profile|点击统计|Click statistics/}).count(),0);
-      await tab.keyboard.press('Escape');await b('切换深浅色','Toggle light or dark',tab).click();await tab.locator('.lh-home[data-theme=dark]').waitFor();
+      await tab.keyboard.press('Escape');await toggleTheme(tab, true);await tab.locator('.lh-home[data-theme=dark]').waitFor();
     }finally{await visitor.close();}
   });
   assert.deepEqual(report.errors,[]);report.passed=true;

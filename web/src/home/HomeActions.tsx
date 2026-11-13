@@ -1,9 +1,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { DropdownMenu } from 'radix-ui'
-import { BarChart3, Check, ChevronDown, LayoutGrid, List, LogOut, Moon, Pencil, Settings2, SlidersHorizontal, Sun } from 'lucide-react'
+import { BarChart3, Check, LayoutGrid, List, MoreHorizontal, Moon, Pencil, Settings2 } from 'lucide-react'
 import { t } from '../core/i18n'
 import type { User } from '../core/types'
-import { AccountAvatar } from '../components/AccountMenu'
 import './home-actions.css'
 
 export type HomeActionsProps = {
@@ -17,8 +16,6 @@ export type HomeActionsProps = {
   busy: boolean
   loadingContent: boolean
   user: User | null
-  onProfile?: () => void
-  onLogout?: () => void
   managementLabel: string
   onEdit: () => void
   onLayout: () => void
@@ -29,8 +26,8 @@ export type HomeActionsProps = {
   onNavigate: (href: '#/library' | '#/library?view=board' | '#/admin') => void
 }
 
-/** Navigation stays visible; account and page options share one themed menu. */
-export function HomeActions({ theme, variant, canEdit, canViewStats, preview, editing, contentEditing, busy, loadingContent, user, onProfile, onLogout,
+/** Page actions remain separate from the shared space and account controls. */
+export function HomeActions({ theme, variant, canEdit, canViewStats, preview, editing, contentEditing, busy, loadingContent, user,
   managementLabel, onEdit, onLayout, onStatistics, onVariantChange, onThemeChange, onNavigate }: HomeActionsProps) {
   const [open, setOpen] = useState(false)
   const [palette, setPalette] = useState<CSSProperties>({})
@@ -75,17 +72,12 @@ export function HomeActions({ theme, variant, canEdit, canViewStats, preview, ed
   }
 
   if (editing) return null
-  const account = maintenance ? user : null
-  const accountName = account?.displayName || account?.username || ''
   return <>
     {maintenance && canEdit && !contentEditing && <button type="button" className="lh-quiet-button lh-edit-trigger" title={t('编辑分类与链接', 'Edit categories and links')} aria-label={t('编辑', 'Edit')} disabled={busy || loadingContent} onClick={onEdit}>
       <Pencil size={14} aria-hidden="true"/><span>{loadingContent ? t('正在读取…', 'Loading…') : t('编辑', 'Edit')}</span>
     </button>}
-    {browsing && <button type="button" className="lh-icon-button lh-theme-trigger" aria-label={t('切换深浅色', 'Toggle light or dark')} aria-pressed={theme === 'dark'} title={theme === 'dark' ? t('切换为浅色', 'Switch to light mode') : t('切换为深色', 'Switch to dark mode')} onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>
-      {theme === 'dark' ? <Sun size={18} aria-hidden="true"/> : <Moon size={18} aria-hidden="true"/>}
-    </button>}
     <DropdownMenu.Root open={open} modal={false} onOpenChange={setOpen}>
-      <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className={account ? 'home-account-trigger lh-home-menu-trigger' : 'lh-icon-button lh-page-menu-trigger lh-home-menu-trigger'} aria-label={account ? t('账号菜单：{name}', 'Account menu: {name}', { name: accountName }) : t('页面设置', 'Page options')} title={account ? accountName : t('页面设置', 'Page options')}
+      <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="lh-icon-button lh-page-menu-trigger lh-home-menu-trigger" aria-label={t('页面设置', 'Page options')} title={t('页面设置', 'Page options')}
         onPointerDownCapture={event => {
           keyboardOpen.current = false
           // Move focus into an embedded preview before Radix opens its menu.
@@ -95,10 +87,10 @@ export function HomeActions({ theme, variant, canEdit, canViewStats, preview, ed
         }} onKeyDownCapture={event => {
           if (['Enter', ' ', 'ArrowDown'].includes(event.key)) keyboardOpen.current = true
         }}>
-        {account ? <><AccountAvatar user={account}/><span className="home-account-name">{accountName}</span><ChevronDown size={14} aria-hidden="true"/></> : <SlidersHorizontal size={18} aria-hidden="true"/>}
+        <MoreHorizontal size={18} aria-hidden="true"/>
       </button></DropdownMenu.Trigger>
       <DropdownMenu.Portal container={trigger.current?.ownerDocument.body}>
-        <DropdownMenu.Content className="lh-home-actions-menu" aria-label={account ? t('账号与页面设置', 'Account and page options') : t('页面设置', 'Page options')} data-theme={theme} style={palette} align="end" sideOffset={8} collisionPadding={12}
+        <DropdownMenu.Content className="lh-home-actions-menu" aria-label={t('页面设置', 'Page options')} data-theme={theme} style={palette} align="end" sideOffset={8} collisionPadding={12}
           onFocusCapture={event => {
             const menu = event.currentTarget
             if (menu.ownerDocument === document || event.target !== menu || !keyboardOpen.current) return
@@ -132,16 +124,10 @@ export function HomeActions({ theme, variant, canEdit, canViewStats, preview, ed
             trigger.current.focus({ preventScroll: true })
             action()
           }}>
-          {account && onProfile && <>
-            <DropdownMenu.Item className="lh-home-actions-item lh-account-profile" aria-label={t('我的资料', 'My profile')} onSelect={() => closeThen(onProfile)}>
-              <AccountAvatar user={account}/><span><strong>{accountName}</strong><small>{t('我的资料', 'My profile')}</small></span>
-            </DropdownMenu.Item>
-            <DropdownMenu.Separator className="lh-home-actions-separator"/>
-          </>}
           {maintenance && <>
             {canViewStats && !contentEditing && <DropdownMenu.Item className="lh-home-actions-item lh-click-stats-trigger" onSelect={() => closeThen(onStatistics)}><BarChart3 size={16} aria-hidden="true"/><span>{t('点击统计', 'Click statistics')}</span></DropdownMenu.Item>}
             {canEdit && <DropdownMenu.Item className="lh-home-actions-item" disabled={busy || loadingContent} onSelect={() => closeThen(onLayout)}><LayoutGrid size={16} aria-hidden="true"/><span>{t('调整布局', 'Adjust layout')}</span></DropdownMenu.Item>}
-            <DropdownMenu.Item className="lh-home-actions-item" asChild><a href="#/admin" aria-label={managementLabel} onClick={event => navigate(event, '#/admin')}><Settings2 size={16} aria-hidden="true"/><span>{managementLabel}</span></a></DropdownMenu.Item>
+            {!user && <DropdownMenu.Item className="lh-home-actions-item" asChild><a href="#/admin" aria-label={managementLabel} onClick={event => navigate(event, '#/admin')}><Settings2 size={16} aria-hidden="true"/><span>{managementLabel}</span></a></DropdownMenu.Item>}
           </>}
           {browsing && <>
             {maintenance && <DropdownMenu.Separator className="lh-home-actions-separator"/>}
@@ -150,9 +136,12 @@ export function HomeActions({ theme, variant, canEdit, canViewStats, preview, ed
               <DropdownMenu.RadioItem className="lh-home-actions-item" value="directory" onSelect={event => event.preventDefault()}><List size={16} aria-hidden="true"/><span>{t('目录模式', 'Directory view')}</span><DropdownMenu.ItemIndicator className="lh-home-actions-check"><Check size={15} aria-hidden="true"/></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>
             </DropdownMenu.RadioGroup>
           </>}
-          {account && onLogout && <>
+          {browsing && (preview || !user) && <>
             <DropdownMenu.Separator className="lh-home-actions-separator"/>
-            <DropdownMenu.Item className="lh-home-actions-item lh-account-logout" onSelect={() => closeThen(onLogout)}><LogOut size={16} aria-hidden="true"/><span>{t('退出登录', 'Sign out')}</span></DropdownMenu.Item>
+            <DropdownMenu.CheckboxItem className="lh-home-actions-item lh-theme-trigger" checked={theme === 'dark'} aria-label={t('切换深浅色', 'Toggle light or dark')}
+              onSelect={event => event.preventDefault()} onCheckedChange={checked => onThemeChange(checked ? 'dark' : 'light')}>
+              <Moon size={16} aria-hidden="true"/><span>{t('深色外观', 'Dark appearance')}</span><DropdownMenu.ItemIndicator className="lh-home-actions-check"><Check size={15} aria-hidden="true"/></DropdownMenu.ItemIndicator>
+            </DropdownMenu.CheckboxItem>
           </>}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

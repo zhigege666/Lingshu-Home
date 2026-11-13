@@ -3,7 +3,8 @@ import { cachedInlineDraft } from '../core/navigation-inline'
 import { t, getLocale } from '../core/i18n'
 import { notifyRouteCommitted, requestNavigation, routeCommittedEvent } from '../core/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Compass, Download, Folder, KeyRound, Layers, Link2, Network, Pencil, Plus, RefreshCw, Search, Shield, SlidersHorizontal, Star, UserRound, Trash2, Upload, Users } from 'lucide-react'
+import { ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Compass, Download, Folder, KeyRound, Layers, Link2, MoreHorizontal, Network, Pencil, Plus, RefreshCw, Search, Shield, SlidersHorizontal, Star, UserRound, Trash2, Upload, Users } from 'lucide-react'
+import { DropdownMenu } from 'radix-ui'
 import { ApiError, downloadExport, messageOf, request } from '../core/api'
 import { safeHref } from '../core/presentation'
 import type { Bootstrap, Category, Dashboard, Dataset, NavigationData, NavLink } from '../core/types'
@@ -11,7 +12,8 @@ import { Button } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
 import { Input } from '../components/ui/input'
 import { StyledSelect } from '../components/ui/select'
-import { SpacePreferenceMenu } from '../components/SpacePreferenceMenu'
+import { AppHeader } from '../components/AppHeader'
+import HeaderSpaceSelect from '../components/HeaderSpaceSelect'
 import { FieldHelp } from '../components/FieldHelp'
 import AccountMenu from '../components/AccountMenu'
 import ProfilePanel from './ProfilePanel'
@@ -77,6 +79,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   const [linkSelection, setLinkSelection] = useState<{ snapshot: Dataset<NavigationData>; query: string; ids: Set<string> } | null>(null)
   const [bulkAction, setBulkAction] = useState<BulkLinkAction | null>(null), [bulkBusy, setBulkBusy] = useState(false)
   const bulkDeleteAnchor = useRef<HTMLButtonElement>(null), listFocus = useRef<HTMLButtonElement>(null), deleteRunning = useRef(false)
+  const listMenuAction = useRef<(() => void) | null>(null)
   const [pendingListFocus, setPendingListFocus] = useState(false)
   const navigationRequest = useRef<AbortController | null>(null), tableScroll = useRef<HTMLDivElement | null>(null)
   const spaceId = dashboard?.space.id, currentSpaceId = useRef(spaceId); currentSpaceId.current = spaceId
@@ -194,7 +197,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   useEffect(() => { if (tableScroll.current) tableScroll.current.scrollTop = 0 }, [current.id, currentPage, pageSize, normalizedQuery])
   useEffect(() => {
     if (!pendingListFocus || busy || bulkBusy || loading) return
-    // The shell's inert attribute and the refresh button's disabled state must
+    // The shell's inert attribute and the list action's disabled state must
     // already be removed by a React commit before the browser accepts focus.
     const frame = requestAnimationFrame(() => {
       const target = listFocus.current || document.getElementById('main-content')
@@ -211,7 +214,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
     else requestNavigation(proceed)
   }
   function startInlineEditing() { clearSelection(); setError(''); setInlineScope(contentScope) }
-  function endInlineEditing() { setInlineScope(null); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('[data-start-inline]')?.focus()) }
+  function endInlineEditing() { setInlineScope(null); focusListToolbar() }
   function changeQuery(value: string) { clearSelection(); setQuery(value); setPage(1) }
   function changePageSize(value: number) { setPageSize(value); setPage(1) }
   function focusListToolbar() { setPendingListFocus(true) }
@@ -263,15 +266,26 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
   function askDelete(type: 'links' | 'categories', id: string, title: string, anchor: HTMLButtonElement) { if (!canEditContent || !spaceId || deleteRunning.current || bulkBusy) return; if (deleting?.id === id && deleting.type === type) { setDeleting(null); return }; setBulkAction(null); setDeleteError(''); setDeleteStale(false); setDeleting({ type, id, title, anchor, spaceId }) }
   const contentTab = ['links', 'categories', 'bookmarks'].includes(current.id)
   const listTab = ['links', 'categories'].includes(current.id)
+  const showListActions = listTab && !!localDashboard && !(inlineEditing && canEditContent)
 
   return <div className="admin-ui admin-shell" inert={busy || bulkBusy}>
-    <header className="admin-topbar">
-      <a className="admin-brand" href="#/" onClick={event => { event.preventDefault(); onHome() }}><span className="admin-brand-mark"><ProjectLogo size={39}/></span><span>Lingshu<span className="admin-brand-light"> / Home</span></span></a>
-      <ModuleNav modules={bootstrap.modules} canViewWork={!!bootstrap.user && !!dashboard?.space.canEdit} spaceId={dashboard?.space.id} onHome={onHome}/>
-      <h1 className="admin-top-title" id="admin-page-title">{current.name}</h1><span className="grow"/>
-      {dashboard && <div className="admin-global-space"><span className="admin-global-space-label">{t('当前空间', 'Current space')}</span><StyledSelect className="lh-space-control" aria-label={t('当前空间', 'Current space')} value={dashboard.space.id} onValueChange={id => { if (id !== dashboard.space.id) requestNavigation(() => onSwitchSpace(id)) }} options={bootstrap.spaces.map(space => ({ value: space.id, label: `${space.name} · ${space.kind === 'personal' ? t('个人', 'Personal') : t('共享', 'Shared')}` }))}/><SpacePreferenceMenu bootstrap={bootstrap}/></div>}
-      {bootstrap.user ? <AccountMenu user={bootstrap.user} onProfile={() => selectTab('profile')} onLogout={() => requestNavigation(() => { void onLogout() })}/> : <Button variant="outline" size="sm" onClick={onLogin}>{t("管理员登录", "Administrator sign-in")}</Button>}
-    </header>
+    <AppHeader className="admin-topbar" brandClassName="admin-brand" siteName={bootstrap.siteName || 'Lingshu-Home'} onHome={onHome}
+      navigation={<ModuleNav modules={bootstrap.modules} canViewWork={!!bootstrap.user && !!dashboard?.space.canEdit} spaceId={dashboard?.space.id} onHome={onHome}/>}
+      context={<h1 className="admin-top-title" id="admin-page-title" title={current.name}>{current.name}</h1>}
+      search={showListActions && <label className="admin-search admin-header-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={current.id === 'links' ? t('搜索链接、标签、网址…', 'Search links, tags, URLs…') : t('搜索分类…', 'Search categories…')} aria-label={current.id === 'links' ? t('搜索链接列表', 'Search links') : t('搜索分类列表', 'Search categories')}/></label>}
+      actions={showListActions && <>
+        {canEditContent && <Button onClick={current.id === 'links' ? newLink : newCategory}><Plus size={16}/>{current.id === 'links' ? t('添加链接', 'Add link') : t('添加分类', 'Add category')}</Button>}
+        <DropdownMenu.Root modal={false}><DropdownMenu.Trigger asChild><Button ref={listFocus} variant="ghost" size="icon" aria-label={t('列表操作', 'List actions')}><MoreHorizontal size={18}/></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="admin-header-menu" align="end" sideOffset={8} collisionPadding={12}
+          onCloseAutoFocus={event => { const action = listMenuAction.current; listMenuAction.current = null; if (action) { event.preventDefault(); listFocus.current?.focus({ preventScroll: true }); action() } }}>
+          <DropdownMenu.Item className="admin-header-menu-item" disabled={loading} onSelect={() => { listMenuAction.current = () => { void loadNavigation() } }}><RefreshCw size={16}/>{t('刷新列表', 'Refresh list')}</DropdownMenu.Item>
+          {canEditContent && <DropdownMenu.Item className="admin-header-menu-item" data-start-inline onSelect={() => { listMenuAction.current = startInlineEditing }}><Pencil size={16}/>{t('编辑列表', 'Edit list')}</DropdownMenu.Item>}
+          {canEditContent && current.id === 'links' && <DropdownMenu.Item className="admin-header-menu-item" onSelect={() => { listMenuAction.current = importBookmarks }}><Upload size={16}/>{t('导入', 'Import')}</DropdownMenu.Item>}
+        </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+      </>}
+      utilities={<>
+        {dashboard && <HeaderSpaceSelect bootstrap={bootstrap} value={dashboard.space.id} disabled={busy || bulkBusy} onChange={id => { if (id !== dashboard.space.id) requestNavigation(() => onSwitchSpace(id)) }}/>}
+        {bootstrap.user ? <AccountMenu user={bootstrap.user} theme="light" onProfile={() => selectTab('profile')} onLogout={() => requestNavigation(() => { void onLogout() })}/> : <Button variant="outline" size="sm" onClick={onLogin}>{t('管理员登录', 'Administrator sign-in')}</Button>}
+      </>}/>
     <aside className="admin-sidebar">
       <nav aria-label={t('管理菜单', 'Administration menu')}>{[
         { label: t('内容管理', 'Content'), ids: ['links', 'categories', 'bookmarks'] },
@@ -289,7 +303,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
           setLocalSnapshot({ spaceId, identity, dataset })
           void onRefresh().catch(() => {})
         }}/> : current.id === 'links' && localDashboard ? <>
-          <div className="admin-content-toolbar"><div className="admin-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={t("搜索链接、标签、网址…", "Search links, tags, URLs…")} aria-label={t("搜索链接列表", "Search links")}/></div><span className="admin-muted admin-count">{t("{count} 个链接", "{count} links", { count: links.length })}</span><span className="grow"/><Button ref={listFocus} variant="outline" disabled={loading} onClick={() => { void loadNavigation() }} aria-label={t('刷新列表', 'Refresh list')}><RefreshCw size={15} className={loading ? 'admin-spin' : undefined}/>{t('刷新列表', 'Refresh list')}</Button>{localDashboard.space.canEdit && <><Button variant="outline" data-start-inline onClick={startInlineEditing}><Pencil size={15}/>{t("编辑列表", "Edit list")}</Button><Button variant="outline" onClick={importBookmarks}><Upload size={16}/>{t("导入", "Import")}</Button><Button onClick={newLink}><Plus size={16}/>{t("添加链接", "Add link")}</Button></>}</div>
+          <p className="admin-list-count" role="status">{t('{count} 个链接', '{count} links', { count: links.length })}</p>
           {!localDashboard.space.canEdit && <p className="admin-info">{t("当前共享空间只读。", "This shared space is read-only. ")}{bootstrap.user ? t("切换到个人空间可维护自己的导航。", "Switch to a personal space to manage your bookmarks.") : t("管理员登录后可以维护共享内容。", "Administrators can sign in to manage shared content.")}</p>}
           {canEditContent && links.length > 0 && <div className="admin-bulk-toolbar" aria-label={t('链接批量操作', 'Bulk link actions')}>
             <span className="admin-selection-count" role="status">{t('已选 {count} 个', '{count} selected', { count: selectedIds.size })}</span>
@@ -313,7 +327,7 @@ export default function AdminView({ bootstrap, dashboard, onHome, onLogin, onLog
           </TableRow>)}</TableBody></Table></div> : <Empty title={query ? t("没有找到匹配的链接", "No matching links") : t("暂无链接", "No links yet")} detail={query ? t("试试其他关键词。", "Try different keywords.") : canEditContent ? t("添加链接或导入浏览器书签。", "Add a link or import browser bookmarks.") : undefined}/>}
           <Pagination total={links.length} page={currentPage} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} label={t("链接", "Links")}/>
         </> : current.id === 'categories' && localDashboard ? <>
-          <div className="admin-content-toolbar"><div className="admin-search"><Search size={17}/><Input type="search" value={query} onChange={event => changeQuery(event.target.value)} placeholder={t("搜索分类…", "Search categories…")} aria-label={t("搜索分类列表", "Search categories")}/></div><span className="admin-muted admin-count">{t("{count} 个分类", "{count} categories", { count: filteredCategories.length })}</span><span className="grow"/>{localDashboard.space.canEdit && <><Button variant="outline" data-start-inline onClick={startInlineEditing}><Pencil size={15}/>{t("编辑列表", "Edit list")}</Button><Button ref={listFocus} onClick={newCategory}><Plus size={16}/>{t("添加分类", "Add category")}</Button></>}</div>
+          <p className="admin-list-count" role="status">{t('{count} 个分类', '{count} categories', { count: filteredCategories.length })}</p>
           {filteredCategories.length ? <div className="admin-table-scroll" ref={tableScroll} tabIndex={0} role="region" aria-label={t("分类列表", "Categories")}><Table className="admin-categories-table"><TableHeader><TableRow><TableHead>{t("分类", "Categories")}</TableHead><TableHead>{t("链接数", "Links")}</TableHead><TableHead>{t("排序", "Sort order")}</TableHead><TableHead className="admin-actions-cell">{t("操作", "Actions")}</TableHead></TableRow></TableHeader><TableBody>{filteredCategories.slice(pageStart, pageStart + pageSize).map(category => <TableRow key={category.id}>
             <TableCell><div className="admin-table-link"><span className="admin-link-icon"><BuiltinIcon name={category.icon}/></span><strong className="admin-category-path" title={categoryLabels.get(category.id)}>{categoryLabels.get(category.id)}</strong></div></TableCell><TableCell>{categoryCounts.get(category.id) || 0}</TableCell><TableCell>{category.sortOrder}</TableCell>
             <TableCell className="admin-actions-cell">{localDashboard.space.canEdit && <div className="admin-button-row"><Button variant="ghost" size="icon-sm" aria-label={t("编辑分类 {name}", "Edit category {name}", { name: category.name })} onClick={() => { setEditingCategory(category); setEditor('category') }}><Pencil size={15}/></Button><Button variant="ghost" size="icon-sm" aria-label={t("删除分类 {name}", "Delete category {name}", { name: category.name })} aria-haspopup="dialog" aria-expanded={deleting?.type === 'categories' && deleting.id === category.id} aria-controls={deleting?.type === 'categories' && deleting.id === category.id ? 'admin-confirm-delete' : undefined} onClick={event => askDelete('categories', category.id, category.name, event.currentTarget)}><Trash2 size={15}/></Button></div>}</TableCell>

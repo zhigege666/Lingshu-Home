@@ -1,8 +1,5 @@
 .admin-ui .admin-space-picker { display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: center; gap: 4px; }
 .admin-space-picker > .admin-field-label { grid-column: 1 / -1; }
-.lh-space-controls { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
-.lh-space-controls > .lh-space-control { flex: 1; min-width: 0; }
-.lh-home .lh-space-holder.has-preference { width: 188px; flex-basis: 188px; }
 .lh-space-preference-trigger { display: inline-flex; flex: 0 0 32px; align-items: center; justify-content: center; width: 32px; height: 36px; padding: 0; border: 1px solid var(--lh-line, #dce4dd); border-radius: 7px; color: var(--lh-muted, #52675a); background: var(--lh-surface, #fff); cursor: pointer; }
 .lh-home .lh-space-preference-trigger { border: 1px solid var(--lh-line); color: var(--lh-muted); }
 .lh-space-preference-trigger:hover, .lh-space-preference-trigger[data-state="open"] { color: var(--lh-accent, #36785c); background: var(--lh-soft, #f0f3ef); }
@@ -29,5 +26,3 @@
 .lh-space-preference-status, .lh-space-preference-error { flex-shrink: 0; margin: 0; font-size: 12px; overflow-wrap: anywhere; }
 .lh-space-preference-status { color: var(--preference-accent); }
 .lh-space-preference-error { color: var(--preference-error); }
-@media (max-width: 1280px) { .lh-home .lh-space-holder.has-preference { width: 153px; flex-basis: 153px; } }
-@media (max-width: 560px) { .lh-home .lh-space-holder.has-preference { width: 126px; flex-basis: 126px; } }

@@ -135,7 +135,16 @@ This is pagination of the authorized navigation snapshot already loaded by the b
 
 ### Homepage controls and scrolling
 
-The header exposes **Library**, **Board**, **Edit**, a sun/moon theme button and the avatar menu. Board is available to signed-in space editors; the other actions keep their existing access rules. Choose the current space beside the title. Open the avatar menu for **My profile**, **Click statistics**, **Adjust layout**, management, card/directory choices and sign-out. Available visitor controls remain reachable without an account. Use the arrow keys to navigate the menu and Escape to close it. There is no separate More or Refresh button; normal loading and saved-content updates still work. Card/directory remains a temporary presentation choice. The theme icon remembers light/dark in this browser for the current account and access mode. It does not change the saved page or other users' defaults; the layout preview continues to show its configured appearance.
+The following header arrangement is introduced in [0.2.2](../CHANGELOG.md#022---2026-11-13). Home, Library, Work and administration share the same order: brand, module navigation and current page/project on the left; search and page actions on the right; space selection, space preferences and the account menu at the end. Enabled modules and each action still follow the current access rules. Work requires a signed-in space editor.
+
+| Page | Header actions |
+| --- | --- |
+| Home | **Edit** and **Page options (More)**. Page options contains **Click statistics**, **Adjust layout** and the temporary **Card view / Directory view** choice when available. |
+| Library | Search, **New document**, then the library menu for directory management (Owner) and refresh. |
+| Work | Search, **Board / List**, **New item**, then the work actions menu. |
+| Administration lists | Search and **Add link / Add category**, then **List actions (More)** for **Refresh list**, **Edit list** and link import. Batch operations and form saves stay with the content they affect. |
+
+The account menu provides **My profile**, **Admin** where applicable and **Sign out**. On Home and Work, signed-in users can select **Dark appearance** here; visitors and layout previews use **Page options → Dark appearance**. Library and administration retain their light appearance. The viewing preference stays in this browser for the current account and access mode and does not change the saved page or other users' defaults. Layout previews keep their isolated appearance. Menus support arrow-key navigation and Escape, and navigation continues to protect unsaved drafts.
 
 The site header, enabled custom header and enabled footer stay in view while the central content scrolls. The same arrangement applies to content editing and layout preview; the layout editor uses its own toolbar. Existing Show header / Show footer settings still apply. Long custom text and editing feedback have their own scrolling area so the main content remains reachable.
 
@@ -152,11 +161,11 @@ The homepage **Edit** action opens a content draft for readers with maintenance 
 
 In edit mode, use **Add** to create a category or bookmark, or add a bookmark inside its category. New categories and links are drafts until Save. A draft accepts up to 500 creates, patches, moves and bookmark deletions combined. Imports, category deletion and bookmark usage notes retain their existing paths. Saved bookmark deletion removes its click statistics, alternate URLs and document relations, while document originals remain intact. Undo applies only before Save; this version has no recycle bin.
 
-Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **Account menu → Adjust layout**. Content editing does not save layout, theme or component placement.
+Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **Page options → Adjust layout**. Content editing does not save layout, theme or component placement.
 
 ### View click statistics
 
-Signed-in readers can choose **Account menu → Click statistics** on Home, choose the last 7/30/90 days or a custom UTC range, filter categories and sort by range clicks or last click. The table includes period/lifetime counts and last-click times, including zero-click links. Summaries cover the full filtered population, independently of pagination. Link inspectors read the same statistics.
+Signed-in readers can choose **Page options → Click statistics** on Home, choose the last 7/30/90 days or a custom UTC range, filter categories and sort by range clicks or last click. The table includes period/lifetime counts and last-click times, including zero-click links. Summaries cover the full filtered population, independently of pagination. Link inspectors read the same statistics.
 
 Counts represent recorded local bookmark activations from Home and (since 0.0.10) Library, including alternate entrances, keyboard Enter and modified/middle clicks; they are not proof of a successful destination load or unique visitors. Editing, previews, hover, probes and folder browsing do not count, and external snapshots are excluded. Reporting failures do not block navigation. Recording begins at the upgrade baseline; earlier usage is unknown and the first/current day may be partial. Categories describe current membership; deleting a link removes its counters.
 
@@ -190,7 +199,7 @@ On an editable homepage, the star button also updates a local link's favorite st
 
 ### Edit categories and links in their lists
 
-Choose **Edit list** in Category management or Link management. Edit category names, parents and sort order, or link names, primary URLs, categories, tags, sort order and favorites directly in rows. Both lists share an account/space-specific draft across pages. **Save all** commits up to 500 changed records together; any validation or revision failure leaves the whole batch unapplied.
+In Category management or Link management, choose **List actions (More) → Edit list** in the header. Edit category names, parents and sort order, or link names, primary URLs, categories, tags, sort order and favorites directly in rows. Both lists share an account/space-specific draft across pages. **Save all** commits up to 500 changed records together; any validation or revision failure leaves the whole batch unapplied.
 
 Use a row's **More settings** for icons, descriptions and additional URLs, then **Apply to draft** before the final save. These forms do not import an icon library or fetch website icons immediately. Untouched fields, including existing bookmark usage notes, stay intact; edit usage notes in the individual bookmark editor. While editing, rows retain their baseline order and search membership so a changed name or order does not move the focused row.
 
@@ -234,7 +243,7 @@ Under **Libraries**, choose a library, search its entries, inspect **Source and 
 
 ### Fetch a website icon
 
-**Site settings → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported website icons in the background. Choose **Refresh list** in link management or reload the homepage with the browser to display completed results. There is no automatic navigation polling loop.
+**Site settings → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported website icons in the background. Choose **List actions (More) → Refresh list** in Link management or reload the homepage with the browser to display completed results. There is no automatic navigation polling loop.
 
 The link form distinguishes automatic and manual modes. Selecting a built-in/library image, **Use default**, or an explicit fetched image makes the link manual, so background work cannot replace your choice. Choose automatic mode and save to opt a link in again. Existing links and the offline starter collection retain their original images after upgrade.
 
@@ -289,7 +298,7 @@ The page is composed from source bindings, components and placements. Changing l
 
 ### Edit directly on the homepage
 
-With edit permission, choose **Account menu → Adjust layout** on the homepage. The ordinary site header is replaced by a dedicated editing toolbar, so the workspace is available for composition:
+With edit permission, choose **Page options → Adjust layout** on the homepage. The ordinary site header is replaced by a dedicated editing toolbar, so the workspace is available for composition:
 
 | Part | Use |
 | --- | --- |
@@ -370,7 +379,7 @@ For exact X/Y, grid dimensions, region order or sticky behavior, the admin's **L
 
 ### Add document activity components
 
-In **Account menu → Adjust layout → Add → Document activity**, choose **Document heatmap**, **Heatmap and records** or **Document calendar**. Add any preset repeatedly and arrange it with the existing grid controls; the admin layout editor offers the same presets and settings. Existing pages are preserved until you explicitly add and save components.
+In **Page options → Adjust layout → Add → Document activity**, choose **Document heatmap**, **Heatmap and records** or **Document calendar**. Add any preset repeatedly and arrange it with the existing grid controls; the admin layout editor offers the same presets and settings. Existing pages are preserved until you explicitly add and save components.
 
 Each instance selects its own time range, directories, My edits/Library changes perspective, summary, recent records and time zone. Use an explicit **Date linking group** to share date selection; otherwise instances work independently, and a duplicate starts independent. Browsing dates/months and opened details is temporary. A day shows distinct documents changed that day and opens its records; available documents link to Library in their authorized space.
 
@@ -378,7 +387,7 @@ Activity requires a signed-in working-document reader. Public pages do not expos
 
 ### Adjust navigation and favorites content
 
-On the homepage, choose **Account menu → Adjust layout**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
+On the homepage, choose **Page options → Adjust layout**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
 
 | Control | Choices and default | Effect |
 | --- | --- | --- |
@@ -693,7 +702,7 @@ Open **Admin → Integrations** and add a data source before binding a calendar,
 
 For weather, choose a city shortcut or enter coordinates and an IANA timezone, then select the free non-commercial provider or the commercial provider with its API key as appropriate. Saving an enabled polling source queues collection; **Sync** queues another attempt. Its success/error status reports the actual result. The homepage's **Refresh data** reads stored data and does not force an upstream request. Disabling a source stops collection while preserving its last successful snapshot. Hiding a component only changes the page.
 
-In **Account menu → Adjust layout → Add**, add the compatible component, or choose **Import template** and paste an HTTP/HTTPS component URL / JSON (reachable LAN hosts and custom ports are supported since 0.0.4). Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
+In **Page options → Adjust layout → Add**, add the compatible component, or choose **Import template** and paste an HTTP/HTTPS component URL / JSON (reachable LAN hosts and custom ports are supported since 0.0.4). Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
 
 The complete data schemas, provider limits, replay/storage policy, supported template format and currently deferred connectors are in [COMPONENTS.md](COMPONENTS.md). Setup previews the website pack matching the saved instance language; leaving examples off starts with no bookmarks.
 
@@ -714,7 +723,7 @@ Select **Import a component template** in the homepage editor and enter a page o
 
 ## Start with a dashboard preset
 
-Open **Account menu → Adjust layout → Add → Dashboard presets**. **Personal overview** combines weather, an agenda and bookmarks. **Service operations** combines service status, resource metrics and operational links. **Data summary** combines two metric groups with optional GitHub Traffic and reference links. The layout preview uses component labels, without adding sample values or starting collection.
+Open **Page options → Adjust layout → Add → Dashboard presets**. **Personal overview** combines weather, an agenda and bookmarks. **Service operations** combines service status, resource metrics and operational links. **Data summary** combines two metric groups with optional GitHub Traffic and reference links. The layout preview uses component labels, without adding sample values or starting collection.
 
 For each selected component, choose an enabled source with its matching data format. A component marked **Needs a source** must be bound or deselected before applying. A source without a first snapshot is allowed and displays the usual waiting-for-data state. Bookmarks and favorites retain their existing compatible source, filters and interaction group; a new or changed source starts without the old source's filters. Selecting the same source for both metrics groups displays the complete group twice, and the dialog explains this.
 

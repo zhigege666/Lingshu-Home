@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { AlertCircle, Archive, ArchiveRestore, ArrowRight, BellDot, BookOpen, Check, Crosshair, Folder, GripVertical, LayoutDashboard, List, LogOut, MoreHorizontal, Moon, Pencil, Plus, RefreshCw, Search, Settings2, Sun, X } from 'lucide-react'
+import { AlertCircle, Archive, ArchiveRestore, ArrowRight, BellDot, BookOpen, Check, Crosshair, Folder, GripVertical, LayoutDashboard, List, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Settings2, X } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { ApiError, messageOf, request } from '../core/api'
 import { getLocale, t } from '../core/i18n'
 import { notifyRouteCommitted, requestNavigation } from '../core/navigation'
 import type { Bootstrap, Dashboard } from '../core/types'
 import { newWorkId, workPath, type WorkStatusContext, type WorkStatusDefinition, type WorkBoard, type WorkColumn, type WorkItem, type WorkPage, type WorkProject, type WorkSelection, type WorkStatus, type WorkSummary } from '../core/work-types'
-import { ProjectLogo } from '../components/ProjectLogo'
+import { AppHeader } from '../components/AppHeader'
+import HeaderSpaceSelect from '../components/HeaderSpaceSelect'
+import AccountMenu from '../components/AccountMenu'
 import { ModuleNav } from '../components/ModuleNav'
 import { WorkUpdatedTime } from './WorkUpdatedTime'
-import { SpacePreferenceMenu } from '../components/SpacePreferenceMenu'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { StyledSelect } from '../components/ui/select'
@@ -20,7 +21,7 @@ import StatusManager from './StatusManager'
 import { useBoardTheme, useWorkTheme, WorkThemeContext } from './work-theme'
 import './work.css'
 
-type Props = { bootstrap: Bootstrap; dashboard: Dashboard; route: string; onHome: () => void; onLibrary: () => void; onLogin: () => void; onLogout: () => Promise<void>; onSpaceChange: (id: string) => void; onNotice: (message: string) => void }
+type Props = { bootstrap: Bootstrap; dashboard: Dashboard; route: string; onHome: () => void; onLibrary: () => void; onProfile: () => void; onLogin: () => void; onLogout: () => Promise<void>; onSpaceChange: (id: string) => void; onNotice: (message: string) => void }
 function Menu({ item, statuses, disabled, onMove, onArchive }: { item: WorkSummary; statuses: WorkStatusDefinition[]; disabled: boolean; onMove: (status: WorkStatus) => void; onArchive: () => void }) {
   const theme = useWorkTheme()
   const later = useRef<(() => void) | null>(null)
@@ -41,7 +42,7 @@ function routeSelection(route: string): WorkSelection | null {
   return { id: newWorkId(), create: true, reference: id && (kind === 'bookmark' || kind === 'document') ? { kind, id, title: query.get('title') || '', available: true } : undefined }
 }
 
-export default function BoardView({ bootstrap, dashboard, route, onHome, onLibrary, onLogin, onLogout, onSpaceChange, onNotice }: Props) {
+export default function BoardView({ bootstrap, dashboard, route, onHome, onLibrary, onProfile, onLogin, onLogout, onSpaceChange, onNotice }: Props) {
   const { theme, setTheme } = useBoardTheme(bootstrap, dashboard)
   const space = dashboard.space, identity = `${bootstrap.user?.id || 'visitor'}:${space.id}`
   const moduleEnabled = bootstrap.modules?.work !== false
@@ -242,20 +243,16 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
   const total = board ? board.columns.reduce((sum, column) => sum + column.total, 0) : list?.total || 0
   const title = archived ? t('已归档事项', 'Archived items') : project?.name || (projectId ? t('正在读取项目…', 'Loading project…') : t('全部事项', 'All items'))
   return <WorkThemeContext.Provider value={theme}><div className={`admin-ui work-theme work-theme-${theme} work-shell ${selection ? 'has-detail' : ''}`} data-work-view={view} data-theme={theme}>
-    <header className="work-topbar">
-      <a className="work-brand" href="#/" onClick={event => { event.preventDefault(); requestNavigation(onHome) }}><ProjectLogo size={30}/><strong>{bootstrap.siteName || 'Lingshu-Home'}</strong></a>
-      <ModuleNav active="work" modules={bootstrap.modules} canViewWork={authorized} spaceId={space.id} onHome={onHome} onLibrary={onLibrary}/>
-      {authorized && <>
-        <div className="work-context-heading"><h1 title={title}>{title}</h1>{!loading && total > 0 && <span className="work-total" aria-label={t('共 {count} 个事项', '{count} items total', { count: total })}>{total}</span>}</div>
-        <div className="work-page-actions">
-          <label className="work-search"><Search size={17}/><Input type="search" value={query} onChange={event => { setFocusedItem(null); setRevealId(''); setQuery(event.target.value) }} aria-label={t('搜索事项', 'Search items')} placeholder={t('搜索事项', 'Search items')}/></label>
+    <AppHeader className="work-topbar" brandClassName="work-brand" siteName={bootstrap.siteName || 'Lingshu-Home'} onHome={onHome} theme={theme}
+      navigation={<ModuleNav active="work" modules={bootstrap.modules} canViewWork={authorized} spaceId={space.id} onHome={onHome} onLibrary={onLibrary}/>}
+      context={authorized && <div className="work-context-heading"><h1 title={title}>{title}</h1>{!loading && total > 0 && <span className="work-total" aria-label={t('共 {count} 个事项', '{count} items total', { count: total })}>{total}</span>}</div>}
+      search={authorized && <label className="work-search"><Search size={17}/><Input type="search" value={query} onChange={event => { setFocusedItem(null); setRevealId(''); setQuery(event.target.value) }} aria-label={t('搜索事项', 'Search items')} placeholder={t('搜索事项', 'Search items')}/></label>}
+      actionsClassName="work-page-actions" actions={authorized && <>
           <div className="work-view-toggle" role="group" aria-label={t('事项视图', 'Work view')}><button type="button" aria-pressed={view === 'board'} aria-label={t('看板', 'Board')} onClick={() => setView('board')}><LayoutDashboard size={15}/><span>{t('看板', 'Board')}</span></button><button type="button" aria-pressed={view === 'list'} aria-label={t('列表', 'List')} onClick={() => setView('list')}><List size={15}/><span>{t('列表', 'List')}</span></button></div>
           <Button data-work-new disabled={!canCreate} title={createUnavailable || undefined} aria-label={t('新建事项', 'New item')} onClick={() => create()}><Plus size={16}/><span>{t('新建事项', 'New item')}</span></Button>
           <BoardMenu disabled={!canEdit || busy} onManage={() => manageStatuses()} onReload={() => requestNavigation(reload)}/>
-        </div>
       </>}
-      <div className="work-account"><StyledSelect value={space.id} tone="home" theme={theme} disabled={busy} aria-label={t('选择空间', 'Choose a space')} onValueChange={id => requestNavigation(() => onSpaceChange(id))} options={bootstrap.spaces.map(item => ({ value: item.id, label: item.name }))}/><Button variant="ghost" size="icon" aria-label={t('切换深浅色', 'Toggle light or dark')} aria-pressed={theme === 'dark'} title={theme === 'dark' ? t('切换为浅色', 'Switch to light mode') : t('切换为深色', 'Switch to dark mode')} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</Button><SpacePreferenceMenu bootstrap={bootstrap} theme={theme} disabled={busy}/>{bootstrap.user && <Button variant="ghost" size="icon" aria-label={t('退出登录', 'Sign out')} onClick={() => requestNavigation(() => void onLogout())}><LogOut size={17}/></Button>}</div>
-    </header>
+      utilities={<><HeaderSpaceSelect bootstrap={bootstrap} value={space.id} theme={theme} disabled={busy} onChange={id => requestNavigation(() => onSpaceChange(id))}/>{bootstrap.user ? <AccountMenu user={bootstrap.user} theme={theme} onThemeChange={setTheme} onProfile={onProfile} onAdmin={() => requestNavigation(() => { window.location.hash = '/admin' })} onLogout={() => requestNavigation(() => { void onLogout() })}/> : <Button variant="outline" onClick={onLogin}>{t('登录', 'Sign in')}</Button>}</>}/>
     {authorized ? <>
       <aside className="work-sidebar" aria-label={t('事项筛选', 'Work filters')}>
         <nav className="work-quick-filters"><button className={!projectId && !archived && !attention && !focusedItem ? 'active' : ''} onClick={() => changeScope(() => { setProjectId(''); setAttention(false); setArchived(false) })}><LayoutDashboard size={18}/>{t('全部事项', 'All items')}</button><button className={attention ? 'active' : ''} aria-pressed={attention} onClick={() => changeScope(() => { setAttention(value => !value); setArchived(false) })}><BellDot size={18}/>{t('待我处理', 'Needs my attention')}</button></nav>

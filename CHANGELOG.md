@@ -4,6 +4,18 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-13
+
+### Unified application headers
+
+- **① User experience:** align Home, Library, Work and administration around one header. Keep the brand, module navigation and current context on the left; place search and page actions before the shared space/preferences/account controls on the right. Library creation and administration list search/add actions move into the header; secondary list actions use More, while bulk operations and form saves remain with their content. Home layout and click statistics use Page options. Home/Work appearance moves into the account menu; visitor and preview appearance stays in Page options. Library and administration remain light.
+- **② Developer experience:** reuse `AppHeader`, `HeaderSpaceSelect` and `AccountMenu`, with a 64 px desktop header, 24 px horizontal padding and a 32 px brand mark. Replace conflicting page-specific header rules while retaining custom page chrome, editor/preview behavior, permission checks and unsaved-draft navigation guards. Responsive layouts target 2560×1440, 1920×1080, 1600×900 and 2560×1080.
+- **③ AI Agent experience:** keep named search, page-action, space and account entrypoints consistent across screens. Existing HTTP/MCP contracts, authorization, tokens and data remain unchanged; this interface change introduces no migration or extra Skill requirement. Update both READMEs and user guides with the current menu paths.
+
+### Upgrade compatibility
+
+- Keep this compatible improvement in the 0.2.x line. Version 0.2.2 adds no database migration, HTTP/MCP schema change or required deployment setting over 0.2.1. Reuse the existing data, keys, mounts and configuration; the earlier migration and backup requirements still apply when upgrading from 0.2.0 or earlier.
+
 ## [0.2.1] - 2026-11-13
 
 ### Release versioning
