@@ -17,6 +17,12 @@ Pull requests and pushes to `main` run application CI. Ordinary application chan
 
 Creating or pushing a tag is a publishing decision. It is not part of an ordinary development build. The first application release uses `VERSION=0.0.1`, the dated `0.0.1` changelog entry and the matching `v0.0.1` tag. Earlier `0.1.0-dev.1` references identify development evidence, not a previously published application version.
 
+## 0.1.1 upgrade scope
+
+Version 0.1.1 adds account avatars through migration 013 on SQLite and PostgreSQL. Before replacing the program or image, keep a consistent backup of the complete database/data directory, matching keys and deployment configuration; back up mounted document originals separately. Returning to 0.1.0 or earlier requires that matching pre-upgrade restore set. An image-tag change or deleting migration records is not a rollback. No new mount or environment variable is required. See [storage and migration recovery](STORAGE.md) and the upgrade sections of both READMEs.
+
+Avatar metadata is always present in current user responses as `avatarUrl` and `avatarDigest`; both are empty strings when no image is set. The browser offers explicit upload, preview, save/cancel and removal, while the avatar endpoints remain current-account Cookie operations with CSRF and expected-digest checks for writes. Release verification must keep the public asset, exact-tag image and stable `latest` checks separate from the disposable candidate UI results recorded in [tests](../tests/README.md).
+
 ## Automated gates
 
 The release workflow calls the same CI used for the application:

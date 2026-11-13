@@ -14,7 +14,7 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 ### Personal avatars
 
 - Add image selection, preview, explicit save/cancel and avatar removal in My profile. Update the account avatar after a confirmed save and retain it across reload and sign-in; failed or conflicting saves keep the draft and existing stored image.
-- Add Cookie-authenticated current-account avatar GET/PUT/DELETE endpoints and optional avatar metadata in user responses. Mutations require CSRF and the expected image digest; reject PAT access, invalid images and stale replacements. Decode and normalize bounded PNG/JPEG uploads before atomic database storage.
+- Add Cookie-authenticated current-account avatar GET/PUT/DELETE endpoints and avatar metadata in user responses (empty strings when no avatar is set). Mutations require CSRF and the expected image digest; reject PAT access, invalid images and stale replacements. Decode and normalize bounded PNG/JPEG uploads before atomic database storage.
 - Keep existing display-name/password/session controls and HTTP/MCP work/navigation permissions. Avatars do not become space assets or public images, and no additional MCP tool or credential grant is required.
 
 ### Upgrade and rollback
