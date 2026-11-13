@@ -77,7 +77,7 @@ async function home(reload = false) {
   await page.waitForFunction(() => document.querySelectorAll('.lh-home .lh-bookmark').length > 0, null, { timeout: STEP }); await settle();
 }
 async function enter() {
-  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
+  await page.locator('.lh-home-menu-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   await editor().waitFor({ state: 'visible' }); await toolbar().waitFor({ state: 'visible' }); await settle();
 }
 async function cancel() {
@@ -259,9 +259,9 @@ async function saveOnce() {
     assert.deepEqual(records(await readNavigation()), records(originalNavigation));
     details.saved = { pageId: saved.id, initialRevision: originalPage.revision, savedRevision: saved.revision, addedViewId: newId, addedChromeItemId: newItems[0], configSha256: digest(saved.config), businessSha256: digest(records(originalNavigation)) };
     await noOverflow('Saved iOS 2K'); await capture('ios-saved-light-2k');
-    await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape'); await settle();
+    await page.keyboard.press('Escape'); await page.getByRole('button', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await settle();
     assert.equal(await page.locator('.lh-home').getAttribute('data-theme'), 'dark'); await capture('ios-saved-dark-2k');
-    assert.deepEqual(await readPage(), saved, 'Temporary viewing color control sends no second write');
+    assert.deepEqual(await readPage(), saved, 'Browser viewing color preference sends no second page write');
     await enter(); await capture('editor-saved-ios-2k'); await cancel();
   });
 }

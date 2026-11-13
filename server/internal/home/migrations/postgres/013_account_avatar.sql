@@ -1,0 +1,8 @@
+CREATE TABLE account_avatars (
+ user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ digest TEXT NOT NULL CHECK(length(digest)=64),
+ content BYTEA NOT NULL CHECK(length(content) BETWEEN 1 AND 262144),
+ width INTEGER NOT NULL CHECK(width BETWEEN 1 AND 512),
+ height INTEGER NOT NULL CHECK(height BETWEEN 1 AND 512),
+ updated_at TIMESTAMPTZ NOT NULL
+);

@@ -96,7 +96,7 @@ A successful manual selection in the current tab takes priority, including after
 | Space settings | Rename the current space; the Owner can manage shared-space public browsing |
 | Sources and MCP | Configure external sources and create or revoke your access tokens |
 | Site settings | Site name, access mode, registration, first-Owner creation when ownerless and Owner login-retention policy |
-| My profile | Change your display name/password and manage your signed-in browsers |
+| My profile | Maintain your avatar and display name/password, and manage your signed-in browsers |
 | Network settings | Automatic internal/external selection and the Owner-managed server proxy |
 | Member management | Create and manage Members; visible to an Owner in multi-user mode |
 | About Home | Check application/frontend versions and project information |
@@ -109,6 +109,10 @@ The admin uses a fixed-height workspace. Link/category tables scroll inside thei
 
 Open the account menu → **My profile** to change your display name; the sign-in username stays fixed. A password change needs the current password and a different new password of 10–128 characters. The current browser receives a new session using its permitted login mode; all prior browser sessions and API/MCP tokens for that account become invalid. Changing only the display name does not end sessions. Unsaved input is retained for conflict review, and leaving prompts you to save or discard it.
 
+In **My profile**, choose an avatar image and inspect the square preview before **Save avatar**. **Cancel** leaves the saved image unchanged; **Remove avatar** restores the name initials. Choose PNG, JPEG or WebP up to 2 MiB and 4,096 pixels per side. The browser centers and crops it to a PNG of at most 240 pixels per side; the server validates and stores the normalized image in your account. After saving, the avatar is used again on page reload and later sign-in. A failed upload retains the previous saved image. After a conflict or uncertain response, read and compare the current avatar before deciding whether to save the retained draft; the operation is not automatically retried. Save or cancel avatar changes before leaving or managing browser sessions.
+
+The avatar is private to the signed-in account. It is not added to a shared space's icon library, exported in navigation files or exposed through PAT/MCP. A complete database backup includes the image.
+
 Login, registration and account-creating setup offer **Login retention**. The initial default is remembering the browser for 30 idle days; the Owner can change the choices in **Site settings → Login retention**:
 
 | Choice | Behavior |
@@ -119,7 +123,7 @@ Login, registration and account-creating setup offer **Login retention**. The in
 
 Existing temporary sessions keep their old deadlines; sign in again to choose another mode. Tightening the idle limit shortens existing remembered sessions; later relaxing it does not restore their old duration. Disabling until-sign-out revokes those sessions and may sign out the current browser.
 
-In **My profile → Signed-in sessions**, revoke an individual browser, sign out other sessions or end this session. Save or cancel profile/password changes before doing so. Session revocation affects browser logins; separately issued API/MCP tokens remain valid until their own revocation, expiry or an account/security change. Device descriptions come from browser information and are not verified hardware identities.
+In **My profile → Signed-in sessions**, revoke an individual browser, sign out other sessions or end this session. Save or cancel avatar/profile/password changes before doing so. Session revocation affects browser logins; separately issued API/MCP tokens remain valid until their own revocation, expiry or an account/security change. Device descriptions come from browser information and are not verified hardware identities.
 
 ### Pagination and search
 
@@ -131,7 +135,7 @@ This is pagination of the authorized navigation snapshot already loaded by the b
 
 ### Homepage controls and scrolling
 
-The header keeps **Edit**, **More** and the account menu at the right. Choose the current space beside the title. **More** contains Library, Click statistics, Adjust layout, Refresh and display options according to your permissions; use the arrow keys to navigate and Escape to close it. Card/directory and light/dark switches remain temporary presentation choices.
+The header exposes **Library**, **Board**, **Edit**, a sun/moon theme button and the avatar menu. Board is available to signed-in space editors; the other actions keep their existing access rules. Choose the current space beside the title. Open the avatar menu for **My profile**, **Click statistics**, **Adjust layout**, management, card/directory choices and sign-out. Available visitor controls remain reachable without an account. Use the arrow keys to navigate the menu and Escape to close it. There is no separate More or Refresh button; normal loading and saved-content updates still work. Card/directory remains a temporary presentation choice. The theme icon remembers light/dark in this browser for the current account and access mode. It does not change the saved page or other users' defaults; the layout preview continues to show its configured appearance.
 
 The site header, enabled custom header and enabled footer stay in view while the central content scrolls. The same arrangement applies to content editing and layout preview; the layout editor uses its own toolbar. Existing Show header / Show footer settings still apply. Long custom text and editing feedback have their own scrolling area so the main content remains reachable.
 
@@ -148,11 +152,11 @@ The homepage **Edit** action opens a content draft for readers with maintenance 
 
 In edit mode, use **Add** to create a category or bookmark, or add a bookmark inside its category. New categories and links are drafts until Save. A draft accepts up to 500 creates, patches, moves and bookmark deletions combined. Imports, category deletion and bookmark usage notes retain their existing paths. Saved bookmark deletion removes its click statistics, alternate URLs and document relations, while document originals remain intact. Undo applies only before Save; this version has no recycle bin.
 
-Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **More → Adjust layout**. Content editing does not save layout, theme or component placement.
+Drafts are memory-only: reload/tab close can lose them; sign-out/account changes clear old private drafts. Handle unsaved changes before switching spaces or choosing **Account menu → Adjust layout**. Content editing does not save layout, theme or component placement.
 
 ### View click statistics
 
-Signed-in readers can choose **More → Click statistics** on Home, choose the last 7/30/90 days or a custom UTC range, filter categories and sort by range clicks or last click. The table includes period/lifetime counts and last-click times, including zero-click links. Summaries cover the full filtered population, independently of pagination. Link inspectors read the same statistics.
+Signed-in readers can choose **Account menu → Click statistics** on Home, choose the last 7/30/90 days or a custom UTC range, filter categories and sort by range clicks or last click. The table includes period/lifetime counts and last-click times, including zero-click links. Summaries cover the full filtered population, independently of pagination. Link inspectors read the same statistics.
 
 Counts represent recorded local bookmark activations from Home and (since 0.0.10) Library, including alternate entrances, keyboard Enter and modified/middle clicks; they are not proof of a successful destination load or unique visitors. Editing, previews, hover, probes and folder browsing do not count, and external snapshots are excluded. Reporting failures do not block navigation. Recording begins at the upgrade baseline; earlier usage is unknown and the first/current day may be partial. Categories describe current membership; deleting a link removes its counters.
 
@@ -230,7 +234,7 @@ Under **Libraries**, choose a library, search its entries, inspect **Source and 
 
 ### Fetch a website icon
 
-**Site settings → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported website icons in the background. Choose **Refresh list** in link management or **More → Refresh content** on a navigation-only homepage to display completed results. There is no automatic navigation polling loop.
+**Site settings → Automatically fetch website icons** defaults to on. New links and browser-bookmark imports use automatic mode: Home saves the bookmarks immediately, then fetches supported website icons in the background. Choose **Refresh list** in link management or reload the homepage with the browser to display completed results. There is no automatic navigation polling loop.
 
 The link form distinguishes automatic and manual modes. Selecting a built-in/library image, **Use default**, or an explicit fetched image makes the link manual, so background work cannot replace your choice. Choose automatic mode and save to opt a link in again. Existing links and the offline starter collection retain their original images after upgrade.
 
@@ -285,7 +289,7 @@ The page is composed from source bindings, components and placements. Changing l
 
 ### Edit directly on the homepage
 
-With edit permission, choose **More → Adjust layout** on the homepage. The ordinary site header is replaced by a dedicated editing toolbar, so the workspace is available for composition:
+With edit permission, choose **Account menu → Adjust layout** on the homepage. The ordinary site header is replaced by a dedicated editing toolbar, so the workspace is available for composition:
 
 | Part | Use |
 | --- | --- |
@@ -366,7 +370,7 @@ For exact X/Y, grid dimensions, region order or sticky behavior, the admin's **L
 
 ### Add document activity components
 
-In **More → Adjust layout → Add → Document activity**, choose **Document heatmap**, **Heatmap and records** or **Document calendar**. Add any preset repeatedly and arrange it with the existing grid controls; the admin layout editor offers the same presets and settings. Existing pages are preserved until you explicitly add and save components.
+In **Account menu → Adjust layout → Add → Document activity**, choose **Document heatmap**, **Heatmap and records** or **Document calendar**. Add any preset repeatedly and arrange it with the existing grid controls; the admin layout editor offers the same presets and settings. Existing pages are preserved until you explicitly add and save components.
 
 Each instance selects its own time range, directories, My edits/Library changes perspective, summary, recent records and time zone. Use an explicit **Date linking group** to share date selection; otherwise instances work independently, and a duplicate starts independent. Browsing dates/months and opened details is temporary. A day shows distinct documents changed that day and opens its records; available documents link to Library in their authorized space.
 
@@ -374,7 +378,7 @@ Activity requires a signed-in working-document reader. Public pages do not expos
 
 ### Adjust navigation and favorites content
 
-On the homepage, choose **More → Adjust layout**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
+On the homepage, choose **Account menu → Adjust layout**, select a **Bookmarks** or **Favorites** component on the canvas or under **Layers**, then open **Component content** in its properties. The admin provides the same controls under **Layout and theme → Panels and data → select the component → Component content**. These settings belong to that navigation or favorites instance; they do not change another component's content settings or its placement.
 
 | Control | Choices and default | Effect |
 | --- | --- | --- |
@@ -475,7 +479,9 @@ Homepage editing also preserves a conflicting draft. Record the intended changes
 
 | Action | Persistence |
 | --- | --- |
-| Ordinary homepage search, category selection, card/directory and color buttons | Temporary viewing state; no page write or upstream synchronization |
+| Ordinary homepage search, category selection and card/directory choices | Temporary viewing state; no page write or upstream synchronization |
+| Homepage light/dark icon | Current-browser preference, scoped to account and access mode; no shared-page write |
+| My profile avatar save/removal | Current-account database change after explicit confirmation; selecting an image or Cancel does not change the saved avatar |
 | Ordinary category panel/branch folding | Browser-tab preference, scoped to page and component |
 | Homepage content additions, field edits, moves and bookmark deletions | One in-memory draft until **Save** commits atomically; Undo/Redo and Cancel apply before saving |
 | Component/theme/chrome changes, **Fit content** or whole-category folding in the editable canvas | In-memory page draft until **Save page** |
@@ -486,7 +492,7 @@ Homepage editing also preserves a conflicting draft. Record the intended changes
 | Choose an icon in a link/category form | Form draft until that link/category is saved |
 | Import/delete an icon library or fetch a website icon | Immediate space-scoped library/cache write; canceling the link/category form does not roll it back |
 
-To make an appearance choice the default for visitors, change it in an editor and save the page. Refreshing starts from saved appearance; ordinary browsing does not clear the tab's category-folding preference.
+To make an appearance choice the default for visitors, change it in an editor and save the page. Refreshing retains this browser's explicit light/dark preference; without one, the saved page appearance applies. The layout preview always follows its page draft. Ordinary browsing does not clear the tab's category-folding preference.
 
 ## 6. Configure category navigation
 
@@ -587,6 +593,8 @@ Custom icon images, library metadata, website caches, the automatic switch and p
 
 Version 0.0.7 adds migration 011 for link click statistics; 0.0.8 and 0.0.9 add no further migration. An upgrade from 0.0.8 to 0.0.9 retains the existing data, storage selection, document roots/mounts, publication choices, keys, click recording baseline and HTTP/TLS configuration. Earlier versions apply only their missing existing migrations. Refresh MCP discovery/publication after updating the service; no new deployment variable is required.
 
+Version 0.1.0 adds work-board migration 012; 0.1.1 adds private-account-avatar migration 013 for SQLite and PostgreSQL. Stop and back up the complete database/data and matching keys before upgrading, and retain external document backups separately. Reuse the same database, data directory, mounts and configuration. Returning from 0.1.1 to 0.1.0 requires restoring its matching pre-013 backup; an image downgrade alone cannot open the newer database. See [avatar storage and rollback](STORAGE.md#account-avatar-migration-013-011).
+
 The README image command uses the **`lingshu-home-data`** named volume; source Compose uses its project-scoped **`home-data`** volume. Retain the original volume and Compose project identity when restarting or replacing a container. Switching installation methods does not transfer data automatically. For a Linux release, reuse the original `--data-dir` instead of a new empty `data/` beneath the next version directory. Removing a volume discards persistent data; do not use volume-removal commands as a restart procedure. Keep exports, full backups and credential files private.
 
 ### Restart and check the service
@@ -685,7 +693,7 @@ Open **Admin → Integrations** and add a data source before binding a calendar,
 
 For weather, choose a city shortcut or enter coordinates and an IANA timezone, then select the free non-commercial provider or the commercial provider with its API key as appropriate. Saving an enabled polling source queues collection; **Sync** queues another attempt. Its success/error status reports the actual result. The homepage's **Refresh data** reads stored data and does not force an upstream request. Disabling a source stops collection while preserving its last successful snapshot. Hiding a component only changes the page.
 
-In **More → Adjust layout → Add**, add the compatible component, or choose **Import template** and paste an HTTP/HTTPS component URL / JSON (reachable LAN hosts and custom ports are supported since 0.0.4). Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
+In **Account menu → Adjust layout → Add**, add the compatible component, or choose **Import template** and paste an HTTP/HTTPS component URL / JSON (reachable LAN hosts and custom ports are supported since 0.0.4). Review its renderer, version, license and source before selecting a local data source. Apply it to the draft, arrange it and use **Save page**. Cancel/restore/leave prompts preserve an unsaved draft until you explicitly discard it. A normal webpage without a supported manifest cannot be imported as executable code.
 
 The complete data schemas, provider limits, replay/storage policy, supported template format and currently deferred connectors are in [COMPONENTS.md](COMPONENTS.md). Setup previews the website pack matching the saved instance language; leaving examples off starts with no bookmarks.
 
@@ -706,7 +714,7 @@ Select **Import a component template** in the homepage editor and enter a page o
 
 ## Start with a dashboard preset
 
-Open **More → Adjust layout → Add → Dashboard presets**. **Personal overview** combines weather, an agenda and bookmarks. **Service operations** combines service status, resource metrics and operational links. **Data summary** combines two metric groups with optional GitHub Traffic and reference links. The layout preview uses component labels, without adding sample values or starting collection.
+Open **Account menu → Adjust layout → Add → Dashboard presets**. **Personal overview** combines weather, an agenda and bookmarks. **Service operations** combines service status, resource metrics and operational links. **Data summary** combines two metric groups with optional GitHub Traffic and reference links. The layout preview uses component labels, without adding sample values or starting collection.
 
 For each selected component, choose an enabled source with its matching data format. A component marked **Needs a source** must be bound or deselected before applying. A source without a first snapshot is allowed and displays the usual waiting-for-data state. Bookmarks and favorites retain their existing compatible source, filters and interaction group; a new or changed source starts without the old source's filters. Selecting the same source for both metrics groups displays the complete group twice, and the dialog explains this.
 

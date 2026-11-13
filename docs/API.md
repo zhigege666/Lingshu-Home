@@ -1,6 +1,6 @@
 # API and integration reference
 
-Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.0.6 Go implementation in `server/`, including storage selection, browser-session policy, profiles, atomic navigation editing, category folders, the file-backed library, direct HTTPS and document activity. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
+Lingshu-Home serves the built frontend and its API from one origin. This document describes the 0.1.1 Go implementation in `server/`, including storage selection, browser-session policy, profiles and private avatars, atomic navigation editing, the work board, the file-backed library, direct HTTPS and document activity. Product versions are read from `VERSION`; API, page, export and dataset schema versions evolve independently.
 
 ## Storage bootstrap API
 
@@ -120,11 +120,27 @@ Published 0.0.1 reads language from each process startup, defaults to `zh-CN`, a
 
 ## Personal profile API
 
-`PUT /api/v1/account/profile` accepts `{displayName,expectedDisplayName}` for the current Cookie-authenticated user. The name must contain 1–80 characters after trimming. The expected value is the exact name originally read; a mismatch returns `409 profile_version_conflict`. Success returns the existing public user shape. Username, role, account enablement and security version cannot be changed through this endpoint. Renaming does not invalidate sessions or access tokens.
+`PUT /api/v1/account/profile` accepts `{displayName,expectedDisplayName}` for the current Cookie-authenticated user. The name must contain 1–80 characters after trimming. The expected value is the exact name originally read; a mismatch returns `409 profile_version_conflict`. Success returns the user profile shape, including the current account's avatar metadata when present. Username, role, account enablement and security version cannot be changed through this endpoint. Renaming does not invalidate sessions or access tokens.
 
 `PUT /api/v1/account/password` accepts `{currentPassword,newPassword}`. It verifies the current password, validates a different new password with the existing 10–128 character policy, and preserves meaningful leading/trailing spaces. Incorrect current password returns `400 current_password_incorrect`. The transaction updates the password/security version, revokes old sessions and establishes a new session for this browser; existing PAT/MCP tokens become invalid through the user security-version check. Success is `{"success":true}`. Read `GET /bootstrap` again to refresh CSRF state before another write.
 
 Both endpoints require a valid browser session and CSRF token; PATs and anonymous users cannot use them. Password changes share the existing authentication limit of 20 attempts per direct remote IP per minute. Failed handlers or transaction commits do not send newly issued cookies. Responses never contain password hashes. These endpoints use existing columns and add no SQL migration. Password changes now retain the current permitted login mode; see the [session-retention contract](#browser-session-retention) below.
+
+## Personal avatar API
+
+Version 0.1.1 adds a private avatar for the current browser account. User responses include `avatarUrl` and `avatarDigest`; an account without an avatar uses empty strings. `avatarDigest` is the SHA-256 digest of the stored normalized image and is the expected value for mutations. The frontend uses name initials when no image is present or rendering fails.
+
+| Endpoint | Request and behavior |
+| --- | --- |
+| `PUT /api/v1/account/avatar` | JSON `{mediaType,dataBase64,expectedAvatar}`. `mediaType` is `image/png` or `image/jpeg`; `dataBase64` contains image bytes, without a data-URL prefix. `expectedAvatar` is the last read digest, or `""` when absent. Success returns the updated `User`. |
+| `DELETE /api/v1/account/avatar` | JSON `{expectedAvatar}`. Remove the current account's avatar after the same expected-value check; an absent avatar with `expectedAvatar:""` is an idempotent success. Success returns the updated `User` with empty avatar fields. |
+| `GET /api/v1/account/avatar?digest=<sha256>` | Read the current account's stored PNG only when the digest matches. A stale or missing image returns 404. Use `avatarUrl` from the user response instead of constructing another user's image path. |
+
+All three endpoints require the current authenticated Cookie session and reject PATs. PUT and DELETE also require the normal CSRF token. There is no caller-supplied user ID, space ID, remote image URL or public image route. A digest is a revision value, not an authorization credential, and the same digest cannot grant access to another account.
+
+The service accepts 1–262,144 decoded image bytes with dimensions of 1–512 pixels per side. It checks that the actual PNG/JPEG format matches `mediaType`, fully decodes and re-encodes the image as PNG, requires that result to remain within 262,144 bytes, and stores it in the same database transaction as the replacement. Larger dimensions are rejected rather than resized by this endpoint. Invalid or oversized input leaves the previous image unchanged. A changed `expectedAvatar` returns `409 avatar_version_conflict`. Read back the current profile after a conflict or uncertain response; do not blindly replay a replacement using a newly read digest. The browser accepts PNG/JPEG/WebP up to 2 MiB and 4,096 pixels per side, then centers and crops it to a PNG of at most 240 pixels per side before this request.
+
+Image responses use `Cache-Control: private, no-cache`, `Vary: Cookie, Authorization` and the current digest as their ETag. Conditional requests recheck the current session, account ownership, image existence and digest before returning 304. Responses also send `X-Content-Type-Options: nosniff`, same-origin resource policy and a sandbox CSP; they are not public profile assets. Saves do not alter the display name, password, roles, sessions, access tokens, space permissions or page configuration. No MCP avatar operation or new PAT action is added. Migration `013_account_avatar.sql` stores one private image per account; see [storage and rollback](STORAGE.md#account-avatar-migration-013-011).
 
 ## Browser session retention
 
@@ -429,6 +445,8 @@ Both bundled page themes accept Schema 2, the regions-grid layout, all built-in 
 | `builtin/dashboard` | Classic | `icon-text` |
 | `builtin/ios` | iOS inspired | `app-icons` |
 
+The ordinary homepage sun/moon control stores a browser preference scoped to the current account and access mode; it does not call the page-write API, change `config.appearance.colorMode` or override layout previews. The saved page appearance is used when no browser preference exists.
+
 The theme-switch operation replaces only `config.pageTheme.id`. It retains component IDs and settings, bindings, data projections, base/narrow placements and locks, appearance and custom chrome. A theme does not write or reset navigation records. Admin, setup, authentication and the editor's controls are host interfaces; a homepage theme does not replace them.
 
 `builtin/navigation` and `builtin/favorites` independently accept optional `settings.linkAppearance`:
@@ -461,7 +479,7 @@ Each `builtin/navigation` or `builtin/favorites` view accepts the following opti
 
 This content-setting group is available only for navigation and favorites. Category navigation retains its separate `showCounts` setting described below; the other content keys are not accepted on that panel, search or unrelated panels. The current page Schema 2 and database schema remain unchanged.
 
-The homepage path is **More → Adjust layout → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
+The homepage path is **Account menu → Adjust layout → select Bookmarks/Favorites → Component content**. Admin exposes the same controls under **Layout and theme → Panels and data → select the component → Component content**. Changes immediately update the in-memory draft and canvas/preview, enter the existing Undo/Redo history, and persist only through the explicit revision-checked **Save page** PUT. There is no separate write endpoint for these controls, and they do not modify navigation records.
 
 ### Category folder presentation
 

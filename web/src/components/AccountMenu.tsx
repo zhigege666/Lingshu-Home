@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { DropdownMenu } from 'radix-ui'
 import { ChevronDown, LogOut, UserRound } from 'lucide-react'
 import type { User } from '../core/types'
@@ -7,11 +8,19 @@ import './account-profile.css'
 export function accountInitials(user: User) {
   return Array.from(user.displayName.trim() || user.username).slice(0, 2).join('').toUpperCase()
 }
+/** Keep all account surfaces in sync, with initials when an image is unavailable. */
+export function AccountAvatar({ user, className = 'home-account-avatar' }: { user: User; className?: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const url = user.avatarUrl || ''
+  return <span className={className} aria-hidden="true">{url && failedUrl !== url
+    ? <img src={url} alt="" onError={() => setFailedUrl(url)}/>
+    : accountInitials(user)}</span>
+}
 export default function AccountMenu({ user, onProfile, onLogout }: { user: User; onProfile: () => void; onLogout: () => void }) {
   const name = user.displayName || user.username
   return <DropdownMenu.Root><DropdownMenu.Trigger asChild>
     <button type="button" className="home-account-trigger" aria-label={t('账号菜单：{name}', 'Account menu: {name}', { name })}>
-      <span className="home-account-avatar" aria-hidden="true">{accountInitials(user)}</span><span className="home-account-name">{name}</span><ChevronDown size={14} aria-hidden="true"/>
+      <AccountAvatar user={user}/><span className="home-account-name">{name}</span><ChevronDown size={14} aria-hidden="true"/>
     </button>
   </DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="home-account-menu" align="end" sideOffset={8} collisionPadding={12}>
     <DropdownMenu.Label className="home-account-menu-identity"><strong>{name}</strong><span>@{user.username}</span></DropdownMenu.Label>

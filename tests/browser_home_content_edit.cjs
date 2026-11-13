@@ -130,7 +130,7 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
         await page.mouse.move(x, y, { steps: 12 }); await page.mouse.move(x + 1, y);
       } finally { await page.mouse.up(); }
     }
-    async function layoutMenu() { await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); }
+    async function layoutMenu() { await page.locator('.lh-home-menu-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); }
     async function snapshot(name) { const file = provider + '-' + name + '.png'; await page.screenshot({ path: path.join(OUT, file), animations: 'disabled' }); report.screenshots.push(file); }
     await home();
     let newCategoryName = prefix + ' renamed', newTitle = prefix + ' edited link', newURL = 'https://example.invalid/edited/' + provider;
@@ -242,7 +242,9 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       assert.equal(await card(links[0].id).locator('.lh-bookmark-title').innerText(), newTitle, 'Exit exposed stale pre-save dashboard');
       assert.equal(posts(), count + 1, 'Refresh failure repeated the committed save');
       const refresh = page.waitForResponse(value => new URL(value.url()).pathname === '/api/v1/dashboard' && value.ok());
-      await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('刷新内容', 'Refresh content'), exact: true }).click(); await refresh;
+      await page.reload({ waitUntil: 'domcontentloaded' }); await refresh;
+      await card(links[0].id).waitFor();
+      assert.equal(await card(links[0].id).locator('.lh-bookmark-title').innerText(), newTitle, 'Browser reload lost the confirmed saved title');
       assert.equal(posts(), count + 1);
     });
     await check(provider + '/leave_guard_cancel_discard_and_save_into_existing_layout_editor', async () => {
@@ -360,14 +362,14 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       await button('关闭书签文件夹', 'Close bookmark folder', folder).click();
       await button('撤销内容修改', 'Undo content edit', toolbar()).click();
       await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
-      await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape');
+      await page.keyboard.press('Escape'); await page.getByRole('button', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click();
       await page.locator('.lh-home[data-theme=dark]').waitFor(); await start(); await editLink(links[0].id);
       await details().locator('.lh-content-delete-action').click(); await deleteConfirm().waitFor();
       assert.equal(await deleteConfirm().evaluate(node => getComputedStyle(node).backgroundColor), await details().evaluate(node => getComputedStyle(node).backgroundColor), 'Delete confirmation does not inherit the homepage theme');
       assert.equal(await button('保留', 'Keep', deleteConfirm()).evaluate(node => getComputedStyle(node).backgroundColor), await details().evaluate(node => getComputedStyle(node).backgroundColor), 'Keep button stays light in dark mode');
       await snapshot('delete-confirm-dark'); await button('保留', 'Keep', deleteConfirm()).click();
       await closeDetails(); await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
-      await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape');
+      await page.keyboard.press('Escape'); await page.getByRole('button', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click();
       await page.locator('.lh-home[data-theme=light]').waitFor();
     });
     await check(provider + '/four_desktops_and_dark_edit_panel_geometry', async () => {
@@ -389,7 +391,7 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
         await button('保留', 'Keep', deleteConfirm()).click();
       }
       await closeDetails(); await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
-      await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click(); await page.keyboard.press('Escape');
+      await page.keyboard.press('Escape'); await page.getByRole('button', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).click();
       await page.locator('.lh-home[data-theme=dark]').waitFor(); await start(); await editLink(links[0].id); await snapshot('content-dark-2560x1080');
       await closeDetails(); await button('取消', 'Cancel', toolbar()).click(); await toolbar().waitFor({ state: 'hidden' });
     });
@@ -403,8 +405,8 @@ function insertBefore(order, id, beforeId) { const next = order.filter(value => 
       const tab = await reader.newPage(); tab.setDefaultTimeout(15000); tab.on('pageerror', error => report.errors.push(scrub(error.message)));
       await tab.goto(BASE + '/#/'); await tab.locator('.lh-home').waitFor(); await shared(tab, reader);
       assert.equal(await tab.locator('.lh-edit-trigger,.lh-nav-drag-handle,.lh-content-delete-link,.lh-content-toolbar').count(), 0);
-      await tab.locator('.lh-more-trigger').click();
-      assert.equal(await tab.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).count(), 0, 'A read-only space exposes layout editing in More');
+      await tab.locator('.lh-home-menu-trigger').click();
+      assert.equal(await tab.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).count(), 0, 'A read-only space exposes layout editing in its account/page menu');
       assert.equal(await tab.getByRole('menuitem', { name: l('点击统计', 'Click statistics'), exact: true }).count(), state.user ? 1 : 0, 'Statistics visibility does not match the reader identity');
       await tab.keyboard.press('Escape');
       const before = await nav(); await api(batchPath, 'POST', { expectedRevision: before.revision, links: [{ id: links[0].id, patch: { title: 'Forbidden' } }] }, initial.mode === 'private_multi' ? 403 : 401, reader); assert.equal((await nav()).revision, before.revision);

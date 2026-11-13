@@ -135,13 +135,14 @@ func (a *App) loadSettings(ctx context.Context, q Queryer) (Settings, error) {
 	return s, err
 }
 
-const userColumns = "id,username,display_name,role,is_enabled,password_hash,version"
+const userColumns = "id,username,display_name,role,is_enabled,password_hash,version,COALESCE((SELECT digest FROM account_avatars WHERE user_id=users.id),'')"
 
 func scanUser(row interface{ Scan(...any) error }) (*User, error) {
 	u := &User{}
-	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.IsEnabled, &u.PasswordHash, &u.Version); err != nil {
+	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.IsEnabled, &u.PasswordHash, &u.Version, &u.AvatarDigest); err != nil {
 		return nil, err
 	}
+	u.AvatarURL = accountAvatarURL(u.AvatarDigest)
 	return u, nil
 }
 

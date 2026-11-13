@@ -1,8 +1,8 @@
 # Storage, migration and recovery
 
-The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Version 0.0.6 application and Docker artifacts target Linux amd64 (x86-64). Browser access from Windows or macOS does not imply a native desktop client has been delivered.
+The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Version 0.1.1 application and Docker artifacts target Linux amd64 (x86-64). Browser access from Windows or macOS does not imply a native desktop client has been delivered.
 
-Version **0.0.2** introduced persisted instance language and migration **007**; **0.0.5** added the document library in **008**. Version **0.0.6** adds document activity in **009** and browser-session retention in **010**, applied automatically on first startup. Follow the upgrade and restore rules below for each schema boundary; replacing the executable alone does not downgrade a database.
+Version **0.0.2** introduced persisted instance language and migration **007**; **0.0.5** added the document library in **008**. Version **0.0.6** adds document activity in **009** and browser-session retention in **010**, applied automatically on first startup. Version **0.0.7** adds click statistics in **011**, **0.1.0** adds work items in **012**, and **0.1.1** adds private account avatars in **013**. Follow the upgrade and restore rules below for each schema boundary; replacing the executable alone does not downgrade a database.
 
 ## First-run storage setup
 
@@ -114,6 +114,9 @@ Migration files are embedded from `server/internal/home/migrations/sqlite/` and 
 | `008_document_library.sql` (0.0.5) | Bookmark usage notes, registered document directories, stable document IDs, metadata/search caches and explicit publication/attachment snapshots |
 | `009_document_activity.sql` (0.0.6) | Directory recording baselines and persistent, indexed document activity events; existing files are not backfilled as edits |
 | `010_session_retention.sql` (0.0.6) | Versioned Owner session policy, remembered/until-sign-out modes, browser-session activity timestamps and device descriptions |
+| `011_link_clicks.sql` (0.0.7) | Link click counters, daily aggregates and bounded idempotency receipts |
+| `012_work_board.sql` (0.1.0) | Space-scoped projects, work items, resource references, revisions and indexes |
+| `013_account_avatar.sql` (0.1.1) | One private normalized avatar and digest per account, backed by the selected database |
 
 Migration 003 is additive for SQLite and PostgreSQL. Image bytes use SQLite BLOB / PostgreSQL BYTEA; normalized hashes and pack entries are scoped to a space. It does not rewrite existing links, category ownership, pages or access modes. The new homepage themes and visual editor continue to use page Schema 2 and do not need a separate database migration.
 
@@ -262,3 +265,11 @@ Both SQLite and PostgreSQL apply 012_work_board.sql using the existing migration
 Before upgrading, stop writes and take a complete consistent database/data backup, including external PostgreSQL when configured and local instance keys. Back up mounted originals separately. Returning to 0.0.11 or earlier requires stopping 0.1.0, retaining newer work separately and restoring matching pre-012 data before starting the old image. Do not remove ledger rows or manually drop tables.
 
 Work data has no anonymous publication mode. The [work board guide](WORK_ITEMS.md) documents space-editor permissions, references, archive behavior and Agent operations.
+
+## Account avatar migration 013 (0.1.1)
+
+Both providers apply additive `013_account_avatar.sql` through the existing transaction and migration-ledger rules. The account avatar table stores a bounded normalized PNG and its digest for each user, using SQLite BLOB or PostgreSQL BYTEA. It does not reuse space-scoped icon assets or publish account images. Existing users start without an uploaded avatar and keep their name initials; accounts, sessions, navigation, documents, work items, page configuration and click history are unchanged.
+
+The complete database backup includes avatars. Navigation JSON/HTML exports do not. No upload directory, volume, service, key file or environment variable is added. Keep the original data directory, provider, keys, storage selection, runtime identity and deployment configuration. Avatar writes replace or remove the stored image atomically after validating the previous digest; a failed write leaves the saved image intact.
+
+Before upgrading, stop Home and preserve a complete database/data backup and matching local keys and configuration, with mounted originals backed up separately. A 0.1.0 or earlier binary refuses a database with migration 013. To roll back, stop the newer process, retain any newer data separately, restore the matching pre-013 backup and start the matching older image. For an older target, restore a backup compatible with its migration set. Do not remove migration records or drop the avatar table to simulate a downgrade.

@@ -19,7 +19,6 @@ import { validatePageChrome } from '../core/chrome-validation';
 import { panelLocked, panelTitle, type ComposerSource, type HomeSelection } from './composition';
 import { getLocale, t } from '../core/i18n';
 import { ProjectLogo } from '../components/ProjectLogo';
-import AccountMenu from '../components/AccountMenu';
 import { HomeEnvironment } from './HomeEnvironment';
 import { DocumentActivityProvider } from './DocumentActivityProvider';
 import { useHomeEndpointRouting } from './useEndpointRouting';
@@ -70,6 +69,11 @@ function readCategoryCollapses(pageId: string): Record<string, boolean> {
   } catch { return {}; }
 }
 
+function readViewerColor(identity: string): 'light' | 'dark' | null {
+  try { const value = localStorage.getItem(`lingshu-home:color:${identity}`); return value === 'light' || value === 'dark' ? value : null; }
+  catch { return null; }
+}
+
 export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, onSpaceChange, onLogout, onProfile, preview = false, viewportWindow }: HomeProps) {
   const ownerWindow = viewportWindow || (typeof window === 'undefined' ? undefined : window);
   const viewportNarrow = useMedia('(max-width: 900px)', ownerWindow);
@@ -91,9 +95,8 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
   const currentContext = useRef(editContext); currentContext.current = editContext;
   const [filters, setFilters] = useState<Record<string, NavigationFilter>>({});
   const [temporaryVariant, setTemporaryVariant] = useState<'cards' | 'directory' | null>(null);
-  const [temporaryColor, setTemporaryColor] = useState<'light' | 'dark' | null>(null);
+  const [temporaryColor, setTemporaryColor] = useState<'light' | 'dark' | null>(() => preview ? null : readViewerColor(identity));
   const [busy, setBusy] = useState(false);
-  const [refreshingData, setRefreshingData] = useState(false);
   const dataRefreshRunning = useRef(false), lastDataRead = useRef(Date.now());
   const saving = useRef(false);
   const favoriting = useRef(false);
@@ -155,7 +158,12 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
   });
   const chrome = useMemo(() => readPageChrome(config.chrome), [config.chrome]);
   const color = temporaryColor || (config.appearance.colorMode === 'system' ? (systemDark ? 'dark' : 'light') : config.appearance.colorMode);
-  useEffect(() => { setDraft(null); setSelection({ kind: 'page' }); setEditorPreview(false); setFilters({}); setTemporaryVariant(null); setTemporaryColor(null); setNotice(null); }, [dashboard.space.id, dashboard.page.id, identity, canEdit, preview]);
+  useEffect(() => { setDraft(null); setSelection({ kind: 'page' }); setEditorPreview(false); setFilters({}); setTemporaryVariant(null); setTemporaryColor(preview ? null : readViewerColor(identity)); setNotice(null); }, [dashboard.space.id, dashboard.page.id, identity, canEdit, preview]);
+  useEffect(() => { if (!preview && !editing) setTemporaryColor(readViewerColor(identity)); }, [identity, preview, editing]);
+  const changeViewerColor = (next: 'light' | 'dark') => {
+    setTemporaryColor(next);
+    if (!preview) { try { localStorage.setItem(`lingshu-home:color:${identity}`, next); } catch { /* Still switch when browser storage is unavailable. */ } }
+  };
   // Refreshing an admin draft must display its exact appearance, even after a
   // visitor tested a temporary viewing control inside the preview.
   useEffect(() => { if (preview) { setTemporaryVariant(null); setTemporaryColor(null); } }, [dashboard.page.config, preview]);
@@ -255,9 +263,9 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
   useEffect(() => { lastDataRead.current = Date.now(); }, [dashboard]);
   const readSavedData = useCallback(async () => {
     if (preview || editing || contentEditing || dataRefreshRunning.current) return;
-    dataRefreshRunning.current = true; lastDataRead.current = Date.now(); setRefreshingData(true);
+    dataRefreshRunning.current = true; lastDataRead.current = Date.now();
     try { await onRefresh(); } catch { setNotice({ kind: 'error', text: t('读取已保存内容失败，请稍后重试。', 'Could not read saved contentEditor. Try again later.') }); }
-    finally { dataRefreshRunning.current = false; setRefreshingData(false); }
+    finally { dataRefreshRunning.current = false; }
   }, [preview, editing, contentEditing, onRefresh]);
   useEffect(() => {
     if (preview || editing || !hasExternalPanels || !ownerWindow) return;
@@ -356,11 +364,11 @@ export function HomeView({ bootstrap, dashboard, onRefresh, onSessionChanged, on
       <div className="lh-header-search">{renderRegion(topSearch)}</div>
       <div className="lh-header-actions">
         <HomeActions key={editContext} theme={color} variant={mainVariant} canEdit={canEdit} canViewStats={!!bootstrap.user} canViewWork={!!bootstrap.user && canEdit} preview={preview} editing={editing} contentEditing={contentEditing}
-          busy={busy} loadingContent={contentEditor.busy} refreshing={refreshingData} hasExternalPanels={hasExternalPanels} managementLabel={managementLabel}
-          onEdit={() => { void contentEditor.start(); }} onLayout={() => contentEditor.requestLeave(startEditing)} onRefresh={() => { void readSavedData(); }}
-          onStatistics={() => setClickStatsContext(editContext)} onVariantChange={setTemporaryVariant} onThemeChange={setTemporaryColor}
+          busy={busy} loadingContent={contentEditor.busy} user={bootstrap.user || null} managementLabel={managementLabel}
+          onProfile={() => contentEditor.requestLeave(() => onProfile?.())} onLogout={onLogout ? () => contentEditor.requestLeave(() => { void onLogout(); }) : undefined}
+          onEdit={() => { void contentEditor.start(); }} onLayout={() => contentEditor.requestLeave(startEditing)}
+          onStatistics={() => setClickStatsContext(editContext)} onVariantChange={setTemporaryVariant} onThemeChange={changeViewerColor}
           onNavigate={href => contentEditor.requestLeave(() => requestNavigation(() => { window.location.hash = href; }))}/>
-        {!preview && !editing && bootstrap.user && onLogout && <AccountMenu user={bootstrap.user} onProfile={() => contentEditor.requestLeave(() => onProfile?.())} onLogout={() => contentEditor.requestLeave(() => { void onLogout(); })}/>}
       </div>
     </header>}
     {contentEditing && <Suspense fallback={<div className="lh-content-toolbar" role="status">{t('正在加载编辑工具…', 'Loading edit controls…')}</div>}><HomeContentEditor controller={contentEditor} spaceId={dashboard.space.id} spaceName={dashboard.space.name} autoFetchIcons={bootstrap.autoFetchIcons} autoSelectEndpoint={bootstrap.autoSelectEndpoint} showClickStats={!!bootstrap.user}/></Suspense>}

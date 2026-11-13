@@ -80,7 +80,7 @@ async function geometry(label) {
   equal(value.cards.length, 4, `${label}: four data cards render`);
   for (const card of value.cards) { check(card.width > 150 && card.height > 60, `${label}: usable card bounds`); check(!card.overflow, `${label}: card content stays within its width`); }
 }
-async function enterEditor() { await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); await page.locator('.lh-composer').waitFor({ timeout }); }
+async function enterEditor() { await page.locator('.lh-home-menu-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click(); await page.locator('.lh-composer').waitFor({ timeout }); }
 async function library() { await page.locator('.lh-composer-library-toggle').click(); await page.locator('.lh-composer-library-items').first().waitFor({ timeout }); }
 async function importTemplate() {
   await library(); await page.getByRole('button', { name: l('导入组件模板', 'Import template'), exact: true }).click();
@@ -127,8 +127,8 @@ async function main() {
   await home();
   const cold = await page.evaluate(() => performance.getEntriesByType('resource').map(entry => ({ name: entry.name, bytes: entry.transferSize })));
   check(!cold.some(entry => /DataPanels-|TrafficPanel-|WidgetImportDialog-/.test(entry.name)), 'Navigation-only home does not load optional component/import bundles');
-  await page.locator('.lh-more-trigger').click();
-  check(!(await page.getByRole('menuitem', { name: l('读取最新组件快照', 'Read latest component snapshots'), exact: true }).count()), 'Navigation-only home has no component refresh action');
+  await page.locator('.lh-home-menu-trigger').click();
+  check(!(await page.getByRole('menuitem', { name: l('读取最新组件快照', 'Read latest component snapshots'), exact: true }).count()) && !(await page.getByRole('menuitem', { name: l('刷新内容', 'Refresh content'), exact: true }).count()), 'Navigation-only home has no manual refresh action');
   await page.keyboard.press('Escape');
   measurements.navigationResources = cold;
 
@@ -164,11 +164,11 @@ async function main() {
   check((await page.locator('.lh-metrics-panel').innerText()).includes('Unknown fixture'), 'Unknown metric is rendered');
   check(!(await page.locator('.lh-weather-panel').innerText()).includes('Open-Meteo'), 'Pushed weather is not falsely attributed to a provider');
   const beforeRefresh = requests.length;
-  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('读取最新组件快照', 'Read latest component snapshots'), exact: true }).click();
-  await page.waitForLoadState('networkidle');
+  await page.reload({ waitUntil: 'networkidle', timeout });
+  await page.locator('.lh-data-panel').first().waitFor({ timeout });
   const refreshRequests = requests.slice(beforeRefresh).filter(item => item.url.includes('/api/'));
-  equal(refreshRequests.filter(item => item.method === 'GET' && item.url.includes('/dashboard?')).length, 1, 'One shared dashboard refresh');
-  check(!refreshRequests.some(item => item.url.endsWith('/sync')), 'Homepage refresh does not synchronize upstream sources');
+  equal(refreshRequests.filter(item => item.method === 'GET' && item.url.includes('/dashboard?')).length, 1, 'One shared dashboard read on browser reload');
+  check(!refreshRequests.some(item => item.url.endsWith('/sync')), 'Browser reload does not synchronize upstream sources');
   const calendarWrites = requests.filter(item => item.method !== 'GET').length;
   await page.locator('.lh-calendar-panel').getByRole('button', { name: l('日', 'Day'), exact: true }).click();
   await page.locator('.lh-calendar-panel').getByRole('button', { name: l('周', 'Week'), exact: true }).click();

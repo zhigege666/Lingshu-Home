@@ -77,8 +77,8 @@ function stableNavigation(dataset) {
       await frames();
     }
     async function apply(config) { const current = await savedPage(); expectedPage = await api(pagePath, 'PUT', { name: prefix, expectedRevision: current.revision, config }); await home(); }
-    async function more() { const menu = page.locator('.lh-home-actions-menu'); if (!(await menu.isVisible())) await button('更多', 'More').click(); await menu.waitFor(); return menu; }
-    async function layout() { await more(); await menuItem('调整布局', 'Adjust layout').click(); }
+    async function homeMenu() { const menu = page.locator('.lh-home-actions-menu'); if (!(await menu.isVisible())) await page.locator('.lh-home-menu-trigger').click(); await menu.waitFor(); return menu; }
+    async function layout() { await homeMenu(); await menuItem('调整布局', 'Adjust layout').click(); }
     async function snapshot(name) { const file = provider + '-' + name + '.png'; await page.screenshot({ path: path.join(OUT, file), animations: 'disabled' }); report.screenshots.push(file); }
     async function geometry(label, ordinaryHeader = true) {
       await frames();
@@ -136,35 +136,37 @@ function stableNavigation(dataset) {
           await page.setViewportSize({ width, height }); const g = await geometry('short ' + width + 'x' + height);
           assert(g.scrollHeight <= g.clientHeight + 1, 'Short fixture unexpectedly scrolls at ' + width);
           const actions = page.locator('.lh-header-actions'); assert(await actions.getByRole('button').count() <= 3, 'Too many always-visible header actions');
-          for (const control of [button('编辑', 'Edit', actions), button('更多', 'More', actions)]) { const box = await control.boundingBox(); assert(box && box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height, 'Primary action is clipped'); }
-          assert.equal(await actions.locator('a[href="#/admin"],a[href="#/library"],[role=combobox]').count(), 0, 'Secondary navigation or space selector still clutters actions');
+          for (const control of [button('编辑', 'Edit', actions), button('切换深浅色', 'Toggle light or dark', actions), actions.locator('.lh-home-menu-trigger'), actions.getByRole('link', { name: l('资料库', 'Library'), exact: true }), actions.getByRole('link', { name: l('事项看板', 'Work board'), exact: true })]) { const box = await control.boundingBox(); assert(box && box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height, 'Primary action or navigation link is clipped'); }
+          assert.equal(await actions.locator('a[href="#/library"],a[href="#/library?view=board"]').count(), 2, 'Library and Board must be direct header links');
+          assert.equal(await actions.locator('a[href="#/admin"],[role=combobox]').count(), 0, 'Secondary management or space selector still clutters actions');
           report.viewports.push({ provider, label: 'short', ...g });
         }
       });
       await page.setViewportSize({ width: 1600, height: 900 });
-      await check(provider + '/more_menu_keyboard_theme_view_and_statistics', async () => {
-        const trigger = button('更多', 'More'); await trigger.focus(); await page.keyboard.press('ArrowDown'); const menu = page.locator('.lh-home-actions-menu'); await menu.waitFor();
+      await check(provider + '/account_menu_keyboard_theme_view_and_statistics', async () => {
+        const trigger = page.locator('.lh-home-menu-trigger'); await trigger.focus(); await page.keyboard.press('ArrowDown'); const menu = page.locator('.lh-home-actions-menu'); await menu.waitFor();
         await until(() => menu.evaluate(node => node.contains(document.activeElement) && /^menuitem/.test(document.activeElement.getAttribute('role') || '')), 'Keyboard did not focus a menu item');
         await page.keyboard.press('ArrowDown'); await page.keyboard.press('Escape'); await menu.waitFor({ state: 'hidden' });
-        await until(() => trigger.evaluate(node => document.activeElement === node), 'Escape did not restore More focus');
-        await more(); await page.locator('.lh-home-heading h1').click(); await menu.waitFor({ state: 'hidden' });
-        await more(); const directory = page.getByRole('menuitemradio', { name: l('目录模式', 'Directory view'), exact: true }); await directory.click(); assert.equal(await directory.getAttribute('aria-checked'), 'true');
+        await until(() => trigger.evaluate(node => document.activeElement === node), 'Escape did not restore the account/page menu trigger focus');
+        await homeMenu(); await page.locator('.lh-home-heading h1').click(); await menu.waitFor({ state: 'hidden' });
+        await homeMenu(); const directory = page.getByRole('menuitemradio', { name: l('目录模式', 'Directory view'), exact: true }); await directory.click(); assert.equal(await directory.getAttribute('aria-checked'), 'true');
         await page.getByRole('menuitemradio', { name: l('卡片模式', 'Card view'), exact: true }).click();
-        await menuItem('切换深浅色', 'Toggle light or dark').click(); await page.locator('.lh-home[data-theme=dark]').waitFor();
-        if (!(await menu.isVisible())) await more(); assert.equal(await menu.getAttribute('data-theme'), 'dark');
+        await page.keyboard.press('Escape'); await menu.waitFor({ state: 'hidden' });
+        await button('切换深浅色', 'Toggle light or dark').click(); await page.locator('.lh-home[data-theme=dark]').waitFor();
+        if (!(await menu.isVisible())) await homeMenu(); assert.equal(await menu.getAttribute('data-theme'), 'dark');
         const box = await menu.boundingBox(); assert(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 1600 && box.y + box.height <= 900, 'Menu escapes the viewport');
-        await snapshot('more-dark-1600x900'); await page.keyboard.press('Escape');
-        await more(); await menuItem('点击统计', 'Click statistics').click(); const stats = page.locator('.lh-click-stats-dialog'); await stats.waitFor();
-        await until(() => stats.evaluate(node => node.contains(document.activeElement)), 'Opening Statistics from More lost dialog focus');
+        await snapshot('account-menu-dark-1600x900'); await page.keyboard.press('Escape');
+        await homeMenu(); await menuItem('点击统计', 'Click statistics').click(); const stats = page.locator('.lh-click-stats-dialog'); await stats.waitFor();
+        await until(() => stats.evaluate(node => node.contains(document.activeElement)), 'Opening Statistics from the account menu lost dialog focus');
         await button('关闭点击统计', 'Close click statistics', stats).click(); await stats.waitFor({ state: 'hidden' });
-        await until(() => trigger.evaluate(node => document.activeElement === node), 'Closing Statistics did not restore More focus');
-        await more(); await menuItem('切换深浅色', 'Toggle light or dark').click(); await page.locator('.lh-home[data-theme=light]').waitFor(); await page.keyboard.press('Escape');
+        await until(() => trigger.evaluate(node => document.activeElement === node), 'Closing Statistics did not restore the account/page menu trigger focus');
+        await button('切换深浅色', 'Toggle light or dark').click(); await page.locator('.lh-home[data-theme=light]').waitFor();
       });
       await apply(config(true));
       await check(provider + '/long_pages_scroll_only_content_and_reach_the_last_link', async () => {
         for (const [width, height] of sizes) {
           await page.setViewportSize({ width, height }); await pinnedScroll('long ' + width + 'x' + height, true, true);
-          const menu = await more(), box = await menu.boundingBox(); assert(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= height, 'More menu is clipped at ' + width);
+          const menu = await homeMenu(), box = await menu.boundingBox(); assert(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= height, 'Account/page menu is clipped at ' + width);
           await page.keyboard.press('Escape'); await snapshot('long-' + width + 'x' + height);
         }
       });
@@ -205,7 +207,7 @@ function stableNavigation(dataset) {
         // unlike the enlarged preview's modal-covered page-name field.
         const inline = page.locator('.admin-page-preview'); await inline.locator('.admin-preview-stage[aria-busy=false]').waitFor();
         const inlineFrame = await (await inline.locator('iframe').elementHandle()).contentFrame(); assert(inlineFrame, 'Inline preview must contain a real iframe');
-        await inlineFrame.getByRole('button', { name: l('更多', 'More'), exact: true }).click();
+        await inlineFrame.locator('.lh-home-menu-trigger').click();
         const inlineMenu = inlineFrame.locator('.lh-home-actions-menu'); await inlineMenu.waitFor();
         const parentName = page.getByRole('textbox', { name: l('页面名称', 'Page name'), exact: true });
         await parentName.click(); await inlineMenu.waitFor({ state: 'hidden' }); await frames();
@@ -240,7 +242,7 @@ function stableNavigation(dataset) {
         assert(bottom.body.y >= bottom.customHeader.bottom - 1 && bottom.body.bottom <= bottom.footer.y + 1, 'Iframe chrome overlaps its content viewport');
         assert(Math.abs(bottom.scrollHeight - bottom.clientHeight - bottom.scrollTop) <= 2, 'Iframe content cannot reach its end');
         assert(bottom.lastCard && bottom.lastCard.y >= bottom.body.y - 1 && bottom.lastCard.bottom <= bottom.body.bottom + 1, 'Iframe final card is obscured');
-        const trigger = frame.getByRole('button', { name: l('更多', 'More'), exact: true });
+        const trigger = frame.locator('.lh-home-menu-trigger');
         const parentTitle = expanded.getByRole('heading', { name: l('首页预览', 'Homepage preview'), exact: true });
         await parentTitle.click(); await trigger.click(); const menu = frame.locator('.lh-home-actions-menu'); await menu.waitFor();
         await parentTitle.click(); await menu.waitFor({ state: 'hidden' });
@@ -253,12 +255,12 @@ function stableNavigation(dataset) {
         await page.keyboard.press('ArrowUp'); await until(() => cards.evaluate(node => document.activeElement === node), 'Iframe ArrowUp did not return to the previous item');
         await page.keyboard.press('Enter'); assert.equal(await cards.getAttribute('aria-checked'), 'true');
         assert.equal(await menu.getByRole('menuitemradio').count(), 2, 'Preview lost temporary display choices');
-        assert.equal(await menu.getByRole('menuitem').count(), 1, 'Preview exposes maintenance actions');
-        await menu.getByRole('menuitem', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).waitFor();
+        assert.equal(await menu.getByRole('menuitem').count(), 0, 'Preview exposes maintenance actions');
+        await frame.getByRole('button', { name: l('切换深浅色', 'Toggle light or dark'), exact: true }).waitFor();
         assert.equal(await menu.locator('a').count(), 0, 'Preview exposes navigation out of the draft');
-        await snapshot('enlarged-iframe-more-1600x900');
+        await snapshot('enlarged-iframe-menu-1600x900');
         await menu.press('Escape'); await menu.waitFor({ state: 'hidden' }); assert(await expanded.isVisible(), 'First Escape closed the enlarged preview instead of only its menu');
-        await until(() => trigger.evaluate(node => node === document.activeElement), 'Iframe Escape did not restore More focus');
+        await until(() => trigger.evaluate(node => node === document.activeElement), 'Iframe Escape did not restore the account/page menu trigger focus');
         await trigger.press('Escape'); await expanded.waitFor({ state: 'hidden' });
         await until(() => button('放大预览', 'Enlarge preview').evaluate(node => node === document.activeElement), 'Closing enlarged preview did not restore the admin trigger');
         assert(await page.locator('.admin-layout-form').isVisible(), 'Second Escape did not return to the admin layout editor');

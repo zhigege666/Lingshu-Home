@@ -1,6 +1,6 @@
 import { SessionPanel } from './SessionPanel'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { LockKeyhole, RefreshCw, UserRound } from 'lucide-react'
+import { ImagePlus, LockKeyhole, RefreshCw, UserRound } from 'lucide-react'
 import type { Bootstrap, User } from '../core/types'
 import { ApiError, bootstrap as readBootstrap, request } from '../core/api'
 import { t } from '../core/i18n'
@@ -10,13 +10,20 @@ import { Input } from '../components/ui/input'
 import { ErrorMessage, Field, handleFormInvalid } from '../components/Shared'
 import { FieldHelp } from '../components/FieldHelp'
 import DiscardChangesDialog from '../components/DiscardChangesDialog'
-import { accountInitials } from '../components/AccountMenu'
+import { AccountAvatar } from '../components/AccountMenu'
 import '../components/account-profile.css'
 
 type Props = { user: User; bootstrap: Bootstrap; onSessionChanged: () => Promise<void>; onNotice: (message: string) => void; onCurrentSessionRevoked?: () => Promise<void> }
 const emptyPasswords = { current: '', next: '', confirm: '' }
 export default function ProfilePanel({ user, bootstrap, onSessionChanged, onNotice, onCurrentSessionRevoked }: Props) {
   const [name, setName] = useState(user.displayName), [base, setBase] = useState(user.displayName)
+  const [savedAvatar, setSavedAvatar] = useState({ url: user.avatarUrl || '', digest: user.avatarDigest || '' })
+  // undefined keeps the saved avatar; null is an explicit removal draft.
+  const [avatarDraft, setAvatarDraft] = useState<string | null | undefined>(undefined)
+  const [avatarError, setAvatarError] = useState(''), [avatarSuccess, setAvatarSuccess] = useState('')
+  const [avatarConflict, setAvatarConflict] = useState(false), [avatarReviewed, setAvatarReviewed] = useState(false)
+  const avatarInput = useRef<HTMLInputElement>(null)
+  const avatarDirty = avatarDraft !== undefined
   const [passwords, setPasswords] = useState(emptyPasswords)
   const [profileError, setProfileError] = useState(''), [passwordError, setPasswordError] = useState('')
   const [profileSuccess, setProfileSuccess] = useState(''), [passwordSuccess, setPasswordSuccess] = useState('')
@@ -26,13 +33,16 @@ export default function ProfilePanel({ user, bootstrap, onSessionChanged, onNoti
   const action = useRef(''), mounted = useRef(true), dirty = useRef(false), pending = useRef<(() => void) | null>(null)
   const nameDirty = name.trim() !== base, passwordDirty = !!(passwords.current || passwords.next || passwords.confirm)
   const locked = !!busy || !!sessionError
-  dirty.current = nameDirty || passwordDirty
+  dirty.current = nameDirty || passwordDirty || avatarDirty
   useEffect(() => {
     if (previousName.current !== user.displayName) {
       previousName.current = user.displayName
       if (!nameDirty) { setBase(user.displayName); setName(user.displayName) }
     }
   }, [user.displayName, nameDirty])
+  useEffect(() => {
+    if (!avatarDirty) setSavedAvatar({ url: user.avatarUrl || '', digest: user.avatarDigest || '' })
+  }, [user.avatarUrl, user.avatarDigest])
   useEffect(() => {
     mounted.current = true
     const navigate = (event: Event) => {
@@ -88,6 +98,59 @@ export default function ProfilePanel({ user, bootstrap, onSessionChanged, onNoti
       setBase(result.user.displayName); setLatest(result.user.displayName); setConflict(false); await sync()
     } catch (cause) { if (mounted.current) { setProfileError(failure(cause)); setConflict(true) } } finally { finish() }
   }
+  async function chooseAvatar(file: File | undefined) {
+    if (!file || locked || !begin('avatar-read')) return
+    setAvatarError(''); setAvatarSuccess('')
+    let bitmap: ImageBitmap | undefined
+    try {
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error(t('请选择 PNG、JPEG 或 WebP 图片。', 'Choose a PNG, JPEG or WebP image.'))
+      if (file.size > 2 * 1024 * 1024) throw new Error(t('图片不能超过 2 MB。', 'Choose an image no larger than 2 MB.'))
+      try { bitmap = await createImageBitmap(file) } catch { throw new Error(t('无法读取这张图片，请重新选择。', 'This image could not be read. Choose another image.')) }
+      if (!bitmap.width || !bitmap.height || bitmap.width > 4096 || bitmap.height > 4096) throw new Error(t('图片宽高不能超过 4096 像素。', 'Image dimensions must not exceed 4096 pixels.'))
+      const edge = Math.min(bitmap.width, bitmap.height), canvas = document.createElement('canvas')
+      // A 240px PNG stays below the API's 256KiB bound even before compression.
+      canvas.width = canvas.height = Math.min(240, edge)
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error(t('浏览器无法处理图片，请稍后重试。', 'The browser could not process this image. Try again.'))
+      context.drawImage(bitmap, (bitmap.width - edge) / 2, (bitmap.height - edge) / 2, edge, edge, 0, 0, canvas.width, canvas.height)
+      if (mounted.current) setAvatarDraft(canvas.toDataURL('image/png'))
+    } catch (cause) { if (mounted.current) setAvatarError(cause instanceof Error ? cause.message : t('图片处理失败。', 'The image could not be processed.')) }
+    finally { bitmap?.close(); finish() }
+  }
+  async function saveAvatar() {
+    if (locked || !avatarDirty || avatarConflict || !begin('avatar')) return
+    setAvatarError(''); setAvatarSuccess('')
+    try {
+      const updated = await request<User>('/account/avatar', { method: avatarDraft === null ? 'DELETE' : 'PUT', body: avatarDraft === null
+        ? { expectedAvatar: savedAvatar.digest }
+        : { mediaType: 'image/png', dataBase64: avatarDraft!.split(',')[1], expectedAvatar: savedAvatar.digest } })
+      if (!updated || updated.id !== user.id || typeof updated.avatarDigest !== 'string' || typeof updated.avatarUrl !== 'string') throw new Error('Invalid avatar response')
+      if (!mounted.current) return
+      setSavedAvatar({ url: updated.avatarUrl, digest: updated.avatarDigest }); setAvatarDraft(undefined); setAvatarReviewed(false)
+      setAvatarSuccess(t('头像已保存。', 'Avatar saved.')); onNotice(t('头像已更新', 'Avatar updated')); await sync(true)
+    } catch (cause) {
+      if (!mounted.current) return
+      const status = cause instanceof ApiError ? cause.status : 0
+      setAvatarConflict(status === 409 || status === 0 || status >= 500)
+      setAvatarError(status === 409 ? t('头像已在其他地方更新。草稿已保留，请读取当前头像并核对。', 'Your avatar changed elsewhere. Your draft is retained; read the current avatar and compare.')
+        : status === 400 || status === 413 || status === 415 ? t('图片未通过校验，请重新选择。', 'The image could not be accepted. Choose another image.')
+        : status === 401 || status === 403 || status === 429 ? failure(cause)
+        : t('暂时无法确认保存结果。请读取当前头像后再继续。', 'The save could not be confirmed. Read the current avatar before continuing.'))
+      if (status === 401 || status === 403) setSessionError(failure(cause))
+    } finally { finish() }
+  }
+  async function readLatestAvatar() {
+    if (!begin('avatar-reload')) return
+    setAvatarError('')
+    try {
+      const result = await readBootstrap()
+      if (!result.user || result.user.id !== user.id) { setSessionError(t('账号状态已改变，请重新登录。', 'Your account state changed. Sign in again.')); return }
+      if (!mounted.current) return
+      setSavedAvatar({ url: result.user.avatarUrl || '', digest: result.user.avatarDigest || '' }); setAvatarConflict(false); setAvatarReviewed(true)
+      await sync()
+    } catch (cause) { if (mounted.current) { setAvatarError(failure(cause)); setAvatarConflict(true) } } finally { finish() }
+  }
+  function cancelAvatar() { setAvatarDraft(undefined); setAvatarError(''); setAvatarSuccess(''); setAvatarReviewed(false) }
   async function savePassword(event: FormEvent) {
     event.preventDefault(); if (locked || !begin('password')) return
     setPasswordError(''); setPasswordSuccess('')
@@ -113,14 +176,31 @@ export default function ProfilePanel({ user, bootstrap, onSessionChanged, onNoti
   function editPassword(key: keyof typeof passwords, value: string) { setPasswords(previous => ({ ...previous, [key]: value })); setPasswordError(''); setPasswordSuccess('') }
   function leave() {
     const proceed = pending.current; pending.current = null; dirty.current = false
-    setName(base); setPasswords(emptyPasswords); setConfirmLeave(false); proceed?.()
+    setName(base); setAvatarDraft(undefined); setPasswords(emptyPasswords); setConfirmLeave(false); proceed?.()
   }
   return <>
     <section className="profile-panel" aria-label={t('个人资料', 'Personal profile')}>
       {sessionError && <div className="profile-session-notice" role="alert"><span>{sessionError}</span><Button type="button" variant="outline" disabled={!!busy} onClick={() => void checkSession()}><RefreshCw size={15}/>{t('重新检查', 'Check again')}</Button></div>}
       <section className="profile-card" aria-labelledby="profile-details-heading">
         <header className="profile-card-heading"><UserRound size={20}/><h2 id="profile-details-heading">{t('基本资料', 'Profile details')}</h2><FieldHelp label={t('基本资料', 'Profile details')}>{t('显示名称用于账号菜单。用户名用于登录，保持不变。', 'Your display name identifies your account in menus. Your sign-in username stays unchanged.')}</FieldHelp></header>
-        <div className="profile-identity"><span className="profile-avatar" aria-hidden="true">{accountInitials(user)}</span><div><strong>{user.displayName}</strong><span>@{user.username}</span></div><span className="profile-role">{user.role === 'Owner' ? t('管理员', 'Owner') : t('成员', 'Member')}</span></div>
+        <div className="profile-avatar-editor">
+          <AccountAvatar user={{ ...user, avatarUrl: avatarDraft === undefined ? savedAvatar.url : avatarDraft || '' }} className="profile-avatar"/>
+          <div className="profile-avatar-controls"><strong>{t('头像', 'Avatar')}</strong>
+            <input ref={avatarInput} type="file" className="profile-avatar-file" aria-label={t('选择头像图片', 'Choose avatar image')} accept="image/png,image/jpeg,image/webp" disabled={locked} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void chooseAvatar(file) }}/>
+            <div className="profile-avatar-buttons">
+              <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => avatarInput.current?.click()}><ImagePlus size={15}/>{busy === 'avatar-read' ? t('正在处理…', 'Processing…') : savedAvatar.url || avatarDraft ? t('更换头像', 'Change avatar') : t('上传头像', 'Upload avatar')}</Button>
+              {(savedAvatar.url || avatarDraft) && <Button type="button" variant="ghost" size="sm" disabled={locked} onClick={() => { setAvatarDraft(savedAvatar.url ? null : undefined); setAvatarError(''); setAvatarSuccess('') }}>{t('移除头像', 'Remove avatar')}</Button>}
+              {avatarDirty && <><Button type="button" size="sm" disabled={locked || avatarConflict} onClick={() => void saveAvatar()}>{busy === 'avatar' ? t('正在保存…', 'Saving…') : t('保存头像', 'Save avatar')}</Button><Button type="button" variant="ghost" size="sm" disabled={locked} onClick={cancelAvatar}>{t('取消', 'Cancel')}</Button></>}
+            </div>
+            <p className="profile-avatar-hint">{t('PNG、JPEG、WebP · 最大 2 MB', 'PNG, JPEG, WebP · Max 2 MB')}</p>
+          </div>
+        </div>
+        {(avatarError || avatarSuccess || avatarConflict || avatarReviewed) && <div className="profile-avatar-feedback">
+          <ErrorMessage error={avatarError}/>
+          {avatarConflict && <Button type="button" variant="outline" disabled={locked} onClick={() => void readLatestAvatar()}><RefreshCw size={15}/>{t('读取当前头像', 'Read current avatar')}</Button>}
+          {avatarReviewed && <div className="profile-info" role="status"><AccountAvatar user={{ ...user, avatarUrl: savedAvatar.url }} className="profile-avatar"/><span>{t('当前已保存头像。上方草稿已保留，请核对后保存。', 'Currently saved avatar. Your draft is retained above; compare before saving.')}</span></div>}
+          {avatarSuccess && <p className="profile-success" role="status">{avatarSuccess}</p>}
+        </div>}
         <form onSubmit={saveProfile} onInvalidCapture={event => handleFormInvalid(event, setProfileError)}>
           <fieldset className="profile-form-fields" disabled={locked}>
             <Field className="admin-field-inline" label={t('用户名', 'Username')}><Input name="profile-username" value={user.username} readOnly autoComplete="username"/></Field>
@@ -145,8 +225,8 @@ export default function ProfilePanel({ user, bootstrap, onSessionChanged, onNoti
           <footer className="profile-card-actions"><Button type="submit" disabled={locked || !passwordDirty}>{busy === 'password' ? t('正在修改…', 'Changing…') : t('更新密码', 'Update password')}</Button><Button type="button" variant="outline" disabled={locked || !passwordDirty} onClick={() => { setPasswords(emptyPasswords); setPasswordError(''); setPasswordSuccess('') }}>{t('清空输入', 'Clear inputs')}</Button></footer>
         </form>
       </section>
-      <SessionPanel bootstrap={bootstrap} onSessionChanged={onSessionChanged} onNotice={onNotice} onCurrentSessionRevoked={onCurrentSessionRevoked} disabled={locked || nameDirty || passwordDirty}/>
+      <SessionPanel bootstrap={bootstrap} onSessionChanged={onSessionChanged} onNotice={onNotice} onCurrentSessionRevoked={onCurrentSessionRevoked} disabled={locked || nameDirty || passwordDirty || avatarDirty}/>
     </section>
-    {confirmLeave && <DiscardChangesDialog onKeep={() => { pending.current = null; setConfirmLeave(false) }} onDiscard={leave} description={t('个人资料或密码表单还有未保存的输入。离开后将丢弃这些输入。', 'Your profile or password form contains unsaved input. Leaving will discard it.')}/>}
+    {confirmLeave && <DiscardChangesDialog onKeep={() => { pending.current = null; setConfirmLeave(false) }} onDiscard={leave} description={t('个人资料、头像或密码还有未保存的修改。离开后将丢弃这些修改。', 'Your profile, avatar or password contains unsaved changes. Leaving will discard them.')}/>}
   </>
 }

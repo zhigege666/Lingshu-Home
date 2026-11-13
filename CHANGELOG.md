@@ -4,6 +4,24 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-13
+
+### Homepage controls
+
+- Put Library and Board directly in the header, move secondary homepage actions into the avatar menu, and remove the separate More and manual Refresh controls. Retain click statistics, layout, management, card/directory modes, available visitor actions and unsaved-draft guards.
+- Provide a dedicated sun/moon theme button and keep the avatar menu in the homepage palette. Remember the viewing preference in the current browser, scoped to account and access mode, without writing page configuration or overriding layout previews. Preserve accessible control names, keyboard menu interaction and responsive layouts.
+
+### Personal avatars
+
+- Add image selection, preview, explicit save/cancel and avatar removal in My profile. Update the account avatar after a confirmed save and retain it across reload and sign-in; failed or conflicting saves keep the draft and existing stored image.
+- Add Cookie-authenticated current-account avatar GET/PUT/DELETE endpoints and optional avatar metadata in user responses. Mutations require CSRF and the expected image digest; reject PAT access, invalid images and stale replacements. Decode and normalize bounded PNG/JPEG uploads before atomic database storage.
+- Keep existing display-name/password/session controls and HTTP/MCP work/navigation permissions. Avatars do not become space assets or public images, and no additional MCP tool or credential grant is required.
+
+### Upgrade and rollback
+
+- Add separately maintained SQLite/PostgreSQL migration 013 (account_avatar). Preserve existing accounts, sessions, navigation, documents, work items, page configuration and click records; no new mount, service or environment variable.
+- Back up the complete database/data, matching keys and deployment configuration before upgrading, with mounted originals backed up separately. Returning to 0.1.0 or earlier requires the matching pre-upgrade restore set; changing the image tag or removing migration records is not a rollback.
+
 ## [0.1.0] - 2026-11-13
 
 ### Work board and resource continuity

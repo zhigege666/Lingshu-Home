@@ -131,7 +131,7 @@ async function home() {
   equal(await page.evaluate(() => performance.getEntriesByType('navigation')[0]?.type), 'reload', 'Page is verified after a real document reload');
 }
 async function enterEditor() {
-  await page.locator('.lh-more-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
+  await page.locator('.lh-home-menu-trigger').click(); await page.getByRole('menuitem', { name: l('调整布局', 'Adjust layout'), exact: true }).click();
   await page.locator('.lh-composer').waitFor();
   await page.waitForLoadState('networkidle');
 }

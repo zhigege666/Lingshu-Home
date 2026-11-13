@@ -32,6 +32,8 @@ type User struct {
 	ID           string `json:"id"`
 	Username     string `json:"username"`
 	DisplayName  string `json:"displayName"`
+	AvatarURL    string `json:"avatarUrl"`
+	AvatarDigest string `json:"avatarDigest"`
 	Role         string `json:"role"`
 	IsEnabled    bool   `json:"isEnabled"`
 	PasswordHash string `json:"-"`
