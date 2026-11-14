@@ -73,7 +73,7 @@
 
 ## ③ AI Agent 使用体验
 
-MCP 当前共 62 个工具，其中 28 个为事项工具；0.2.6 的七个新增定时工具见[定时事项契约](WORK_SCHEDULES.md)。0.2.4 的协作能力新增 `work_collaboration_get`、`work_sessions_open/get/close`、`work_claims_acquire/renew/release`、`work_events_list/append`。现有 work 读写工具继续使用；0.2.5 保持这些工具及 schema 不变，没有新增 scope 或管理设置 MCP 工具，不要因为接入多个 Agent 或调整开关反复创建令牌。
+MCP 当前共 62 个工具，其中 28 个为事项工具；0.2.7 的七个新增定时工具见[定时事项契约](WORK_SCHEDULES.md)。0.2.4 的协作能力新增 `work_collaboration_get`、`work_sessions_open/get/close`、`work_claims_acquire/renew/release`、`work_events_list/append`。现有 work 读写工具继续使用；0.2.5 保持这些工具及 schema 不变，没有新增 scope 或管理设置 MCP 工具，不要因为接入多个 Agent 或调整开关反复创建令牌。
 
 1. 已有有效上下文可复用；首次或配置／权限变化时读取 `space_current` 和必要的 `work_collaboration_get`，再查实际项目、未结束事项、文档和状态目录。没有相应工作才创建，明确项目归属。
 2. 每个独立会话用稳定 registrationId 登记；短暂重连复用保存的 sessionId。`resumesSessionId` 只标注前序，创建新会话不会转移旧认领。

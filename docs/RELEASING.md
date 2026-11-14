@@ -199,8 +199,10 @@ The release must retain the application CI, both database providers, HTTP restar
 
 The consecutive container suites reuse their loopback port. The preflight permits TCP `TIME_WAIT` from the stopped preceding container while still rejecting a live listener, with socket regressions for both boundaries. An actual port conflict remains a test failure; do not bypass it or connect to the process already using that port.
 
-## Version 0.2.6 upgrade and release boundary
+## Version 0.2.7 upgrade and release boundary
 
-0.2.6 adds recurring work, date filters, seven MCP tools and additive migration 020 for both providers. The feature has no new service or environment requirement and is inactive until a rule is configured. Preserve matching pre-upgrade database/data, keys and deployment configuration before migration; rollback to 0.2.5 requires that restore set. See [schedules](WORK_SCHEDULES.md) and [storage](STORAGE.md#recurring-work-migration-020).
+The v0.2.6 run [43611641162](https://github.com/zhigege666/Lingshu-Home/actions/runs/43611641162) stopped at the old 55-tool assertion before packaging. Its tag is retained. The corrected integration test requires exactly 62 tools; successful local checks still do not replace the new v0.2.7 release gates.
 
-The release-specific functional, browser and disabled/enabled performance measurements belong in the test and performance guides. They do not replace the tagged CI, exact-image packaging, public download checks or actual deployed-version check. A published 0.2.6 tag and refreshed MCP definitions do not upgrade the user's running Home instance.
+0.2.7 adds recurring work, date filters, seven MCP tools and additive migration 020 for both providers. The feature has no new service or environment requirement and is inactive until a rule is configured. Preserve matching pre-upgrade database/data, keys and deployment configuration before migration; rollback to 0.2.5 requires that restore set. See [schedules](WORK_SCHEDULES.md) and [storage](STORAGE.md#recurring-work-migration-020).
+
+The release-specific functional, browser and disabled/enabled performance measurements belong in the test and performance guides. They do not replace the tagged CI, exact-image packaging, public download checks or actual deployed-version check. A published 0.2.7 tag and refreshed MCP definitions do not upgrade the user's running Home instance.

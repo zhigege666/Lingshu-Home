@@ -275,6 +275,8 @@ func TestIntegrationHTTPMCPAndTraffic(t *testing.T) {
 				"work_statuses_get", "work_statuses_batch_edit",
 				"work_collaboration_get", "work_sessions_open", "work_sessions_get", "work_sessions_close",
 				"work_claims_acquire", "work_claims_renew", "work_claims_release", "work_events_list", "work_events_append",
+				"work_schedules_list", "work_schedules_get", "work_schedules_create", "work_schedules_update",
+				"work_schedules_preview", "work_schedules_generate", "work_schedules_occurrences",
 			} {
 				expectedTools[name] = true
 			}

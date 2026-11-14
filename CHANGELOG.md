@@ -4,7 +4,7 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
-## [0.2.6] - 2026-11-14
+## [0.2.7] - 2026-11-14
 
 ### Recurring work and item dates
 
@@ -20,6 +20,16 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 - Measure unused/paused/module-disabled idle behavior, old-versus-new ordinary HTTP requests and bounded 100/1,000-rule generation with concurrent reads. Empty optional date fields add no normal-card response bytes; static structs still grow by 48 bytes. Concentrated generation increases foreground latency. Exact fixtures, results and limits are in docs/PERFORMANCE.md.
 - SQLite extends the activity origin CHECK by transactionally rebuilding work_activity while preserving existing rows, uniqueness and indexes; its one-time upgrade cost grows with activity history. PostgreSQL changes the corresponding CHECK constraint.
 - Back up the complete database/data, keys and deployment configuration before migration 020. Returning to 0.2.5 or earlier requires the matching pre-upgrade backup. No new service, mount or environment variable is required; upgrading does not enable rules. Refresh Home's gateway catalog after upgrading to expose the added tools and optional date fields.
+
+### Release validation
+
+- Correct the older integration test catalog expectation from 55 to the exact 62 tools, including all seven schedule names. The v0.2.6 workflow stopped at that assertion before packaging or publication. Preserve the failed tag; publish this complete P0 feature set under v0.2.7. Production application code is unchanged by this validation correction.
+
+## [0.2.6] - 2026-11-14
+
+### Unpublished release attempt
+
+- The tagged workflow failed the existing MCP catalog assertion (55 expected, 62 actual) before packaging or publishing any application artifacts. The tag is retained unchanged. Version 0.2.7 carries the recurring-work feature set with the corrected exact catalog regression.
 
 ## [0.2.5] - 2026-11-14
 

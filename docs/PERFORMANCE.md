@@ -2,7 +2,9 @@
 
 This document records reproducible development measurements, their scope, and the changes they motivated. Each section identifies its actual product/build version; earlier development evidence is retained under its original date. These are laboratory samples, not a Lighthouse score, a public-network service guarantee, or real-user Core Web Vitals percentiles.
 
-## Recurring work — 0.2.6, 2026-11-14
+## Recurring work — 0.2.7, 2026-11-14
+
+Measurements below used the P0 candidate with VERSION 0.2.6 before its release gate found an outdated MCP test-count assertion. The 0.2.7 correction changes test expectations, release documentation and VERSION only; production Go/TypeScript/CSS and migrations are identical. Candidate filenames and measured version labels remain unchanged so the evidence is not relabeled as a second benchmark run.
 
 结论：本轮必要性能验证全部通过。未启用、全部暂停、关闭事项模块时没有正常周期扫描；30 秒观测内未看到 CPU tick 或 I/O 增长。集中到期会占用资源、增加普通请求延迟，不能称为零开销。
 
