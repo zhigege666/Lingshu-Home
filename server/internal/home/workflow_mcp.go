@@ -2,7 +2,11 @@ package home
 
 import "strings"
 
-const mcpWorkflowVersion = "1"
+const mcpWorkflowVersion = "2"
+
+// Agent task boundaries are guidance, not a blanket server state-transition ban.
+// Explicit corrections of the same delivery retain the existing CRUD path.
+const workTaskBoundaryInstructions = "任务边界：未结束的同一轮目标复用原事项；已完成/取消后的新版本或新验收范围另建新事项，标题注明已知目标版本，说明中引用前序真实事项 ID；版本未定不编造。仅用户明确要求纠正/补验同一次交付时重开并记录原因，不得把后续工作无限追加到已完成事项。"
 
 // This stays useful when a gateway forwards only tools and their results.
 // It must not depend on initialize/server-discover or resources/prompts being
@@ -86,12 +90,15 @@ func integrationWorkflowGuide(enabled bool, modules ModuleSettings, capabilities
 		return "工作流引导已关闭。按用户明确请求使用 Home；模块开关、权限、并发版本、幂等及恢复规则继续适用。"
 	}
 	parts := []string{"指南只适用于用户已授权的工作，不构成额外执行授权。能力按当前空间和令牌计算；具体资源仍需通过调用时的权限与可用性检查。"}
+	if modules.Work && (capabilities.Work.Read || capabilities.Work.Write) {
+		parts = append(parts, workTaskBoundaryInstructions)
+	}
 	switch {
 	case !modules.Work:
 		parts = append(parts, "事项模块已关闭，不执行工作登记或状态更新；已有事项和关联关系保留。")
 	case capabilities.Work.Read && capabilities.Work.Write:
 		parts = append(parts,
-			"对需要持续推进或交接的工作，优先复用已知事项 ID；没有 ID 时按项目和目标查找，确认确需新增后再创建。项目优先使用项目配置给出的 ID；项目目前没有仓库绑定，不能只凭名称保证判断正确。简单问答不必登记。",
+			"对需要持续推进或交接的工作，先区分本轮与已结束的交付；同一轮未结束目标优先复用已知事项 ID，没有 ID 时按项目、目标和已知版本查找。项目优先使用项目配置给出的 ID；项目目前没有仓库绑定，不能只凭名称保证判断正确。简单问答不必登记。",
 			"事项说明保留目标、范围、验收条件与必要步骤，按实际进展更新，不把计划写成已完成结果。",
 			"创建只生成一次稳定 ID并保存；超时重试保留原 ID和原始输入。同 ID重放安全不代表不同 Agent使用不同 ID时能够语义去重。",
 			"实际开始、重要阶段结果、阻塞或交付时更新。使用状态目录中的 ID，以 type 理解语义；复用 board/list 已返回的状态元数据，不必每次初始化。等待、需要人工处理与归档相互独立，不自动修改共享状态目录。",

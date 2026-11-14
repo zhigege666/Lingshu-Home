@@ -162,9 +162,7 @@ async function main() {
       await picker.click(); const choices = page.getByRole('listbox'); await inViewport(choices, view.id + ' space menu');
       assert(await choices.getByRole('option', { name: originalSpace.name, exact: true }).isVisible(), 'Current space is absent');
       await closeMenu(picker, choices);
-      const preferences = button('默认打开空间', 'Default opening space', header());
-      await preferences.click(); const preferenceMenu = page.locator('.lh-space-preference-menu');
-      await inViewport(preferenceMenu, view.id + ' space preferences'); await closeMenu(preferences, preferenceMenu);
+      assert.equal(await button('默认打开空间', 'Default opening space', header()).count(), 0, 'Browser preferences should not occupy the header');
       const trigger = await openAccount(true), menu = accountMenu();
       await inViewport(menu, view.id + ' account menu');
       await page.waitForFunction(() => !!document.activeElement?.closest('.home-account-menu [role^=menuitem]'));
@@ -175,6 +173,82 @@ async function main() {
       await page.locator('.profile-panel').waitFor(); assert.equal((await boot()).user.id, initial.user.id, 'Profile navigation changed the session');
       assert.equal(logoutRequests.length, 0, 'Profile entry sent a logout request');
     }
+  });
+
+
+  await check('default_space_preferences_save_in_profile_without_disrupting_drafts', async () => {
+    await page.setViewportSize({ width: 1600, height: 900 }); await open(views[0]);
+    const state = await boot(), personal = state.spaces.find(space => space.kind === 'personal');
+    assert(personal, 'The fixture needs private_multi mode with a personal space');
+    const key = 'lingshu-home:space-preferences:v1:user:' + state.user.id;
+    const original = await page.evaluate(key => localStorage.getItem(key), key);
+    await openAccount(); await menuItem('我的资料', 'My profile').click();
+    const card = page.getByRole('region', { name: text('浏览偏好', 'Browsing preferences'), exact: true });
+    await card.waitFor(); await card.scrollIntoViewIfNeeded();
+    const picker = header().getByRole('combobox', { name: text('选择空间', 'Choose a space'), exact: true });
+    const selectedBefore = await picker.innerText(), routeBefore = page.url();
+    const displayName = page.locator('input[name=profile-display-name]');
+    const nameBefore = await displayName.inputValue(), draftName = nameBefore + ' draft';
+    const writes = [], observe = request => {
+      const url = new URL(request.url());
+      if (url.origin === origin && url.pathname.startsWith('/api/v1/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) writes.push(url.pathname);
+    };
+    page.on('request', observe);
+    try {
+      await displayName.fill(draftName);
+      await card.getByRole('radio', { name: personal.name, exact: true }).check();
+      assert.equal(page.url(), routeBefore, 'Changing a browser preference navigated away');
+      assert.equal(await picker.innerText(), selectedBefore, 'Changing a default changed the current space');
+      assert.equal(await displayName.inputValue(), draftName, 'Changing a preference discarded the profile draft');
+      assert.equal(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).defaultSpaceId, key), personal.id);
+      assert(await button('保存资料', 'Save profile').isEnabled(), 'Preference save changed the profile dirty state');
+      assert.deepEqual(writes, [], 'A browser preference wrote shared or account configuration');
+      await card.getByRole('status').filter({ hasText: text('已保存', 'Saved') }).waitFor();
+      await page.waitForFunction(() => document.querySelector('.lh-space-preference-status')?.textContent === '', null, { timeout: 6000 });
+      await button('取消修改', 'Cancel changes').click();
+      const second = await context.newPage();
+      try {
+        await second.goto(origin + '/#/admin?tab=profile', { waitUntil: 'domcontentloaded' });
+        const secondCard = second.getByRole('region', { name: text('浏览偏好', 'Browsing preferences'), exact: true });
+        await secondCard.waitFor();
+        assert(await secondCard.getByRole('radio', { name: personal.name, exact: true }).isChecked());
+        await secondCard.getByRole('radio', { name: text('记住上次空间', 'Remember last space'), exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('.lh-space-preference-options input:checked')?.value === '');
+        assert.equal(await picker.innerText(), selectedBefore, 'Another tab changed this tab navigation');
+      } finally { await second.close(); }
+      await shot('profile-preferences-1600x900');
+    } finally {
+      page.off('request', observe);
+      await page.evaluate(({ key, original }) => { if (original === null) localStorage.removeItem(key); else localStorage.setItem(key, original); }, { key, original });
+    }
+  });
+
+  await check('default_space_settings_four_sizes_keyboard_and_storage_failure', async () => {
+    await open(views[3]); await openAccount(); await menuItem('我的资料', 'My profile').click();
+    const card = page.getByRole('region', { name: text('浏览偏好', 'Browsing preferences'), exact: true });
+    for (const [width, height] of sizes) {
+      await page.setViewportSize({ width, height }); await card.scrollIntoViewIfNeeded(); await frames();
+      await inViewport(card, 'Preference settings ' + width + 'x' + height);
+      const checked = card.locator('input:checked'); await checked.focus();
+      await page.waitForFunction(element => document.activeElement === element, await checked.elementHandle());
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Preference settings overflow horizontally');
+      await shot('profile-preferences-' + width + 'x' + height);
+    }
+    const blocked = await context.newPage();
+    try {
+      await blocked.addInitScript(() => Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Fixture storage denied', 'SecurityError'); } }));
+      await blocked.goto(origin + '/#/admin?tab=profile', { waitUntil: 'domcontentloaded' });
+      const blockedCard = blocked.getByRole('region', { name: text('浏览偏好', 'Browsing preferences'), exact: true });
+      await blockedCard.getByRole('radio', { name: originalSpace.name, exact: true }).click();
+      await blockedCard.getByRole('alert').waitFor();
+      assert(await blockedCard.getByRole('radio', { name: text('记住上次空间', 'Remember last space'), exact: true }).isChecked(), 'Failed persistence displayed an unsaved choice as saved');
+      const target = (await boot()).spaces.find(space => space.kind === 'personal');
+      assert(target, 'The fixture needs private_multi mode with a personal space');
+      const picker = blocked.locator('header.app-header').getByRole('combobox', { name: text('选择空间', 'Choose a space'), exact: true });
+      assert(await picker.isEnabled(), 'Blocked storage disabled quick space selection'); await picker.click();
+      await blocked.getByRole('option', { name: target.name + (target.kind === 'personal' ? text(' · 私人', ' · Personal') : ''), exact: true }).click();
+      await blocked.waitForFunction(name => document.querySelector('.app-header-space-select')?.textContent.includes(name), target.name);
+    } finally { await blocked.close(); }
   });
 
   await check('page_action_menus_keep_existing_commands_and_focus', async () => {
@@ -217,8 +291,19 @@ async function main() {
     await api('/spaces/' + fixture.shared, 'PUT', { name: longSpace, published: originalSpace.published });
     await api('/account/profile', 'PUT', { displayName: longName, expectedDisplayName: (await boot()).user.displayName });
     try {
-      for (const view of views) {
-        await open(view); await geometry(view, view.id + '-long-names');
+      for (const [index, view] of views.entries()) {
+        await open(view);
+        if (index === 0) {
+          // API setup bypasses the mounted app state. Refresh explicitly so
+          // this check works after any filtered set of preceding checks.
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.waitForFunction(({ name, space }) =>
+            document.querySelector('.home-account-name')?.textContent === name
+            && document.querySelector('.app-header-space-select')?.textContent.includes(space),
+          { name: longName, space: longSpace });
+          await frames();
+        }
+        await geometry(view, view.id + '-long-names');
         assert((await account().getAttribute('aria-label')).includes(longName), 'Truncation removed the full accessible account name');
         assert((await header().getByRole('combobox', { name: text('选择空间', 'Choose a space'), exact: true }).innerText()).includes(longSpace), 'Truncation replaced the actual space label');
         const primary = view.id === 'home' ? button('编辑', 'Edit', header()) : view.id === 'library' ? button('新建文档', 'New document', header()) : view.id === 'work' ? button('新建事项', 'New item', header()) : button('添加链接', 'Add link', header());
@@ -229,6 +314,8 @@ async function main() {
       await api('/settings', 'PUT', settingsInput('Lingshu-Home'));
       await api('/spaces/' + fixture.shared, 'PUT', { name: originalSpace.name, published: originalSpace.published });
       await api('/account/profile', 'PUT', { displayName: '志哥', expectedDisplayName: (await boot()).user.displayName });
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(name => document.querySelector('.home-account-name')?.textContent === name, '志哥');
     }
   });
 

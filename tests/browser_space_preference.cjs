@@ -25,8 +25,7 @@ const preferenceKey = user => 'lingshu-home:space-preferences:v1:user:' + user.i
 const tabKey = user => 'lingshu-home:space:v1:user:' + user.id;
 const optionLabel = space => space.name + (space.kind === 'personal' ? l(' · 私人', ' · Personal') : '');
 const selector = tab => tab.getByRole('combobox', { name: l('选择空间', 'Choose a space'), exact: true });
-const settings = tab => tab.getByRole('button', { name: l('默认打开空间', 'Default opening space'), exact: true });
-const menu = tab => tab.locator('.lh-space-preference-menu');
+const menu = tab => tab.getByRole('region', { name: l('浏览偏好', 'Browsing preferences'), exact: true });
 async function api(method, relative, data, expected = 200) {
   const response = await context.request.fetch(base.origin + '/api/v1' + relative, { method, data, headers: { 'X-CSRF-TOKEN': csrf || '' }, maxRedirects: 0, timeout: 15_000 });
   assert.equal(response.status(), expected, method + ' ' + relative + ': HTTP ' + response.status());
@@ -51,15 +50,22 @@ async function settle(tab = page) { await tab.evaluate(() => new Promise(resolve
 async function waitSpace(tab, space) {
   await tab.locator('.lh-home').waitFor();
   await selector(tab).waitFor();
-  await tab.waitForFunction(({ label }) => document.querySelector('.lh-space-control')?.textContent.trim() === label, { label: optionLabel(space) });
+  await tab.waitForFunction(({ label }) => document.querySelector('.app-header-space-select')?.textContent.trim() === label, { label: optionLabel(space) });
 }
 async function home(tab, space) { await tab.goto(base.origin + '/#/', { waitUntil: 'domcontentloaded' }); await waitSpace(tab, space); }
 async function chooseSpace(tab, space) { await selector(tab).click(); await tab.getByRole('option', { name: optionLabel(space), exact: true }).click(); await waitSpace(tab, space); }
 async function preferences(tab = page, user = boot.user) {
   return tab.evaluate(key => JSON.parse(localStorage.getItem(key) || '{"lastSpaceId":"","defaultSpaceId":""}'), preferenceKey(user));
 }
-async function openSettings(tab = page) { await settings(tab).click(); await menu(tab).waitFor(); }
-async function closeSettings(tab = page) { await tab.keyboard.press('Escape'); await menu(tab).waitFor({ state: 'hidden' }); }
+async function openSettings(tab = page) {
+  await tab.locator('.home-account-trigger').click();
+  await tab.locator('.home-account-menu').getByRole('menuitem', { name: l('我的资料', 'My profile'), exact: true }).click();
+  await menu(tab).waitFor(); await menu(tab).scrollIntoViewIfNeeded();
+}
+async function closeSettings(tab = page) {
+  await tab.locator('header.app-header').getByRole('link', { name: l('导航', 'Home'), exact: true }).click();
+  await menu(tab).waitFor({ state: 'hidden' }); await tab.locator('.lh-home').waitFor();
+}
 async function chooseDefault(tab, space) {
   await openSettings(tab);
   await menu(tab).getByRole('radio', { name: space ? space.name : l('记住上次空间', 'Remember last space'), exact: true }).check();
@@ -68,7 +74,8 @@ async function chooseDefault(tab, space) {
   await closeSettings(tab);
 }
 async function logout(tab = page) {
-  await tab.getByRole('button', { name: l('退出登录', 'Sign out'), exact: true }).click();
+  await tab.locator('.home-account-trigger').click();
+  await tab.locator('.home-account-menu').getByRole('menuitem', { name: l('退出登录', 'Sign out'), exact: true }).click();
   await tab.locator('input[autocomplete="username"]').waitFor();
   await refreshBootstrap(); assert.equal(boot.user, null);
 }
@@ -219,10 +226,10 @@ async function main() {
     } finally { await fresh.close(); }
   });
 
-  await step('preference popover has keyboard focus and stays in the viewport at desktop and phone widths', async () => {
-    for (const [width, height] of [[1600, 900], [1920, 1080], [2560, 1440], [3440, 1440], [390, 844]]) {
+  await step('profile preference settings support keyboard access and fit desktop and phone widths', async () => {
+    for (const [width, height] of [[2560, 1440], [1920, 1080], [1600, 900], [2560, 1080], [390, 844]]) {
       await page.setViewportSize({ width, height }); await openSettings();
-      const checked = menu(page).locator('input:checked');
+      const checked = menu(page).locator('input:checked'); await checked.focus();
       await page.waitForFunction(element => element === document.activeElement, await checked.elementHandle());
       const bounds = await menu(page).boundingBox(); assert.ok(bounds);
       assert.ok(bounds.x >= -1 && bounds.y >= -1 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
@@ -230,7 +237,7 @@ async function main() {
       assert.ok(scrollWidth <= width + 1, 'horizontal overflow at width ' + width);
       await capture('default-space-' + width);
       await closeSettings();
-      await page.waitForFunction(element => element === document.activeElement, await settings(page).elementHandle());
+
     }
     await page.setViewportSize({ width: 1600, height: 900 });
   });

@@ -58,6 +58,23 @@ func TestMCPWorkflowContextAndGatewayDiscovery(t *testing.T) {
 			if integrationObject(t, context["workflow"])["enabled"] != false {
 				t.Fatal("default workflow must be off")
 			}
+			// Guidance being off must not disable explicit CRUD or legitimate
+			// user-requested verification of the same completed delivery.
+			catalog := agent.tool(full, "work_statuses_get", map[string]any{}, "")
+			statusIDs := map[string]string{}
+			for _, raw := range catalog["items"].([]any) {
+				status := integrationObject(t, raw)
+				statusIDs[status["type"].(string)] = status["id"].(string)
+			}
+			if statusIDs["done"] == "" || statusIDs["doing"] == "" {
+				t.Fatal("fixture needs semantic completion and active statuses")
+			}
+			completed := agent.tool(full, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Completed delivery", "status": statusIDs["done"]}}, "")
+			reason := "User explicitly requested verification of this same delivery; reopening reason retained."
+			reopened := agent.tool(full, "work_items_update", map[string]any{"id": completed["id"], "input": map[string]any{"expectedRevision": completed["revision"], "status": statusIDs["doing"], "result": reason}}, "")
+			if reopened["id"] != completed["id"] || reopened["status"] != statusIDs["doing"] || reopened["result"] != reason {
+				t.Fatal("task guidance blocked explicit corrective reopening or lost its reason")
+			}
 			// Set the fixture's effective startup configuration before the guided
 			// requests; production does not expose runtime workflow mutation.
 			f.app.config.MCPWorkflowEnabled = true
@@ -151,4 +168,56 @@ func TestMCPWorkflowContextAndGatewayDiscovery(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMCPTaskBoundaryGuidance(t *testing.T) {
+	full := integrationContextCapabilities{Work: integrationOperationCapability{Read: true, Write: true}}
+	modules := ModuleSettings{Work: true, Documents: true}
+	required := []string{"未结束的同一轮目标", "已完成/取消", "新版本", "新验收范围", "已知目标版本", "前序真实事项 ID", "版本未定不编造", "仅用户明确要求", "纠正/补验同一次交付", "记录原因", "无限追加"}
+	assertBoundary := func(t *testing.T, text string) {
+		t.Helper()
+		for _, phrase := range required {
+			if !strings.Contains(text, phrase) {
+				t.Fatalf("task boundary omitted %q", phrase)
+			}
+		}
+	}
+	t.Run("enabled guide respects capability boundaries", func(t *testing.T) {
+		for _, access := range []integrationOperationCapability{{Read: true, Write: true}, {Read: true}, {Write: true}} {
+			assertBoundary(t, integrationWorkflowGuide(true, modules, integrationContextCapabilities{Work: access}))
+		}
+		if guide := integrationWorkflowGuide(true, ModuleSettings{}, full); strings.Contains(guide, "任务边界") || !strings.Contains(guide, "事项模块已关闭") {
+			t.Fatal("disabled module received work-registration guidance")
+		}
+		if guide := integrationWorkflowGuide(true, modules, integrationContextCapabilities{}); strings.Contains(guide, "任务边界") || !strings.Contains(guide, "没有可用的事项权限") {
+			t.Fatal("unavailable work capability received work-registration guidance")
+		}
+	})
+	t.Run("disabled guide retains explicit operations", func(t *testing.T) {
+		guide := integrationWorkflowGuide(false, modules, full)
+		if strings.Contains(guide, "任务边界") || !strings.Contains(guide, "按用户明确请求使用 Home") {
+			t.Fatal("disabled guidance must not become mandatory work registration")
+		}
+	})
+	t.Run("gateway summaries carry the completion boundary", func(t *testing.T) {
+		app := &App{}
+		seen := map[string]bool{}
+		for _, tool := range app.workIntegrationTools() {
+			prefix := []rune(tool.description)
+			if len(prefix) > 300 {
+				prefix = prefix[:300]
+			}
+			if !strings.Contains(string(prefix), "space_current") {
+				t.Fatalf("gateway summary omitted context from %s", tool.name)
+			}
+			switch tool.name {
+			case "work_items_list", "work_items_create", "work_items_update":
+				assertBoundary(t, string(prefix))
+				seen[tool.name] = true
+			}
+		}
+		if len(seen) != 3 {
+			t.Fatal("list, create and update must all expose the task boundary")
+		}
+	})
 }

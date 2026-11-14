@@ -2,9 +2,9 @@
 
 **English** | [简体中文](USER_GUIDE.zh-CN.md) | [Project README](../README.md)
 
-This guide covers **Lingshu-Home 0.0.10**, using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/tests/README.md).
+This guide describes the current source version identified by [VERSION](../VERSION), using English interface labels. For a new instance, specify `en` at startup or select English on the first-run language page. The choice is saved once for the instance. Installation commands are in the [README](../README.md), technical contracts in [API.md](API.md), and verification with its actual scope in [tests/README.md](../tests/README.md).
 
-The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.10/tests/README.md).
+The application uses the jade folded-house project mark across its home, admin, account/setup and startup screens, page branding and browser-tab icon. This guide now covers the dedicated visual editor, Classic/iOS themes and icon libraries. The linked earlier logo/layout screenshots and their 192 Chinese / 218 English browser assertions are historical; current verification is recorded separately in [tests/README.md](../tests/README.md).
 
 ## 1. Start and initialize an instance
 
@@ -81,9 +81,9 @@ External source configuration, Home access tokens and MCP always require an acco
 
 ## 2. Find the right space and management page
 
-Open **Admin** from the homepage, or append `/#/admin` to your instance address. Where multiple spaces are available, use **Current space** beside the account menu in the admin top bar, or the space selector on the homepage. Check it before adding content or importing bookmarks.
+Open **Admin** from the account menu when signed in, or append `/#/admin` to your instance address. The header's **Choose a space** control selects the current workspace on Home, Library, Work and administration. Check it before adding content or importing bookmarks.
 
-Since 0.0.4, Home remembers the last successfully loaded space separately for each account and the anonymous identity in this browser and site origin. It survives reloads, independent new tabs and browser restarts while browser data is retained. When signed in, use **Default opening space** beside the space selector to choose **Remember last space** or a fixed accessible space. Choosing **Remember last space** clears the fixed default without changing the currently displayed space.
+Since 0.0.4, Home remembers the last successfully loaded space separately for each account and the anonymous identity in this browser and site origin. It survives reloads, independent new tabs and browser restarts while browser data is retained. When signed in, open **Admin → My profile → Browsing preferences → Default opening space**, or open **My profile** directly from the account menu, to choose **Remember last space** or a fixed accessible space. Choices save immediately in this browser, independently of **Save profile** and any profile/avatar/password draft; they do not navigate away or change the current space. Choosing **Remember last space** clears the fixed default.
 
 A successful manual selection in the current tab takes priority, including after a reload. Otherwise Home chooses the fixed default, then the last successfully loaded space, then the server default or first accessible space. Signing out clears the tab's manual override while retaining that account's browser preference for a later sign-in. Deleted or inaccessible preferences are discarded; a failed request never records its destination as the last successful space. If browser storage is unavailable, sign-in and space switching still work. These preferences belong to the current account in this browser, do not sync to another device and do not change account permissions. Examples belong to the shared space; an editable empty homepage offers **Add your first link** and **Import browser bookmarks** directly.
 
@@ -94,9 +94,9 @@ A successful manual selection in the current tab takes priority, including after
 | Layout and theme | Configure the page, presets, category navigation and component bindings |
 | Import and export | Import browser HTML bookmarks and export the current space |
 | Space settings | Rename the current space; the Owner can manage shared-space public browsing |
-| Sources and MCP | Configure external sources and create or revoke your access tokens |
+| Sources and MCP | Configure external sources; create, edit or revoke access tokens, and delete revoked records |
 | Site settings | Site name, access mode, registration, first-Owner creation when ownerless and Owner login-retention policy |
-| My profile | Maintain your avatar and display name/password, and manage your signed-in browsers |
+| My profile | Maintain your avatar, display name/password, browser preferences and signed-in browsers |
 | Network settings | Automatic internal/external selection and the Owner-managed server proxy |
 | Member management | Create and manage Members; visible to an Owner in multi-user mode |
 | About Home | Check application/frontend versions and project information |
@@ -135,7 +135,7 @@ This is pagination of the authorized navigation snapshot already loaded by the b
 
 ### Homepage controls and scrolling
 
-The following header arrangement is introduced in [0.2.2](../CHANGELOG.md#022---2026-11-13). Home, Library, Work and administration share the same order: brand, module navigation and current page/project on the left; search and page actions on the right; space selection, space preferences and the account menu at the end. Enabled modules and each action still follow the current access rules. Work requires a signed-in space editor.
+Home, Library, Work and administration share the same order: brand, module navigation and current page/project on the left; search and page actions on the right; space selection and the account menu at the end. **Default opening space** is configured under **My profile → Browsing preferences**, keeping the header for quick space switching. Enabled modules and each action still follow the current access rules. Work requires a signed-in space editor.
 
 | Page | Header actions |
 | --- | --- |
@@ -566,11 +566,11 @@ A push replaces that external source's snapshot. It does not merge records into 
 
 The first successful views-and-clones capture becomes the immutable baseline. Later polling preserves observed UTC daily history. Rolling-window comparisons are not lifetime totals; missing observations remain missing. Failed collection keeps the previous successful snapshot. SSH access to a Git repository is not a GitHub API token. Permission requirements and the exact metrics are documented in [GitHub Traffic](INTEGRATIONS.md#github-traffic).
 
-A source cannot be retargeted to a different repository after its first snapshot. Create a separate source for that repository. Source configuration can disable a source while retaining data; source deletion is not exposed in this version. No real repository credentials or baseline are bundled by default.
+A source cannot be retargeted to a different repository after its first snapshot. Create a separate source for that repository. Source configuration can disable a source while retaining data. **Sources → Delete** removes its configuration, credentials and saved snapshot after confirmation, together with page bindings unused by any component. A source still used by a saved component, including a hidden one, cannot be deleted; change the component's source or remove it and save the page first. No real repository credentials or baseline are bundled by default.
 
 ### Home tokens and MCP clients
 
-Open **MCP and access tokens → Create token**. Name the client, choose current-space or source-specific scope, select the necessary actions and choose the UI's 7-, 30- or 90-day lifetime. A source-specific token is suitable for one external publisher; use current-space scope for local bookmark or page management.
+Open **MCP and access tokens → Create token**. Name the client, choose current-space or source-specific scope, and choose **Selected permissions** or **All permissions**. Validity options are **7, 30, 90 or 365 days**, or **Never expires**. A source-specific token is suitable for one external publisher; use current-space scope for local bookmark, page or work management. **All permissions** includes future business actions within the token's original resource scope and the account's current access; an existing selected-permissions token is not automatically expanded.
 
 Configure an MCP client that supports **Streamable HTTP** with the displayed `/mcp` address and `Authorization: Bearer <Home token>`. This token is issued by Home and is separate from a GitHub source token. The client must support sending the header; an OAuth-only setup is not provided by Home. Discover the tool schemas through the client, then use actions allowed by that token.
 
@@ -578,7 +578,7 @@ Since 0.0.9, omit `spaceId` to use the space bound to the token, or call `space_
 
 After updating Home, rediscover the existing connection in Gate or your MCP gateway, publish the newly discovered tools to the intended callers, and refresh client definitions. If the tools are still missing, compare the authenticated Home `tools/list` with the gateway catalog and check the running version, endpoint and caller grants. A write-only token receives an ID/revision receipt after a navigation or source change; viewing the saved fields additionally requires the corresponding read action.
 
-For a token limited to one external push source, read access is initially selected. Grant **Push snapshots** explicitly when needed; the two actions can be selected independently. The token can be viewed only at creation. Revoke it from the token list to stop a client. Changing access mode invalidates existing sessions and tokens; password resets or disabling a Member invalidate that Member's access. Tokens cannot create accounts, change global security settings or issue more tokens. Detailed scopes, protocol negotiation and examples are in [MCP transport](INTEGRATIONS.md#mcp-transport).
+For a token limited to one external push source, read access is initially selected. Grant **Push snapshots** explicitly when needed; the two actions can be selected independently. The token secret is shown only at creation. **Edit** changes an active or expired token's name, permissions and validity without replacing its secret or resource scope; an expired token needs an explicit new validity period. **Revoke** stops the client, after which **Delete record** can remove the revoked record without making the old token usable again. **Never expires** removes the expiry time, while revocation and account/security changes still apply. Changing access mode invalidates existing sessions and tokens; password resets or disabling a Member invalidate that Member's access. Tokens cannot create accounts, change global security settings or issue more tokens. Detailed scopes, protocol negotiation and examples are in [MCP transport](INTEGRATIONS.md#mcp-transport).
 
 ## 8. Manage members and access
 
@@ -676,7 +676,7 @@ The Linux development helper permits an immediate restart while closed connectio
 | Import rejects a URL or file | Use browser-exported UTF-8 HTML within 2 MiB / 10,000 links; only HTTP/HTTPS links are accepted. Check the combined destination folder depth. |
 | “Default collapsed” does not change the current tab | Manual tab-session choices take priority. Toggle the panel yourself or inspect the default in a new session without that preference. |
 | Source has no data | Open its configuration/status and snapshot. A push source needs its first successful push; Traffic needs authorized GitHub collection and compatible component binding. |
-| Token/client stopped working | Check expiry, revocation, account status, mode changes and token scope. Create a replacement from a signed-in account when appropriate. |
+| Token/client stopped working | Check expiry, revocation, account status, mode changes and scope. Edit an active token's permissions or renew an expired token; a revoked or invalidated token needs a replacement. |
 | `space_current` or `document_sources_list` is missing | Confirm the running Home is 0.0.9 or later and the endpoint is correct. Compare its authenticated `tools/list` with the same gateway connection, then rediscover, publish and refresh client definitions as needed. |
 | Copy button fails | Select and copy the displayed value manually; clipboard access depends on the browser's origin/security rules. |
 | Login repeatedly fails or shows a request limit | Check credentials and the active mode. Wait for the indicated retry interval after rate limiting; do not bypass it with an alternate route. |

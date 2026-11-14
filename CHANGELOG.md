@@ -4,6 +4,21 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-14
+
+### Preferences and completed-work boundaries
+
+- **① User experience:** move Default opening space from the shared header popover into Admin → My profile → Browsing preferences. Keep the quick space switch in the header. Save the browser/account preference immediately without navigation or profile/password submission; retain current-tab manual selection priority, keyboard interaction, cross-tab updates and explicit storage-error feedback.
+- **② Developer experience:** replace the menu with a settings component backed by the existing preference store; retain responsive header sizing and reuse profile form structure. Update browser checks for the new entrypoint, storage failures, independent drafts and the four supported desktop sizes. Make the long-name header fixture explicitly reload API-renamed identity so it can run independently.
+- **③ AI Agent experience:** publish workflow guide v2 and concise work-tool guidance that reuses an unfinished iteration but creates a new item for a later version or acceptance scope after completion/cancellation. Reference the real predecessor and use a known target version without inventing one. Reopening is reserved for an explicitly requested correction/recheck of the same delivery, with its reason. Existing workflows, explicit CRUD and permissions remain compatible; no additional Skill is required.
+
+### Documentation and upgrade compatibility
+
+- Align both user guides with the preference entrypoint and existing token/source management. Record the bounded feature audit and distinguish verified findings, source risks and future product suggestions; this patch does not claim to repair every audit finding.
+- Add no database migration, HTTP/MCP input-schema change, scope, service or required setting over 0.2.2. Reuse current data, keys, mounts and configuration. Workflow guidance still defaults off.
+- After replacing Home, refresh published metadata in gateways such as Gate to receive the revised tool descriptions. Existing token secrets and grants remain valid. Publishing an image does not upgrade an installed instance or refresh a gateway.
+- Versions 0.2.1–0.2.3 share storage formats. A return to 0.2.2 retains those data/configuration formats; recovery to 0.2.0 or earlier still requires the matching pre-upgrade backup and its documented migration boundary.
+
 ## [0.2.2] - 2026-11-13
 
 ### Unified application headers

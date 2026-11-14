@@ -33,10 +33,9 @@
 .app-header-actions { display:flex; align-items:center; flex:none; gap:8px; min-width:0; }
 .app-header-actions>button { min-height:36px; height:36px; white-space:nowrap; }
 .app-header-utilities { display:flex; align-items:center; gap:10px; flex:none; min-width:0; margin-left:4px; padding-left:16px; border-left:1px solid var(--header-line); }
-.app-header-space { display:flex; align-items:center; gap:6px; width:210px; min-width:0; flex:none; }
+.app-header-space { display:flex; align-items:center; width:168px; min-width:0; flex:none; }
 .app-header-space .app-header-space-select { min-width:0; max-width:none; width:100%; flex:1 1 auto; min-height:36px; height:36px; font-size:12px; background:var(--header-surface); border:1px solid var(--header-line); border-radius:7px; color:var(--header-ink); }
 .app-header-space .app-header-space-select>span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.app-header-space .lh-space-preference-trigger { flex:none; width:36px; height:36px; border-color:var(--header-line); background:var(--header-surface); color:var(--header-muted); }
 .app-header .home-account-trigger { width:138px; max-width:138px; min-height:36px; height:36px; gap:7px; padding:2px 5px; color:var(--header-ink); }
 .app-header .home-account-trigger:hover,.app-header .home-account-trigger[data-state=open] { border-color:var(--header-line); background:var(--header-soft); }
 .app-header .home-account-name { display:block; flex:1; text-align:left; }
@@ -53,7 +52,7 @@
   .app-header .app-header-brand>strong { font-size:14px; }
   .app-header-context { padding-left:12px; }
   .app-header-search { width:220px; flex-basis:220px; }
-  .app-header-space { width:176px; }
+  .app-header-space { width:140px; }
   .app-header .home-account-trigger { width:42px; max-width:42px; padding:3px; }
   .app-header .home-account-name,.app-header .home-account-trigger>svg { display:none; }
   .app-header-tools { gap:8px; }
@@ -79,5 +78,5 @@
   .app-header-search { flex-basis:100%; min-width:0; }
   .app-header-actions { margin-left:0; }
   .app-header-utilities { margin-left:auto; padding-left:8px; }
-  .app-header-space { width:150px; }
+  .app-header-space { width:128px; }
 }

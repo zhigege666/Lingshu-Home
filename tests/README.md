@@ -16,6 +16,32 @@
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
 
+## 默认空间配置入口：2026-11-14
+
+“默认打开空间”从页头迁入**管理中心 → 我的资料 → 浏览偏好**。页头保留快捷空间切换；偏好仍属于此浏览器中的当前账号，立即保存且不写服务端资料，也不清除个人资料、头像或密码草稿。当前标签页已手动选择的空间继续优先。
+
+本轮按受影响范围执行 **5 个不同的浏览器检查组**，使用独立 SQLite 回环夹具：
+
+| 检查组 | 本轮实际结果 |
+| --- | --- |
+| `default_space_preferences_save_in_profile_without_disrupting_drafts` | 通过；切换默认值时保持当前路由、空间和个人资料草稿，不发送服务端写请求；保存反馈自动清空，同账号另一标签页修改后同步 |
+| `default_space_settings_four_sizes_keyboard_and_storage_failure` | 通过；2560×1440、1920×1080、1600×900、2560×1080 四尺寸、原生 radio 焦点与 localStorage 被拒绝时的错误反馈和快捷空间切换 |
+| `four_pages_four_sizes_share_header_geometry` | 通过；首页、资料库、事项、管理页四页 × 四尺寸，共 16 个布局组合，空间控件移除偏好按钮后位置保持一致 |
+| `space_account_menus_keyboard_and_profile_preserve_session` | 通过；四页空间及账号菜单、键盘、回焦和个人资料入口保持会话，页头不再出现默认空间设置按钮 |
+| `long_names_keep_primary_actions_and_global_controls_reachable` | 独立补验通过；四页长账号名、空间名及站点名下主要操作与完整可访问名称可用 |
+
+入口为 `browser_app_header.cjs`，沿用 `UI_CHECK_MATCH` 定向筛选。两项 `default_space_` 检查使用具有私人空间的 `private_multi` 夹具；既有公开访客检查使用其原访问模式。不得对日常实例运行这些写入检查。
+
+首次组合运行中的长名称组失败，是测试通过 API 改名后仅切换 hash、仍读到已挂载的旧 bootstrap。该用例现明确刷新并等待新账号和空间名称，清理后也刷新已恢复名称；只补跑失败组，不重复已通过组。维护回执位于 `.runtime/preferences-audit-20261114/`：`sqlite-gxg87fvq`（2 项偏好）、`sqlite-l8vtcodc`（2 项已通过页头检查及原失败记录）、`sqlite-0pr0c3sp`（长名称独立补验）。
+
+`browser_space_preference.cjs` 的配置入口、空间选择器和退出操作已同步到当前页面；其真实双账号、固定默认／记忆、失败请求和旧记录迁移等既有场景保留。**本轮没有完整重跑这份独立脚本**，不把历史结果计入上述 5 组。以上是受影响前端路径的验证，不代表本次重新验收全部功能、PostgreSQL、正式发布或用户日常部署。
+
+## MCP 已完成事项边界：0.2.3
+
+指南 v2 与事项列表、创建和更新工具的前部说明区分同轮续接和已结束交付。定向执行 `TestMCPTaskBoundaryGuidance`、`TestMCPWorkflowConfiguration`、`TestMCPWorkflowContextAndGatewayDiscovery` 已通过：覆盖开关、模块与读写能力分支、网关 300 字摘要中的引导入口和任务边界，以及关闭工作流时显式创建并纠正重开的原有 CRUD。
+
+本次定向检查使用 SQLite 夹具，未将缺少 PostgreSQL 环境时的跳过计为双数据库通过。后续正式发布必须另行通过已有的托管双数据库、HTTP、Docker 和制品门禁；开发工作区构建、浏览器证据、正式制品和日常实例部署分别记录。
+
 ## 四页统一页头：0.2.2
 
 本轮只改变前端页头和对应操作入口，未修改服务端、MCP schema、权限或数据库。浏览器验证使用独立 SQLite 回环夹具；结果不代表用户日常实例已升级，也不代替正式发布 CI 和公开制品验证。

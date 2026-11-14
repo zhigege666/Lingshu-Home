@@ -11,6 +11,7 @@ import { ErrorMessage, Field, handleFormInvalid } from '../components/Shared'
 import { FieldHelp } from '../components/FieldHelp'
 import DiscardChangesDialog from '../components/DiscardChangesDialog'
 import { AccountAvatar } from '../components/AccountMenu'
+import { SpacePreferenceSettings } from '../components/SpacePreferenceSettings'
 import '../components/account-profile.css'
 
 type Props = { user: User; bootstrap: Bootstrap; onSessionChanged: () => Promise<void>; onNotice: (message: string) => void; onCurrentSessionRevoked?: () => Promise<void> }
@@ -225,6 +226,7 @@ export default function ProfilePanel({ user, bootstrap, onSessionChanged, onNoti
           <footer className="profile-card-actions"><Button type="submit" disabled={locked || !passwordDirty}>{busy === 'password' ? t('正在修改…', 'Changing…') : t('更新密码', 'Update password')}</Button><Button type="button" variant="outline" disabled={locked || !passwordDirty} onClick={() => { setPasswords(emptyPasswords); setPasswordError(''); setPasswordSuccess('') }}>{t('清空输入', 'Clear inputs')}</Button></footer>
         </form>
       </section>
+      <SpacePreferenceSettings bootstrap={bootstrap} disabled={locked}/>
       <SessionPanel bootstrap={bootstrap} onSessionChanged={onSessionChanged} onNotice={onNotice} onCurrentSessionRevoked={onCurrentSessionRevoked} disabled={locked || nameDirty || passwordDirty || avatarDirty}/>
     </section>
     {confirmLeave && <DiscardChangesDialog onKeep={() => { pending.current = null; setConfirmLeave(false) }} onDiscard={leave} description={t('个人资料、头像或密码还有未保存的修改。离开后将丢弃这些修改。', 'Your profile, avatar or password contains unsaved changes. Leaving will discard them.')}/>}
