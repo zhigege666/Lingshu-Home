@@ -16,6 +16,8 @@ Web 界面统一使用玉绿色折带房屋 Logo。[品牌资产、用法与来�
 - **② 开发体验。** 新增事务内的工作会话、带有效期和递增代次的认领、只追加的协作事件与操作回执。HTTP／MCP 同时检查事项版本与认领；心跳不改变业务版本和更新时间。SQLite／PostgreSQL 迁移 **018** 保留既有事项与令牌。
 - **③ AI Agent 使用体验。** 同一个有效令牌可以登记多个独立会话，通过 9 个自描述 MCP 工具完成登记、读取、认领、进展、续租、交接和续接。稳定操作标识支持未知结果核对；冲突和迟到的事项写入由服务端拒绝。不需要额外 Skill，也不要求每个 Agent 新建令牌；本版不自动调度或唤醒 Agent。
 
+既有 `space_current.contextVersion=1` 契约保持不变，协作字段单独版本化。
+
 通过启动参数 `LINGSHU_MCP_COLLABORATION_ENABLED=true` 或 `--mcp-collaboration-enabled` 开启，默认**关闭**，与 `LINGSHU_MCP_WORKFLOW_ENABLED` 独立。开启后，MCP／Bearer 客户端须为事项修改提供会话与认领上下文；关闭后停止新登记／认领，保留未收尾认领的保护和收尾入口。既有令牌保留授权；MCP 现有 **55 个工具，其中 21 个事项工具**。升级 Home 后刷新 Gate 已发布的工具定义；Home 会话 ID 放在原工具参数内，不放在 Gate 路由的 `session_id` 中。详见[协作契约](docs/WORK_COLLABORATION.md)、[0.2.4 更新记录](CHANGELOG.md#024---2026-11-14)与[升级恢复说明](#保留数据与正常停止)。
 
 ### 沿用 0.2.3 能力

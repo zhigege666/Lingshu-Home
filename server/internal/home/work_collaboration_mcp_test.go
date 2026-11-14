@@ -93,8 +93,21 @@ func TestMCPCollaborationDiscoveryAndCapabilities(t *testing.T) {
 			full, _ := owner.token(f.space, "", "work:read", "work:write")
 			data := collaborationMCPCall(t, agent, full, "space_current", map[string]any{}, false)
 			collaboration := integrationObject(t, data["collaboration"])
-			if data["contextVersion"] != float64(2) || collaboration["version"] != "1" || collaboration["enabled"] != false || collaboration["effectiveEnabled"] != false || collaboration["reason"] != "disabled" || collaboration["existingClaimsEnforced"] != true {
+			if data["contextVersion"] != float64(1) || collaboration["version"] != "1" || collaboration["enabled"] != false || collaboration["effectiveEnabled"] != false || collaboration["reason"] != "disabled" || collaboration["existingClaimsEnforced"] != true {
 				t.Fatalf("default collaboration context differs: %v", collaboration)
+			}
+			if data["spaceId"] != f.space || data["kind"] != "shared" || data["name"] == nil || data["modules"] == nil || data["workflow"] == nil || data["entrypoints"] == nil {
+				t.Fatal("additive collaboration changed or omitted legacy space context fields")
+			}
+			caps := integrationObject(t, data["capabilities"])
+			for name, want := range map[string]map[string]any{
+				"work":       {"read": true, "write": true},
+				"documents":  {"read": false, "write": false},
+				"navigation": {"read": false, "write": false},
+			} {
+				if !reflect.DeepEqual(integrationObject(t, caps[name]), want) {
+					t.Fatalf("additive collaboration changed effective %s capability", name)
+				}
 			}
 			if integrationObject(t, collaboration["entrypoints"])["openSession"] != nil || integrationObject(t, collaboration["entrypoints"])["releaseClaim"] != "work_claims_release" {
 				t.Fatal("disabled collaboration advertised new sessions or hid cleanup")

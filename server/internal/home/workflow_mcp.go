@@ -89,8 +89,10 @@ func (a *App) currentIntegrationContext(r *Request, space *Space) integrationSpa
 	if capabilities.Navigation.Read {
 		entrypoints["navigation"] = "navigation_get"
 	}
+	// Collaboration is additive; its own contract version evolves without
+	// changing the existing space context version or legacy client fields.
 	return integrationSpaceContext{
-		SpaceID: space.ID, Name: space.Name, Kind: space.Kind, ContextVersion: 2, ServerVersion: a.version,
+		SpaceID: space.ID, Name: space.Name, Kind: space.Kind, ContextVersion: 1, ServerVersion: a.version,
 		Modules: r.Settings.Modules, Capabilities: capabilities, Entrypoints: entrypoints,
 		Workflow:      integrationWorkflowContext{Enabled: a.config.MCPWorkflowEnabled, Version: mcpWorkflowVersion, Guide: integrationWorkflowGuide(a.config.MCPWorkflowEnabled, r.Settings.Modules, capabilities)},
 		Collaboration: integrationCollaborationGuide(a.config.MCPCollaborationEnabled, r.Settings.Modules, capabilities),

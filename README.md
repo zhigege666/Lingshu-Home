@@ -16,6 +16,8 @@ The jade folded-house logo is shared throughout the Web interface. [Brand assets
 - **② Developer experience.** Add optional, transactional work sessions, expiring claims with monotonic generations, append-only events and operation receipts. Revision checks and claim checks apply together across HTTP/MCP. Heartbeats leave business revisions/timestamps unchanged. SQLite/PostgreSQL migration **018** preserves existing work and tokens.
 - **③ AI Agent experience.** Independent sessions can share an existing token while coordinating through nine self-describing MCP tools. Register, read, acquire, report progress, renew, hand off and resume with stable operation IDs. The server rejects conflicting or late item writes; no extra Skill, automatic Agent scheduler or token per Agent is required.
 
+The existing `space_current.contextVersion=1` contract is retained; collaboration reports its own version.
+
 Enable this optional feature at startup with `LINGSHU_MCP_COLLABORATION_ENABLED=true` or `--mcp-collaboration-enabled`. It defaults **off** and is independent of `LINGSHU_MCP_WORKFLOW_ENABLED`. Enabling it requires adapted MCP/Bearer clients to supply session/claim context for work-item mutations. Turning it off prevents new sessions/claims while retaining unresolved-claim protection and cleanup. Existing credentials keep their grants; the catalog now has **55 tools, including 21 work tools**. Refresh Gate's published definitions after upgrading Home; pass Home session IDs inside the tool arguments, not Gate's routing `session_id`. See the [collaboration contract](docs/WORK_COLLABORATION.md), [0.2.4 changelog](CHANGELOG.md#024---2026-11-14) and [recovery guidance](#keep-data-and-stop-safely).
 
 ### Included from 0.2.3

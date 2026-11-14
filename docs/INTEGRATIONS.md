@@ -471,6 +471,8 @@ Use a fresh disposable service with a separate data directory/database. The scri
 
 ## Optional work collaboration
 
+The outer `space_current.contextVersion` remains `"1"`: original fields and meanings stay compatible. The additive optional `collaboration` object has its own `version:"1"`; clients may ignore that object until they enable/adapt to collaboration.
+
 Since 0.2.4, `LINGSHU_MCP_COLLABORATION_ENABLED` / `--mcp-collaboration-enabled` independently enables sessions and claim enforcement, default off. `space_current.collaboration` and `work_collaboration_get` report the actual setting, effective availability and contract version. Enabling it requires MCP/Bearer work-item create/update/move callers to provide `input.context`; current claim checks accompany the existing revision checks. Unresolved claims remain protected after the setting is disabled, with cleanup available. Session labels do not grant authority and lease expiry does not stop external work.
 
 Home application IDs remain inside the original tool `arguments`, including when Gate loads tools on demand; Gate routing `session_id` is a different field. Refresh the gateway catalog after the application upgrade, preserve the original operation ID and payload on uncertain writes, and read back current records before continuing. Workflow guidance cannot guarantee that a client schedules or follows work automatically. See the complete [user, HTTP and Agent collaboration contract](WORK_COLLABORATION.md) for lifecycle, permissions, pagination, recovery and migration 018.
