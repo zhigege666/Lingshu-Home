@@ -175,7 +175,7 @@ func (a *App) getWorkRevision(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ok(map[string]string{"revision": strconv.FormatInt(revision, 10), "statusRevision": strconv.FormatInt(statuses, 10), "collaborationRevision": collaborationRevision}), nil
+	return ok(map[string]string{"revision": strconv.FormatInt(revision, 10), "statusRevision": strconv.FormatInt(statuses, 10), "collaborationRevision": collaborationRevision, "mcpSettingsRevision": r.Settings.MCP.Revision}), nil
 }
 
 type workStatusCreate struct {

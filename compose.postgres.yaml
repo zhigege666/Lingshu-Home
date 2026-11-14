@@ -7,6 +7,7 @@ services:
       - "127.0.0.1:5180:8080"
     environment:
       LINGSHU_STORAGE_PROVIDER: postgres
+      # Startup defaults; saved MCP settings in Home take precedence.
       LINGSHU_MCP_WORKFLOW_ENABLED: "${LINGSHU_MCP_WORKFLOW_ENABLED:-false}"
       LINGSHU_MCP_COLLABORATION_ENABLED: "${LINGSHU_MCP_COLLABORATION_ENABLED:-false}"
       LINGSHU_LANGUAGE: "${LINGSHU_LANGUAGE:-}"

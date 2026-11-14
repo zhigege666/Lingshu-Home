@@ -568,6 +568,14 @@ The first successful views-and-clones capture becomes the immutable baseline. La
 
 A source cannot be retargeted to a different repository after its first snapshot. Create a separate source for that repository. Source configuration can disable a source while retaining data. **Sources → Delete** removes its configuration, credentials and saved snapshot after confirmation, together with page bindings unused by any component. A source still used by a saved component, including a hidden one, cannot be deleted; change the component's source or remove it and save the page first. No real repository credentials or baseline are bundled by default.
 
+### MCP workflow and collaboration settings
+
+As Owner, open **Data sources and MCP → MCP and access tokens → MCP settings**. Choose **MCP workflow guidance** and **Multi-agent collaboration** independently, then **Save MCP settings**. The settings apply to all spaces, affect subsequent requests immediately and survive restarts. Members can view their values but cannot change them; disabling Work does not hide this configuration.
+
+Page saves override startup CLI/environment defaults. Until the first webpage save, the previous startup defaults still apply. Use the help beside the heading to inspect the source. Normal webpage changes do not require container recreation, a replacement token or gateway catalog publication.
+
+Enabling collaboration requires adapted Agent clients to register sessions and claim items before changing them. Disabling it stops new sessions/claims while existing claims remain protected and can be renewed, handed off or resolved. Unsaved changes are protected when leaving; a conflict or unconfirmed save keeps the draft for comparison with the actual persisted values. See the [configuration/API contract](INTEGRATIONS.md#optional-workflow-guidance-and-module-state).
+
 ### Home tokens and MCP clients
 
 Open **MCP and access tokens → Create token**. Name the client, choose current-space or source-specific scope, and choose **Selected permissions** or **All permissions**. Validity options are **7, 30, 90 or 365 days**, or **Never expires**. A source-specific token is suitable for one external publisher; use current-space scope for local bookmark, page or work management. **All permissions** includes future business actions within the token's original resource scope and the account's current access; an existing selected-permissions token is not automatically expanded.

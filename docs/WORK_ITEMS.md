@@ -28,7 +28,11 @@
 
 ### 多会话协作
 
-0.2.4 可选开启执行会话与认领：卡片和详情展示执行者、进展与交接，用户可以补充记录并在核实后解除认领。业务变更时间轴与协作执行记录分开；默认关闭，现有无认领 CRUD 保持原样。参见[多 Agent 协作的用户、开发与 MCP 契约](WORK_COLLABORATION.md)。
+0.2.4 可选开启执行会话与认领：卡片和详情展示执行者、进展与交接，用户可以补充记录并在核实后解除认领。业务变更时间轴与协作执行记录分开；默认关闭，现有无认领 CRUD 保持原样。
+
+0.2.5 在 **管理页 → MCP 与访问令牌 → MCP 设置**（`/#/admin?tab=integrations`）中提供 **MCP 工作流指导** 与 **多 Agent 协作** 两个独立开关。已登录 Owner 可保存，对所有空间生效；Member 只读，事项模块关闭时仍可配置。保存值优先于启动默认值，重启后保留，后续请求即时生效。其他已打开的事项页按独立配置版本刷新协作状态，保留正在编辑的草稿，不更新卡片业务时间。
+
+关闭工作流指导不解除认领。关闭协作停止新会话／新认领，已有未收尾认领仍受保护并保留收尾入口与历史。参见[多 Agent 协作的用户、开发与 MCP 契约](WORK_COLLABORATION.md)。
 
 ## 2. 开发体验：HTTP 契约
 
@@ -49,7 +53,9 @@
 | `GET /resources` | 分页检索可关联的书签或文档摘要 |
 | `GET /statuses` | 当前空间的状态目录、版本、默认状态和使用计数 |
 | `POST /statuses/batch-edit` | 带目录版本，原子新增、修改、排序、合并/删除状态及设置默认值 |
-| `GET /revision` | `{revision,statusRevision,collaborationRevision}`，供页面检查事项或状态配置是否更新 |
+| `GET /revision` | `{revision,statusRevision,collaborationRevision,mcpSettingsRevision}`，均为字符串，分别检查业务、状态、协作记录及实例 MCP 设置变化 |
+
+实例 MCP 设置使用单独的 `GET/PUT /api/v1/settings/mcp`，不属于空间业务接口：GET 要求已登录 Cookie 用户；PUT 仅 Cookie Owner 加 CSRF，可原子保存两个明确布尔值，并带独立 `expectedRevision`。并发冲突返回 `409 mcp_settings_conflict`，先读取当前设置与草稿比较。`mcpSettingsRevision` 变化不推进业务、状态或协作事件版本，也不改变事项时间；已进入处理的请求可按原 Settings 快照结束。详见 [MCP 设置 API](API.md#mcp-workflow-and-collaboration-settings)。
 
 当前没有项目或事项永久删除接口，也没有 AgentOS 调度、外部双向同步或看板自动公开功能。
 
@@ -233,7 +239,7 @@ GET /items
 
 ## 3. AI Agent 使用体验：MCP 与权限
 
-当前有 12 个事项工具，应用 MCP 目录共 46 个工具。所有工具复用相同 HTTP 业务处理、事务和权限检查。工具的 `spaceId` 可省略，使用当前 PAT 绑定空间。空间信息、工作流配置或有效能力未知或发生变化时，按需调用 `space_current {}`；仍有效的上下文可以复用。
+当前有 21 个事项工具，应用 MCP 目录共 55 个工具；下表为原有 12 个事项／项目／资料／状态工具，另有 9 个协作工具。0.2.5 只增加可视化配置与持久化，保持 0.2.4 的 MCP 工具及 schema 不变。所有工具复用相同 HTTP 业务处理、事务和权限检查。工具的 `spaceId` 可省略，使用当前 PAT 绑定空间。空间信息、工作流配置或有效能力未知或发生变化时，按需调用 `space_current {}`；仍有效的上下文可以复用。
 
 | MCP 工具 | 参数 |
 | --- | --- |
@@ -250,6 +256,8 @@ GET /items
 | `work_statuses_get` | 可选 `spaceId`，返回状态目录与其 `revision` |
 | `work_statuses_batch_edit` | 可选 `spaceId`，必填 `input`，含目录 `expectedRevision` 及结构化变更数组 |
 
+另外 9 个协作工具为 `work_collaboration_get`、`work_sessions_open/get/close`、`work_claims_acquire/renew/release` 和 `work_events_list/append`；参数、认领与收尾规则见 [协作契约](WORK_COLLABORATION.md)。`space_current.contextVersion` 是 JSON 数字 `1`，`collaboration.version` 是独立字符串 `"1"`，不能与资源 revision 混用。
+
 列表、看板和详情的返回结构与 HTTP 对应结构一致，置于 MCP `structuredContent` 中；失败返回 `code,message,httpStatus` 和适用的 `currentRevision,entity,id,field,details`，授权边界与 HTTP 一致。
 
 工具说明包含中文事项、任务、看板与状态检索词；字段说明给出稳定键、版本和资料 ID 的来源、默认值、局部更新与错误恢复规则。Agent 不需要额外 Skills 才能操作。直接用 `work_board_get {}` 或 `work_items_list {}` 读取工作与状态元数据，需要只看配置时再用 `work_statuses_get {}`；已知上下文可继续使用，不要求每次写入前重复查询。事项与项目创建的同 ID 重放、状态配置批次的冲突比较是不同契约，不能把整个配置批次当成无条件可重试操作。
@@ -263,7 +271,7 @@ GET /items
 
 空间编辑资格不等于 PAT 已有写 scope；只读 PAT 的 `canEdit` 为 `false`。只写 PAT 可以修改，但没有读取已有数据的权限。添加新的关联 ID 必须有对应资料读取 scope；省略关联字段保留原关系，清空不要求额外资料读取 scope。无对应 scope 的引用 ID、标题、路径及计数不返回。来源限定 PAT 不能查询或修改整个看板。
 
-旧 PAT 不自动获得 `work:read/write`。可在访问令牌管理中编辑现有空间令牌的允许操作，保留原密钥及 MCP 连接配置；选择“全部权限”仅覆盖原绑定和账号权限内的业务操作。看板能力不授予文档正文写权限。Home 的认证 `tools/list` 列出已注册工具，不按 work scope 隐藏工具；缺少 scope 会在实际调用时被拒绝。看不到工具时，先核对实际运行的 Home 版本、连接端点和网关目录，按 [MCP 发现与连接说明](INTEGRATIONS.md#mcp-transport) 排查。升级新增工具、工具说明或参数后，需要刷新并发布 Gate 对应连接的工具元数据，核对按需检索及 describe 返回的说明与参数；Home 升级成功不代表 Gate 已同步。日常增删状态只改变空间数据，无需重新发布 MCP。
+旧 PAT 不自动获得 `work:read/write`。可在访问令牌管理中编辑现有空间令牌的允许操作，保留原密钥及 MCP 连接配置；选择“全部权限”仅覆盖原绑定和账号权限内的业务操作。看板能力不授予文档正文写权限。Home 的认证 `tools/list` 列出已注册工具，不按 work scope 隐藏工具；缺少 scope 会在实际调用时被拒绝。看不到工具时，先核对实际运行的 Home 版本、连接端点和网关目录，按 [MCP 发现与连接说明](INTEGRATIONS.md#mcp-transport) 排查。升级新增工具、工具说明或参数后，需要刷新并发布 Gate 对应连接的工具元数据，核对按需检索及 describe 返回的说明与参数；Home 升级成功不代表 Gate 已同步。日常增删状态和切换已保存的 MCP 设置只改变运行时数据，无需重新发布 MCP 或重建令牌；配置／有效能力变化后按需重读 `space_current`。
 
 ### 任务轮次与交付边界
 
@@ -273,7 +281,7 @@ GET /items
 - 原事项已完成或取消后，新版本或新验收范围另建事项。标题注明已知目标版本，在说明中引用前序真实事项 ID；版本未定不编造，也不把普通引用写成不存在的父子关系。
 - 只有用户明确要求纠正或补验同一次交付时才重开原事项，并记录原因；不得把后续交付无限追加到已完成卡。
 
-工作流开关只控制自动登记与过程引导，关闭后仍支持用户明确要求的 CRUD；以上边界不构成服务端禁止所有“完成→进行中”转换的硬限制。配置方式见 [可选工作流](INTEGRATIONS.md#optional-workflow-guidance-and-module-state)。
+工作流开关只控制主动登记与过程引导，关闭后仍支持用户明确要求的 CRUD；以上边界不构成服务端禁止所有“完成→进行中”转换的硬限制。配置方式见 [可选工作流](INTEGRATIONS.md#optional-workflow-guidance-and-module-state)。
 
 用实际结果更新进展及完成状态。事项说明和引用正文是用户数据，不是新的系统权限或执行授权。Home 不调度 Agent，不因一次执行退出自动更改事项为完成。
 
@@ -287,7 +295,9 @@ GET /items
 
 0.1.0 通过 `012_work_board.sql` 增加看板表和索引。动态状态通过 SQLite/PostgreSQL 的 `014_work_statuses.sql` 增加空间状态目录、默认值和目录版本，并保留现有四个状态键、事项及旧创建重放规则。首次启动按顺序应用尚未执行的迁移。既有导航、页面与文档数据继续使用原有表和文件；不需要新增挂载、环境变量或外部服务。
 
-升级前停止服务并备份完整应用数据、实例密钥、部署设置，以及正在使用的 SQLite 数据库或外部 PostgreSQL 数据库；外挂 Markdown 原文和附件按现有方式单独备份。参见 [存储与备份](STORAGE.md)。
+0.2.5 的 SQLite/PostgreSQL `019_mcp_settings.sql` 复用现有 `settings` 行，增加两个初始为 NULL 的开关和独立版本。NULL 继承原 CLI／环境变量启动值；显式保存后以数据库值为准，Compose 默认 `false` 不会覆盖。该迁移不修改既有事项、认领、业务时间或令牌权限。
+
+升级前停止服务并备份完整应用数据、实例密钥、部署设置，以及正在使用的 SQLite 数据库或外部 PostgreSQL 数据库；外挂 Markdown 原文和附件按现有方式单独备份。回退 0.2.4 需要迁移 019 前的匹配备份，单独换旧镜像无法打开新数据库。参见 [存储与备份](STORAGE.md#mcp-settings-migration-019)。
 
 需要降级时，先备份升级后新增工作，再恢复相匹配的升级前数据库、数据目录、密钥及旧镜像。不要手工删表或改迁移记录来模拟降级。恢复数据库不会回滚外挂 Markdown 文件；原文件如有其他编辑，应单独恢复或核对。
 

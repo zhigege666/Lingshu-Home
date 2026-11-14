@@ -50,20 +50,22 @@ type NoteRequest = { operationId: string; kind: string; body: string; after: str
 type ResolveRequest = { operationId: string; expectedGeneration: string; reason: string; externalOperationsStopped: true; after: string }
 type PendingState = { dirty: boolean; busy: boolean; discard: () => void }
 type Props = {
-  spaceId: string; item: WorkItem | null; canEdit: boolean; disabled: boolean;
+  spaceId: string; mcpSettingsRevision?: string; item: WorkItem | null; canEdit: boolean; disabled: boolean;
   onItem: (item: WorkItem, resolved: boolean) => void; onPendingChange: (state: PendingState) => void; onNotice: (message: string) => void;
 }
 
 // Keep drafts, operation receipts and in-flight requests at the stable editor
 // level. Switching between the wide pane and the drawer only remounts the view.
-export function useWorkCollaboration({ spaceId, item, canEdit, disabled, onItem, onPendingChange, onNotice }: Props) {
+export function useWorkCollaboration({ spaceId, mcpSettingsRevision, item, canEdit, disabled, onItem, onPendingChange, onNotice }: Props) {
   const theme = useWorkTheme(), path = `${workPath(spaceId)}/items/${encodeURIComponent(item?.id || '')}`
   const [snapshot, setSnapshot] = useState(item?.collaboration), [expanded, setExpanded] = useState(false)
+  const canAppend = !!snapshot && (snapshot.enabled || snapshot.state === 'active' || snapshot.state === 'expired' || snapshot.unresolved)
   const [page, setPage] = useState<WorkEventPage | null>(null), [reading, setReading] = useState(false), [error, setError] = useState('')
   const [body, setBody] = useState(''), [kind, setKind] = useState('note'), [pendingNote, setPendingNote] = useState<NoteRequest | null>(null)
   const [resolving, setResolving] = useState(false), [resolveGeneration, setResolveGeneration] = useState(''), [reason, setReason] = useState(''), [stopped, setStopped] = useState(false)
   const [pendingResolve, setPendingResolve] = useState<ResolveRequest | null>(null), [resolveError, setResolveError] = useState(''), [mutating, setMutating] = useState(false)
   const alive = useRef(true), readingRef = useRef(false), working = useRef(false), pageRef = useRef(page), expandedRef = useRef(expanded)
+  const settingsRead = useRef({ path: '', revision: '' })
   const callbacks = useRef({ onItem, onPendingChange, onNotice }); callbacks.current = { onItem, onPendingChange, onNotice }
   pageRef.current = page; expandedRef.current = expanded
   useEffect(() => { setSnapshot(item?.collaboration) }, [item?.collaboration])
@@ -105,24 +107,29 @@ export function useWorkCollaboration({ spaceId, item, canEdit, disabled, onItem,
     if (expanded && !pageRef.current) void readEvents()
   }, [expanded])
   useEffect(() => {
-    if (!item?.collaboration) return
+    const unreadSettings = () => !!mcpSettingsRevision && (settingsRead.current.path !== path || settingsRead.current.revision !== mcpSettingsRevision)
+    if (!item?.id || (!item.collaboration && !unreadSettings())) return
     const abort = new AbortController()
     let checking = false
     const refresh = async () => {
-      if (checking || working.current || document.visibilityState !== 'visible') return
+      if (checking || working.current || document.visibilityState !== 'visible' || (!item?.collaboration && !unreadSettings())) return
       checking = true
       try {
         const reads: Promise<unknown>[] = [readItem(false, abort.signal)]
         if (expandedRef.current && pageRef.current) reads.push(readEvents('refresh', abort.signal))
         const results = await Promise.allSettled(reads)
+        if (!abort.signal.aborted && alive.current && results[0].status === 'fulfilled') settingsRead.current = { path, revision: mcpSettingsRevision || '' }
         if (!abort.signal.aborted && alive.current && results[0].status === 'rejected') setError(t('协作信息暂未刷新，正在显示上次读取结果。', 'Collaboration details could not be refreshed. Showing the last read result.'))
       } finally { checking = false }
     }
+    // Refresh only the collaboration snapshot; the editor owns its draft.
+    // Failed reads retain the pending settings revision for the next check.
+    if (unreadSettings()) void refresh()
     const interval = window.setInterval(() => void refresh(), 15000)
     const visible = () => { if (document.visibilityState === 'visible') void refresh() }
     window.addEventListener('focus', visible); document.addEventListener('visibilitychange', visible)
     return () => { abort.abort(); clearInterval(interval); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', visible) }
-  }, [path, !!item?.collaboration])
+  }, [path, !!item?.collaboration, mcpSettingsRevision])
 
   // A lost response keeps its original identifier and payload. Look for the
   // receipt before offering an exact replay; never create a replacement event.
@@ -141,7 +148,7 @@ export function useWorkCollaboration({ spaceId, item, canEdit, disabled, onItem,
     setBody(''); setPendingNote(null); setError(''); callbacks.current.onNotice(t('协作记录已添加', 'Collaboration record added'))
   }
   async function saveNote(retry = false) {
-    if (working.current || disabled || !canEdit || !body.trim() || [...body.trim()].length > 4000) return
+    if (working.current || disabled || !canEdit || !canAppend || !body.trim() || [...body.trim()].length > 4000) return
     const payload = retry ? pendingNote : { operationId: newWorkId(), kind, body: body.trim(), after: pageRef.current?.highWatermark || '' }
     if (!payload) return
     working.current = true; setMutating(true); setError(''); setPendingNote(payload)
@@ -162,9 +169,13 @@ export function useWorkCollaboration({ spaceId, item, canEdit, disabled, onItem,
   async function verifyNote() {
     if (!pendingNote || working.current) return
     working.current = true; setMutating(true)
-    try { const known = await findOperation(pendingNote.operationId, pendingNote.after); if (alive.current) { if (known) noteSaved(known); else setError(t('暂未查询到这次提交；可以按原标识重试，避免重复记录。', 'This submission has not been found. Retry with its original ID to avoid duplicate records.')) } }
+    try { const known = await findOperation(pendingNote.operationId, pendingNote.after); if (alive.current) { if (known) noteSaved(known); else setError(canAppend ? t('暂未查询到这次提交；可以按原标识重试，避免重复记录。', 'This submission has not been found. Retry with its original ID to avoid duplicate records.') : t('暂未查询到这次提交；内容和原标识已保留，重新开启协作后可按原标识重试。', 'This submission has not been found. Its content and original ID are retained; enable collaboration to retry with that ID.')) } }
     catch (cause) { if (alive.current) setError(messageOf(cause)) }
     finally { working.current = false; if (alive.current) setMutating(false) }
+  }
+  async function copyDraft() {
+    try { await navigator.clipboard.writeText(body); callbacks.current.onNotice(t('协作记录草稿已复制', 'Collaboration draft copied')) }
+    catch { if (alive.current) setError(t('无法复制，请选中草稿文本后复制。', 'Copy failed. Select and copy the draft text.')) }
   }
   async function resolveClaim(retry = false) {
     if (working.current || disabled || !canEdit || (!retry && (!snapshot?.canResolve || !stopped || !reason.trim()))) return
@@ -195,7 +206,7 @@ export function useWorkCollaboration({ spaceId, item, canEdit, disabled, onItem,
     theme, item, canEdit, disabled, snapshot, expanded, setExpanded, page, reading, error, setError,
     body, setBody, kind, setKind, pendingNote, resolving, setResolving, resolveGeneration, setResolveGeneration,
     reason, setReason, stopped, setStopped, pendingResolve, resolveError, setResolveError, mutating,
-    readItem, readEvents, verifyNote, saveNote, resolveClaim,
+    readItem, readEvents, verifyNote, saveNote, resolveClaim, copyDraft, canAppend,
   }
 }
 
@@ -204,9 +215,19 @@ export default function WorkCollaboration({ model }: { model: ReturnType<typeof 
     theme, item, canEdit, disabled, snapshot, expanded, setExpanded, page, reading, error, setError,
     body, setBody, kind, setKind, pendingNote, resolving, setResolving, resolveGeneration, setResolveGeneration,
     reason, setReason, stopped, setStopped, pendingResolve, resolveError, setResolveError, mutating,
-    readItem, readEvents, verifyNote, saveNote, resolveClaim,
+    readItem, readEvents, verifyNote, saveNote, resolveClaim, copyDraft, canAppend,
   } = model
-  if (!snapshot || !item) return null
+  if (!item) return null
+  if (!snapshot) {
+    if (!body.trim() && !pendingNote) return null
+    return <section className="work-collaboration" data-work-collaboration data-collaboration-state="disabled" aria-label={t('协作', 'Collaboration')}>
+      <header><h3><Users size={15} aria-hidden="true"/>{t('协作', 'Collaboration')}</h3><span className="work-collaboration-status">{t('已关闭', 'Disabled')}</span></header>
+      <p className="work-collaboration-caution">{pendingNote ? t('提交结果尚未确认，可继续核对。', 'The submission is unconfirmed. You can still verify its result.') : t('草稿已保留，重新开启协作后可提交。', 'Your draft is retained. Enable collaboration to submit it.')}</p>
+      <ErrorMessage error={error}/>
+      <Field label={t('补充协作记录', 'Add a collaboration record')}><Textarea data-work-collaboration-note aria-label={t('补充协作记录', 'Add a collaboration record')} rows={3} maxLength={8000} readOnly={!!pendingNote} disabled={disabled || mutating} value={body} onChange={event => setBody(event.target.value)}/></Field>
+      <div className="work-event-composer-actions"><Button type="button" variant="outline" size="sm" disabled={disabled || mutating || !body} onClick={() => void copyDraft()}>{t('复制草稿', 'Copy draft')}</Button><Button type="button" variant="ghost" size="sm" disabled={disabled || mutating || !!pendingNote} onClick={() => { setBody(''); setError('') }}>{t('清空草稿', 'Clear draft')}</Button>{pendingNote && <Button type="button" variant="outline" size="sm" disabled={disabled || mutating} onClick={() => void verifyNote()}>{t('重新核对', 'Verify again')}</Button>}</div>
+    </section>
+  }
   const terminal = item.archived || item.statusDefinition?.type === 'done' || item.statusDefinition?.type === 'canceled'
   const session = snapshot.session, flagged = snapshot.state === 'expired' || snapshot.state === 'released' && snapshot.unresolved
   const resolveChanged = resolving && snapshot.generation !== resolveGeneration && !pendingResolve
@@ -235,9 +256,10 @@ export default function WorkCollaboration({ model }: { model: ReturnType<typeof 
       </li>)}</ol>{!page.items.length && <p className="work-collaboration-empty">{t('暂无协作记录', 'No collaboration records yet')}</p>}
       {page.nextCursor && <Button type="button" variant="ghost" size="sm" disabled={reading} onClick={() => void readEvents('more')}>{reading ? t('正在读取…', 'Loading…') : t('继续读取后续记录', 'Read subsequent records')}</Button>}</>}
       {canEdit && <div className="work-event-composer">
+        {!canAppend && <p className="work-collaboration-caution">{t('协作已关闭，草稿仍可保留，已有提交可继续核对。', 'Collaboration is disabled. Drafts are retained and existing submissions can still be verified.')}</p>}
         <Field label={t('补充协作记录', 'Add a collaboration record')}><Textarea data-work-collaboration-note aria-label={t('补充协作记录', 'Add a collaboration record')} rows={2} maxLength={8000} disabled={disabled || mutating || !!pendingNote} value={body} onChange={event => setBody(event.target.value)}/></Field>
         <div className="work-event-composer-actions"><StyledSelect aria-label={t('记录类型', 'Record type')} value={kind} onValueChange={setKind} disabled={disabled || mutating || !!pendingNote} tone="home" theme={theme} options={['note', 'question', 'review', 'decision', 'progress'].map(value => ({ value, label: eventLabel(value) }))}/>
-          {pendingNote ? <><Button type="button" variant="outline" size="sm" disabled={disabled || mutating} onClick={() => void verifyNote()}>{t('重新核对', 'Verify again')}</Button><Button type="button" size="sm" disabled={disabled || mutating} onClick={() => void saveNote(true)}>{t('重试同次提交', 'Retry same submission')}</Button></> : <Button type="button" size="sm" disabled={disabled || mutating || !body.trim() || [...body.trim()].length > 4000} onClick={() => void saveNote()}>{t('添加记录', 'Add record')}</Button>}
+          {pendingNote ? <><Button type="button" variant="outline" size="sm" disabled={disabled || mutating} onClick={() => void verifyNote()}>{t('重新核对', 'Verify again')}</Button><Button type="button" size="sm" disabled={disabled || mutating || !canAppend} onClick={() => void saveNote(true)}>{t('重试同次提交', 'Retry same submission')}</Button></> : <Button type="button" size="sm" disabled={disabled || mutating || !canAppend || !body.trim() || [...body.trim()].length > 4000} onClick={() => void saveNote()}>{t('添加记录', 'Add record')}</Button>}
         </div>{[...body.trim()].length > 4000 && <ErrorMessage error={t('记录最多允许 4000 个字符。', 'A record allows at most 4,000 characters.')}/>}
       </div>}
     </div>}

@@ -16,6 +16,7 @@ const (
 )
 
 type Settings struct {
+	MCP                 MCPSettings    `json:"-"`
 	SessionPolicy       SessionPolicy  `json:"-"`
 	Modules             ModuleSettings `json:"modules"`
 	Initialized         bool           `json:"initialized"`

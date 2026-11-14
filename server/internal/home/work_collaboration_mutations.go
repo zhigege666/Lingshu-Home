@@ -68,7 +68,7 @@ func (a *App) guardWorkMutation(r *Request, item *WorkItem, c *WorkMutationConte
 	if c != nil {
 		return validateWorkClaimOwner(claim, workClaimOwnerInput{SessionID: c.SessionID, ClaimID: c.ClaimID, ClaimGeneration: c.ClaimGeneration, OperationID: c.OperationID})
 	}
-	if r.Bearer && a.config.MCPCollaborationEnabled {
+	if r.Bearer && r.Settings.MCP.CollaborationEnabled {
 		return workCollabError("work_claim_required", "Collaboration is enabled. Register a work session, read the current item and acquire a claim before editing, moving or archiving.")
 	}
 	return nil
@@ -171,7 +171,7 @@ func (a *App) coordinatedWorkMutation(r *Request, action string, handler handler
 }
 func (a *App) prepareWorkCreation(r *Request, space, item string, input workCreateInput, c *WorkMutationContext) (*Response, string, error) {
 	if c == nil {
-		if r.Bearer && a.config.MCPCollaborationEnabled {
+		if r.Bearer && r.Settings.MCP.CollaborationEnabled {
 			return nil, "", workCollabError("work_session_required", "Collaboration is enabled. Register a work session and supply context.sessionId and context.operationId for new work.")
 		}
 		return nil, "", nil
@@ -193,7 +193,7 @@ func (a *App) prepareWorkCreation(r *Request, space, item string, input workCrea
 	if err = requireOpenWorkSession(session); err != nil {
 		return nil, "", err
 	}
-	if err = a.requireCollaborationEnabled(); err != nil {
+	if err = a.requireCollaborationEnabled(r); err != nil {
 		return nil, "", err
 	}
 	setWorkRequestSession(r, session)

@@ -74,7 +74,7 @@ func (a *App) currentIntegrationContext(r *Request, space *Space) integrationSpa
 		entrypoints["item"] = "work_items_get"
 		entrypoints["statuses"] = "work_statuses_get"
 	}
-	if capabilities.Work.Write && (!a.config.MCPCollaborationEnabled || capabilities.Work.Read) {
+	if capabilities.Work.Write && (!r.Settings.MCP.CollaborationEnabled || capabilities.Work.Read) {
 		entrypoints["createWork"] = "work_items_create"
 		entrypoints["updateWork"] = "work_items_update"
 	}
@@ -94,8 +94,8 @@ func (a *App) currentIntegrationContext(r *Request, space *Space) integrationSpa
 	return integrationSpaceContext{
 		SpaceID: space.ID, Name: space.Name, Kind: space.Kind, ContextVersion: 1, ServerVersion: a.version,
 		Modules: r.Settings.Modules, Capabilities: capabilities, Entrypoints: entrypoints,
-		Workflow:      integrationWorkflowContext{Enabled: a.config.MCPWorkflowEnabled, Version: mcpWorkflowVersion, Guide: integrationWorkflowGuide(a.config.MCPWorkflowEnabled, r.Settings.Modules, capabilities)},
-		Collaboration: integrationCollaborationGuide(a.config.MCPCollaborationEnabled, r.Settings.Modules, capabilities),
+		Workflow:      integrationWorkflowContext{Enabled: r.Settings.MCP.WorkflowEnabled, Version: mcpWorkflowVersion, Guide: integrationWorkflowGuide(r.Settings.MCP.WorkflowEnabled, r.Settings.Modules, capabilities)},
+		Collaboration: integrationCollaborationGuide(r.Settings.MCP.CollaborationEnabled, r.Settings.Modules, capabilities),
 	}
 }
 

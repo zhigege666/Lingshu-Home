@@ -1,8 +1,8 @@
 # Storage, migration and recovery
 
-The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Version 0.1.1 application and Docker artifacts target Linux amd64 (x86-64). Browser access from Windows or macOS does not imply a native desktop client has been delivered.
+The Go service supports SQLite and PostgreSQL through `database/sql`, using `modernc.org/sqlite` and pgx. Both providers use real, separately maintained SQL migrations. Application and Docker artifacts target Linux amd64 (x86-64). Browser access from Windows or macOS does not imply a native desktop client has been delivered.
 
-Version **0.0.2** introduced persisted instance language and migration **007**; **0.0.5** added the document library in **008**. Version **0.0.6** adds document activity in **009** and browser-session retention in **010**, applied automatically on first startup. Version **0.0.7** adds click statistics in **011**, **0.1.0** adds work items in **012**, and **0.1.1** adds private account avatars in **013**. Follow the upgrade and restore rules below for each schema boundary; replacing the executable alone does not downgrade a database.
+Version **0.0.2** introduced persisted instance language and migration **007**; **0.0.5** added the document library in **008**. Version **0.0.6** adds document activity in **009** and browser-session retention in **010**, applied automatically on first startup. Version **0.0.7** adds click statistics in **011**, **0.1.0** adds work items in **012**, and **0.1.1** adds private account avatars in **013**. Version **0.2.4** adds work collaboration in **018**; **0.2.5** persists visual MCP settings in **019**. Follow the upgrade and restore rules below for each schema boundary; replacing the executable alone does not downgrade a database.
 
 ## First-run storage setup
 
@@ -38,6 +38,10 @@ Back up `storage.json` when present, the database, and matching `csrf.key` and `
 | `LINGSHU_VERSION_FILE` | `--version-file` | `VERSION`, required and nonempty |
 | `LINGSHU_LANGUAGE` | `--language` | `zh-CN` or `en` before a language is saved; omitted/empty means first-run selection for a new instance; saved language takes precedence |
 | `LINGSHU_SECURE_COOKIES` | `--secure-cookies` | `false`; enable behind an HTTPS reverse proxy |
+| `LINGSHU_MCP_WORKFLOW_ENABLED` | `--mcp-workflow-enabled` | `false` startup default; used only while the saved workflow value is NULL |
+| `LINGSHU_MCP_COLLABORATION_ENABLED` | `--mcp-collaboration-enabled` | `false` startup default; used only while the saved collaboration value is NULL |
+
+Since 0.2.5, a signed-in Owner can save both MCP switches in **the administration page → MCP and access tokens → MCP settings**. Saved database values, including `false`, take precedence over startup defaults and survive restarts; Compose's default `false` does not replace them. Until saved, NULL preserves the original CLI-over-environment-over-default precedence. Page saves affect subsequent HTTP/MCP requests without restarting Home; an in-progress request may finish with its original settings snapshot. See [the settings API](API.md#mcp-workflow-and-collaboration-settings) and [migration 019](#mcp-settings-migration-019).
 
 Use environment or a private environment file for a PostgreSQL connection URL instead of a shell command line containing a password. Unsupported providers and missing PostgreSQL connection URLs fail startup. The service never silently substitutes an in-memory database or falls back to SQLite after a PostgreSQL error.
 
@@ -117,6 +121,12 @@ Migration files are embedded from `server/internal/home/migrations/sqlite/` and 
 | `011_link_clicks.sql` (0.0.7) | Link click counters, daily aggregates and bounded idempotency receipts |
 | `012_work_board.sql` (0.1.0) | Space-scoped projects, work items, resource references, revisions and indexes |
 | `013_account_avatar.sql` (0.1.1) | One private normalized avatar and digest per account, backed by the selected database |
+| `014_work_statuses.sql` | Space-wide work-status definitions, defaults and revisions, preserving existing status keys |
+| `015_integration_token_management.sql` | Token revisions, permanent validity and selected/all permission modes |
+| `016_work_activity.sql` (0.2.1) | Work-item activity recording baselines, append-only business-change history and paging index |
+| `017_modules.sql` (0.2.1) | Default-on Library and Work switches in the existing settings row |
+| `018_work_collaboration.sql` (0.2.4) | Sessions, claims, collaboration events, operation receipts and independent collaboration revisions |
+| `019_mcp_settings.sql` (0.2.5) | Nullable workflow/collaboration settings and their independent version in the existing settings row |
 
 Migration 003 is additive for SQLite and PostgreSQL. Image bytes use SQLite BLOB / PostgreSQL BYTEA; normalized hashes and pack entries are scoped to a space. It does not rewrite existing links, category ownership, pages or access modes. The new homepage themes and visual editor continue to use page Schema 2 and do not need a separate database migration.
 
@@ -278,7 +288,7 @@ Before upgrading, stop Home and preserve a complete database/data backup and mat
 
 Version 0.2.1 adds `016_work_activity.sql` and `017_modules.sql` for SQLite and PostgreSQL. Migration 016 adds `work_items.activity_started_at`, the `work_activity` table and its per-item revision/page index. Existing item creation/update times remain unchanged; the migration timestamp marks the earliest recorded history, and no synthetic old events are inserted. Migration 017 adds the default-on document/work switches to the existing settings row. No file mounts, instance keys or external services are added.
 
-Module changes retain all data and existing credentials. New activity is stored in the application database, not Markdown originals or bookmark exports. Backups must include the database to retain history and settings. The new optional MCP workflow flag is process configuration rather than a database setting; preserve deployment configuration as part of the restore set.
+Module changes retain all data and existing credentials. New activity is stored in the application database, not Markdown originals or bookmark exports. Backups must include the database to retain history and settings. In 0.2.1–0.2.4 the optional MCP workflow flag was process configuration; preserve deployment configuration as part of those versions' restore set. Starting in 0.2.5, migration 019 also persists explicit page saves; a still-NULL value continues to inherit the startup configuration.
 
 Before upgrading to 0.2.1, stop writes and retain a consistent full database/data backup, local keys and matching executable/image; back up mounted originals separately. A failed pending migration and its ledger entry roll back atomically. Version 0.2.0 and earlier applications do not know 016/017 and reject the upgraded database. To roll back, stop the new process, retain newer work separately and restore the matching pre-upgrade database/data and old application. Do not drop tables/columns or modify the migration ledger to imitate a downgrade. Both provider paths have dedicated preservation and failure-rollback tests.
 
@@ -287,3 +297,13 @@ Before upgrading to 0.2.1, stop writes and retain a consistent full database/dat
 Version 0.2.4 adds separately maintained SQLite/PostgreSQL `018_work_collaboration.sql` for application sessions, expiring claims, append-only collaboration events, operation receipts and independent collaboration revisions. Existing work, references, business timestamps and token credentials/grants remain intact; historical Agent attribution is not reconstructed. The feature is off by default, but migration still runs.
 
 Before upgrade, stop Home and back up the complete database/data, matching instance keys and deployment configuration; preserve mounted originals separately. Returning to 0.2.3 or earlier requires that matching pre-upgrade set. Disabling the feature does not remove its tables or release unresolved claims; it is not a schema downgrade. Do not drop tables or edit migration records to run an older image. Database recovery does not stop external Agent commands or undo their repository/document changes; verify those separately. See [collaboration recovery](WORK_COLLABORATION.md).
+
+## MCP settings migration 019
+
+Version 0.2.5 adds separately maintained SQLite/PostgreSQL `019_mcp_settings.sql`. It extends the existing `settings` row with nullable booleans `mcp_workflow_enabled` and `mcp_collaboration_enabled`, plus `mcp_settings_version` (initially 1). NULL means “inherit startup configuration”; it is different from saved `false`. No new table, volume, service or key is required, and earlier migration files/checksums remain unchanged.
+
+Both switches save atomically through `PUT /api/v1/settings/mcp` using a signed-in Cookie Owner, CSRF and the independent `expectedRevision`. Every successful explicit save advances only this settings version, even when the values are unchanged. Neither a save nor the migration rewrites work records, business timestamps, module settings, token credentials or grants. The request's resolved settings snapshot is used consistently for MCP context and business enforcement; the save is available to subsequent requests and survives restart. The browser's `mcpSettingsRevision` refresh signal does not manufacture work activity or collaboration events.
+
+Migration execution and its ledger entry share a transaction for both providers; a failure does not leave a partially applied 019 marked complete. Back up the complete database/data, matching keys and deployment configuration before upgrading; mounted document originals still need their separate backup. **Returning from 0.2.5 to 0.2.4 requires the matching pre-019 backup and previous application.** The 0.2.4 application does not know migration 019 and rejects that database; replacing only the image is insufficient. Do not remove migration records or columns to force it open. Retain a separate copy of post-upgrade changes before recovery.
+
+Turning either switch off saves false without removing history; disabling collaboration also retains protection for unresolved claims and their permitted cleanup. It is not a schema rollback and does not stop an external Agent. See [MCP settings API](API.md#mcp-workflow-and-collaboration-settings) and [collaboration recovery](WORK_COLLABORATION.md).

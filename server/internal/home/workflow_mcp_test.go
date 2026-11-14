@@ -76,7 +76,7 @@ func TestMCPWorkflowContextAndGatewayDiscovery(t *testing.T) {
 				t.Fatal("task guidance blocked explicit corrective reopening or lost its reason")
 			}
 			// Set the fixture's effective startup configuration before the guided
-			// requests; production does not expose runtime workflow mutation.
+			// requests; no webpage override has been saved in this fixture.
 			f.app.config.MCPWorkflowEnabled = true
 			for _, tc := range []struct {
 				name                                     string

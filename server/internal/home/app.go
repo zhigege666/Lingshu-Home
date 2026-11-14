@@ -369,6 +369,8 @@ func (a *App) registerRoutes() {
 	a.route("PUT /api/v1/account/avatar", true, a.updateAccountAvatar)
 	a.route("DELETE /api/v1/account/avatar", true, a.deleteAccountAvatar)
 	a.route("PUT /api/v1/account/password", true, a.updateAccountPassword)
+	a.route("GET /api/v1/settings/mcp", false, a.getMCPSettings)
+	a.route("PUT /api/v1/settings/mcp", true, a.updateMCPSettings)
 	a.route("GET /api/v1/settings", false, a.getSettings)
 	a.route("PUT /api/v1/settings", true, a.updateSettings)
 	a.route("PUT /api/v1/settings/navigation", true, a.updateNavigationSettings)

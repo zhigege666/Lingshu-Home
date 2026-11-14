@@ -36,7 +36,7 @@ function useWideEditor() {
   return wide
 }
 
-export default function WorkEditor({ spaceId, selection, projects, statuses, defaultStatus, canEdit, documentsEnabled, onClose, onSaved, onStatusesChanged, onReveal, onNotice, onCollaborationChanged }: { spaceId: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; documentsEnabled: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string, created: boolean) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void; onReveal: (item: WorkItem) => void; onNotice: (message: string) => void; onCollaborationChanged: () => void }) {
+export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, projects, statuses, defaultStatus, canEdit, documentsEnabled, onClose, onSaved, onStatusesChanged, onReveal, onNotice, onCollaborationChanged }: { spaceId: string; mcpSettingsRevision?: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; documentsEnabled: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string, created: boolean) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void; onReveal: (item: WorkItem) => void; onNotice: (message: string) => void; onCollaborationChanged: () => void }) {
   const theme = useWorkTheme()
   const initial = useRef(selection), alive = useRef(true), running = useRef(false), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement)
   const [creating, setCreating] = useState(!!selection.create), [baseline, setBaseline] = useState<WorkItem | null>(null)
@@ -168,7 +168,7 @@ export default function WorkEditor({ spaceId, selection, projects, statuses, def
     }
     if (resolved) onCollaborationChanged()
   }
-  const collaborationModel = useWorkCollaboration({ spaceId, item: baseline ? { ...baseline, collaboration } : null, canEdit, disabled: saving, onItem: receiveCollaboration, onPendingChange: setCollaborationPending, onNotice })
+  const collaborationModel = useWorkCollaboration({ spaceId, mcpSettingsRevision, item: baseline ? { ...baseline, collaboration } : null, canEdit, disabled: saving, onItem: receiveCollaboration, onPendingChange: setCollaborationPending, onNotice })
   const projectOptions = [{ value: '', label: t('未分组', 'No project') }, ...projects.filter(project => !project.archived || project.id === draft.projectId).map(project => ({ value: project.id, label: project.name + (project.archived ? t('（已归档）', ' (archived)') : '') }))]
   const comparison = remote ? Object.keys(changedWorkFields(workDraft(remote), draft)) as (keyof WorkDraft)[] : []
   function displayValue(key: keyof WorkDraft, value: WorkDraft) {

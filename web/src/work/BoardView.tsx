@@ -53,7 +53,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
   const [board, setBoard] = useState<WorkBoard | null>(null), [list, setList] = useState<WorkPage | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(''), [refresh, setRefresh] = useState(0)
   const [selection, setSelection] = useState<WorkSelection | null>(() => authorized ? routeSelection(route) : null), [projectEditor, setProjectEditor] = useState<{ project: WorkProject | null } | null>(null)
   const [statusContext, setStatusContext] = useState<WorkStatusContext>({ statuses: [], statusRevision: '', defaultStatus: '' }), [statusEditor, setStatusEditor] = useState<{ focusId?: string } | null>(null)
-  const [updatesAvailable, setUpdatesAvailable] = useState(false), [syncError, setSyncError] = useState(false)
+  const [updatesAvailable, setUpdatesAvailable] = useState(false), [syncError, setSyncError] = useState(false), [mcpSettingsRevision, setMcpSettingsRevision] = useState('')
   const [feedback, setFeedback] = useState<{ text: string; itemId?: string } | null>(null), [busy, setBusy] = useState(false), [loadingMore, setLoadingMore] = useState<string[]>([]), [dragId, setDragId] = useState(''), [dropBefore, setDropBefore] = useState('')
   const [focusedItem, setFocusedItem] = useState<{ id: string; title: string } | null>(null), [revealId, setRevealId] = useState('')
   const generation = useRef(0), alive = useRef(true), mutating = useRef(false), paging = useRef(new Set<string>()), dragging = useRef<WorkSummary | null>(null), previousRoute = useRef(route), previousIdentity = useRef(identity), previousQuery = useRef('')
@@ -74,12 +74,12 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
     })
     return remaining.length ? Date.now() + Math.min(...remaining) : Infinity
   }, [board, list])
-  const syncSnapshot = useRef({ revision: '', statusRevision: '', collaborationRevision: '', nextClaimCheckAt: Infinity, blocked: false, hasExtraPages: false })
-  syncSnapshot.current = { revision: board?.revision || list?.revision || '', statusRevision: statusContext.statusRevision, collaborationRevision: board?.collaborationRevision || list?.collaborationRevision || '', nextClaimCheckAt, blocked: pauseSync || loading, hasExtraPages }
+  const syncSnapshot = useRef({ revision: '', statusRevision: '', collaborationRevision: '', mcpSettingsRevision: '', nextClaimCheckAt: Infinity, blocked: false, hasExtraPages: false })
+  syncSnapshot.current = { revision: board?.revision || list?.revision || '', statusRevision: statusContext.statusRevision, collaborationRevision: board?.collaborationRevision || list?.collaborationRevision || '', mcpSettingsRevision, nextClaimCheckAt, blocked: pauseSync || loading, hasExtraPages }
   useEffect(() => {
     if (previousIdentity.current === identity) return
     previousIdentity.current = identity
-    setProjects([]); setProjectId(''); setProjectSearch(''); setAttention(false); setArchived(false); setSelection(null); setProjectEditor(null); setStatusEditor(null); setFeedback(null); setFocusedItem(null); setRevealId(''); setUpdatesAvailable(false); setSyncError(false)
+    setProjects([]); setProjectId(''); setProjectSearch(''); setAttention(false); setArchived(false); setSelection(null); setProjectEditor(null); setStatusEditor(null); setFeedback(null); setFocusedItem(null); setRevealId(''); setUpdatesAvailable(false); setSyncError(false); setMcpSettingsRevision('')
     setStatusContext({ statuses: [], statusRevision: '', defaultStatus: '' })
   }, [identity])
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current++ } }, [])
@@ -134,11 +134,15 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
       checking = true
       const token = generation.current
       try {
-        const value = await request<{ revision: string; statusRevision: string; collaborationRevision?: string }>(`${path}/revision`, { signal: abort.signal })
+        const value = await request<{ revision: string; statusRevision: string; collaborationRevision?: string; mcpSettingsRevision?: string }>(`${path}/revision`, { signal: abort.signal })
         if (stopped || token !== generation.current) return
         setSyncError(false)
         const current = syncSnapshot.current
-        if (value.revision !== current.revision || value.statusRevision !== current.statusRevision || (value.collaborationRevision || '') !== current.collaborationRevision || Date.now() >= current.nextClaimCheckAt) setUpdatesAvailable(true)
+        // The board payload has no settings revision. Revalidate on the first
+        // observed revision too, so a change after loading cannot be missed.
+        const settingsChanged = !!value.mcpSettingsRevision && value.mcpSettingsRevision !== current.mcpSettingsRevision
+        if (settingsChanged) setMcpSettingsRevision(value.mcpSettingsRevision!)
+        if (settingsChanged || value.revision !== current.revision || value.statusRevision !== current.statusRevision || (value.collaborationRevision || '') !== current.collaborationRevision || Date.now() >= current.nextClaimCheckAt) setUpdatesAvailable(true)
       } catch { if (!stopped && token === generation.current) setSyncError(true) }
       finally { checking = false }
     }
@@ -295,7 +299,7 @@ export default function BoardView({ bootstrap, dashboard, route, onHome, onLibra
           })}
         </div> : list ? <div className="work-list-scroll"><table className="work-table"><thead><tr><th>{t('事项', 'Item')}</th><th>{t('状态', 'Status')}</th><th>{t('项目', 'Project')}</th><th>{t('下一步', 'Next step')}</th><th>{t('更新时间', 'Updated')}</th><th><span className="sr-only">{t('操作', 'Actions')}</span></th></tr></thead><tbody>{list.items.map(item => <tr key={item.id} data-work-id={item.id} data-work-status={item.status}><td><button className="work-list-title" onClick={() => open(item)}>{item.needsAttention && <BellDot size={15}/>}<span>{item.title}</span>{item.referenceCount > 0 && <small><BookOpen size={12}/>{item.referenceCount}</small>}</button><WorkExecutor value={item.collaboration} terminal={item.archived || statuses.some(status => status.id === item.status && (status.type === 'done' || status.type === 'canceled'))}/></td><td><span className="work-list-status"><span className="work-status-dot" style={{ backgroundColor: statuses.find(status => status.id === item.status)?.color }}/>{workStatusLabel(item.status, statuses)}</span></td><td className="work-table-project">{item.projectName || '—'}</td><td className="work-table-next">{item.nextStep || '—'}</td><td className="work-table-updated"><WorkUpdatedTime value={item.updatedAt} label={false}/></td><td>{canEdit && <Menu item={item} statuses={statuses} disabled={busy} onMove={status => move(item, status, null)} onArchive={() => changeArchive(item)}/>}</td></tr>)}</tbody></table>{!list.items.length && <div className="work-list-empty">{t('没有匹配的事项', 'No matching items')}</div>}{list.nextCursor && <button className="work-load-more" disabled={loadingMore.includes('list')} onClick={() => void more()}>{loadingMore.includes('list') ? t('正在加载…', 'Loading…') : t('加载更多（{shown}/{total}）', 'Load more ({shown}/{total})', { shown: list.items.length, total: list.total })}</button>}</div> : null}
       </main>
-      {selection && statuses.length > 0 && <WorkEditor key={selection.id} spaceId={space.id} selection={selection} projects={projects} statuses={statuses} defaultStatus={statusContext.defaultStatus} canEdit={canEdit} documentsEnabled={bootstrap.modules?.documents !== false} onClose={() => selectItem(null)} onStatusesChanged={catalog => setStatusContext({ statuses: catalog.items, statusRevision: catalog.revision, defaultStatus: catalog.defaultStatus })} onSaved={saved} onReveal={reveal} onNotice={onNotice} onCollaborationChanged={reload}/>}
+      {selection && statuses.length > 0 && <WorkEditor key={selection.id} spaceId={space.id} mcpSettingsRevision={mcpSettingsRevision} selection={selection} projects={projects} statuses={statuses} defaultStatus={statusContext.defaultStatus} canEdit={canEdit} documentsEnabled={bootstrap.modules?.documents !== false} onClose={() => selectItem(null)} onStatusesChanged={catalog => setStatusContext({ statuses: catalog.items, statusRevision: catalog.revision, defaultStatus: catalog.defaultStatus })} onSaved={saved} onReveal={reveal} onNotice={onNotice} onCollaborationChanged={reload}/>}
       {projectEditor && <ProjectDialog spaceId={space.id} project={projectEditor.project} onClose={() => setProjectEditor(null)} onSaved={(item, created) => { generation.current++; setProjectEditor(null); setProjects(current => current.some(project => project.id === item.id) ? current.map(project => project.id === item.id ? item : project) : [...current, item]); if (created) { setProjectId(item.id); setArchived(false); setFocusedItem(null) } onNotice(created ? t('项目已创建', 'Project created') : t('项目已保存', 'Project saved')); reload() }}/>}
       {statusEditor && <StatusManager spaceId={space.id} focusId={statusEditor.focusId} onClose={() => setStatusEditor(null)} onSaved={catalog => { setStatusContext({ statuses: catalog.items, statusRevision: catalog.revision, defaultStatus: catalog.defaultStatus }); setStatusEditor(null); onNotice(t('状态已更新', 'Statuses updated')); reload() }}/>}
     </> : <main className="work-access-message" id="main-content"><LayoutDashboard size={36}/><h1>{bootstrap.user ? t('当前空间不可访问事项', 'Work items are not available in this space') : t('登录后查看事项', 'Sign in to view work items')}</h1><div><Button onClick={bootstrap.user ? onLibrary : onLogin}>{bootstrap.user ? t('打开资料库', 'Open library') : t('登录', 'Sign in')}</Button><Button variant="outline" onClick={onHome}>{t('返回首页', 'Return home')}</Button></div></main>}

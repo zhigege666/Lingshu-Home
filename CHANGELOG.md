@@ -4,6 +4,20 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-14
+
+### Visual MCP configuration
+
+- **① User experience:** replace the read-only collaboration status with two independent switches in the existing MCP and access tokens page. Owners save instance-wide workflow guidance and collaboration settings; members can view them, including when Work is disabled. Apply saves without restarting Home and retain them across restarts. Preserve drafts on tab/space navigation, rejected saves, concurrent changes and unknown responses; verify persisted state before reporting success.
+- **② Developer experience:** add SQLite/PostgreSQL migration 019 to the existing settings row with nullable startup inheritance and an independent configuration revision. Cookie Owner, CSRF, strict boolean input and atomic expected-revision checks protect the settings API. Saved values override startup CLI/environment defaults, including Compose defaults; each request reads one effective settings snapshot without mutating process configuration. Separate Work polling metadata refreshes collaboration summaries while preserving business revisions and timestamps.
+- **③ AI Agent experience:** existing credentials, tool schemas and the 55-tool catalog remain unchanged. Subsequent MCP calls report effective saved configuration and apply its rules; workflow guidance and claim coordination remain independent. Disabling collaboration preserves outstanding claim protection and cleanup. Routine switch changes do not require another token, Skill, gateway tool publication or container recreation.
+
+### Configuration and upgrade compatibility
+
+- Use **Admin → Data sources and MCP → MCP and access tokens** for normal configuration. Before the first webpage save, existing CLI/environment defaults retain their precedence; afterwards the two persisted values are authoritative. Advanced Docker/Unraid variables remain available as startup defaults.
+- Add `GET/PUT /api/v1/settings/mcp` and an additive `mcpSettingsRevision` in work revision reads. PAT/MCP cannot change instance settings. No new service, volume or token permission is required.
+- Back up the complete database/data, matching keys and deployment configuration before migration 019. Returning to 0.2.4 or earlier requires the matching pre-upgrade backup; changing only the image tag or editing the migration ledger is not a rollback.
+
 ## [0.2.4] - 2026-11-14
 
 ### Optional multi-Agent work collaboration

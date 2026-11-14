@@ -110,10 +110,10 @@ func (a *App) getWorkCollaborationContext(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ok(map[string]any{"enabled": a.config.MCPCollaborationEnabled, "effectiveEnabled": a.config.MCPCollaborationEnabled && s.CanEdit, "version": "1", "serverTime": workStamp(), "defaultLeaseSeconds": workDefaultLease, "minLeaseSeconds": workMinLease, "maxLeaseSeconds": workMaxLease}), nil
+	return ok(map[string]any{"enabled": r.Settings.MCP.CollaborationEnabled, "effectiveEnabled": r.Settings.MCP.CollaborationEnabled && s.CanEdit, "version": "1", "serverTime": workStamp(), "defaultLeaseSeconds": workDefaultLease, "minLeaseSeconds": workMinLease, "maxLeaseSeconds": workMaxLease}), nil
 }
-func (a *App) requireCollaborationEnabled() error {
-	if !a.config.MCPCollaborationEnabled {
+func (a *App) requireCollaborationEnabled(r *Request) error {
+	if !r.Settings.MCP.CollaborationEnabled {
 		return workCollabError("work_collaboration_disabled", "New sessions and claims are disabled. Existing claims remain protected; renew, release, close and human recovery are still available.")
 	}
 	return nil
@@ -204,7 +204,7 @@ func (a *App) openWorkSession(r *Request) (*Response, error) {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
-	if err = a.requireCollaborationEnabled(); err != nil {
+	if err = a.requireCollaborationEnabled(r); err != nil {
 		return nil, err
 	}
 	for _, related := range []string{in.ParentSessionID, in.ResumesSessionID} {
@@ -371,10 +371,10 @@ func (a *App) workCollaborationFromClaim(r *Request, c *workClaim) (*WorkCollabo
 
 // Pure projection shared by the detail and batched board/list queries.
 func (a *App) workCollaborationView(r *Request, c *workClaim, session *WorkSession) *WorkCollaboration {
-	if c == nil && !a.config.MCPCollaborationEnabled {
+	if c == nil && !r.Settings.MCP.CollaborationEnabled {
 		return nil
 	}
-	out := &WorkCollaboration{Enabled: a.config.MCPCollaborationEnabled, State: "unclaimed", Generation: "0", ServerTime: workStamp()}
+	out := &WorkCollaboration{Enabled: r.Settings.MCP.CollaborationEnabled, State: "unclaimed", Generation: "0", ServerTime: workStamp()}
 	if c == nil {
 		return out
 	}
@@ -493,7 +493,7 @@ func (a *App) acquireWorkClaim(r *Request) (*Response, error) {
 	if resp, e := a.workOperationReplay(r, s.ID, in.OperationID, hash); e != nil || resp != nil {
 		return resp, e
 	}
-	if err = a.requireCollaborationEnabled(); err != nil {
+	if err = a.requireCollaborationEnabled(r); err != nil {
 		return nil, err
 	}
 	if err = requireOpenWorkSession(session); err != nil {

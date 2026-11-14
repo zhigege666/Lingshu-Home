@@ -16,6 +16,44 @@
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
 
+## MCP 可视化配置：0.2.5
+
+本轮补齐 0.2.4 配置只读的使用缺口。验收使用独立 SQLite 回环实例与本轮专用 PostgreSQL 集群，没有操作日常数据。以下为源码与浏览器实际验证，正式 CI、发行包、Docker 发布和用户实例升级另行核对。
+
+| 范围 | 实际通过结果 |
+| --- | --- |
+| 权限与参数 | `TestMCPSettingsAccessAndValidation` 双库通过：Cookie Owner 可保存、Member 只读、PAT/匿名/CSRF 边界、两个严格布尔字段及配置来源。 |
+| 并发与隔离 | `TestMCPSettingsConcurrentAndIndependentWrites` 双库通过：独立 CAS、两项原子保存、旧版本冲突、与站点/模块设置互不覆盖。 |
+| 热生效与收尾 | `TestMCPSettingsRuntimeContextAndClaimCleanup` 双库通过：后续 HTTP/MCP 读取实际配置、两个开关独立、关闭后现有认领收尾；配置版本变化不改事项业务时间及业务/协作事件版本。 |
+| 持久化与迁移 | `TestMCPSettingsStartupDefaultsAndRestartPersistence`、`TestMCPSettingsMigrationPreservesAndRollsBack` 双库通过：NULL 继承原启动默认值、网页保存优先、真实关闭重开、018→019 保留既有记录及迁移末尾故障整体回滚。 |
+| 受影响 MCP 回归 | MCPWorkflowConfiguration、MCPCollaborationConfiguration、MCPWorkflowContextAndGatewayDiscovery、MCPCollaborationDiscoveryAndCapabilities、MCPCollaborationSameTokenWorkflow 通过；有数据库分支的用例实际覆盖 SQLite/PostgreSQL。 |
+| 浏览器 | `browser_mcp_settings.cjs` 的 7 个不同检查组通过，覆盖下表；无未处理页面异常。浏览器使用 SQLite。 |
+| 构建与静态 | Go 编译、最终 TypeScript/Vite 构建、浏览器脚本语法及 `git diff --check` 通过。Vite 既有包体提示保留，不据此推算全部页面已验收。 |
+
+后端一次定向运行结果为 **50 PASS（包括父项与子项）、0 FAIL、0 SKIP**，不能把该数字当成 50 个独立顶层测试。专用 PostgreSQL 集群在验证后已正常停止；未重复执行已通过且代码未变化的测试。
+
+| 浏览器检查组 | 实际结果 |
+| --- | --- |
+| `startup_source_unknown_noncommit_and_explicit_persistence` | 通过；启动来源与显式持久化，结果未知时不把相同启动值误认成已保存 |
+| `owner_four_sizes_keyboard_busy_and_navigation_guards` | 通过；Owner 开关/保存、四尺寸、键盘、忙碌状态和页签/空间草稿守卫 |
+| `conflict_merges_only_locally_changed_fields` | 通过；真实并发冲突，保留并比较草稿，仅合并本地修改字段；取消采用已读到的当前值 |
+| `rejected_save_and_lost_success_retain_reconcile_draft` | 通过；明确失败保留输入，实际写入后中断响应并先核对，避免重复保存 |
+| `disabled_work_module_keeps_settings_visible_editable` | 通过；事项模块关闭后仍可查看和保存 MCP 配置 |
+| `two_pages_hot_collaboration_refresh_preserves_work_draft` | 通过；另一页面保存后自动更新，正文与协作记录草稿保留；关闭后复制/清空、重开恢复，未知提交保留原标识并只核对、不重复 POST |
+| `member_sees_actual_readonly_values_and_server_denies_write` | 通过；显示真实只读值，保存入口不可用，直接写请求由服务端拒绝 |
+
+四尺寸为 **2560×1440、1920×1080、1600×900、2560×1080**，均完成几何检查与实际截图目视复核；并发比较、成员只读和协作关闭后草稿/未知提交状态截图也已检查。首次 owner 组发现 Radix 页签自动激活在“继续编辑”弹窗关闭回焦时再次触发导航，草稿本身没有丢失。修复此组页签为手动激活后，只补跑失败组与尚未执行的组，没有重跑已通过的 startup 组。
+
+维护证据位于 `.runtime/mcp-settings-025-20261114/`：后端 `mcp-settings-tests-status.json` 与日志；首次浏览器 `sqlite-950y8j3d` 保留 startup 通过和原焦点失败记录，`sqlite-elso673m` 包含修复后其余 6 组通过；最终前端 `frontend-build-v4-status.json`。运行凭据、数据库、日志和截图不加入源码或发行包。
+
+从 `server/` 运行最小后端入口；`LINGSHU_TEST_STORAGE_POSTGRES_URL` 必须指向专用可丢弃测试库，跳过不能计为通过：
+
+```bash
+go test ./internal/home -run '^(TestMCPSettings.*|TestMCPWorkflowConfiguration|TestMCPCollaborationConfiguration|TestMCPWorkflowContextAndGatewayDiscovery|TestMCPCollaborationDiscoveryAndCapabilities|TestMCPCollaborationSameTokenWorkflow)$' -count=1 -v -timeout=240s
+```
+
+浏览器脚本使用 `UI_FIXTURES`、`OUTPUT_DIR`、`PLAYWRIGHT_MODULE`、`CHROMIUM_PATH`，以 `UI_CHECK_MATCH` 选择检查组。只接受本轮拥有、站点名为 `Release UI fixture <provider>` 的新建回环夹具；首次来源组需要尚未保存 MCP 设置的干净数据库。脚本会修改实例设置、创建成员和事项，禁止指向日常实例。公开配置说明见 [MCP 集成](../docs/INTEGRATIONS.md) 和 [接口](../docs/API.md)。
+
 ## 多 Agent 与多会话协作：0.2.4
 
 本轮从 0.2.3 实施可选协作能力，使用独立 SQLite 回环实例与专用 PostgreSQL 集群；没有操作日常数据。以下为发布前源码验收，不代表用户实例或 Gate 已升级。
@@ -121,7 +159,7 @@
 go test ./internal/home -run '^(TestWorkStatusesCatalogAndSemantics|TestWorkStatusesRetirementReferencesAndReplay|TestWorkStatusesConcurrencyAndScope|TestWorkStatusesLateFailureRollsBackBatch|TestWorkStatusesMigrationPreservesAndRollsBack|TestMCPWorkStatusDiscoveryAndMutation|TestWorkBoardHTTPAndMCP)$' -count=1 -v
 ```
 
-`integrations_smoke.py` 核对当前 46 个唯一工具名称，`TestIntegrationHTTPMCPAndTraffic` 的目录断言应与其保持一致。`TestMCPWorkStatusDiscoveryAndMutation` 使用缺少 work scope 的有效旧 Token 验证工具仍可发现，实际调用才被拒绝；因此“网关看不到看板工具”和“调用没有权限”应分别诊断。工具说明、字段来源及错误恢复数据直接经 MCP 提供，不要求 Agent 安装额外 Skills。浏览器布局、迁移恢复、发行镜像和实际运行实例仍按各自检查范围记录。
+`integrations_smoke.py` 核对当前 55 个唯一工具名称，`TestIntegrationHTTPMCPAndTraffic` 的目录断言应与其保持一致。`TestMCPWorkStatusDiscoveryAndMutation` 使用缺少 work scope 的有效旧 Token 验证工具仍可发现，实际调用才被拒绝；因此“网关看不到看板工具”和“调用没有权限”应分别诊断。工具说明、字段来源及错误恢复数据直接经 MCP 提供，不要求 Agent 安装额外 Skills。浏览器布局、迁移恢复、发行镜像和实际运行实例仍按各自检查范围记录。
 
 ## 访问令牌编辑与生命周期：维护验证入口
 

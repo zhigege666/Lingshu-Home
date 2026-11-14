@@ -115,8 +115,8 @@ func TestMCPCollaborationDiscoveryAndCapabilities(t *testing.T) {
 			legacy := agent.tool(full, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Legacy default-off task"}}, "")
 			agent.tool(full, "work_items_update", map[string]any{"id": legacy["id"], "input": map[string]any{"expectedRevision": legacy["revision"], "nextStep": "Legacy updates remain available"}}, "")
 			collaborationMCPCall(t, agent, full, "work_sessions_open", map[string]any{"input": map[string]any{"registrationId": newID(), "agentName": "Disabled"}}, true)
-			// Startup flags are fixed in production; fixture mutations isolate the
-			// independent combinations without adding any runtime configuration API.
+			// With no saved override, startup defaults remain authoritative. Fixture
+			// changes isolate compatibility combinations without saving an override.
 			f.app.config.MCPCollaborationEnabled = true
 			context := agent.tool(full, "space_current", map[string]any{}, "")
 			if integrationObject(t, context["workflow"])["enabled"] != false || integrationObject(t, context["collaboration"])["effectiveEnabled"] != true {

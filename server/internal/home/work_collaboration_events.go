@@ -103,7 +103,7 @@ func (a *App) appendWorkEvent(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !a.config.MCPCollaborationEnabled && !claim.pending() {
+	if !r.Settings.MCP.CollaborationEnabled && !claim.pending() {
 		return nil, workCollabError("work_collaboration_disabled", "Collaboration is disabled. Existing history remains readable; only unresolved work may receive recovery notes.")
 	}
 	event, err := a.insertWorkEvent(r, s.ID, item.ID, in.OperationID, in.Kind, in.Body, session, nil)

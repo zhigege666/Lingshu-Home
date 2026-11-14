@@ -57,12 +57,12 @@ func ParseConfig(args []string) (Config, error) {
 	if err != nil {
 		return c, errors.New("LINGSHU_MCP_WORKFLOW_ENABLED must be true or false")
 	}
-	f.BoolVar(&c.MCPWorkflowEnabled, "mcp-workflow-enabled", workflow, "Offer optional MCP work registration and handoff guidance; takes effect on startup")
+	f.BoolVar(&c.MCPWorkflowEnabled, "mcp-workflow-enabled", workflow, "Default MCP workflow guidance until values are saved in the MCP settings page")
 	collaboration, err := strconv.ParseBool(envValue("LINGSHU_MCP_COLLABORATION_ENABLED", "false"))
 	if err != nil {
 		return c, errors.New("LINGSHU_MCP_COLLABORATION_ENABLED must be true or false")
 	}
-	f.BoolVar(&c.MCPCollaborationEnabled, "mcp-collaboration-enabled", collaboration, "Enable MCP work sessions and execution claims, independently of workflow guidance; takes effect on startup")
+	f.BoolVar(&c.MCPCollaborationEnabled, "mcp-collaboration-enabled", collaboration, "Default MCP session and claim coordination until values are saved in the MCP settings page")
 	f.StringVar(&c.TLSCertFile, "tls-cert-file", envValue("LINGSHU_TLS_CERT_FILE", ""), "PEM certificate chain for direct HTTPS; requires tls-key-file")
 	f.StringVar(&c.TLSKeyFile, "tls-key-file", envValue("LINGSHU_TLS_KEY_FILE", ""), "PEM private key for direct HTTPS; requires tls-cert-file")
 	f.StringVar(&documentRoots, "document-roots", envValue("LINGSHU_DOCUMENT_ROOTS", "[]"), "JSON array of allowed absolute document directories; disabled by default")

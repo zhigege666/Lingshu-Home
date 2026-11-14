@@ -332,25 +332,29 @@ Since 0.0.9, a PAT with only `navigation:write` can still edit and receives oper
 
 ### Optional workflow guidance and module state
 
-Since 0.2.1, Home provides a server-owned guide through the existing `space_current` tool. Enable it at startup:
+Since 0.2.1, Home provides a server-owned guide through the existing `space_current` tool. Since 0.2.5, a signed-in Owner opens **the administration page → MCP and access tokens → MCP settings** (`/#/admin?tab=integrations`) to edit **MCP workflow guidance** and **Multi-Agent collaboration**, then explicitly saves. Both switches apply to all spaces. Members see the actual configuration read-only; the form remains available when the Work module is disabled.
 
-```bash
-LINGSHU_MCP_WORKFLOW_ENABLED=true ./lingshu-home
-# Equivalent CLI option:
-./lingshu-home --mcp-workflow-enabled
-```
+Workflow guidance covers ongoing work registration, stage updates, evidence and handoff. Explicit user-requested CRUD remains available when guidance is off. Collaboration independently controls session registration and claims; turning off guidance does not release a claim. Permissions, revisions, stable-ID replay and recovery contracts always apply. No extra Skills, tool addition or new token scope is required.
 
-The default is `false`; `--mcp-workflow-enabled=false` explicitly disables it. The supplied Compose file forwards the same variable, defaulting to false. Restart a binary process with the new environment to apply it. For Compose, recreate the container with `LINGSHU_MCP_WORKFLOW_ENABLED=true docker compose up -d --force-recreate home`, retaining its data volume; `docker compose restart` alone does not load changed host or `.env` values. It controls guidance for ongoing work registration, stage updates, evidence and handoff; explicit user-requested CRUD remains available when guidance is off. Permissions, revisions, stable-ID replay and recovery contracts always apply. No extra Skills, tool addition or new token scope is required.
+| Switch | Startup environment / CLI default before a page save |
+| --- | --- |
+| Workflow guidance | `LINGSHU_MCP_WORKFLOW_ENABLED` / `--mcp-workflow-enabled`; default `false` |
+| Multi-Agent collaboration | `LINGSHU_MCP_COLLABORATION_ENABLED` / `--mcp-collaboration-enabled`; default `false` |
+
+Migration 019 leaves both database values NULL for existing and new instances. Until saved, each inherits the original startup precedence: explicit CLI option, then environment, then default. Saving the form persists both booleans; saved values take precedence over startup defaults and survive process/container restarts. Compose's default `false` cannot override a saved `true`. Ordinary page saves take effect on subsequent requests without a restart or container recreation; an in-progress request can finish with its original settings snapshot.
+
+The [instance settings API](API.md#mcp-workflow-and-collaboration-settings) uses Cookie authentication, Owner-only PUT with CSRF, explicit booleans and an independent string revision. A stale save returns `409 mcp_settings_conflict`; preserve the draft and compare a fresh GET before merging. Other open Work pages observe `mcpSettingsRevision` without changing item timestamps or business revisions. These settings do not change token credentials or grants.
 
 `space_current {}` returns additive context:
 
 | Field | Meaning |
 | --- | --- |
 | `spaceId,name,kind` | Existing token-bound space fields |
-| `contextVersion,serverVersion` | Context schema and product versions, separate from MCP protocol version |
+| `contextVersion,serverVersion` | Context schema is JSON number `1`; product version is a string, separate from MCP protocol version |
 | `modules:{documents,work}` | Instance-wide Site settings switches, both default on |
 | `capabilities:{work,documents,navigation}` | Effective `read/write` booleans for this authenticated context; individual resources still need call-time checks |
-| `workflow:{enabled,version,guide}` | Effective startup switch and permission-aware guidance |
+| `workflow:{enabled,version,guide}` | Resolved switch and permission-aware guidance; `version` is string `"2"` |
+| `collaboration` | Resolved switch, effective availability, reasons and its independent string `version:"1"` |
 | `entrypoints` | Available context/business tool names, without dumping projects, tasks or document bodies |
 
 The guide covers existing-work reuse, goal/scope/acceptance criteria, stable IDs and original creation inputs, actual results versus next actions, status semantics, attention, evidence/documents, uncertain writes, conflicts, offline handoff and completion without automatic archiving. Read-only and write-only contexts receive their actual boundaries. Document-creation uncertainty is checked by the original source/path before retrying. Home records work but does not start or schedule an Agent.
@@ -363,7 +367,7 @@ Since 0.2.3, `workflow.version` is `"2"`. Its task boundaries are also near the 
 
 Library/Work switches are independent of workflow guidance. A signed-in Owner changes them in **Site settings → Modules**; subsequent HTTP/MCP calls enforce the state and return `module_disabled` for disabled operations. Files, records, associations, tokens and sessions remain intact. See [module contracts](API.md#optional-library-and-work-modules). Context responses remain private and must not be shared across users or tokens.
 
-**Gate and other gateways:** the guide appears in an ordinary tool result, with matching JSON text and `structuredContent`. It does not depend on forwarding initialization/discovery instructions, resources or prompts. Work-tool description prefixes point to `space_current` within a bounded catalog summary. On-demand search/describe uses the gateway's published metadata: refresh discovery and publish descriptions or schema changes after an upgrade, including the 0.2.3 task boundaries. Verify the published descriptions and optional history parameters against the running Home contract; a Home upgrade alone does not establish that Gate is synchronized. Later module changes or workflow-flag changes do not alter schemas or require a new token. Gateway exposure/authorization remains independent of Home permissions.
+**Gate and other gateways:** the guide appears in an ordinary tool result, with matching JSON text and `structuredContent`. It does not depend on forwarding initialization/discovery instructions, resources or prompts. Work-tool description prefixes point to `space_current` within a bounded catalog summary. On-demand search/describe uses the gateway's published metadata: refresh discovery and publish descriptions or schema changes after an upgrade, including the 0.2.3 task boundaries. Verify the published descriptions and optional history parameters against the running Home contract; a Home upgrade alone does not establish that Gate is synchronized. The 0.2.5 settings change retains the 0.2.4 catalog of 55 tools, including 21 work tools, and their schemas. Changing either saved MCP switch or a module switch does not require a new token or republishing the catalog. Re-read `space_current` when configuration or effective capabilities change; gateway metadata is not a runtime-settings cache. Gateway exposure/authorization remains independent of Home permissions.
 
 Read context for a new task without valid context, changed authorization or a reconnected session; reuse valid context during ordinary work. A server cannot force all clients to adopt a guide or retract text already in an Agent context. This project instruction selects the behavior without duplicating the workflow:
 
@@ -471,8 +475,8 @@ Use a fresh disposable service with a separate data directory/database. The scri
 
 ## Optional work collaboration
 
-The outer `space_current.contextVersion` remains `"1"`: original fields and meanings stay compatible. The additive optional `collaboration` object has its own `version:"1"`; clients may ignore that object until they enable/adapt to collaboration.
+The outer `space_current.contextVersion` remains JSON number `1`: original fields and meanings stay compatible. The additive `collaboration` object has its own string `version:"1"`; clients may ignore that object until they enable/adapt to collaboration.
 
-Since 0.2.4, `LINGSHU_MCP_COLLABORATION_ENABLED` / `--mcp-collaboration-enabled` independently enables sessions and claim enforcement, default off. `space_current.collaboration` and `work_collaboration_get` report the actual setting, effective availability and contract version. Enabling it requires MCP/Bearer work-item create/update/move callers to provide `input.context`; current claim checks accompany the existing revision checks. Unresolved claims remain protected after the setting is disabled, with cleanup available. Session labels do not grant authority and lease expiry does not stop external work.
+Collaboration was introduced in 0.2.4, default off. Since 0.2.5, configure it through the same [MCP settings form](#optional-workflow-guidance-and-module-state); `LINGSHU_MCP_COLLABORATION_ENABLED` / `--mcp-collaboration-enabled` remains its startup default until a value is saved. `space_current.collaboration` and `work_collaboration_get` report the resolved setting, effective availability and contract version from each request's settings snapshot. Enabling it requires MCP/Bearer work-item create/update/move callers to provide `input.context`; current claim checks accompany the existing revision checks. Unresolved claims remain protected after the setting is disabled, with cleanup available. Session labels do not grant authority and lease expiry does not stop external work.
 
-Home application IDs remain inside the original tool `arguments`, including when Gate loads tools on demand; Gate routing `session_id` is a different field. Refresh the gateway catalog after the application upgrade, preserve the original operation ID and payload on uncertain writes, and read back current records before continuing. Workflow guidance cannot guarantee that a client schedules or follows work automatically. See the complete [user, HTTP and Agent collaboration contract](WORK_COLLABORATION.md) for lifecycle, permissions, pagination, recovery and migration 018.
+Home application IDs remain inside the original tool `arguments`, including when Gate loads tools on demand; Gate routing `session_id` is a different field. Refresh the gateway catalog when upgrading from a version without the collaboration tools or after a real tool-definition change; toggling a saved setting or upgrading from 0.2.4 to 0.2.5 does not change those definitions. Preserve the original operation ID and payload on uncertain writes, and read back current records before continuing. Workflow guidance cannot guarantee that a client schedules or follows work automatically. See the complete [user, HTTP and Agent collaboration contract](WORK_COLLABORATION.md) for lifecycle, permissions, pagination, recovery and migrations 018/019.
