@@ -7,6 +7,7 @@ import { workPath, type WorkActivityChange, type WorkActivityEvent, type WorkAct
 import { Button } from '../components/ui/button'
 import { ErrorMessage, Loading } from '../components/Shared'
 import './work-activity.css'
+import { shortWorkSession } from './WorkCollaboration'
 
 const actionLabel = (action: WorkActivityEvent['action']) => ({
   create: t('创建事项', 'Created item'), update: t('更新事项', 'Updated item'), move: t('移动事项', 'Moved item'),
@@ -66,7 +67,7 @@ export default function WorkActivity({ spaceId, itemId, revision }: { spaceId: s
     {loading ? <Loading/> : page && <>
       <ol>{page.items.map(event => <li key={event.id} data-work-activity-id={event.id}>
         <div className="work-activity-heading"><strong>{actionLabel(event.action)}</strong><time dateTime={event.occurredAt} title={formatUpdated(event.occurredAt)}>{formatUpdated(event.occurredAt)}</time></div>
-        <p className="work-activity-actor">{event.actor?.name || t('操作者未记录', 'Actor not recorded')}<span>·</span>{event.origin === 'mcp' ? 'MCP' : event.origin === 'api' ? 'API' : t('网页', 'Web')}</p>
+        <p className="work-activity-actor">{event.actor?.name || t('操作者未记录', 'Actor not recorded')}<span>·</span>{event.origin === 'mcp' ? 'MCP' : event.origin === 'api' ? 'API' : t('网页', 'Web')}{event.session && <span className="work-activity-session">{event.session.agentName} · <code title={event.session.id}>{shortWorkSession(event.session.id)}</code></span>}</p>
         {event.changes.length > 0 && <ul className="work-activity-changes">{event.changes.map((change, index) => <li key={`${change.field}:${index}`}>{changeLabel(change)}</li>)}</ul>}
       </li>)}</ol>
       {!page.items.length && <p className="work-activity-empty">{t('暂无变更记录', 'No activity recorded yet')}</p>}

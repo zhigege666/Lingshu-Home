@@ -26,6 +26,10 @@
 
 看板是内部工作资料。浏览器须登录可编辑当前空间的账号：个人空间仅本人，共享空间须 Owner。公开浏览或匿名开放编辑不会公开看板。
 
+### 多会话协作
+
+0.2.4 可选开启执行会话与认领：卡片和详情展示执行者、进展与交接，用户可以补充记录并在核实后解除认领。业务变更时间轴与协作执行记录分开；默认关闭，现有无认领 CRUD 保持原样。参见[多 Agent 协作的用户、开发与 MCP 契约](WORK_COLLABORATION.md)。
+
 ## 2. 开发体验：HTTP 契约
 
 以下路径统一以 `/api/v1/spaces/{spaceId}/work` 开头。浏览器写入沿用 Cookie 与 `X-CSRF-TOKEN`；有效 PAT Bearer 请求沿用现有独立鉴权。读取结果不应跨账号缓存。
@@ -45,7 +49,7 @@
 | `GET /resources` | 分页检索可关联的书签或文档摘要 |
 | `GET /statuses` | 当前空间的状态目录、版本、默认状态和使用计数 |
 | `POST /statuses/batch-edit` | 带目录版本，原子新增、修改、排序、合并/删除状态及设置默认值 |
-| `GET /revision` | `{revision,statusRevision}`，供页面检查事项或状态配置是否更新 |
+| `GET /revision` | `{revision,statusRevision,collaborationRevision}`，供页面检查事项或状态配置是否更新 |
 
 当前没有项目或事项永久删除接口，也没有 AgentOS 调度、外部双向同步或看板自动公开功能。
 

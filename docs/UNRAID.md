@@ -150,3 +150,9 @@ Repository publication and Community Applications approval are separate steps. S
 An equivalent Docker deployment test can verify the image, runtime user and persistence. It does not replace an actual installation through the Unraid WebUI.
 
 Primary references: [Unraid container mappings and variables](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/), [saved Community Applications settings](https://docs.unraid.net/community-applications/), [template field reference](https://ca.unraid.net/submit/help/xml-field-reference), and [Docker bind mounts](https://docs.docker.com/engine/storage/bind-mounts/).
+
+## Optional Agent collaboration in 0.2.4
+
+Advanced template variables `LINGSHU_MCP_WORKFLOW_ENABLED` and `LINGSHU_MCP_COLLABORATION_ENABLED` both default to `false` and are independent. Existing installed templates may need these variables added manually. Enabling collaboration requires adapted MCP clients to register sessions and supply claim context for item writes. Apply changed environment values by recreating the container with the original appdata/database/mounts; a restart alone does not load a new configuration. Disabling collaboration leaves unresolved claims protected until they are explicitly handled. No new token per Agent, service or volume is needed.
+
+Back up before migration 018; rollback to 0.2.3 or earlier needs the matching pre-upgrade data/key/configuration set, not just an image change. Refresh Gate tool definitions after upgrading the Home application. See [collaboration contract](WORK_COLLABORATION.md) and [storage recovery](STORAGE.md).

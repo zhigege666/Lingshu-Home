@@ -208,9 +208,11 @@ def run(base):
         "work_board_get", "work_items_list", "work_items_get", "work_items_create", "work_items_update", "work_items_move",
         "work_projects_list", "work_projects_create", "work_projects_update", "work_resources_search",
         "work_statuses_get", "work_statuses_batch_edit",
+        "work_collaboration_get", "work_sessions_open", "work_sessions_get", "work_sessions_close",
+        "work_claims_acquire", "work_claims_renew", "work_claims_release", "work_events_list", "work_events_append",
     }
-    require(len(registered_tools) == len(tools) == 46 and tools == expected_tools,
-            "MCP tool catalog must contain exactly the 46 unique contracted names.")
+    require(len(registered_tools) == len(tools) == 55 and tools == expected_tools,
+            "MCP tool catalog must contain exactly the 55 unique contracted names.")
     require(anon.tool(full, "space_current", {})["spaceId"] == shared, "MCP returned the wrong token space.")
     anon.tool(readonly, "dashboard_get", {"spaceId": shared}, error="forbidden")
     category = anon.tool(full, "categories_create", {"input": {"name": "Local fixture", "icon": "lucide:folder"}})

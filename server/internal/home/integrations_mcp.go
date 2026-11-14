@@ -61,6 +61,12 @@ func (a *App) registerIntegrationRoutes() {
 					property["description"] = "Existing item ID from work_board_get, work_items_list, work_items_get or its creation receipt. Reuse the known ID; no preliminary lookup is required."
 				} else if field == "id" && strings.HasPrefix(tool.name, "work_projects_") {
 					property["description"] = "Existing project ID from work_projects_list or its creation receipt. Do not use the display name."
+				} else if field == "id" && strings.HasPrefix(tool.name, "work_sessions_") {
+					property["pattern"] = "^[0-9a-f]{32}$"
+					property["description"] = "Own Home application session ID returned by work_sessions_open, not a gateway transport session. Authorization is checked again on each call."
+				} else if field == "id" && (strings.HasPrefix(tool.name, "work_claims_") || strings.HasPrefix(tool.name, "work_events_")) {
+					property["pattern"] = "^[0-9a-f]{32}$"
+					property["description"] = "Existing item ID from work_items_get, board/list or its creation receipt; session and claim IDs belong inside input."
 				}
 				required = append(required, field)
 			}
@@ -73,8 +79,11 @@ func (a *App) registerIntegrationRoutes() {
 		}
 		schema["required"] = required
 		destructive := tool.write && !strings.HasSuffix(tool.name, "_create")
+		if tool.name == "work_sessions_open" || tool.name == "work_events_append" || tool.name == "work_claims_renew" {
+			destructive = false
+		}
 		openWorld := tool.name == "sources_create" || tool.name == "sources_update" || tool.name == "sources_sync"
-		idempotent := tool.name == "sources_snapshot_push" || tool.name == "sources_update" || tool.name == "page_update" || strings.HasSuffix(tool.name, "_delete") || tool.name == "work_items_create" || tool.name == "work_projects_create"
+		idempotent := tool.name == "sources_snapshot_push" || tool.name == "sources_update" || tool.name == "page_update" || strings.HasSuffix(tool.name, "_delete") || tool.name == "work_items_create" || tool.name == "work_projects_create" || workCollaborationIdempotentTool(tool.name)
 		annotations := &mcp.ToolAnnotations{ReadOnlyHint: !tool.write, DestructiveHint: &destructive, IdempotentHint: idempotent, OpenWorldHint: &openWorld}
 		server.AddTool(&mcp.Tool{Name: tool.name, Description: tool.description, InputSchema: schema, Annotations: annotations}, func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			response, err := a.callIntegrationTool(ctx, request, tool)

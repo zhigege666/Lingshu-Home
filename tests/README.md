@@ -16,6 +16,28 @@
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
 
+## 多 Agent 与多会话协作：0.2.4
+
+本轮从 0.2.3 实施可选协作能力，使用独立 SQLite 回环实例与专用 PostgreSQL 集群；没有操作日常数据。以下为发布前源码验收，不代表用户实例或 Gate 已升级。
+
+| 范围 | 实际通过结果 |
+| --- | --- |
+| 配置与 MCP | TestMCPCollaborationConfiguration；DiscoveryAndCapabilities、SameTokenWorkflow 的 SQLite/PostgreSQL 分支。覆盖默认关闭、CLI/环境优先级、独立 workflow、55工具/21事项工具、发现摘要、完整 schema、JSON text 与 structuredContent、一令牌多会话、缩权/撤销和 Bearer 禁止人工 resolve。 |
+| 认领和事件 | TestWorkCollaborationContentionRecoveryAndOffProtection、EventsSnapshotAndIsolation、TerminalReleaseAtomicAndReplay、LegacyCompatibilityAndStatusGuard 双库。覆盖并发唯一认领、旧代次拒绝、过期核实恢复、关闭后保护、事务故障回滚、签名分页、原创建请求重放及状态配置旁路。 |
+| 数据迁移 | TestWorkCollaborationMigrationPreservesAndRollsBack：SQLite/PostgreSQL 的 017→018 保留事项、资料关系、token 与活动；重复启动不重复迁移；末尾注入失败后整体回滚。 |
+| 批量读取 | TestWorkCollaborationBatchedSummary 双库验证 120 张 active/released 卡片只做一次摘要 JOIN；TestWorkBoardQueryBudget 双库验证查询上界随状态数、不随卡片数增长。未重跑大样本 P95。 |
+| 既有回归 | WorkBoardHTTPAndMCP、MCPWorkflowContextAndGatewayDiscovery 双库，以及 MCPWorkflowConfiguration、MCPTaskBoundaryGuidance 通过。旧 IntegrationHTTPMCPAndTraffic 本地 SQLite 通过；其 PostgreSQL 分支缺少独立环境变量而跳过，不能记为已测，由正式 CI 的独立库门禁覆盖。 |
+| 浏览器 | browser_work_collaboration.cjs 的 5 个不同检查组通过：同 token 双会话真实 MCP→UI 交接与旧写阻断；进展刷新保留人工草稿；人工解除和提交响应丢失后的原 ID 核对；四尺寸/长内容/键盘/明暗主题与断点草稿；默认关闭的旧 MCP CRUD。浏览器使用 SQLite。 |
+| 静态/构建 | Go 编译、TypeScript、Vite、脚本语法及仓库版本检查通过。Vite 保留既有大包体提示。Git、正式 CI、Docker/发行包及实际部署分别核对。 |
+
+四尺寸为 **2560×1440、1920×1080、1600×900、2560×1080**。验收发现 2200px 侧栏/弹窗切换可能重建协作子组件并丢弃草稿，已将状态和异步请求生命周期提升到稳定 WorkEditor，再验证记录草稿、原因/勾选、展开与分页、原 operationId 和 pending 请求保留。人工核实弹窗、1600深色详情和实际截图已目视检查；无未处理页面异常。
+
+后端初次失败中的跨空间 403/404 预期与 PostgreSQL 复合键比较排序均为测试夹具问题：遵循已有 404 隔离规则、稳定排序后只补测相应失败路径。首次命令退出码仍保留为 1；不能把后续分支通过写成初次整轮全绿。
+
+浏览器脚本要求 UI_FIXTURES、OUTPUT_DIR、PLAYWRIGHT_MODULE、CHROMIUM_PATH，只接受本轮拥有的新建回环 fixture。UI_CHECK_MATCH 可筛选组；协作开启和默认关闭须分别运行。记录响应丢失用实际 route.fetch 完成服务端写入，再中断响应和首次核对，恢复后验证只保留一条人工记录。不要指向已初始化的日常实例。
+
+维护回执：本轮 .runtime/collaboration-024-20261114 下的 backend-tests、backend-tests-v2、backend-migration-pg-final、query-budget-tests；浏览器 sqlite-2a2r1mpp（前两组）、sqlite-mjjdvrrz（修复后人工解除/未知结果）、sqlite-cuek5waa（四尺寸）、sqlite-4ye8edir（默认关闭）。运行日志与截图不进入源码或发行包。
+
 ## 默认空间配置入口：2026-11-14
 
 “默认打开空间”从页头迁入**管理中心 → 我的资料 → 浏览偏好**。页头保留快捷空间切换；偏好仍属于此浏览器中的当前账号，立即保存且不写服务端资料，也不清除个人资料、头像或密码草稿。当前标签页已手动选择的空间继续优先。
@@ -79,7 +101,7 @@
 
 ## 动态状态与 MCP 自描述：维护验证入口
 
-当前契约是每空间 1～64 个动态状态，事项继续引用稳定键；详情、看板和列表返回语义元数据，目录接口额外返回未归档/已归档使用计数。MCP 共 46 个工具，其中 12 个属于事项领域；日常维护状态不改变 MCP Schema。下面记录测试入口和覆盖范围，实际运行结果与发布证据应按对应源码和环境另外记录，不将历史报告换标为本轮结果。
+当前契约是每空间 1～64 个动态状态，事项继续引用稳定键；详情、看板和列表返回语义元数据，目录接口额外返回未归档/已归档使用计数。MCP 共 55 个工具，其中 21 个属于事项领域；日常维护状态不改变 MCP Schema。下面记录测试入口和覆盖范围，实际运行结果与发布证据应按对应源码和环境另外记录，不将历史报告换标为本轮结果。
 
 | 用例 | 覆盖范围 |
 | --- | --- |

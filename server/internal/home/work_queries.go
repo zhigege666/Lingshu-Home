@@ -25,14 +25,15 @@ type workCursor struct {
 	ID       string `json:"i"`
 }
 type workPage struct {
-	Statuses       []WorkStatusDefinition `json:"statuses"`
-	StatusRevision string                 `json:"statusRevision"`
-	DefaultStatus  string                 `json:"defaultStatus"`
-	Revision       string                 `json:"revision"`
-	CanEdit        bool                   `json:"canEdit"`
-	Items          []WorkSummary          `json:"items"`
-	Total          int                    `json:"total"`
-	NextCursor     *string                `json:"nextCursor"`
+	Statuses              []WorkStatusDefinition `json:"statuses"`
+	StatusRevision        string                 `json:"statusRevision"`
+	DefaultStatus         string                 `json:"defaultStatus"`
+	Revision              string                 `json:"revision"`
+	CollaborationRevision string                 `json:"collaborationRevision"`
+	CanEdit               bool                   `json:"canEdit"`
+	Items                 []WorkSummary          `json:"items"`
+	Total                 int                    `json:"total"`
+	NextCursor            *string                `json:"nextCursor"`
 }
 type workColumn struct {
 	Status     string        `json:"status"`
@@ -197,6 +198,13 @@ func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string
 		cursor := base64.RawURLEncoding.EncodeToString(encoded)
 		result.NextCursor = &cursor
 	}
+	if err = a.decorateWorkCollaboration(r, s.ID, result.Items); err != nil {
+		return nil, err
+	}
+	result.CollaborationRevision, err = a.workCollaborationRevision(r, s.ID)
+	if err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 func (a *App) listWorkItems(r *Request) (*Response, error) {
@@ -273,7 +281,11 @@ func (a *App) getWorkBoard(r *Request) (*Response, error) {
 		}
 		columns = append(columns, workColumn{Status: status, Total: page.Total, Items: page.Items, NextCursor: page.NextCursor})
 	}
-	return ok(map[string]any{"revision": revision, "canEdit": s.CanEdit, "columns": columns, "statuses": catalog.Items, "statusRevision": catalog.Revision, "defaultStatus": catalog.DefaultStatus}), nil
+	collaborationRevision, err := a.workCollaborationRevision(r, s.ID)
+	if err != nil {
+		return nil, err
+	}
+	return ok(map[string]any{"revision": revision, "collaborationRevision": collaborationRevision, "canEdit": s.CanEdit, "columns": columns, "statuses": catalog.Items, "statusRevision": catalog.Revision, "defaultStatus": catalog.DefaultStatus}), nil
 }
 
 type workResourceFilter struct {

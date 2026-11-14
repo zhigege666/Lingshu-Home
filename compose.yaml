@@ -8,6 +8,7 @@ services:
       LINGSHU_LANGUAGE: "${LINGSHU_LANGUAGE:-}"
       LINGSHU_SECURE_COOKIES: "${LINGSHU_SECURE_COOKIES:-false}"
       LINGSHU_MCP_WORKFLOW_ENABLED: "${LINGSHU_MCP_WORKFLOW_ENABLED:-false}"
+      LINGSHU_MCP_COLLABORATION_ENABLED: "${LINGSHU_MCP_COLLABORATION_ENABLED:-false}"
     volumes:
       - home-data:/data
     restart: unless-stopped

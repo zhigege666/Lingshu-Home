@@ -171,7 +171,11 @@ func (a *App) getWorkRevision(r *Request) (*Response, error) {
 	if err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT revision,status_revision FROM work_spaces WHERE space_id=?"), s.ID).Scan(&revision, &statuses); err != nil {
 		return nil, err
 	}
-	return ok(map[string]string{"revision": strconv.FormatInt(revision, 10), "statusRevision": strconv.FormatInt(statuses, 10)}), nil
+	collaborationRevision, err := a.workCollaborationRevision(r, s.ID)
+	if err != nil {
+		return nil, err
+	}
+	return ok(map[string]string{"revision": strconv.FormatInt(revision, 10), "statusRevision": strconv.FormatInt(statuses, 10), "collaborationRevision": collaborationRevision}), nil
 }
 
 type workStatusCreate struct {
@@ -355,6 +359,18 @@ func (a *App) batchEditWorkStatuses(r *Request) (*Response, error) {
 		names[key] = true
 		item.Position, item.IsDefault = i, id == defaultStatus
 		final[id] = item
+	}
+	affectedStatuses := []string{}
+	for _, patch := range in.Patches {
+		if old := catalog.find(patch.ID); old != nil && final[patch.ID].Type != old.Type {
+			affectedStatuses = append(affectedStatuses, patch.ID)
+		}
+	}
+	for _, deletion := range in.Deletions {
+		affectedStatuses = append(affectedStatuses, deletion.ID)
+	}
+	if err = a.guardWorkStatusCollaboration(r, s.ID, affectedStatuses); err != nil {
+		return nil, err
 	}
 	// Temporary non-user keys allow swapping two names under the unique index.
 	// The entire operation (including item migration) shares the request transaction.

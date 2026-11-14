@@ -388,3 +388,7 @@ Reverse proxies may provide their own compression and caching; preserve response
 - [MDN: Accept-Encoding](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Encoding)
 - [MDN: Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control)
 - [web.dev: Web Vitals and laboratory versus field measurement](https://web.dev/articles/vitals)
+
+## 0.2.4 collaboration query budget
+
+The earlier timing tables remain historical measurements. The new small TestWorkBoardQueryBudget fixture validates SQL counts only: four statuses with four or sixteen items use 18 handler queries; five statuses with seventeen items use 21, for both SQLite/PostgreSQL and both collaboration settings. The current upper bound is 6 + 3 × actual status count, independent of card count. Empty columns or future query consolidation may use fewer reads. A separate 120-card fixture confirms one batched claim/session/user JOIN for a summary batch. This does not remeasure HTTP P95 or the opt-in 100/1,000/10,000 samples.

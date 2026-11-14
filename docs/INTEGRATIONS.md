@@ -278,7 +278,7 @@ A 2026 tool call sends `Content-Type: application/json`, `Accept: application/js
 
 Use `server/discover` for 2026 discovery. Legacy clients use the SDK's `initialize` negotiation with `2025-11-25`. HTTP list shapes follow each endpoint's contract. MCP wraps array results in `structuredContent: { "items": [...] }` and retains structured paginated objects, including work-board columns, status metadata and item cursors. Application failures return MCP `isError: true` with `code`, `message`, `httpStatus`, and the applicable `currentRevision`, `entity`, `id`, `field` and authorized `details`. The wrapper forwards the handler's error without fetching more context; write-only status errors do not expose catalog contents or usage counts. Transport authentication failures remain HTTP `401`.
 
-The current application catalog contains **46 tools, including 12 work tools**. An authenticated Home `tools/list` includes registered tools regardless of the PAT's work actions. A missing `work:read` or `work:write` action is rejected when calling the tool, not by hiding it from this list. A gateway may have its own discovery/exposure configuration; its catalog is not proof of the tools served by the connected Home instance.
+The current application catalog contains **55 tools, including 21 work tools**. An authenticated Home `tools/list` includes registered tools regardless of the PAT's work actions. A missing `work:read` or `work:write` action is rejected when calling the tool, not by hiding it from this list. A gateway may have its own discovery/exposure configuration; its catalog is not proof of the tools served by the connected Home instance.
 
 | Tools | Arguments (`spaceId` is optional wherever listed) |
 | --- | --- |
@@ -292,6 +292,12 @@ The current application catalog contains **46 tools, including 12 work tools**. 
 | `work_resources_search` | Optional `spaceId`, required `input.kind`; optional resource search and cursor filters |
 | `work_statuses_get` | Optional `spaceId`; returns the shared space status catalog and its revision |
 | `work_statuses_batch_edit` | Optional `spaceId`, required `input.expectedRevision` and typed create/patch/order/delete arrays and/or a default status |
+| `work_collaboration_get` | Optional `spaceId`; effective collaboration configuration, contract version and lease limits |
+| `work_sessions_open` | Optional `spaceId`; `input` with stable `registrationId`, `agentName` and optional client/role/parent/resume attribution |
+| `work_sessions_get`, `work_sessions_close` | Optional `spaceId`, required session `id`; close also takes `input.operationId` |
+| `work_claims_acquire` | Optional `spaceId`, item `id`, `input` with session, operation ID, expected item revision/generation and optional verified recovery |
+| `work_claims_renew`, `work_claims_release` | Optional `spaceId`, item `id`, `input` with current session/claim/generation/operation ID; release requires structured handoff |
+| `work_events_list`, `work_events_append` | Optional `spaceId`, item `id`; list `input` accepts limit/cursor/after; append requires session, operation ID, kind and body |
 | `document_sources_list` | Optional `spaceId`. Returns enabled working-document directories, including empty ones, with IDs, names, configured read-only mode, caller write availability, defaults and last observed status; no absolute paths. Requires `documents:read` and working-document access. |
 | `documents_list`, `documents_activity_list` | Optional `spaceId` and `input` filters. Omit both to use the defaults. |
 | `navigation_get` | `spaceId`; complete local navigation dataset and revision |
@@ -310,7 +316,7 @@ The current application catalog contains **46 tools, including 12 work tools**. 
 
 After upgrading Home, refresh the connection in Gate or another MCP gateway in this order:
 
-1. Confirm the running Home version and endpoint, then read its authenticated `tools/list`. The current contract includes the ten item/project/resource tools plus `work_statuses_get` and `work_statuses_batch_edit`; an older Home process will not gain these tools by refreshing a gateway alone.
+1. Confirm the running Home version and endpoint, then read its authenticated `tools/list`. The current contract includes twelve item/project/resource/status tools plus nine collaboration tools; an older Home process will not gain these tools by refreshing a gateway alone.
 2. Refresh discovery and publish the updated tool metadata for that same gateway connection, preserving its intended tool exposure and caller grants. Upgrading Home alone does not confirm that Gate has synchronized. Compare descriptions and parameter schemas as well as tool names before changing credentials or assuming the implementation is missing.
 3. Load the needed tools' current schemas and make a business read, such as `work_board_get {}` with `work:read`, or `documents_list {}` with document read access. Read `space_current {}` when space identity, workflow configuration or effective capabilities are unknown or have changed; reuse context that remains valid.
 
@@ -462,3 +468,9 @@ python3 tests/integrations_smoke.py \
 ```
 
 Use a fresh disposable service with a separate data directory/database. The script rejects non-loopback hosts, redirects, and initialized instances; disables environment proxies; and retains synthetic state for inspection. Never point it at a populated user instance. This script creates a disabled credential-free Traffic source, so it does not contact GitHub. Go worker tests use fixture transports. Real repository access and its first baseline remain dependent on the user configuring a valid credential.
+
+## Optional work collaboration
+
+Since 0.2.4, `LINGSHU_MCP_COLLABORATION_ENABLED` / `--mcp-collaboration-enabled` independently enables sessions and claim enforcement, default off. `space_current.collaboration` and `work_collaboration_get` report the actual setting, effective availability and contract version. Enabling it requires MCP/Bearer work-item create/update/move callers to provide `input.context`; current claim checks accompany the existing revision checks. Unresolved claims remain protected after the setting is disabled, with cleanup available. Session labels do not grant authority and lease expiry does not stop external work.
+
+Home application IDs remain inside the original tool `arguments`, including when Gate loads tools on demand; Gate routing `session_id` is a different field. Refresh the gateway catalog after the application upgrade, preserve the original operation ID and payload on uncertain writes, and read back current records before continuing. Workflow guidance cannot guarantee that a client schedules or follows work automatically. See the complete [user, HTTP and Agent collaboration contract](WORK_COLLABORATION.md) for lifecycle, permissions, pagination, recovery and migration 018.

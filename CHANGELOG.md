@@ -4,6 +4,21 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-14
+
+### Optional multi-Agent work collaboration
+
+- **① User experience:** show the current Agent/session, trusted account attribution, contact/progress times and handoff in work details; add human notes and a deliberate claim-resolution action that preserves drafts. Keep collaboration records separate from business-change history. Check responsive layout, internal scrolling and main actions at the four supported desktop sizes.
+- **② Developer experience:** add SQLite/PostgreSQL migration 018 for sessions, claims, append-only events, operation receipts and an independent collaboration revision. Enforce atomic acquisition, lease/generation checks and item revisions across HTTP/MCP writes; preserve legacy create hashes. Heartbeats do not change business revisions/timestamps or trigger board-refresh churn. Reject status migrations/type changes affecting unresolved claims until they are resolved.
+- **③ AI Agent experience:** add nine self-describing work tools (55 total), explicit application-session arguments, effective capability context and recovery guidance. Multiple sessions may share a token; session labels remain declarations under the authenticated principal. Stable operation IDs support readback/replay without duplicate events. Handoff records and claim release commit atomically; completion/cancellation releases the owner's claim using actual status semantics. Completed/canceled/archived items cannot be claimed for new work.
+
+### Configuration, compatibility and recovery
+
+- Add `LINGSHU_MCP_COLLABORATION_ENABLED` / `--mcp-collaboration-enabled`, default off and independent of workflow guidance. Enabling it requires adapted MCP/Bearer item mutations to provide the declared session and current claim context. Disabling prevents new sessions/claims but retains unresolved-claim enforcement, renewal, release and close/resolve cleanup. Existing scopes, token values and account/space limits remain authoritative; no token per Agent or extra Skill is required.
+- Expose the independent workflow/collaboration settings in supplied Compose deployments and optional Unraid fields. Recreate containers to load changed environment values while preserving their data and deployment settings. Refresh Gate's discovered/published tool definitions after upgrading Home; Home session fields belong inside the original tool arguments, not Gate's routing session field.
+- Lease expiry does not prove an external command has stopped. Recovery requires an explicit reason and verified stopped-operation assertion; active claims cannot be stolen through MCP. Human resolution is authenticated Cookie-only, with CSRF and expected generation. No automatic scheduling, agent wakeup, native subtasks, semantic task deduplication or external-process fencing is introduced.
+- Preserve existing work data, references, timestamps and credentials during migration 018. Returning to 0.2.3 or earlier requires the matching pre-upgrade database/data, keys and deployment backup, not an image-tag change or deleted migration ledger.
+
 ## [0.2.3] - 2026-11-14
 
 ### Preferences and completed-work boundaries

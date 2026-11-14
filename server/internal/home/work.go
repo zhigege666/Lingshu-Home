@@ -19,18 +19,19 @@ const workStatusOrder = "ws.sort_order"
 const workRankStep int64 = 1024
 
 type WorkSummary struct {
-	ID             string  `json:"id"`
-	SpaceID        string  `json:"spaceId"`
-	ProjectID      *string `json:"projectId"`
-	ProjectName    string  `json:"projectName"`
-	Title          string  `json:"title"`
-	Status         string  `json:"status"`
-	NextStep       string  `json:"nextStep"`
-	NeedsAttention bool    `json:"needsAttention"`
-	Archived       bool    `json:"archived"`
-	Revision       string  `json:"revision"`
-	UpdatedAt      string  `json:"updatedAt"`
-	ReferenceCount int     `json:"referenceCount"`
+	ID             string             `json:"id"`
+	SpaceID        string             `json:"spaceId"`
+	ProjectID      *string            `json:"projectId"`
+	ProjectName    string             `json:"projectName"`
+	Title          string             `json:"title"`
+	Status         string             `json:"status"`
+	NextStep       string             `json:"nextStep"`
+	NeedsAttention bool               `json:"needsAttention"`
+	Archived       bool               `json:"archived"`
+	Revision       string             `json:"revision"`
+	UpdatedAt      string             `json:"updatedAt"`
+	ReferenceCount int                `json:"referenceCount"`
+	Collaboration  *WorkCollaboration `json:"collaboration,omitempty"`
 	rank           int64
 }
 type WorkReference struct {
@@ -67,6 +68,7 @@ type WorkProject struct {
 
 func (a *App) registerWorkRoutes() {
 	base := "/api/v1/spaces/{spaceId}/work"
+	a.registerWorkCollaborationRoutes(base)
 	a.route("GET "+base+"/statuses", false, a.getWorkStatuses)
 	a.route("POST "+base+"/statuses/batch-edit", true, a.batchEditWorkStatuses)
 	a.route("GET "+base+"/revision", false, a.getWorkRevision)
@@ -249,6 +251,10 @@ func (a *App) workItemReply(r *Request, item *WorkItem, flags map[string]any) (*
 			result[k] = v
 		}
 		return ok(result), nil
+	}
+	item.Collaboration, err = a.workCollaborationSummary(r, item.SpaceID, item.ID)
+	if err != nil {
+		return nil, err
 	}
 	item.BoardRevision = revision
 	item.StatusDefinition, err = a.requireWorkStatus(r, item.SpaceID, item.Status)

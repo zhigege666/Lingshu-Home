@@ -25,13 +25,14 @@ type WorkActivityActor struct {
 }
 
 type WorkActivityEvent struct {
-	ID           string               `json:"id"`
-	Action       string               `json:"action"`
-	OccurredAt   string               `json:"occurredAt"`
-	ItemRevision string               `json:"itemRevision"`
-	Actor        *WorkActivityActor   `json:"actor"`
-	Origin       string               `json:"origin"`
-	Changes      []WorkActivityChange `json:"changes"`
+	ID           string                  `json:"id"`
+	Action       string                  `json:"action"`
+	OccurredAt   string                  `json:"occurredAt"`
+	ItemRevision string                  `json:"itemRevision"`
+	Actor        *WorkActivityActor      `json:"actor"`
+	Origin       string                  `json:"origin"`
+	Changes      []WorkActivityChange    `json:"changes"`
+	Session      *WorkSessionAttribution `json:"session,omitempty"`
 }
 
 type WorkActivityPage struct {
@@ -69,7 +70,11 @@ func (a *App) recordWorkActivity(r *Request, space, itemID, action, stamp string
 	if err != nil {
 		return err
 	}
-	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_activity(id,item_id,space_id,actor_id,action,origin,occurred_at,item_revision,changes_json) SELECT ?,id,space_id,?,?,?,?,revision,? FROM work_items WHERE id=? AND space_id=?"), newID(), actor, action, documentActivityOrigin(r), stamp, string(body), itemID, space)
+	sessionJSON := ""
+	if session := workRequestSession(r); session != nil {
+		sessionJSON = jsonString(workSessionSnapshot(session))
+	}
+	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_activity(id,item_id,space_id,actor_id,action,origin,occurred_at,item_revision,changes_json,session_json) SELECT ?,id,space_id,?,?,?,?,revision,?,? FROM work_items WHERE id=? AND space_id=?"), newID(), actor, action, documentActivityOrigin(r), stamp, string(body), sessionJSON, itemID, space)
 	if err != nil {
 		return err
 	}
@@ -331,7 +336,7 @@ func (a *App) loadWorkActivity(r *Request, item *WorkItem, in workActivityInput)
 		args = append(args, cursor.Before)
 	}
 	args = append(args, in.Limit+1)
-	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT a.id,a.action,a.origin,a.occurred_at,a.item_revision,a.actor_id,COALESCE(NULLIF(u.display_name,''),u.username,''),a.changes_json FROM work_activity a LEFT JOIN users u ON u.id=a.actor_id WHERE "+where+" ORDER BY a.item_revision DESC LIMIT ?"), args...)
+	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT a.id,a.action,a.origin,a.occurred_at,a.item_revision,a.actor_id,COALESCE(NULLIF(u.display_name,''),u.username,''),a.changes_json,a.session_json FROM work_activity a LEFT JOIN users u ON u.id=a.actor_id WHERE "+where+" ORDER BY a.item_revision DESC LIMIT ?"), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -340,9 +345,14 @@ func (a *App) loadWorkActivity(r *Request, item *WorkItem, in workActivityInput)
 		var event WorkActivityEvent
 		var revision int64
 		var actor sql.NullString
-		var name, changes string
-		if err = rows.Scan(&event.ID, &event.Action, &event.Origin, &event.OccurredAt, &revision, &actor, &name, &changes); err != nil {
+		var name, changes, sessionJSON string
+		if err = rows.Scan(&event.ID, &event.Action, &event.Origin, &event.OccurredAt, &revision, &actor, &name, &changes, &sessionJSON); err != nil {
 			return nil, err
+		}
+		if sessionJSON != "" {
+			if err = json.Unmarshal([]byte(sessionJSON), &event.Session); err != nil {
+				return nil, err
+			}
 		}
 		event.ItemRevision = strconv.FormatInt(revision, 10)
 		if actor.Valid {

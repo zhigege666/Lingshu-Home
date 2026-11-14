@@ -242,8 +242,13 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	var decoded struct {
 		workCreateInput
 		DocumentIDs json.RawMessage `json:"documentIds"`
+		ContextRaw  json.RawMessage `json:"context"`
 	}
 	if err = r.decode(&decoded); err != nil {
+		return nil, err
+	}
+	collaborationContext, err := decodeWorkMutationContext(decoded.ContextRaw)
+	if err != nil {
 		return nil, err
 	}
 	in := decoded.workCreateInput
@@ -273,7 +278,19 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Legacy creation replay precedes the collaboration flag: an upgrade must
+	// never change an already stored creation intent or demand a new item ID.
+	if existing != nil && collaborationContext == nil {
+		return a.workItemReply(r, existing, map[string]any{"replayed": true})
+	}
+	replay, operationHash, err := a.prepareWorkCreation(r, s.ID, in.ID, in, collaborationContext)
+	if err != nil || replay != nil {
+		return replay, err
+	}
 	if existing != nil {
+		if err = a.finishWorkCreation(r, existing, collaborationContext, operationHash); err != nil {
+			return nil, err
+		}
 		return a.workItemReply(r, existing, map[string]any{"replayed": true})
 	}
 	if in.Status == "" {
@@ -322,9 +339,12 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = a.finishWorkCreation(r, item, collaborationContext, operationHash); err != nil {
+		return nil, err
+	}
 	return a.workItemReply(r, item, map[string]any{"created": true})
 }
-func (a *App) updateWorkItem(r *Request) (*Response, error) {
+func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	s, err := r.workSpace(true)
 	if err != nil {
 		return nil, err
@@ -449,7 +469,7 @@ func (a *App) updateWorkItem(r *Request) (*Response, error) {
 	}
 	return a.workItemReply(r, item, nil)
 }
-func (a *App) moveWorkItem(r *Request) (*Response, error) {
+func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 	s, err := r.workSpace(true)
 	if err != nil {
 		return nil, err
