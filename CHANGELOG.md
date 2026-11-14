@@ -4,6 +4,26 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-14
+
+### Planning and observation
+
+- **① User experience:** add stable short work references; priority, labels, assignees and target versions; parent, dependency and predecessor relations; private/shared saved views; calendar, WIP advice, real activity statistics and opt-in in-app notifications. Optional pages and item execution records load on demand. Preserve drafts, existing URL entry points, hidden references, archived values and real collaboration claims.
+- **② Developer experience:** add SQLite/PostgreSQL migrations 021–022 with deterministic number backfill, preserved history, transactional relations and independent metadata revisions. No invented start times or completed work; duration coverage reports unknown/open separately. Normal board SQL budgets remain 18/21 for four/five columns. Measure ordinary reads/writes, real status changes, full-window schedule generation, event matching and external dispatch separately; see docs/PERFORMANCE.md for actual measurements and limitations.
+- **③ AI Agent experience:** add 39 tools for planning, notifications, events and explicit execution (101 total, 67 work tools). Keep existing UUIDs and call shapes. Expose effective execution capabilities through space_current, advance workflow guidance to version 3 and retain context/collaboration versions. Strict tool inventory, gateway discovery and token dependencies remain release gates.
+
+- PostgreSQL numbering backfill computes the ordered result once and joins it into the update. Verify a real 020 database upgrade with 10,000 existing items across two populated spaces and one empty space, unchanged original-field checksums, stable numbering and correct next numbers; retain failure rollback checks.
+
+### Event rules and real execution
+
+- Persist internal work events with the actual item change. Custom events use stable caller IDs; reserved work.* events cannot be forged. One event/rule receipt identifies one generated item. Rule output does not recursively trigger more rules. Match at most 25 rules; queued events and queued executions each have a visible 1,000-entry limit.
+- Add fixed HTTP executors with encrypted write-only credentials and explicit work:execute (requiring read/write). Owner is additionally required for configuration and manual resolution. Both the event sender and the saved rule principal need execution authority; write-only tokens cannot trigger outbound work indirectly. Runtime checks preserve real sessions/claims and current item versions.
+- Save dispatch before one POST, perform network I/O outside the write transaction, and use four bounded execution slots. Database uniqueness serializes global resource keys. Unknown outcomes retain their resource; restart never blindly posts again. Poll with GET, use bounded readback retries, enforce deadlines, and compare versions before applying late responses. A successful adapter result does not automatically complete the work item or release its claim.
+- Reuse the committed outbound network configuration and proxy/address policy for every executor request. A network generation change cancels the old request while retaining an unknown execution outcome; recovery reads the same ID without a second POST. Verify this path with a real CONNECT proxy and the production transport.
+- Default event automation and notifications off. No periodic queue scan when idle or disabled. Storage retries have an explicit finite budget. No fallback project/status, fake Agent session, silent queue drop, arbitrary command mapping or automatic unknown-result resubmission is introduced.
+- Include a reference HTTP executor with a fixed startup argv, JSON stdin, durable SQLite idempotency, bounded Unicode output and real subprocess tests. It does not configure a user's production sync program or promise that process termination fences all external effects.
+- Back up complete database/data, instance keys and deployment settings before upgrade. SQLite 022 preserves activity rows, uniqueness and indexes while extending its origin CHECK; PostgreSQL alters that constraint. Existing schedules retain configuration. Downgrade to 0.2.7 or earlier requires its matching pre-upgrade backup. Refresh the gateway's catalog after upgrading the running Home instance.
+
 ## [0.2.7] - 2026-11-14
 
 ### Recurring work and item dates

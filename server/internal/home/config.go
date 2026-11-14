@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,22 +13,23 @@ import (
 )
 
 type Config struct {
-	Listen                  string
-	DataDir                 string
-	StorageProvider         string
-	DatabaseURL             string
-	WebDir                  string
-	VersionFile             string
-	SecureCookies           bool
-	TLSCertFile             string
-	TLSKeyFile              string
-	Language                string
-	DocumentRoots           []string
-	MCPWorkflowEnabled      bool
-	MCPCollaborationEnabled bool
-	storageSource           string
-	runtimeLease            *fileLease
-	runtimeContext          context.Context
+	workExecutorClientFactory func(bool) *http.Client
+	Listen                    string
+	DataDir                   string
+	StorageProvider           string
+	DatabaseURL               string
+	WebDir                    string
+	VersionFile               string
+	SecureCookies             bool
+	TLSCertFile               string
+	TLSKeyFile                string
+	Language                  string
+	DocumentRoots             []string
+	MCPWorkflowEnabled        bool
+	MCPCollaborationEnabled   bool
+	storageSource             string
+	runtimeLease              *fileLease
+	runtimeContext            context.Context
 }
 
 func envValue(name, fallback string) string {

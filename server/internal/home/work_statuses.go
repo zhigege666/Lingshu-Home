@@ -13,13 +13,15 @@ const workStatusLimit = 64
 var workStatusColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 type WorkStatusDefinition struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Color       string `json:"color"`
-	Description string `json:"description"`
-	Position    int    `json:"position"`
-	IsDefault   bool   `json:"isDefault"`
+	WIPLimit    int      `json:"wipLimit,omitempty"`
+	WIP         *WorkWIP `json:"wip,omitempty"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Color       string   `json:"color"`
+	Description string   `json:"description"`
+	Position    int      `json:"position"`
+	IsDefault   bool     `json:"isDefault"`
 	*WorkStatusCounts
 }
 
@@ -49,7 +51,7 @@ func (c *WorkStatusCatalog) find(id string) *WorkStatusDefinition {
 // This runs when a space is created, in the same transaction as its page.
 // Reads never initialize or modify data (including PostgreSQL read-only reads).
 func (a *App) initializeWorkStatuses(r *Request, space string) error {
-	if _, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_spaces(space_id) VALUES(?)"), space); err != nil {
+	if _, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_spaces(space_id,metrics_started_at) VALUES(?,?)"), space, workStamp()); err != nil {
 		return err
 	}
 	zh := []string{"待办", "进行中", "等待", "完成"}
@@ -74,13 +76,13 @@ func (a *App) loadWorkStatuses(r *Request, space string, counts bool) (*WorkStat
 		return nil, err
 	}
 	catalog.Revision = strconv.FormatInt(revision, 10)
-	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT id,name,status_type,color,description,sort_order FROM work_statuses WHERE space_id=? AND retired=? ORDER BY sort_order,id"), space, false)
+	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT id,name,status_type,color,description,sort_order,wip_limit FROM work_statuses WHERE space_id=? AND retired=? ORDER BY sort_order,id"), space, false)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var item WorkStatusDefinition
-		if err = rows.Scan(&item.ID, &item.Name, &item.Type, &item.Color, &item.Description, &item.Position); err != nil {
+		if err = rows.Scan(&item.ID, &item.Name, &item.Type, &item.Color, &item.Description, &item.Position, &item.WIPLimit); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -115,7 +117,16 @@ func (a *App) loadWorkStatuses(r *Request, space string, counts bool) (*WorkStat
 			}
 		}
 	}
-	return catalog, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range catalog.Items {
+		item := &catalog.Items[i]
+		if item.WIPLimit > 0 {
+			item.WIP = &WorkWIP{ActiveCount: item.Total, Limit: item.WIPLimit, Exceeded: item.Total > item.WIPLimit}
+		}
+	}
+	return catalog, nil
 }
 
 func workStatusTypeValid(value string) bool {
@@ -167,18 +178,19 @@ func (a *App) getWorkRevision(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	var revision, statuses int64
-	if err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT revision,status_revision FROM work_spaces WHERE space_id=?"), s.ID).Scan(&revision, &statuses); err != nil {
+	var revision, statuses, planning, views int64
+	if err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT revision,status_revision,planning_revision,views_revision FROM work_spaces WHERE space_id=?"), s.ID).Scan(&revision, &statuses, &planning, &views); err != nil {
 		return nil, err
 	}
 	collaborationRevision, err := a.workCollaborationRevision(r, s.ID)
 	if err != nil {
 		return nil, err
 	}
-	return ok(map[string]string{"revision": strconv.FormatInt(revision, 10), "statusRevision": strconv.FormatInt(statuses, 10), "collaborationRevision": collaborationRevision, "mcpSettingsRevision": r.Settings.MCP.Revision}), nil
+	return ok(map[string]string{"planningRevision": strconv.FormatInt(planning, 10), "viewsRevision": strconv.FormatInt(views, 10), "notificationsRevision": strconv.FormatInt(s.WorkNotificationsRevision, 10), "revision": strconv.FormatInt(revision, 10), "statusRevision": strconv.FormatInt(statuses, 10), "collaborationRevision": collaborationRevision, "mcpSettingsRevision": r.Settings.MCP.Revision}), nil
 }
 
 type workStatusCreate struct {
+	WIPLimit    int    `json:"wipLimit"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Type        string `json:"type"`
@@ -186,6 +198,7 @@ type workStatusCreate struct {
 	Description string `json:"description"`
 }
 type workStatusPatch struct {
+	WIPLimit    *int    `json:"wipLimit"`
 	ID          string  `json:"id"`
 	Name        *string `json:"name"`
 	Type        *string `json:"type"`
@@ -206,6 +219,9 @@ type workStatusEdit struct {
 }
 
 func normalizeWorkStatus(item *WorkStatusDefinition) error {
+	if item.WIPLimit < 0 || item.WIPLimit > 10000 {
+		return invalid("wipLimit must be 0–10000; 0 disables the advisory limit.")
+	}
 	var err error
 	item.Name, err = required(item.Name, "name", 80)
 	if err != nil {
@@ -265,7 +281,7 @@ func (a *App) batchEditWorkStatuses(r *Request) (*Response, error) {
 		if color == "" {
 			color = "#5596bc"
 		}
-		final[create.ID] = WorkStatusDefinition{ID: create.ID, Name: create.Name, Type: create.Type, Color: color, Description: create.Description}
+		final[create.ID] = WorkStatusDefinition{ID: create.ID, Name: create.Name, Type: create.Type, Color: color, Description: create.Description, WIPLimit: create.WIPLimit}
 		changed[create.ID] = true
 		order = append(order, create.ID)
 	}
@@ -274,8 +290,12 @@ func (a *App) batchEditWorkStatuses(r *Request) (*Response, error) {
 		if !exists || changed[patch.ID] {
 			return nil, invalid("Each patch must identify one existing status, once, in the current space.")
 		}
-		if patch.Name == nil && patch.Type == nil && patch.Color == nil && patch.Description == nil {
+		if patch.Name == nil && patch.Type == nil && patch.Color == nil && patch.Description == nil && patch.WIPLimit == nil {
 			return nil, invalid("Each status patch requires a changed field.")
+		}
+		if patch.WIPLimit != nil {
+			item.WIPLimit = *patch.WIPLimit
+			item.WIP = nil
 		}
 		if patch.Name != nil {
 			item.Name = *patch.Name
@@ -392,9 +412,9 @@ func (a *App) batchEditWorkStatuses(r *Request) (*Response, error) {
 	for _, id := range order {
 		item := final[id]
 		if catalog.find(id) == nil {
-			_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_statuses(space_id,id,name,name_key,status_type,color,description,sort_order) VALUES(?,?,?,?,?,?,?,?)"), s.ID, id, item.Name, strings.ToLower(item.Name), item.Type, item.Color, item.Description, item.Position)
+			_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_statuses(space_id,id,name,name_key,status_type,color,description,sort_order,wip_limit) VALUES(?,?,?,?,?,?,?,?,?)"), s.ID, id, item.Name, strings.ToLower(item.Name), item.Type, item.Color, item.Description, item.Position, item.WIPLimit)
 		} else {
-			_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_statuses SET name=?,name_key=?,status_type=?,color=?,description=?,sort_order=? WHERE space_id=? AND id=?"), item.Name, strings.ToLower(item.Name), item.Type, item.Color, item.Description, item.Position, s.ID, id)
+			_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_statuses SET name=?,name_key=?,status_type=?,color=?,description=?,sort_order=?,wip_limit=? WHERE space_id=? AND id=?"), item.Name, strings.ToLower(item.Name), item.Type, item.Color, item.Description, item.Position, item.WIPLimit, s.ID, id)
 		}
 		if err != nil {
 			return nil, err

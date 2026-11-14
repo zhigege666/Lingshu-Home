@@ -43,14 +43,20 @@ type User struct {
 }
 
 type Space struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Kind         string `json:"kind"`
-	Published    bool   `json:"published"`
-	CanEdit      bool   `json:"canEdit"`
-	OwnerUserID  string `json:"-"`
-	DataRevision int64  `json:"-"`
-	UpdatedAt    string `json:"-"`
+	WorkAutomationEnabled     bool   `json:"-"`
+	WorkAutomationRevision    int64  `json:"-"`
+	WorkAutomationRuleCount   int    `json:"-"`
+	WorkNotificationsEnabled  bool   `json:"-"`
+	WorkNotificationsRevision int64  `json:"-"`
+	WorkRelationsCount        int64  `json:"-"`
+	ID                        string `json:"id"`
+	Name                      string `json:"name"`
+	Kind                      string `json:"kind"`
+	Published                 bool   `json:"published"`
+	CanEdit                   bool   `json:"canEdit"`
+	OwnerUserID               string `json:"-"`
+	DataRevision              int64  `json:"-"`
+	UpdatedAt                 string `json:"-"`
 }
 
 type Category struct {

@@ -186,10 +186,10 @@ func TestMCPCollaborationDiscoveryAndCapabilities(t *testing.T) {
 					t.Fatalf("gateway search prefix lost collaboration discovery: %s", name)
 				}
 			}
-			if len(catalog) != 62 || catalog["work_claims_resolve"] != nil {
+			if len(catalog) != 101 || catalog["work_claims_resolve"] != nil {
 				t.Fatal("MCP exposed a human-only override or unexpected tool catalog")
 			}
-			for _, name := range []string{"work_schedules_list", "work_schedules_get", "work_schedules_create", "work_schedules_update", "work_schedules_preview", "work_schedules_generate", "work_schedules_occurrences"} {
+			for _, name := range []string{"work_schedules_list", "work_schedules_get", "work_schedules_create", "work_schedules_update", "work_schedules_preview", "work_schedules_generate", "work_schedules_occurrences", "work_labels_list", "work_labels_create", "work_labels_update", "work_versions_list", "work_versions_create", "work_versions_update", "work_assignees_list", "work_relations_get", "work_relations_update", "work_views_list", "work_views_create", "work_views_update", "work_views_delete", "work_calendar_get", "work_stats_get", "work_notifications_settings_get", "work_notifications_settings_update", "work_notifications_list", "work_notifications_read", "work_notifications_summary", "work_automation_settings_get", "work_automation_settings_update", "work_automation_rules_list", "work_automation_rules_get", "work_automation_rules_create", "work_automation_rules_update", "work_automation_events_list", "work_automation_events_get", "work_automation_events_publish", "work_automation_events_retry", "work_executors_list", "work_executors_get", "work_executors_create", "work_executors_update", "work_executions_list", "work_executions_get", "work_executions_start", "work_executions_reconcile", "work_executions_resolve"} {
 				if catalog[name] == nil {
 					t.Fatalf("Missing schedule MCP tool: %s", name)
 				}

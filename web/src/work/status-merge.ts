@@ -1,8 +1,8 @@
 import type { WorkStatusCatalog, WorkStatusDefinition } from '../core/work-types'
 
-export const editableStatusFields = ['name', 'type', 'color', 'description'] as const
+export const editableStatusFields = ['name', 'type', 'color', 'description', 'wipLimit'] as const
 export function statusValues(row: WorkStatusDefinition) {
-  return { name: row.name.trim(), type: row.type, color: row.color.toLowerCase(), description: row.description.trim() }
+  return { name: row.name.trim(), type: row.type, color: row.color.toLowerCase(), description: row.description.trim(), wipLimit: row.wipLimit || 0 }
 }
 
 type MergeResult = { rows: WorkStatusDefinition[]; defaultStatus: string; deletions: Record<string, string> } | { error: 'removed' | 'id-conflict' | 'target-removed' | 'too-many'; name: string }

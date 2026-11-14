@@ -73,7 +73,7 @@
 
 ## ③ AI Agent 使用体验
 
-MCP 当前共 62 个工具，其中 28 个为事项工具；0.2.7 的七个新增定时工具见[定时事项契约](WORK_SCHEDULES.md)。0.2.4 的协作能力新增 `work_collaboration_get`、`work_sessions_open/get/close`、`work_claims_acquire/renew/release`、`work_events_list/append`。现有 work 读写工具继续使用；0.2.5 保持这些工具及 schema 不变，没有新增 scope 或管理设置 MCP 工具，不要因为接入多个 Agent 或调整开关反复创建令牌。
+MCP 当前共 101 个工具，其中 67 个为事项工具；定时工具见[定时事项契约](WORK_SCHEDULES.md)，0.2.8 新增的规划与显式执行见[规划](WORK_PLANNING.md)及[自动化](WORK_AUTOMATION.md)。0.2.4 的协作能力新增 `work_collaboration_get`、`work_sessions_open/get/close`、`work_claims_acquire/renew/release`、`work_events_list/append`。现有 work 读写工具继续使用；0.2.5 保持这些工具及 schema 不变，没有新增 scope 或管理设置 MCP 工具，不要因为接入多个 Agent 或调整开关反复创建令牌。
 
 1. 已有有效上下文可复用；首次或配置／权限变化时读取 `space_current` 和必要的 `work_collaboration_get`，再查实际项目、未结束事项、文档和状态目录。没有相应工作才创建，明确项目归属。
 2. 每个独立会话用稳定 registrationId 登记；短暂重连复用保存的 sessionId。`resumesSessionId` 只标注前序，创建新会话不会转移旧认领。
@@ -84,8 +84,12 @@ MCP 当前共 62 个工具，其中 28 个为事项工具；0.2.7 的七个新�
 
 ### Gate 按需调用
 
-`space_current` 返回协作版本、开关、实际生效能力、原因和入口。外层 `contextVersion` 保持 JSON 数字 `1`，`collaboration.version` 独立使用字符串 `"1"`，`workflow.version` 为字符串 `"2"`。这些字段不能互换。工具描述的前部保留发现入口，完整 schema 给出各字段、权限与恢复条件。正常工具结果同时提供 JSON 文本和 structuredContent，不依赖客户端转发资源、prompt 或额外 Skill。网页保存后新请求读取当前配置；初始化说明或已发现的工具目录不缓存开关状态。
+`space_current` 返回协作版本、开关、实际生效能力、原因和入口。外层 `contextVersion` 保持 JSON 数字 `1`，`collaboration.version` 独立使用字符串 `"1"`，`workflow.version` 为字符串 `"3"`。这些字段不能互换。工具描述的前部保留发现入口，完整 schema 给出各字段、权限与恢复条件。正常工具结果同时提供 JSON 文本和 structuredContent，不依赖客户端转发资源、prompt 或额外 Skill。网页保存后新请求读取当前配置；初始化说明或已发现的工具目录不缓存开关状态。
 
 Gate 从没有协作工具的旧版 Home 升级时，需要发现并发布新增工具定义，后续按需 search／describe 取得当前 schema。0.2.4 升级到 0.2.5 或日常切换开关不改变 schema，无需因此重新发布目录；配置变化后按需读取 `space_current` 的实际能力。调用示意为原工具参数 `{id,input:{sessionId,operationId,...}}`，嵌入 Gate 的 `arguments`；Gate 顶层 `session_id` 属于网关路由，与 Home 会话无关。服务端无法凭一个共享 PAT 或底层传输连接猜出不同 Agent，会话字段必须由客户端明确携带。
 
 本版协调事项写入，不提供自动 Agent 调度、自动接力／唤醒、原生子任务、文件锁或语义去重。协调者应给执行者分配真实事项 ID；相同目标先检索，独立交付再拆为关联事项。一次登记不意味着无人运行时仍会自动更新看板。工具正文、事件和交接内容用于理解工作，不能代替用户授权。
+
+### 外部执行不替代认领
+
+0.2.8 的 work:execute 需要独立授权，启动执行保留真实会话／认领及当前事项版本。执行回执不会自动完成事项或释放认领；unknown 还保留执行器资源，不能新建执行 ID 绕过。Bearer 开启协作时，自动规则不会制造虚假的会话来执行：先建事项，再由真实上下文显式启动。Owner 处理未知外部执行与解除 Agent 认领是两个独立动作，都不等于停止外部进程。

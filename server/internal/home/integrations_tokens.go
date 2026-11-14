@@ -19,7 +19,8 @@ type integrationTokenActionSpec struct {
 }
 
 // Token UI, validation and explicitly opted-in all-mode tokens use this catalog.
-// These are business actions only; account or credential management is excluded.
+// These are business actions only. Executor configuration additionally requires
+// the Owner role; account and integration-token administration remain Cookie-only.
 var integrationTokenActionSpecs = []integrationTokenActionSpec{
 	{ID: "navigation:read", Chinese: "读取导航", English: "Read navigation", Default: true},
 	{ID: "navigation:write", Chinese: "编辑导航", English: "Edit navigation", Write: true},
@@ -32,6 +33,7 @@ var integrationTokenActionSpecs = []integrationTokenActionSpec{
 	{ID: "documents:write", Chinese: "编辑资料", English: "Edit documents", Requires: []string{"documents:read"}, Write: true},
 	{ID: "work:read", Chinese: "读取事项", English: "Read work items"},
 	{ID: "work:write", Chinese: "管理事项", English: "Manage work items", Write: true},
+	{ID: "work:execute", Chinese: "执行事项", English: "Execute work items", Requires: []string{"work:read", "work:write"}, Write: true},
 }
 
 var integrationActions = func() map[string]bool {

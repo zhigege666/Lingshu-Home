@@ -1,0 +1,2884 @@
+{
+  "schemaVersion": 1,
+  "targetVersion": "0.2.8",
+  "baselineVersion": "0.2.7",
+  "measuredAtUTC": "2026-11-14",
+  "baselineCommit": "a4aa457a6a72c212ebd2526fc7dbf61c56cfa4d5",
+  "sourceSnapshots": {
+    "baseline": {
+      "sourceArchiveSHA256": "ebdd54ee20538ae48f63414e8aaa3a2ab0a3e16c71ce32cb543f5a35627509db",
+      "testedNativeBinarySHA256": "7aa3e01411d35150c3a8d7ca858052e7716663d9e5d22c825971a47c9a0d58da"
+    },
+    "completedRuntimeStages": {
+      "sourceSetSHA256": "560f8ae822c6da112dbe632e90d2e547d40db564ba2c23704330d02da2bb779e",
+      "testedNativeBinarySHA256": "9efb90b39374c410b0fedda7802ce761f9015d52cff41430da33cedf517f7da6",
+      "businessGoSourcesSHA256": "5ad71ce758a11028724c99498eacf4a6d0de958e6b22ad781e25cf4ac932e5e7"
+    },
+    "remainingStagesAfterMigrationOptimization": {
+      "sourceSetSHA256": "2d0056f839cc9c094ea9c0a219a253abbeb6bca372da1229a7a04000df06761d",
+      "testedNativeBinarySHA256": "9201fb8273ec53dfcaefc1ce757f5d3b08f7f66681cc43501ee20b15d32753e1",
+      "businessGoSourcesSHA256": "5ad71ce758a11028724c99498eacf4a6d0de958e6b22ad781e25cf4ac932e5e7",
+      "postgres021MigrationSHA256": "5202a3da87df8ce609f56d79d19b5fac035ad47ae0e7897424bb7608bf58a465"
+    },
+    "businessGoSourcesIdenticalAcrossCandidateSnapshots": true,
+    "candidateDifferences": [
+      "server/internal/home/migrations/postgres/021_work_planning.sql",
+      "server/internal/home/work_fixture_v028_linux_test.go",
+      "server/internal/home/work_planning_numbering_postgres_test.go"
+    ],
+    "postMeasurementFormatOnlyChanges": [
+      {
+        "path": "server/internal/home/migrations/postgres/022_work_automation.sql",
+        "oldSHA256": "8830ff62bd084b90721f5543bbca4154b54af7ae9241078c8d213574b7a2ee81",
+        "newSHA256": "3d90eee112abd37da6a347d43126fe9a70324ef1ed34b7456921b63a248c4a9e",
+        "change": "one redundant final newline removed; SQL statements identical"
+      },
+      {
+        "path": "server/internal/home/migrations/sqlite/022_work_automation.sql",
+        "oldSHA256": "ddadbf7a13bd2afe4264059b697b859a62b6b9432cc54aa540c209868cb84def",
+        "newSHA256": "a79f5c927ee49af88851e974f8f7342dc6c1b2ca9d4d56f12db24824b244f5a5",
+        "change": "one redundant final newline removed; SQL statements identical"
+      }
+    ],
+    "postMeasurementFormatOnlySummary": "One redundant final newline removed from each SQLite/PostgreSQL 022 migration; SQL statements and business Go sources unchanged. Tested binary hashes remain the measured snapshot hashes, not the later release artifact hashes."
+  },
+  "environment": {
+    "os": "Linux amd64",
+    "logicalCPUs": 4,
+    "totalMemoryKiB": 8126476,
+    "sharedHost": true,
+    "goVersion": "1.26.8",
+    "postgresVersion": "18.6",
+    "sqliteModule": "modernc.org/sqlite v1.60.1",
+    "GOMAXPROCS": 4,
+    "CGO_ENABLED": 0,
+    "nativeBuildFlags": [
+      "-p 2",
+      "-buildvcs=false",
+      "-trimpath"
+    ],
+    "storageIsolation": "fresh SQLite directories or unique disposable PostgreSQL schemas",
+    "networkScope": "controlled local TCP and private-interface TCP on the same test host"
+  },
+  "methods": {
+    "ordinary": "Real loopback TCP HTTP, 10000 items, 200 requests per workload, concurrency 8; board is 120 cards; mixed is 40 ordinary creates plus 160 reads. Prepared data gets valid numbering outside timing.",
+    "sequential": "25 real loopback TCP samples per operation and dataset size; timings include authorization and response JSON decoding. SQL budgets are counted in a separate direct handler call.",
+    "status": "200 HTTP-created todo items; 200 todo-to-doing PATCH then 200 doing-to-done PATCH, concurrency 8, old then candidate adjacent for each provider.",
+    "schedules": "Production generation helper with controlled due time; four real HTTP readers remain active until generation completes. Control is 200 requests. No read-count cutoff during generation.",
+    "events": "Real HTTP event admission concurrency 8 followed by sequential production event transaction helpers; autonomous coordinator stopped to define an exact queue. Four real HTTP readers span the complete admission and processing window. Does not measure coordinator scheduling overhead.",
+    "executors": "Live production coordinator and four workers, normal outbound security transport wrapped only for counters, reference HTTP service and fixed Python subprocess. Twelve executions per case, 250ms command duration, production minimum 2-second receipt polling. Four HTTP readers continue to all terminal or first unknown/deadline boundary.",
+    "cpu": "Go test CPU includes in-process Home, local HTTP clients, and SQLite; PostgreSQL server CPU excluded. Reference server CPU and waited subprocess CPU are separate.",
+    "idle": "Separate native SQLite Home process, no browser or caller requests, 100Hz process CPU accounting. Zero observed ticks and IO only describe the observation window; query-free periodic behavior is separately established by no-deadline worker logic."
+  },
+  "staticCost": {
+    "workSummaryInlineBytes": {
+      "0.2.7": 216,
+      "0.2.8": 416
+    },
+    "workItemInlineBytes": {
+      "0.2.7": 400,
+      "0.2.8": 600
+    },
+    "inlineScope": "string/slice headers and pointers included; backing data, heap objects, database caches and runtime allocations excluded",
+    "ordinary120CardBoardResponseBytes": {
+      "0.2.7": 40313.0,
+      "0.2.8": 43337.0,
+      "delta": 3024.0,
+      "increasePercent": 7.501302
+    },
+    "bootstrapResponseBytesPerRequest": 2338,
+    "bootstrapResponseSizeUnchanged": true
+  },
+  "ordinaryConcurrent": [
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 1.597244,
+      "requestsPerSecond": 125.215717,
+      "p50Ms": 47.406,
+      "p95Ms": 154.412,
+      "maxMs": 376.733,
+      "errorCount": 0,
+      "responseBytes": 8062600
+    },
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.118344,
+      "requestsPerSecond": 1689.983439,
+      "p50Ms": 3.42,
+      "p95Ms": 12.394,
+      "maxMs": 21.889,
+      "errorCount": 0,
+      "responseBytes": 467600
+    },
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 3.986644,
+      "requestsPerSecond": 50.167507,
+      "p50Ms": 114.467,
+      "p95Ms": 427.919,
+      "maxMs": 651.17,
+      "errorCount": 0,
+      "responseBytes": 4085020
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.84423,
+      "requestsPerSecond": 236.90224,
+      "p50Ms": 31.049,
+      "p95Ms": 51.272,
+      "maxMs": 92.723,
+      "errorCount": 0,
+      "responseBytes": 8062600
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.161539,
+      "requestsPerSecond": 1238.091533,
+      "p50Ms": 5.184,
+      "p95Ms": 11.545,
+      "maxMs": 28.692,
+      "errorCount": 0,
+      "responseBytes": 467600
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.958275,
+      "requestsPerSecond": 208.708413,
+      "p50Ms": 35.976,
+      "p95Ms": 60.525,
+      "maxMs": 72.317,
+      "errorCount": 0,
+      "responseBytes": 4084998
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 1.875743,
+      "requestsPerSecond": 106.624394,
+      "p50Ms": 51.981,
+      "p95Ms": 197.06,
+      "maxMs": 530.162,
+      "errorCount": 0,
+      "responseBytes": 8667400,
+      "testProcessCPUSeconds": 2.620755,
+      "testProcessRSSBeforeKiB": 119260,
+      "testProcessRSSAfterKiB": 40780
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.109557,
+      "requestsPerSecond": 1825.525459,
+      "p50Ms": 3.127,
+      "p95Ms": 11.231,
+      "maxMs": 18.067,
+      "errorCount": 0,
+      "responseBytes": 467600,
+      "testProcessCPUSeconds": 0.247479,
+      "testProcessRSSBeforeKiB": 40944,
+      "testProcessRSSAfterKiB": 40460
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 3.930135,
+      "requestsPerSecond": 50.888835,
+      "p50Ms": 97.449,
+      "p95Ms": 468.264,
+      "maxMs": 584.515,
+      "errorCount": 0,
+      "responseBytes": 4388466,
+      "testProcessCPUSeconds": 4.548509,
+      "testProcessRSSBeforeKiB": 40652,
+      "testProcessRSSAfterKiB": 41336
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.994384,
+      "requestsPerSecond": 201.129565,
+      "p50Ms": 37.504,
+      "p95Ms": 59.869,
+      "maxMs": 92.458,
+      "errorCount": 0,
+      "responseBytes": 8667400,
+      "testProcessCPUSeconds": 1.151896,
+      "testProcessRSSBeforeKiB": 145164,
+      "testProcessRSSAfterKiB": 44924
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.154103,
+      "requestsPerSecond": 1297.832417,
+      "p50Ms": 5.508,
+      "p95Ms": 9.781,
+      "maxMs": 27.384,
+      "errorCount": 0,
+      "responseBytes": 467600,
+      "testProcessCPUSeconds": 0.289051,
+      "testProcessRSSBeforeKiB": 42692,
+      "testProcessRSSAfterKiB": 43316
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 1.0883,
+      "requestsPerSecond": 183.772901,
+      "p50Ms": 38.011,
+      "p95Ms": 80.632,
+      "maxMs": 104.508,
+      "errorCount": 0,
+      "responseBytes": 4388468,
+      "testProcessCPUSeconds": 0.963304,
+      "testProcessRSSBeforeKiB": 43108,
+      "testProcessRSSAfterKiB": 44116
+    }
+  ],
+  "ordinarySequential": [
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "items": 100,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 5.729,
+        "p95Ms": 7.539,
+        "responseBytes": 34100
+      },
+      "filtered": {
+        "p50Ms": 3.892,
+        "p95Ms": 8.077,
+        "responseBytes": 4124
+      },
+      "list": {
+        "p50Ms": 3.295,
+        "p95Ms": 5.946,
+        "responseBytes": 10753
+      },
+      "move": {
+        "p50Ms": 2.294,
+        "p95Ms": 5.3
+      },
+      "largeColumnUsesOrderingIndex": null,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "items": 1000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 6.377,
+        "p95Ms": 9.028,
+        "responseBytes": 41508
+      },
+      "filtered": {
+        "p50Ms": 5.745,
+        "p95Ms": 8.042,
+        "responseBytes": 31022
+      },
+      "list": {
+        "p50Ms": 5.508,
+        "p95Ms": 7.028,
+        "responseBytes": 10749
+      },
+      "move": {
+        "p50Ms": 3.4,
+        "p95Ms": 4.947
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "items": 10000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 8.067,
+        "p95Ms": 11.473,
+        "responseBytes": 41512
+      },
+      "filtered": {
+        "p50Ms": 11.924,
+        "p95Ms": 13.947,
+        "responseBytes": 41404
+      },
+      "list": {
+        "p50Ms": 37.366,
+        "p95Ms": 41.94,
+        "responseBytes": 10750
+      },
+      "move": {
+        "p50Ms": 3.349,
+        "p95Ms": 4.869
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "items": 100,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 10.36,
+        "p95Ms": 14.103,
+        "responseBytes": 34100
+      },
+      "filtered": {
+        "p50Ms": 7.383,
+        "p95Ms": 12.906,
+        "responseBytes": 4124
+      },
+      "list": {
+        "p50Ms": 6.298,
+        "p95Ms": 9.133,
+        "responseBytes": 10753
+      },
+      "move": {
+        "p50Ms": 11.237,
+        "p95Ms": 14.732
+      },
+      "largeColumnUsesOrderingIndex": null,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "items": 1000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 11.093,
+        "p95Ms": 13.26,
+        "responseBytes": 41508
+      },
+      "filtered": {
+        "p50Ms": 14.176,
+        "p95Ms": 18.057,
+        "responseBytes": 31022
+      },
+      "list": {
+        "p50Ms": 9.222,
+        "p95Ms": 13.153,
+        "responseBytes": 10749
+      },
+      "move": {
+        "p50Ms": 11.331,
+        "p95Ms": 15.084
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "items": 10000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 21.535,
+        "p95Ms": 24.188,
+        "responseBytes": 41512
+      },
+      "filtered": {
+        "p50Ms": 15.857,
+        "p95Ms": 20.376,
+        "responseBytes": 41404
+      },
+      "list": {
+        "p50Ms": 24.463,
+        "p95Ms": 32.173,
+        "responseBytes": 10750
+      },
+      "move": {
+        "p50Ms": 12.246,
+        "p95Ms": 18.166
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "items": 100,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 6.311,
+        "p95Ms": 10.289,
+        "responseBytes": 36584
+      },
+      "filtered": {
+        "p50Ms": 5.902,
+        "p95Ms": 7.513,
+        "responseBytes": 4374
+      },
+      "list": {
+        "p50Ms": 3.561,
+        "p95Ms": 4.679,
+        "responseBytes": 11493
+      },
+      "move": {
+        "p50Ms": 3.471,
+        "p95Ms": 5.225
+      },
+      "largeColumnUsesOrderingIndex": null,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "items": 1000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 6.882,
+        "p95Ms": 10.332,
+        "responseBytes": 44532
+      },
+      "filtered": {
+        "p50Ms": 7.12,
+        "p95Ms": 10.646,
+        "responseBytes": 33459
+      },
+      "list": {
+        "p50Ms": 6.152,
+        "p95Ms": 7.994,
+        "responseBytes": 11503
+      },
+      "move": {
+        "p50Ms": 4.105,
+        "p95Ms": 8.136
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "items": 10000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 9.685,
+        "p95Ms": 11.955,
+        "responseBytes": 44536
+      },
+      "filtered": {
+        "p50Ms": 13.93,
+        "p95Ms": 18.073,
+        "responseBytes": 44682
+      },
+      "list": {
+        "p50Ms": 37.665,
+        "p95Ms": 45.142,
+        "responseBytes": 11504
+      },
+      "move": {
+        "p50Ms": 4.009,
+        "p95Ms": 5.266
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "items": 100,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 10.739,
+        "p95Ms": 14.736,
+        "responseBytes": 36584
+      },
+      "filtered": {
+        "p50Ms": 8.329,
+        "p95Ms": 14.012,
+        "responseBytes": 4374
+      },
+      "list": {
+        "p50Ms": 6.971,
+        "p95Ms": 8.855,
+        "responseBytes": 11493
+      },
+      "move": {
+        "p50Ms": 12.949,
+        "p95Ms": 20.187
+      },
+      "largeColumnUsesOrderingIndex": null,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "items": 1000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 13.294,
+        "p95Ms": 15.938,
+        "responseBytes": 44532
+      },
+      "filtered": {
+        "p50Ms": 16.494,
+        "p95Ms": 19.507,
+        "responseBytes": 33459
+      },
+      "list": {
+        "p50Ms": 10.202,
+        "p95Ms": 13.061,
+        "responseBytes": 11503
+      },
+      "move": {
+        "p50Ms": 13.607,
+        "p95Ms": 18.856
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "items": 10000,
+      "samples": 25,
+      "boardHandlerSQLCalls": 18,
+      "boardHandlerSQLCallUpperBound": 18,
+      "statusCount": 4,
+      "board": {
+        "p50Ms": 25.285,
+        "p95Ms": 31.272,
+        "responseBytes": 44536
+      },
+      "filtered": {
+        "p50Ms": 17.632,
+        "p95Ms": 22.502,
+        "responseBytes": 44682
+      },
+      "list": {
+        "p50Ms": 28.59,
+        "p95Ms": 32.213,
+        "responseBytes": 11504
+      },
+      "move": {
+        "p50Ms": 13.621,
+        "p95Ms": 17.899
+      },
+      "largeColumnUsesOrderingIndex": true,
+      "selectedWorkloadPassed": true
+    }
+  ],
+  "statusTransitions": [
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "seconds": 1.14166,
+      "requestsPerSecond": 350.367049,
+      "p50Ms": 22.596,
+      "p95Ms": 27.595,
+      "maxMs": 31.712,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "metricsTablePresent": false,
+      "phases": [
+        {
+          "errorCount": 0,
+          "maxMs": 28.864,
+          "p50Ms": 21.994,
+          "p95Ms": 25.627,
+          "samples": 200,
+          "seconds": 0.550689,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "doing"
+        },
+        {
+          "errorCount": 0,
+          "maxMs": 31.712,
+          "p50Ms": 23.659,
+          "p95Ms": 28.625,
+          "samples": 200,
+          "seconds": 0.590931,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "done"
+        }
+      ],
+      "testProcessCPUSeconds": 1.879649,
+      "testProcessRSSBeforeKiB": 105620,
+      "testProcessRSSAfterKiB": 136968,
+      "cycleObservations": 0,
+      "unfinishedCycleObservations": 0
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "seconds": 1.297882,
+      "requestsPerSecond": 308.194371,
+      "p50Ms": 25.825,
+      "p95Ms": 31.083,
+      "maxMs": 35.584,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "metricsTablePresent": true,
+      "phases": [
+        {
+          "errorCount": 0,
+          "maxMs": 35.584,
+          "p50Ms": 26.029,
+          "p95Ms": 33.005,
+          "samples": 200,
+          "seconds": 0.662555,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "doing"
+        },
+        {
+          "errorCount": 0,
+          "maxMs": 32.708,
+          "p50Ms": 25.568,
+          "p95Ms": 29.718,
+          "samples": 200,
+          "seconds": 0.635281,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "done"
+        }
+      ],
+      "testProcessCPUSeconds": 2.051765,
+      "testProcessRSSBeforeKiB": 108412,
+      "testProcessRSSAfterKiB": 144496,
+      "cycleObservations": 200,
+      "unfinishedCycleObservations": 0
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "seconds": 4.752606,
+      "requestsPerSecond": 84.164344,
+      "p50Ms": 93.031,
+      "p95Ms": 109.662,
+      "maxMs": 122.042,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "metricsTablePresent": false,
+      "phases": [
+        {
+          "errorCount": 0,
+          "maxMs": 111.086,
+          "p50Ms": 91.718,
+          "p95Ms": 105.207,
+          "samples": 200,
+          "seconds": 2.324167,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "doing"
+        },
+        {
+          "errorCount": 0,
+          "maxMs": 122.042,
+          "p50Ms": 94.645,
+          "p95Ms": 111.504,
+          "samples": 200,
+          "seconds": 2.428388,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "done"
+        }
+      ],
+      "testProcessCPUSeconds": 3.852081,
+      "testProcessRSSBeforeKiB": 105884,
+      "testProcessRSSAfterKiB": 148880,
+      "cycleObservations": 0,
+      "unfinishedCycleObservations": 0
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "seconds": 5.144538,
+      "requestsPerSecond": 77.752361,
+      "p50Ms": 101.947,
+      "p95Ms": 122.972,
+      "maxMs": 134.81,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "metricsTablePresent": true,
+      "phases": [
+        {
+          "errorCount": 0,
+          "maxMs": 134.81,
+          "p50Ms": 103.866,
+          "p95Ms": 125.297,
+          "samples": 200,
+          "seconds": 2.648794,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "doing"
+        },
+        {
+          "errorCount": 0,
+          "maxMs": 130.509,
+          "p50Ms": 100.349,
+          "p95Ms": 109.629,
+          "samples": 200,
+          "seconds": 2.495636,
+          "statusCounts": {
+            "200": 200
+          },
+          "targetStatus": "done"
+        }
+      ],
+      "testProcessCPUSeconds": 3.952684,
+      "testProcessRSSBeforeKiB": 109368,
+      "testProcessRSSAfterKiB": 157828,
+      "cycleObservations": 200,
+      "unfinishedCycleObservations": 0
+    }
+  ],
+  "nativeIdleSQLite": [
+    {
+      "version": "0.2.7",
+      "scenario": "unused",
+      "provider": "sqlite",
+      "observationObject": "separate native Home server process",
+      "wallSeconds": 30.029499,
+      "cpuSeconds": 0.0,
+      "cpuClockTicksPerSecond": 100,
+      "rssStartKiB": 91908,
+      "rssEndKiB": 91908,
+      "rssPeakObservedKiB": 91908,
+      "ioDelta": {
+        "rchar": 0,
+        "wchar": 0,
+        "syscr": 0,
+        "syscw": 0,
+        "read_bytes": 0,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      "httpRequestsDuringWindow": 0,
+      "unexpectedExecutorConnections": 0,
+      "beforeAfterCountsUnchanged": true,
+      "automationRules": 0,
+      "executors": 0,
+      "notificationsEnabled": false
+    },
+    {
+      "version": "0.2.8",
+      "scenario": "unused",
+      "provider": "sqlite",
+      "observationObject": "separate native Home server process",
+      "wallSeconds": 30.029911,
+      "cpuSeconds": 0.0,
+      "cpuClockTicksPerSecond": 100,
+      "rssStartKiB": 92816,
+      "rssEndKiB": 92816,
+      "rssPeakObservedKiB": 92816,
+      "ioDelta": {
+        "rchar": 0,
+        "wchar": 0,
+        "syscr": 0,
+        "syscw": 0,
+        "read_bytes": 0,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      "httpRequestsDuringWindow": 0,
+      "unexpectedExecutorConnections": 0,
+      "beforeAfterCountsUnchanged": true,
+      "automationRules": 0,
+      "executors": 0,
+      "notificationsEnabled": false
+    },
+    {
+      "version": "0.2.8",
+      "scenario": "1000_paused_rules_4_disabled_executors",
+      "provider": "sqlite",
+      "observationObject": "separate native Home server process",
+      "wallSeconds": 20.019801,
+      "cpuSeconds": 0.0,
+      "cpuClockTicksPerSecond": 100,
+      "rssStartKiB": 134588,
+      "rssEndKiB": 134588,
+      "rssPeakObservedKiB": 134588,
+      "ioDelta": {
+        "rchar": 0,
+        "wchar": 0,
+        "syscr": 0,
+        "syscw": 0,
+        "read_bytes": 0,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      "httpRequestsDuringWindow": 0,
+      "unexpectedExecutorConnections": 0,
+      "beforeAfterCountsUnchanged": true,
+      "automationRules": 1000,
+      "executors": 4,
+      "notificationsEnabled": false
+    },
+    {
+      "version": "0.2.8",
+      "scenario": "1000_enabled_rules_4_enabled_executors_notifications_on",
+      "provider": "sqlite",
+      "observationObject": "separate native Home server process",
+      "wallSeconds": 20.020945,
+      "cpuSeconds": 0.0,
+      "cpuClockTicksPerSecond": 100,
+      "rssStartKiB": 135440,
+      "rssEndKiB": 135440,
+      "rssPeakObservedKiB": 135440,
+      "ioDelta": {
+        "rchar": 0,
+        "wchar": 0,
+        "syscr": 0,
+        "syscw": 0,
+        "read_bytes": 0,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      "httpRequestsDuringWindow": 0,
+      "unexpectedExecutorConnections": 0,
+      "beforeAfterCountsUnchanged": true,
+      "automationRules": 1000,
+      "executors": 4,
+      "notificationsEnabled": true
+    }
+  ],
+  "scheduleGeneration": [
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "rules": 100,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 1.90784,
+      "generatedPerSecond": 52.415289,
+      "processed": 100,
+      "batches": 2,
+      "items": 1100,
+      "occurrences": 100,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 13.232,
+          "p95Ms": 33.602,
+          "maxMs": 57.473,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 11.8,
+          "p95Ms": 30.089,
+          "maxMs": 43.257,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.777388,
+        "lastIssuedSeconds": 0.765349,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 346,
+          "p50Ms": 15.3,
+          "p95Ms": 42.991,
+          "maxMs": 62.517,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 86,
+          "p50Ms": 12.88,
+          "p95Ms": 37.888,
+          "maxMs": 57.046,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.928154,
+        "lastIssuedSeconds": 1.905729,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 432
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.069982,
+        "p50Ms": 5.188,
+        "p95Ms": 7.604,
+        "maxMs": 10.836,
+        "errorCount": 0,
+        "itemsAfter": 1101,
+        "occurrencesAfter": 101
+      },
+      "testProcessCPUSeconds": 3.086575,
+      "testProcessRSSBeforeKiB": 133752,
+      "testProcessRSSAfterKiB": 36016,
+      "testProcessRSSPeakObservedKiB": 133752
+    },
+    {
+      "version": "0.2.7",
+      "provider": "sqlite",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 18.956626,
+      "generatedPerSecond": 52.752003,
+      "processed": 1000,
+      "batches": 20,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 12.644,
+          "p95Ms": 30.387,
+          "maxMs": 65.503,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 11.237,
+          "p95Ms": 36.076,
+          "maxMs": 44.912,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.750286,
+        "lastIssuedSeconds": 0.736632,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 3277,
+          "p50Ms": 15.537,
+          "p95Ms": 44.224,
+          "maxMs": 117.079,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 819,
+          "p50Ms": 12.607,
+          "p95Ms": 42.046,
+          "maxMs": 70.418,
+          "errorCount": 0
+        },
+        "windowSeconds": 18.972177,
+        "lastIssuedSeconds": 18.952435,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 18,
+        "issuedRequests": 4096
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.070908,
+        "p50Ms": 5.131,
+        "p95Ms": 10.535,
+        "maxMs": 11.223,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "testProcessCPUSeconds": 30.827954,
+      "testProcessRSSBeforeKiB": 137524,
+      "testProcessRSSAfterKiB": 38172,
+      "testProcessRSSPeakObservedKiB": 137524
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "rules": 100,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 1.394133,
+      "generatedPerSecond": 71.729174,
+      "processed": 100,
+      "batches": 2,
+      "items": 1100,
+      "occurrences": 100,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 10.271,
+          "p95Ms": 16.592,
+          "maxMs": 33.214,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 2.816,
+          "p95Ms": 4.444,
+          "maxMs": 5.198,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.476066,
+        "lastIssuedSeconds": 0.469089,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 400,
+          "p50Ms": 12.68,
+          "p95Ms": 18.024,
+          "maxMs": 49.032,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 100,
+          "p50Ms": 3.204,
+          "p95Ms": 5.457,
+          "maxMs": 8.202,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.402339,
+        "lastIssuedSeconds": 1.392751,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 500
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.19896,
+        "p50Ms": 14.378,
+        "p95Ms": 21.039,
+        "maxMs": 27.464,
+        "errorCount": 0,
+        "itemsAfter": 1101,
+        "occurrencesAfter": 101
+      },
+      "testProcessCPUSeconds": 2.258979,
+      "testProcessRSSBeforeKiB": 151244,
+      "testProcessRSSAfterKiB": 42056,
+      "testProcessRSSPeakObservedKiB": 151244
+    },
+    {
+      "version": "0.2.7",
+      "provider": "postgres",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 13.294896,
+      "generatedPerSecond": 75.216836,
+      "processed": 1000,
+      "batches": 20,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 9.356,
+          "p95Ms": 14.128,
+          "maxMs": 37.908,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 2.845,
+          "p95Ms": 4.113,
+          "maxMs": 5.312,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.435324,
+        "lastIssuedSeconds": 0.432858,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 3527,
+          "p50Ms": 13.433,
+          "p95Ms": 20.656,
+          "maxMs": 56.124,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 881,
+          "p50Ms": 3.33,
+          "p95Ms": 6.38,
+          "maxMs": 21.178,
+          "errorCount": 0
+        },
+        "windowSeconds": 13.307603,
+        "lastIssuedSeconds": 13.292531,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 13,
+        "issuedRequests": 4408
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.1992,
+        "p50Ms": 14.823,
+        "p95Ms": 21.47,
+        "maxMs": 32.454,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "testProcessCPUSeconds": 20.068904,
+      "testProcessRSSBeforeKiB": 153552,
+      "testProcessRSSAfterKiB": 41616,
+      "testProcessRSSPeakObservedKiB": 153552
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "rules": 100,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 2.079469,
+      "generatedPerSecond": 48.089194,
+      "processed": 100,
+      "batches": 2,
+      "items": 1100,
+      "occurrences": 100,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 17.448,
+          "p95Ms": 49.616,
+          "maxMs": 86.457,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 14.652,
+          "p95Ms": 33.346,
+          "maxMs": 37.538,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.01773,
+        "lastIssuedSeconds": 0.992877,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 312,
+          "p50Ms": 16.863,
+          "p95Ms": 46.853,
+          "maxMs": 97.515,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 77,
+          "p50Ms": 14.984,
+          "p95Ms": 57.947,
+          "maxMs": 67.195,
+          "errorCount": 0
+        },
+        "windowSeconds": 2.099018,
+        "lastIssuedSeconds": 2.077549,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 2,
+        "issuedRequests": 389
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.066255,
+        "p50Ms": 4.767,
+        "p95Ms": 6.633,
+        "maxMs": 7.44,
+        "errorCount": 0,
+        "itemsAfter": 1101,
+        "occurrencesAfter": 101
+      },
+      "testProcessCPUSeconds": 3.487376,
+      "testProcessRSSBeforeKiB": 161116,
+      "testProcessRSSAfterKiB": 38340,
+      "testProcessRSSPeakObservedKiB": 161116
+    },
+    {
+      "version": "0.2.8",
+      "provider": "sqlite",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 23.60213,
+      "generatedPerSecond": 42.369057,
+      "processed": 1000,
+      "batches": 20,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 15.898,
+          "p95Ms": 46.373,
+          "maxMs": 101.571,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 12.672,
+          "p95Ms": 43.233,
+          "maxMs": 73.802,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.001118,
+        "lastIssuedSeconds": 0.976349,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 3260,
+          "p50Ms": 19.318,
+          "p95Ms": 52.378,
+          "maxMs": 127.071,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 815,
+          "p50Ms": 16.173,
+          "p95Ms": 58.488,
+          "maxMs": 104.581,
+          "errorCount": 0
+        },
+        "windowSeconds": 23.617191,
+        "lastIssuedSeconds": 23.599035,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 23,
+        "issuedRequests": 4075
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.070439,
+        "p50Ms": 4.933,
+        "p95Ms": 8.288,
+        "maxMs": 11.946,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "testProcessCPUSeconds": 38.10379,
+      "testProcessRSSBeforeKiB": 163756,
+      "testProcessRSSAfterKiB": 38016,
+      "testProcessRSSPeakObservedKiB": 163756
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "rules": 100,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 1.532344,
+      "generatedPerSecond": 65.259503,
+      "processed": 100,
+      "batches": 2,
+      "items": 1100,
+      "occurrences": 100,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 11.264,
+          "p95Ms": 17.502,
+          "maxMs": 42.098,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.271,
+          "p95Ms": 5.459,
+          "maxMs": 5.844,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.530299,
+        "lastIssuedSeconds": 0.525033,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 388,
+          "p50Ms": 13.915,
+          "p95Ms": 21.227,
+          "maxMs": 65.67,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 97,
+          "p50Ms": 3.622,
+          "p95Ms": 7.174,
+          "maxMs": 8.468,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.536318,
+        "lastIssuedSeconds": 1.532116,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 485
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.216157,
+        "p50Ms": 16.297,
+        "p95Ms": 21.89,
+        "maxMs": 31.983,
+        "errorCount": 0,
+        "itemsAfter": 1101,
+        "occurrencesAfter": 101
+      },
+      "testProcessCPUSeconds": 2.512643,
+      "testProcessRSSBeforeKiB": 98876,
+      "testProcessRSSAfterKiB": 42164,
+      "testProcessRSSPeakObservedKiB": 98876
+    },
+    {
+      "version": "0.2.8",
+      "provider": "postgres",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "generationSeconds": 14.982901,
+      "generatedPerSecond": 66.74275,
+      "processed": 1000,
+      "batches": 20,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 11.561,
+          "p95Ms": 19.217,
+          "maxMs": 45.264,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.301,
+          "p95Ms": 5.766,
+          "maxMs": 8.03,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.56168,
+        "lastIssuedSeconds": 0.54793,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 3736,
+          "p50Ms": 14.169,
+          "p95Ms": 21.697,
+          "maxMs": 65.441,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 933,
+          "p50Ms": 3.742,
+          "p95Ms": 7.073,
+          "maxMs": 36.46,
+          "errorCount": 0
+        },
+        "windowSeconds": 14.991052,
+        "lastIssuedSeconds": 14.976406,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 14,
+        "issuedRequests": 4669
+      },
+      "samePeriodRace": {
+        "concurrency": 8,
+        "samples": 100,
+        "seconds": 0.224345,
+        "p50Ms": 17.106,
+        "p95Ms": 27.846,
+        "maxMs": 38.639,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "testProcessCPUSeconds": 24.85906,
+      "testProcessRSSBeforeKiB": 93292,
+      "testProcessRSSAfterKiB": 42292,
+      "testProcessRSSPeakObservedKiB": 93292
+    }
+  ],
+  "eventAndNotificationLoad": [
+    {
+      "provider": "sqlite",
+      "scenario": "zero_rules",
+      "rules": 0,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 3.625005,
+      "processingSeconds": 3.743584,
+      "activeWindowSeconds": 7.36861,
+      "processedPerSecond": 27.14216,
+      "processedEvents": 200,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 142.404,
+        "p95Ms": 207.822,
+        "maxMs": 257.576,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 18.789,
+          "p95Ms": 45.616,
+          "maxMs": 74.279,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 12.295,
+          "p95Ms": 37.245,
+          "maxMs": 48.231,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.995656,
+        "lastIssuedSeconds": 0.981827,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 1149,
+          "p50Ms": 17.99,
+          "p95Ms": 44.333,
+          "maxMs": 113.973,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 287,
+          "p50Ms": 14.611,
+          "p95Ms": 43.206,
+          "maxMs": 102.817,
+          "errorCount": 0
+        },
+        "windowSeconds": 7.387132,
+        "lastIssuedSeconds": 7.367298,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 7,
+        "issuedRequests": 1436
+      },
+      "testProcessCPUSeconds": 12.087086,
+      "testProcessRSSBeforeKiB": 162328,
+      "testProcessRSSAfterKiB": 38872,
+      "expectedBusinessFailures": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "sqlite",
+      "scenario": "1000_unmatched_rules",
+      "rules": 1000,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 4.525143,
+      "processingSeconds": 4.183626,
+      "activeWindowSeconds": 8.708781,
+      "processedPerSecond": 22.965326,
+      "processedEvents": 200,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 174.759,
+        "p95Ms": 271.094,
+        "maxMs": 319.49,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 17.828,
+          "p95Ms": 42.985,
+          "maxMs": 65.799,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 13.439,
+          "p95Ms": 35.097,
+          "maxMs": 54.871,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.993326,
+        "lastIssuedSeconds": 0.974406,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 1296,
+          "p50Ms": 18.208,
+          "p95Ms": 47.577,
+          "maxMs": 103.249,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 324,
+          "p50Ms": 16.175,
+          "p95Ms": 49.192,
+          "maxMs": 89.853,
+          "errorCount": 0
+        },
+        "windowSeconds": 8.721713,
+        "lastIssuedSeconds": 8.708217,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 8,
+        "issuedRequests": 1620
+      },
+      "testProcessCPUSeconds": 14.28741,
+      "testProcessRSSBeforeKiB": 163836,
+      "testProcessRSSAfterKiB": 39780,
+      "expectedBusinessFailures": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "sqlite",
+      "scenario": "25_matching_rules",
+      "rules": 25,
+      "events": 40,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 0.850014,
+      "processingSeconds": 1.99628,
+      "activeWindowSeconds": 2.846307,
+      "processedPerSecond": 14.0533,
+      "processedEvents": 40,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 2000,
+      "receipts": 1000,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 40,
+        "p50Ms": 170.14,
+        "p95Ms": 241.199,
+        "maxMs": 256.892,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 18.715,
+          "p95Ms": 33.505,
+          "maxMs": 65.198,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 15.378,
+          "p95Ms": 46.654,
+          "maxMs": 53.273,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.008929,
+        "lastIssuedSeconds": 0.993706,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 234,
+          "p50Ms": 26.494,
+          "p95Ms": 116.744,
+          "maxMs": 286.735,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 58,
+          "p50Ms": 16.292,
+          "p95Ms": 95.472,
+          "maxMs": 140.858,
+          "errorCount": 0
+        },
+        "windowSeconds": 2.869139,
+        "lastIssuedSeconds": 2.815213,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 2,
+        "issuedRequests": 292
+      },
+      "testProcessCPUSeconds": 4.626732,
+      "testProcessRSSBeforeKiB": 164580,
+      "testProcessRSSAfterKiB": 39324,
+      "expectedBusinessFailures": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "sqlite",
+      "scenario": "match_limit_notices_off",
+      "rules": 26,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 3.906491,
+      "processingSeconds": 4.019057,
+      "activeWindowSeconds": 7.925565,
+      "processedPerSecond": 25.234793,
+      "processedEvents": 0,
+      "failedEvents": 200,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 149.368,
+        "p95Ms": 230.126,
+        "maxMs": 314.62,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 16.924,
+          "p95Ms": 42.242,
+          "maxMs": 75.941,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 13.034,
+          "p95Ms": 35.556,
+          "maxMs": 79.464,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.993467,
+        "lastIssuedSeconds": 0.966243,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 1231,
+          "p50Ms": 17.955,
+          "p95Ms": 47.061,
+          "maxMs": 115.887,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 307,
+          "p50Ms": 12.101,
+          "p95Ms": 49.912,
+          "maxMs": 80.027,
+          "errorCount": 0
+        },
+        "windowSeconds": 7.946387,
+        "lastIssuedSeconds": 7.924416,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 7,
+        "issuedRequests": 1538
+      },
+      "testProcessCPUSeconds": 12.983361,
+      "testProcessRSSBeforeKiB": 165024,
+      "testProcessRSSAfterKiB": 40288,
+      "expectedBusinessFailures": 200,
+      "verifiedAutomationFailed": 200,
+      "verifiedUnreadCount": 0,
+      "verifiedNotificationListTotal": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "sqlite",
+      "scenario": "match_limit_notices_on",
+      "rules": 26,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": true,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 4.337027,
+      "processingSeconds": 4.167688,
+      "activeWindowSeconds": 8.504731,
+      "processedPerSecond": 23.516324,
+      "processedEvents": 0,
+      "failedEvents": 200,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 200,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 163.14,
+        "p95Ms": 264.335,
+        "maxMs": 328.024,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 17.527,
+          "p95Ms": 40.068,
+          "maxMs": 64.98,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 12.151,
+          "p95Ms": 42.863,
+          "maxMs": 80.783,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.001766,
+        "lastIssuedSeconds": 0.983325,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 1296,
+          "p50Ms": 18.185,
+          "p95Ms": 47.32,
+          "maxMs": 113.748,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 324,
+          "p50Ms": 15.466,
+          "p95Ms": 48.399,
+          "maxMs": 81.455,
+          "errorCount": 0
+        },
+        "windowSeconds": 8.525708,
+        "lastIssuedSeconds": 8.502721,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 8,
+        "issuedRequests": 1620
+      },
+      "testProcessCPUSeconds": 13.887742,
+      "testProcessRSSBeforeKiB": 165376,
+      "testProcessRSSAfterKiB": 40832,
+      "expectedBusinessFailures": 200,
+      "verifiedAutomationFailed": 200,
+      "verifiedUnreadCount": 200,
+      "verifiedNotificationListTotal": 200,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "postgres",
+      "scenario": "zero_rules",
+      "rules": 0,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 1.458122,
+      "processingSeconds": 1.382707,
+      "activeWindowSeconds": 2.840838,
+      "processedPerSecond": 70.401774,
+      "processedEvents": 200,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 56.885,
+        "p95Ms": 68.695,
+        "maxMs": 72.781,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 11.589,
+          "p95Ms": 16.815,
+          "maxMs": 40.15,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 2.883,
+          "p95Ms": 5.175,
+          "maxMs": 5.577,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.533043,
+        "lastIssuedSeconds": 0.516308,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 712,
+          "p50Ms": 14.057,
+          "p95Ms": 22.251,
+          "maxMs": 59.422,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 177,
+          "p50Ms": 3.624,
+          "p95Ms": 7.336,
+          "maxMs": 33.654,
+          "errorCount": 0
+        },
+        "windowSeconds": 2.853922,
+        "lastIssuedSeconds": 2.837419,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 2,
+        "issuedRequests": 889
+      },
+      "testProcessCPUSeconds": 4.753581,
+      "testProcessRSSBeforeKiB": 92852,
+      "testProcessRSSAfterKiB": 43372,
+      "expectedBusinessFailures": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "postgres",
+      "scenario": "1000_unmatched_rules",
+      "rules": 1000,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 1.478426,
+      "processingSeconds": 1.456417,
+      "activeWindowSeconds": 2.934852,
+      "processedPerSecond": 68.146537,
+      "processedEvents": 200,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 58.575,
+        "p95Ms": 70.841,
+        "maxMs": 80.708,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 11.417,
+          "p95Ms": 17.885,
+          "maxMs": 40.088,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 2.893,
+          "p95Ms": 5.515,
+          "maxMs": 5.975,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.522812,
+        "lastIssuedSeconds": 0.515341,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 717,
+          "p50Ms": 14.003,
+          "p95Ms": 23.532,
+          "maxMs": 70.67,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 179,
+          "p50Ms": 3.455,
+          "p95Ms": 7.174,
+          "maxMs": 22.794,
+          "errorCount": 0
+        },
+        "windowSeconds": 2.943916,
+        "lastIssuedSeconds": 2.934569,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 2,
+        "issuedRequests": 896
+      },
+      "testProcessCPUSeconds": 4.798687,
+      "testProcessRSSBeforeKiB": 95212,
+      "testProcessRSSAfterKiB": 43700,
+      "expectedBusinessFailures": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "postgres",
+      "scenario": "25_matching_rules",
+      "rules": 25,
+      "events": 40,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 0.316726,
+      "processingSeconds": 8.336025,
+      "activeWindowSeconds": 8.652762,
+      "processedPerSecond": 4.622801,
+      "processedEvents": 40,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 2000,
+      "receipts": 1000,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 40,
+        "p50Ms": 62.868,
+        "p95Ms": 69.238,
+        "maxMs": 70.308,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 11.393,
+          "p95Ms": 23.38,
+          "maxMs": 39.015,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 2.832,
+          "p95Ms": 6.567,
+          "maxMs": 6.961,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.55164,
+        "lastIssuedSeconds": 0.544691,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 2220,
+          "p50Ms": 13.998,
+          "p95Ms": 21.057,
+          "maxMs": 54.772,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 554,
+          "p50Ms": 3.594,
+          "p95Ms": 6.786,
+          "maxMs": 11.27,
+          "errorCount": 0
+        },
+        "windowSeconds": 8.664161,
+        "lastIssuedSeconds": 8.647647,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 8,
+        "issuedRequests": 2774
+      },
+      "testProcessCPUSeconds": 14.436643,
+      "testProcessRSSBeforeKiB": 97800,
+      "testProcessRSSAfterKiB": 44720,
+      "expectedBusinessFailures": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "postgres",
+      "scenario": "match_limit_notices_off",
+      "rules": 26,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 1.504412,
+      "processingSeconds": 1.376395,
+      "activeWindowSeconds": 2.880819,
+      "processedPerSecond": 69.424705,
+      "processedEvents": 0,
+      "failedEvents": 200,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 57.132,
+        "p95Ms": 80.03,
+        "maxMs": 91.011,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 12.527,
+          "p95Ms": 19.724,
+          "maxMs": 42.828,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.355,
+          "p95Ms": 5.667,
+          "maxMs": 7.54,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.574631,
+        "lastIssuedSeconds": 0.568137,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 747,
+          "p50Ms": 13.714,
+          "p95Ms": 20.962,
+          "maxMs": 60.953,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 186,
+          "p50Ms": 3.463,
+          "p95Ms": 6.537,
+          "maxMs": 8.244,
+          "errorCount": 0
+        },
+        "windowSeconds": 2.888753,
+        "lastIssuedSeconds": 2.871108,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 2,
+        "issuedRequests": 933
+      },
+      "testProcessCPUSeconds": 4.869888,
+      "testProcessRSSBeforeKiB": 101648,
+      "testProcessRSSAfterKiB": 43896,
+      "expectedBusinessFailures": 200,
+      "verifiedAutomationFailed": 200,
+      "verifiedUnreadCount": 0,
+      "verifiedNotificationListTotal": 0,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    },
+    {
+      "provider": "postgres",
+      "scenario": "match_limit_notices_on",
+      "rules": 26,
+      "events": 200,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": true,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 1.509103,
+      "processingSeconds": 1.701684,
+      "activeWindowSeconds": 3.210799,
+      "processedPerSecond": 62.289796,
+      "processedEvents": 0,
+      "failedEvents": 200,
+      "queuedEvents": 0,
+      "itemsAfter": 1000,
+      "receipts": 0,
+      "duplicateReceipts": 0,
+      "noticeRows": 200,
+      "ingestion": {
+        "samples": 200,
+        "p50Ms": 59.953,
+        "p95Ms": 70.939,
+        "maxMs": 80.899,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 12.173,
+          "p95Ms": 18.271,
+          "maxMs": 39.5,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.145,
+          "p95Ms": 5.281,
+          "maxMs": 5.708,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.558984,
+        "lastIssuedSeconds": 0.552646,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 805,
+          "p50Ms": 14.185,
+          "p95Ms": 22.129,
+          "maxMs": 55.869,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 201,
+          "p50Ms": 3.688,
+          "p95Ms": 7.41,
+          "maxMs": 10.958,
+          "errorCount": 0
+        },
+        "windowSeconds": 3.225422,
+        "lastIssuedSeconds": 3.21016,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 3,
+        "issuedRequests": 1006
+      },
+      "testProcessCPUSeconds": 5.46951,
+      "testProcessRSSBeforeKiB": 102884,
+      "testProcessRSSAfterKiB": 43544,
+      "expectedBusinessFailures": 200,
+      "verifiedAutomationFailed": 200,
+      "verifiedUnreadCount": 200,
+      "verifiedNotificationListTotal": 200,
+      "idlePlannerReturnsNoDeadlineWithoutPendingWork": true
+    }
+  ],
+  "realExecutorLoad": [
+    {
+      "provider": "sqlite",
+      "resources": 4,
+      "executions": 12,
+      "referenceCommandSeconds": 0.25,
+      "referenceWorkers": 4,
+      "homeWorkers": 4,
+      "pollIntervalSeconds": 2,
+      "activeWindowSeconds": 7.222769,
+      "admissionSeconds": 0.263626,
+      "admissionConcurrency": 8,
+      "terminalStates": {
+        "succeeded": 12
+      },
+      "maximumObservedQueued": 11,
+      "maximumObservedHeld": 4,
+      "stateObservationQueries": 58,
+      "stateObservationIntervalMs": 100,
+      "ordinaryItemsBefore": 1012,
+      "referenceServerCPUSeconds": 0.11,
+      "referenceWaitedSubprocessCPUSeconds": 0.4,
+      "referenceRSSBeforeKiB": 27916,
+      "referenceRSSAfterKiB": 29300,
+      "queueWait": {
+        "maxMs": 4784.725,
+        "p50Ms": 2526.629,
+        "p95Ms": 4784.725,
+        "samples": 12
+      },
+      "executionEndToEnd": {
+        "maxMs": 6940.828,
+        "p50Ms": 4747.711,
+        "p95Ms": 6940.828,
+        "samples": 12
+      },
+      "referenceSubprocessStarts": 12,
+      "referenceSubprocessFinishes": 12,
+      "maximumConcurrentSubprocesses": 4,
+      "maximumSubprocessesPerResource": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "admission": {
+        "samples": 12,
+        "p50Ms": 99.927,
+        "p95Ms": 180.273,
+        "maxMs": 180.273,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 18.825,
+          "p95Ms": 42.052,
+          "maxMs": 53.552,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 13.416,
+          "p95Ms": 50.415,
+          "maxMs": 68.813,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.037551,
+        "lastIssuedSeconds": 1.018412,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringExecutions": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 1156,
+          "p50Ms": 17.422,
+          "p95Ms": 42.737,
+          "maxMs": 77.182,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 288,
+          "p50Ms": 14.875,
+          "p95Ms": 42.734,
+          "maxMs": 70.552,
+          "errorCount": 0
+        },
+        "windowSeconds": 7.239285,
+        "lastIssuedSeconds": 7.216612,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 7,
+        "issuedRequests": 1444
+      },
+      "testProcessCPUSeconds": 11.711904,
+      "testProcessRSSBeforeKiB": 162560,
+      "testProcessRSSAfterKiB": 39600,
+      "outboundHTTP": {
+        "calls": 24,
+        "errors": 0,
+        "methods": {
+          "GET": 12,
+          "POST": 12
+        },
+        "statusCounts": {
+          "200": 12,
+          "202": 12
+        },
+        "maximumConcurrentRoundTrips": 2,
+        "latency": {
+          "samples": 24,
+          "p50Ms": 4.089,
+          "p95Ms": 6.086,
+          "maxMs": 6.929
+        }
+      }
+    },
+    {
+      "provider": "sqlite",
+      "resources": 1,
+      "executions": 12,
+      "referenceCommandSeconds": 0.25,
+      "referenceWorkers": 4,
+      "homeWorkers": 4,
+      "pollIntervalSeconds": 2,
+      "activeWindowSeconds": 26.642893,
+      "admissionSeconds": 0.210057,
+      "admissionConcurrency": 8,
+      "terminalStates": {
+        "succeeded": 12
+      },
+      "maximumObservedQueued": 12,
+      "maximumObservedHeld": 1,
+      "stateObservationQueries": 225,
+      "stateObservationIntervalMs": 100,
+      "ordinaryItemsBefore": 1012,
+      "referenceServerCPUSeconds": 0.11,
+      "referenceWaitedSubprocessCPUSeconds": 0.39,
+      "referenceRSSBeforeKiB": 27908,
+      "referenceRSSAfterKiB": 29068,
+      "queueWait": {
+        "maxMs": 24464.774,
+        "p50Ms": 13410.987,
+        "p95Ms": 24464.774,
+        "samples": 12
+      },
+      "executionEndToEnd": {
+        "maxMs": 26518.349,
+        "p50Ms": 15513.587,
+        "p95Ms": 26518.349,
+        "samples": 12
+      },
+      "referenceSubprocessStarts": 12,
+      "referenceSubprocessFinishes": 12,
+      "maximumConcurrentSubprocesses": 1,
+      "maximumSubprocessesPerResource": {
+        "0": 1
+      },
+      "admission": {
+        "samples": 12,
+        "p50Ms": 136.298,
+        "p95Ms": 161.899,
+        "maxMs": 161.899,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 18.21,
+          "p95Ms": 44.45,
+          "maxMs": 81.546,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 13.272,
+          "p95Ms": 35.465,
+          "maxMs": 39.018,
+          "errorCount": 0
+        },
+        "windowSeconds": 1.017666,
+        "lastIssuedSeconds": 1.003121,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 1,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringExecutions": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 4255,
+          "p50Ms": 17.465,
+          "p95Ms": 44.836,
+          "maxMs": 112.264,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 1063,
+          "p50Ms": 13.335,
+          "p95Ms": 42.245,
+          "maxMs": 85.566,
+          "errorCount": 0
+        },
+        "windowSeconds": 26.654896,
+        "lastIssuedSeconds": 26.637398,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 26,
+        "issuedRequests": 5318
+      },
+      "testProcessCPUSeconds": 43.594676,
+      "testProcessRSSBeforeKiB": 164276,
+      "testProcessRSSAfterKiB": 42948,
+      "outboundHTTP": {
+        "calls": 24,
+        "errors": 0,
+        "methods": {
+          "GET": 12,
+          "POST": 12
+        },
+        "statusCounts": {
+          "200": 12,
+          "202": 12
+        },
+        "maximumConcurrentRoundTrips": 1,
+        "latency": {
+          "samples": 24,
+          "p50Ms": 4.375,
+          "p95Ms": 7.618,
+          "maxMs": 9.188
+        }
+      }
+    },
+    {
+      "provider": "postgres",
+      "resources": 4,
+      "executions": 12,
+      "referenceCommandSeconds": 0.25,
+      "referenceWorkers": 4,
+      "homeWorkers": 4,
+      "pollIntervalSeconds": 2,
+      "activeWindowSeconds": 6.476949,
+      "admissionSeconds": 0.230801,
+      "admissionConcurrency": 8,
+      "terminalStates": {
+        "succeeded": 12
+      },
+      "maximumObservedQueued": 10,
+      "maximumObservedHeld": 4,
+      "stateObservationQueries": 60,
+      "stateObservationIntervalMs": 100,
+      "ordinaryItemsBefore": 1012,
+      "referenceServerCPUSeconds": 0.1,
+      "referenceWaitedSubprocessCPUSeconds": 0.37,
+      "referenceRSSBeforeKiB": 27972,
+      "referenceRSSAfterKiB": 29656,
+      "queueWait": {
+        "maxMs": 4297.255,
+        "p50Ms": 2124.447,
+        "p95Ms": 4297.255,
+        "samples": 12
+      },
+      "executionEndToEnd": {
+        "maxMs": 6331.384,
+        "p50Ms": 4168.838,
+        "p95Ms": 6331.384,
+        "samples": 12
+      },
+      "referenceSubprocessStarts": 12,
+      "referenceSubprocessFinishes": 12,
+      "maximumConcurrentSubprocesses": 4,
+      "maximumSubprocessesPerResource": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "admission": {
+        "samples": 12,
+        "p50Ms": 102.593,
+        "p95Ms": 169.092,
+        "maxMs": 169.092,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 11.988,
+          "p95Ms": 22.854,
+          "maxMs": 49.541,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.02,
+          "p95Ms": 7.141,
+          "maxMs": 16.449,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.569406,
+        "lastIssuedSeconds": 0.5584,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringExecutions": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 1685,
+          "p50Ms": 13.289,
+          "p95Ms": 22.319,
+          "maxMs": 59.184,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 421,
+          "p50Ms": 3.43,
+          "p95Ms": 6.76,
+          "maxMs": 15.651,
+          "errorCount": 0
+        },
+        "windowSeconds": 6.486851,
+        "lastIssuedSeconds": 6.475075,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 6,
+        "issuedRequests": 2106
+      },
+      "testProcessCPUSeconds": 10.418124,
+      "testProcessRSSBeforeKiB": 72948,
+      "testProcessRSSAfterKiB": 44236,
+      "outboundHTTP": {
+        "calls": 24,
+        "errors": 0,
+        "methods": {
+          "GET": 12,
+          "POST": 12
+        },
+        "statusCounts": {
+          "200": 12,
+          "202": 12
+        },
+        "maximumConcurrentRoundTrips": 2,
+        "latency": {
+          "samples": 24,
+          "p50Ms": 4.795,
+          "p95Ms": 11.24,
+          "maxMs": 13.549
+        }
+      }
+    },
+    {
+      "provider": "postgres",
+      "resources": 1,
+      "executions": 12,
+      "referenceCommandSeconds": 0.25,
+      "referenceWorkers": 4,
+      "homeWorkers": 4,
+      "pollIntervalSeconds": 2,
+      "activeWindowSeconds": 24.841837,
+      "admissionSeconds": 0.215631,
+      "admissionConcurrency": 8,
+      "terminalStates": {
+        "succeeded": 12
+      },
+      "maximumObservedQueued": 11,
+      "maximumObservedHeld": 1,
+      "stateObservationQueries": 230,
+      "stateObservationIntervalMs": 100,
+      "ordinaryItemsBefore": 1012,
+      "referenceServerCPUSeconds": 0.1,
+      "referenceWaitedSubprocessCPUSeconds": 0.38,
+      "referenceRSSBeforeKiB": 27944,
+      "referenceRSSAfterKiB": 29108,
+      "queueWait": {
+        "maxMs": 22665.498,
+        "p50Ms": 12314.449,
+        "p95Ms": 22665.498,
+        "samples": 12
+      },
+      "executionEndToEnd": {
+        "maxMs": 24696.554,
+        "p50Ms": 14344.794,
+        "p95Ms": 24696.554,
+        "samples": 12
+      },
+      "referenceSubprocessStarts": 12,
+      "referenceSubprocessFinishes": 12,
+      "maximumConcurrentSubprocesses": 1,
+      "maximumSubprocessesPerResource": {
+        "0": 1
+      },
+      "admission": {
+        "samples": 12,
+        "p50Ms": 104.269,
+        "p95Ms": 149.081,
+        "maxMs": 149.081,
+        "errorCount": 0
+      },
+      "ordinaryReadControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "board": {
+          "samples": 160,
+          "p50Ms": 12.202,
+          "p95Ms": 20.562,
+          "maxMs": 53.695,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.391,
+          "p95Ms": 7.082,
+          "maxMs": 9.252,
+          "errorCount": 0
+        },
+        "windowSeconds": 0.585014,
+        "lastIssuedSeconds": 0.574253,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 0,
+        "issuedRequests": 200
+      },
+      "ordinaryReadsDuringExecutions": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "board": {
+          "samples": 6676,
+          "p50Ms": 12.985,
+          "p95Ms": 21.036,
+          "maxMs": 53.637,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 1669,
+          "p50Ms": 3.426,
+          "p95Ms": 6.924,
+          "maxMs": 24.065,
+          "errorCount": 0
+        },
+        "windowSeconds": 24.856063,
+        "lastIssuedSeconds": 24.839487,
+        "fullSecondsWithoutIssuedRequests": 0,
+        "fullSecondsObserved": 24,
+        "issuedRequests": 8345
+      },
+      "testProcessCPUSeconds": 39.920731,
+      "testProcessRSSBeforeKiB": 98680,
+      "testProcessRSSAfterKiB": 43776,
+      "outboundHTTP": {
+        "calls": 24,
+        "errors": 0,
+        "methods": {
+          "GET": 12,
+          "POST": 12
+        },
+        "statusCounts": {
+          "200": 12,
+          "202": 12
+        },
+        "maximumConcurrentRoundTrips": 1,
+        "latency": {
+          "samples": 24,
+          "p50Ms": 4.416,
+          "p95Ms": 7.658,
+          "maxMs": 8.121
+        }
+      }
+    }
+  ],
+  "postgresUpgradeValidation": {
+    "items": 10000,
+    "populatedSpaces": 2,
+    "itemsPerPopulatedSpace": 5000,
+    "emptySpaces": 1,
+    "fromMigration": 20,
+    "completeUpgradeMilliseconds": 419.195,
+    "allOriginalFieldsChecksumUnchanged": true,
+    "deterministicNumbersVerified": 10000,
+    "nextNumberValues": [
+      5001,
+      5001,
+      1
+    ],
+    "oldPlanRepeatedWindowSubplan": true,
+    "newPlanSingleWindowJoin": true,
+    "oldPlanCost": 13714213.19,
+    "newPlanCost": 1854.65,
+    "oldSlowFixtureStatementObservedRunningSeconds": 73,
+    "oldFullUpgradeDurationMeasured": false,
+    "oldAndNewUpgradeTimingsAreMatchedPair": false,
+    "existingPreservationAndRollbackTestsPassed": true
+  },
+  "environmentIncident": {
+    "firstRunInvalidated": true,
+    "reason": "filesystem exhaustion",
+    "minimumObservedAvailableBytesAtIncident": 8192,
+    "firstRunStatusAndPartialSequentialResultsExcluded": true,
+    "isolatedPostgresCrashedAndRecoveredNormally": true,
+    "isolatedPostgresReadWriteRollbackHealthPassed": true,
+    "originalLogsAndOutputsRetained": true,
+    "restartUsedAlreadyBuiltBinaries": true,
+    "availableSpaceFloorBytes": 536870912,
+    "minimumAvailableBytesAtSuccessfulStageBoundaries": 1411530752
+  },
+  "validation": {
+    "allSelectedFinalStagesPassed": true,
+    "allRequiredStorageProvidersExecuted": true,
+    "unexpectedHTTPOrReadErrors": 0,
+    "scheduleDuplicateOccurrences": 0,
+    "eventDuplicateReceipts": 0,
+    "referenceSubprocessRuns": 48,
+    "referenceSubprocessStarts": 48,
+    "referenceSubprocessFinishes": 48,
+    "referencePOSTs": 48,
+    "referenceGETs": 48,
+    "sameResourceMaximumSubprocesses": 1,
+    "noMeasurementOrReferenceProcessesRemaining": true
+  },
+  "limits": [
+    "Single-pass bounded measurements on a shared host; not an SLA, WAN benchmark, maximum sustainable capacity, million-user claim or long-duration soak test.",
+    "Baseline and candidate ordinary/schedule runs are not simultaneous; only added status writes were measured as adjacent old/new pairs.",
+    "Native idle observations cover SQLite Home processes only, not PostgreSQL service background activity.",
+    "Permanent numbering/planning response and struct costs, plus status-observation writes, exist even when optional automation and notifications are unused.",
+    "The 12-execution resource tests have few tail samples; preserve production polling delays instead of treating them as maximum executor capacity.",
+    "Initial filesystem-exhaustion samples are invalid and excluded; PostgreSQL normal recovery and health passed before rerun.",
+    "The PostgreSQL migration optimization changed only upgrade SQL and test preparation; completed unaffected runtime measurements were retained."
+  ]
+}

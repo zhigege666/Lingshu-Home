@@ -214,11 +214,14 @@ func TestIntegrationTokenCatalogAllModeAndScope(t *testing.T) {
 			}
 			for _, item := range catalog["items"].([]any) {
 				definition := integrationObject(t, item)
-				if definition["requires"] == nil || definition["label"] == "" || definition["write"] != strings.HasSuffix(definition["id"].(string), ":write") {
+				if definition["requires"] == nil || definition["label"] == "" || definition["write"] != (strings.HasSuffix(definition["id"].(string), ":write") || definition["id"] == "work:execute") {
 					t.Fatal("action metadata incomplete")
 				}
 				if definition["id"] == "documents:write" && !reflect.DeepEqual(definition["requires"], []any{"documents:read"}) {
 					t.Fatal("document dependency missing")
+				}
+				if definition["id"] == "work:execute" && !reflect.DeepEqual(definition["requires"], []any{"work:read", "work:write"}) {
+					t.Fatal("execution dependencies missing")
 				}
 			}
 			if _, err := f.app.store.DB.Exec("UPDATE settings SET language='en' WHERE id=1"); err != nil {
@@ -251,7 +254,7 @@ func TestIntegrationTokenCatalogAllModeAndScope(t *testing.T) {
 			memberCreated := member.object("POST", "/api/v1/integrations/tokens", map[string]any{"name": "Read-only account all", "spaceId": f.space, "permissionMode": "all", "expiresAt": nil}, 201, "")
 			readOnlyAll := memberCreated["token"].(string)
 			for _, action := range integrationObject(t, memberCreated["credential"])["actions"].([]any) {
-				if strings.HasSuffix(action.(string), ":write") {
+				if strings.HasSuffix(action.(string), ":write") || action == "work:execute" {
 					t.Fatal("all mode exceeded account space permissions")
 				}
 			}
@@ -300,7 +303,7 @@ func TestIntegrationTokenCreateAndEditShareValidation(t *testing.T) {
 			f := newIntegrationTokenFixture(t, provider)
 			_, id := f.owner.token(f.space, "", "navigation:read")
 			credential := integrationTokenTestCredential(t, f.owner, id)
-			for _, actions := range [][]string{{"documents:write"}, {"unknown:read"}, {"navigation:read", "navigation:read"}, {}} {
+			for _, actions := range [][]string{{"documents:write"}, {"work:execute"}, {"work:read", "work:execute"}, {"work:write", "work:execute"}, {"unknown:read"}, {"navigation:read", "navigation:read"}, {}} {
 				f.owner.call("POST", "/api/v1/integrations/tokens", map[string]any{"name": "Invalid selection", "spaceId": f.space, "actions": actions, "expiresAt": nil}, 400, "")
 				f.owner.call("PATCH", "/api/v1/integrations/tokens/"+id, map[string]any{"expectedRevision": credential["revision"], "actions": actions}, 400, "")
 			}

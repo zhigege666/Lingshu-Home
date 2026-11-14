@@ -13,6 +13,7 @@ import (
 
 // A template deliberately cannot contain results, claims or activity history.
 type WorkScheduleTemplate struct {
+	WorkPlanningFields
 	Title          string   `json:"title"`
 	ProjectID      *string  `json:"projectId"`
 	Status         string   `json:"status"`
@@ -24,39 +25,40 @@ type WorkScheduleTemplate struct {
 }
 
 func (in WorkScheduleTemplate) workInput(id string) workCreateInput {
-	return workCreateInput{ID: id, Title: in.Title, ProjectID: in.ProjectID, Status: in.Status, Description: in.Description, NextStep: in.NextStep, NeedsAttention: in.NeedsAttention, BookmarkIDs: in.BookmarkIDs, DocumentIDs: in.DocumentIDs}
+	return workCreateInput{WorkPlanningFields: in.WorkPlanningFields, ID: id, Title: in.Title, ProjectID: in.ProjectID, Status: in.Status, Description: in.Description, NextStep: in.NextStep, NeedsAttention: in.NeedsAttention, BookmarkIDs: in.BookmarkIDs, DocumentIDs: in.DocumentIDs}
 }
 
 type WorkSchedule struct {
-	ID            string               `json:"id"`
-	SpaceID       string               `json:"spaceId"`
-	Name          string               `json:"name"`
-	Template      WorkScheduleTemplate `json:"template"`
-	Rule          WorkScheduleRule     `json:"rule"`
-	Enabled       bool                 `json:"enabled"`
-	Archived      bool                 `json:"archived"`
-	MissedPolicy  string               `json:"missedPolicy"`
-	OverlapPolicy string               `json:"overlapPolicy"`
-	Revision      string               `json:"revision"`
-	CreatedAt     string               `json:"createdAt"`
-	UpdatedAt     string               `json:"updatedAt"`
-	NextRunAt     string               `json:"nextRunAt"`
-	LastRunAt     string               `json:"lastRunAt"`
-	LastResult    string               `json:"lastResult"`
-	LastError     string               `json:"lastError"`
-	References    []WorkReference      `json:"references"`
-	userID        string
-	tokenHash     string
-	createHash    string
+	ID                   string               `json:"id"`
+	SpaceID              string               `json:"spaceId"`
+	Name                 string               `json:"name"`
+	Template             WorkScheduleTemplate `json:"template"`
+	Rule                 WorkScheduleRule     `json:"rule"`
+	Enabled              bool                 `json:"enabled"`
+	Archived             bool                 `json:"archived"`
+	MissedPolicy         string               `json:"missedPolicy"`
+	OverlapPolicy        string               `json:"overlapPolicy"`
+	Revision             string               `json:"revision"`
+	CreatedAt            string               `json:"createdAt"`
+	UpdatedAt            string               `json:"updatedAt"`
+	NextRunAt            string               `json:"nextRunAt"`
+	LastRunAt            string               `json:"lastRunAt"`
+	LastResult           string               `json:"lastResult"`
+	LastError            string               `json:"lastError"`
+	References           []WorkReference      `json:"references"`
+	notificationsEnabled bool
+	userID               string
+	tokenHash            string
+	createHash           string
 }
 
-const workScheduleColumns = "id,space_id,name,template_json,rule_json,enabled,archived,missed_policy,overlap_policy,revision,created_at,updated_at,next_run_at,last_run_at,last_result,last_error,COALESCE(user_id,''),token_hash,create_hash"
+const workScheduleColumns = "id,space_id,name,template_json,rule_json,enabled,archived,missed_policy,overlap_policy,revision,created_at,updated_at,next_run_at,last_run_at,last_result,last_error,COALESCE(user_id,''),token_hash,create_hash,(SELECT work_notifications_enabled FROM spaces WHERE spaces.id=work_schedules.space_id)"
 
 func scanWorkSchedule(row interface{ Scan(...any) error }) (*WorkSchedule, error) {
 	value := &WorkSchedule{References: []WorkReference{}}
 	var template, rule string
 	var revision int64
-	err := row.Scan(&value.ID, &value.SpaceID, &value.Name, &template, &rule, &value.Enabled, &value.Archived, &value.MissedPolicy, &value.OverlapPolicy, &revision, &value.CreatedAt, &value.UpdatedAt, &value.NextRunAt, &value.LastRunAt, &value.LastResult, &value.LastError, &value.userID, &value.tokenHash, &value.createHash)
+	err := row.Scan(&value.ID, &value.SpaceID, &value.Name, &template, &rule, &value.Enabled, &value.Archived, &value.MissedPolicy, &value.OverlapPolicy, &revision, &value.CreatedAt, &value.UpdatedAt, &value.NextRunAt, &value.LastRunAt, &value.LastResult, &value.LastError, &value.userID, &value.tokenHash, &value.createHash, &value.notificationsEnabled)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, missing()
 	}
@@ -105,63 +107,11 @@ func (a *App) normalizeWorkSchedule(r *Request, value *WorkSchedule, previous *W
 	if value.OverlapPolicy != "create" && value.OverlapPolicy != "skip" {
 		return invalid("overlapPolicy must be create or skip.")
 	}
-	in := value.Template.workInput("")
-	if err = validateWorkText(&in); err != nil {
-		return err
+	var old *WorkScheduleTemplate
+	if previous != nil {
+		old = &previous.Template
 	}
-	value.Template.Title = in.Title
-	value.Template.BookmarkIDs, err = workIDs(value.Template.BookmarkIDs)
-	if err != nil {
-		return err
-	}
-	value.Template.DocumentIDs, err = workIDs(value.Template.DocumentIDs)
-	if err != nil {
-		return err
-	}
-	// Resolve an omitted default once. Future status edits cannot silently
-	// redirect a rule to another status or turn a failed generation into success.
-	if value.Template.Status == "" {
-		catalog, err := a.loadWorkStatuses(r, value.SpaceID, false)
-		if err != nil {
-			return err
-		}
-		value.Template.Status = catalog.DefaultStatus
-	}
-	if previous == nil || value.Template.Status != previous.Template.Status {
-		if _, err = a.requireWorkStatus(r, value.SpaceID, value.Template.Status); err != nil {
-			return err
-		}
-	}
-	if previous == nil || !reflect.DeepEqual(value.Template.ProjectID, previous.Template.ProjectID) {
-		if err = a.validateWorkProject(r, value.SpaceID, value.Template.ProjectID); err != nil {
-			return err
-		}
-	}
-	for _, refs := range []struct {
-		kind     string
-		ids, old []string
-	}{
-		{"bookmark", value.Template.BookmarkIDs, scheduleReferenceIDs(previous, false)},
-		{"document", value.Template.DocumentIDs, scheduleReferenceIDs(previous, true)},
-	} {
-		if reflect.DeepEqual(refs.ids, refs.old) || len(refs.ids) == 0 && previous == nil {
-			continue
-		}
-		if err = a.validateWorkRefs(r, value.SpaceID, "", refs.kind, refs.ids); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func scheduleReferenceIDs(value *WorkSchedule, documents bool) []string {
-	if value == nil {
-		return []string{}
-	}
-	if documents {
-		return value.Template.DocumentIDs
-	}
-	return value.Template.BookmarkIDs
+	return a.normalizeWorkTemplate(r, value.SpaceID, &value.Template, old)
 }
 
 func (a *App) createWorkSchedule(r *Request) (*Response, error) {
@@ -211,6 +161,7 @@ func (a *App) createWorkSchedule(r *Request) (*Response, error) {
 		return nil, err
 	}
 	in.Template.Title = template.Title
+	in.Template.WorkPlanningFields = template.WorkPlanningFields
 	in.Template.BookmarkIDs, err = workIDs(in.Template.BookmarkIDs)
 	if err != nil {
 		return nil, err
@@ -299,21 +250,12 @@ func (a *App) updateWorkSchedule(r *Request) (*Response, error) {
 		}
 	}
 	if body, supplied := raw["template"]; supplied {
-		value.Template = WorkScheduleTemplate{}
-		if err = decodeScheduleObject(body, &value.Template); err != nil {
+		value.Template, err = decodeWorkTemplatePatch(body, old.Template)
+		if err != nil {
 			return nil, err
 		}
-		var fields map[string]json.RawMessage
-		if err = json.Unmarshal(body, &fields); err != nil {
-			return nil, invalid("Invalid template.")
-		}
-		if _, exists := fields["bookmarkIds"]; !exists {
-			value.Template.BookmarkIDs = old.Template.BookmarkIDs
-		}
-		if _, exists := fields["documentIds"]; !exists {
-			value.Template.DocumentIDs = old.Template.DocumentIDs
-		}
 	}
+
 	if err = a.normalizeWorkSchedule(r, &value, old); err != nil {
 		return nil, err
 	}
@@ -343,12 +285,12 @@ func (a *App) updateWorkSchedule(r *Request) (*Response, error) {
 
 func decodeScheduleObject(body json.RawMessage, target any) error {
 	if len(body) == 0 || body[0] != '{' {
-		return invalid("Expected a schedule object.")
+		return invalid("Expected a work configuration object.")
 	}
 	decoder := json.NewDecoder(strings.NewReader(string(body)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return invalid("Invalid schedule object: " + err.Error())
+		return invalid("Invalid work configuration object: " + err.Error())
 	}
 	return nil
 }
@@ -381,66 +323,11 @@ func (a *App) workScheduleReply(r *Request, stored *WorkSchedule, flags map[stri
 }
 
 func (a *App) workScheduleReferences(r *Request, value *WorkSchedule) error {
-	value.References = []WorkReference{}
-	for _, kind := range []string{"bookmark", "document"} {
-		action, ids := "navigation:read", value.Template.BookmarkIDs
-		if kind == "document" {
-			action, ids = "documents:read", value.Template.DocumentIDs
-		}
-		if !r.workReads(action) {
-			if kind == "document" {
-				value.Template.DocumentIDs = []string{}
-			} else {
-				value.Template.BookmarkIDs = []string{}
-			}
-			continue
-		}
-		if len(ids) == 0 {
-			continue
-		}
-		marks := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
-		args := []any{value.SpaceID}
-		for _, id := range ids {
-			args = append(args, id)
-		}
-		query := "SELECT id,title,url FROM links WHERE space_id=? AND id IN (" + marks + ")"
-		if kind == "document" {
-			query = "SELECT d.id,d.title,d.relative_path,s.enabled,d.status FROM documents d JOIN document_sources s ON s.id=d.source_id WHERE d.space_id=? AND d.id IN (" + marks + ")"
-		}
-		rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query(query), args...)
-		if err != nil {
-			return err
-		}
-		found := map[string]WorkReference{}
-		for rows.Next() {
-			ref := WorkReference{Kind: kind, Available: true}
-			if kind == "document" {
-				var enabled bool
-				var status string
-				err = rows.Scan(&ref.ID, &ref.Title, &ref.Subtitle, &enabled, &status)
-				ref.Available = enabled && status == "ready"
-			} else {
-				err = rows.Scan(&ref.ID, &ref.Title, &ref.URL)
-			}
-			if err != nil {
-				rows.Close()
-				return err
-			}
-			found[ref.ID] = ref
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			return err
-		}
-		for _, id := range ids {
-			ref, exists := found[id]
-			if !exists {
-				ref = WorkReference{Kind: kind, ID: id, Available: false}
-			}
-			value.References = append(value.References, ref)
-		}
+	refs, err := a.workTemplateReferences(r, value.SpaceID, &value.Template)
+	if err != nil {
+		return err
 	}
+	value.References = refs
 	return nil
 }
 

@@ -1,5 +1,159 @@
 # Performance and interface verification
 
+## v0.2.8：规划、事件、通知与外部执行器性能
+
+本轮全部最终选定场景通过，SQLite 和 PostgreSQL 均实际执行，没有用跳过数据库测试代替通过。新功能存在可量化的固定成本：真实事项会输出编号/key，规划字段扩大 Go 对象，状态变化会留下统计观测记录。规则或通知没有启用时没有持续空轮询；这不等于整个版本零成本。
+
+### 环境、来源与计量范围
+
+基线是正式 v0.2.7，commit a4aa457a6a72c212ebd2526fc7dbf61c56cfa4d5，使用独立源码快照及同一工具链。环境为 Linux amd64、4 个逻辑 CPU、8126476 KiB 内存的共享主机，Go 1.26.8、GOMAXPROCS=4、CGO_ENABLED=0、PostgreSQL 18.6、modernc.org/sqlite v1.60.1。每次负载使用新 SQLite 目录或独立 PostgreSQL schema。
+
+普通 board/bootstrap/mixed 与状态写入都经过 httptest.NewServer 的真实 loopback TCP。顺序采样另外包含客户端 JSON 解码。SQL 预算使用单独的 handler 调用计数，不将该调用当作网络延迟。定时生成和事件事务采用生产 helper；事件样本包含 HTTP 入队和顺序事务处理，未计自主协调器的调度开销。外部执行器使用活跃的生产 coordinator/worker、真实安全出站传输、私网 HTTP 参考服务和真实固定 argv 子进程。
+
+初轮磁盘耗尽到 8 KiB 可用空间，导致隔离 PostgreSQL 写失败并退出；该轮状态与不完整顺序采样全部标为无效并保留原始日志。回收可重建缓存后，隔离 PostgreSQL 完成正常 WAL 恢复及建表、写入、读取、回滚健康检查，使用相同已构建二进制重测受影响窗口。有效阶段边界最低可用空间为 1,411,530,752 B，测量脚本设置 512 MiB 停止阈值。
+
+另发现 PostgreSQL 编号回填中的相关子查询重复执行窗口计算。暂停性能负载后，将 PG021 改为等价 JOIN UPDATE，并单独验证升级；已通过且业务运行代码未变的 HTTP、状态与 idle 样本保留，剩余定时、事件和执行器采用新嵌入迁移候选。两个候选的业务 Go 源码散列相同，变化仅为 PG021、测试数据准备和新增迁移测试。来源散列与完整聚合数值保存在[机器可读数据](performance-work-0.2.8.json)。测量后仅清理了 SQLite/PostgreSQL 两份 022 迁移各一个多余的末尾换行，SQL 语句逐字相同；aggregate 同时记录清理前后 SHA。测试二进制 SHA 是测量快照的 SHA，不冒充后续发布制品的 SHA。
+
+### 1. 普通请求与永久成本
+
+10000 个事项、8 并发，每种请求 200 次。board 返回 4 列共 120 卡；mixed 包含 40 次普通事项创建和 160 次读取。表中延迟单位 ms，吞吐单位请求/秒。
+
+| 数据库 | 负载 | v7 P50 | v8 P50 | v7 P95 | v8 P95 | v7 请求/秒 | v8 请求/秒 | 旧/新错误 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| sqlite | board | 47.406 | 51.981 | 154.412 | 197.060 | 125.22 | 106.62 | 0 / 0 |
+| sqlite | bootstrap | 3.420 | 3.127 | 12.394 | 11.231 | 1689.98 | 1825.53 | 0 / 0 |
+| sqlite | mixed | 114.467 | 97.449 | 427.919 | 468.264 | 50.17 | 50.89 | 0 / 0 |
+| postgres | board | 31.049 | 37.504 | 51.272 | 59.869 | 236.90 | 201.13 | 0 / 0 |
+| postgres | bootstrap | 5.184 | 5.508 | 11.545 | 9.781 | 1238.09 | 1297.83 | 0 / 0 |
+| postgres | mixed | 35.976 | 38.011 | 60.525 | 80.632 | 208.71 | 183.77 | 0 / 0 |
+
+本次普通看板和混合负载的部分尾延迟上升，完整保留数值。共享主机的单次样本不能精确分离应用变化、GC 与环境波动，也不能据此承诺吞吐。bootstrap 控制项没有相同方向的全面变化。
+
+真实编号的 120 卡响应由 40,313 B 增至 43,337 B，每次增加 3,024 B（7.50%）；这个值对应本测试页面的编号长度。bootstrap 每次仍为 2338 B。4 列普通看板的应用 SQL 预算保持 18 次，1000/10000 事项列查询使用排序索引。25 次顺序采样、100/1000/10000 事项的完整结果保存在 aggregate JSON。
+
+Go Summary inline 大小为 216 → 416 B，Item 为 400 → 600 B，均增加 200 B。这是对象内字符串/切片头、指针和字段的大小，未包括字符串内容、关联堆对象或数据库缓存，不能直接乘成进程总内存。
+
+### 2. 状态变化的固定写入成本
+
+每库分别紧邻运行旧版和候选：200 个经 HTTP 创建的 todo 事项，先 200 次 todo→doing，再 200 次 doing→done，两个阶段均 8 并发，总计 400 PATCH。没有启用规则、通知或打开统计页。候选恰好记录 200 个已结束 cycle 观测，所有事项最终 revision=3。
+
+| 数据库 | 版本 | P50 ms | P95 ms | 请求/秒 | Go进程CPU秒 | cycle观测 | 错误 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| sqlite | 0.2.7 | 22.596 | 27.595 | 350.37 | 1.880 | 0 | 0 |
+| sqlite | 0.2.8 | 25.825 | 31.083 | 308.19 | 2.052 | 200 | 0 |
+| postgres | 0.2.7 | 93.031 | 109.662 | 84.16 | 3.852 | 0 | 0 |
+| postgres | 0.2.8 | 101.947 | 122.972 | 77.75 | 3.953 | 200 | 0 |
+
+SQLite P95 增加约 12.6%，PostgreSQL 增加约 12.1%。状态历史观测是始终存在的业务成本；关闭统计界面不会撤销它。Go 进程 CPU 包含本地 HTTP 客户端和服务端，PostgreSQL 数据库服务 CPU 不包含在该列，不能跨两种存储比较总 CPU。
+
+### 3. 未使用、全部暂停与启用后空闲
+
+以下观察对象全部是独立的 SQLite 原生 Home 进程，无浏览器且窗口内没有主动 HTTP 请求。暂停场景含 1000 条暂停事件规则和 4 个禁用执行器；启用场景含 1000 条启用规则、4 个启用执行器及开启的通知，没有待处理事件或运行。
+
+| 版本 | 场景 | 观察秒 | CPU秒 | 起始RSS KiB | 结束RSS KiB | 意外执行器连接 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.2.7 | unused | 30.03 | 0.0 | 91908 | 91908 | 0 |
+| 0.2.8 | unused | 30.03 | 0.0 | 92816 | 92816 | 0 |
+| 0.2.8 | 1000_paused_rules_4_disabled_executors | 20.02 | 0.0 | 134588 | 134588 | 0 |
+| 0.2.8 | 1000_enabled_rules_4_enabled_executors_notifications_on | 20.02 | 0.0 | 135440 | 135440 | 0 |
+
+CPU 计数为 100 Hz，三组候选窗口均观察到 0 tick、0 I/O 增量，数据库相关行数前后不变。零 tick 表示该有限窗口的量化结果；RSS 包含初始化、密码计算、配置准备与缓存，不能用两个场景相减宣称每条规则的内存。这个结论不覆盖 PostgreSQL 服务自身的 autovacuum 等后台活动。
+
+代码路径在没有待处理工作时返回零 deadline，不创建周期 timer，之后等待唤醒或取消。启动与配置变更仍有一次有界扫描，工作线程、字段和接口存在静态成本。实际配置的空闲执行器也没有产生出站探测连接。
+
+### 4. 定时生成与前台读取
+
+每库覆盖 100/1000 条到期规则，普通看板预置 1000 个事项。4 个 HTTP 读线程覆盖整个生成窗口，80% board、20% bootstrap，没有 2000 次请求截止。下表为 1000 规则场景；控制组为同一 fixture 上的 200 次普通读取。
+
+| 数据库 | 版本 | 生成秒 | 生成项/秒 | 控制board P95 | 生成中board P95 | 完整窗口读请求 | 错误 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| sqlite | 0.2.7 | 18.957 | 52.75 | 30.387 | 44.224 | 4096 | 0 |
+| postgres | 0.2.7 | 13.295 | 75.22 | 14.128 | 20.656 | 4408 | 0 |
+| sqlite | 0.2.8 | 23.602 | 42.37 | 46.373 | 52.378 | 4075 | 0 |
+| postgres | 0.2.8 | 14.983 | 66.74 | 19.217 | 21.697 | 4669 | 0 |
+
+v0.2.8 在两库两档共生成 2200 个定时期次；额外 4 场同周期争抢，各 100 个 HTTP 生成请求加一个 worker 只增加一个期次/事项。400 次重放请求全部成功，没有重复 occurrence、额外事项或数据库锁错误。所有生成窗口每个完整秒均有读取，最后一次发出请求覆盖到生成结束附近；这是有界混合阶段，不是最大容量或持续服务承诺。
+
+### 5. 事件规则与默认关闭的通知
+
+每个场景均有 1000 个普通事项和 4 个持续 HTTP 读线程。HTTP 入队并发为 8。25 条匹配规则乘 40 个事件产生 1000 个事项；26 条匹配专门验证匹配数量上限，200 次失败均为预期业务失败，HTTP/读取错误仍为 0。
+
+| 数据库 | 场景 | 事件 | 规则 | 新增事项 | 阶段秒 | 控制board P95 | 负载board P95 | 预期事件失败 | 通知行 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| sqlite | zero_rules | 200 | 0 | 0 | 7.369 | 45.616 | 44.333 | 0 | 0 |
+| sqlite | 1000_unmatched_rules | 200 | 1000 | 0 | 8.709 | 42.985 | 47.577 | 0 | 0 |
+| sqlite | 25_matching_rules | 40 | 25 | 1000 | 2.846 | 33.505 | 116.744 | 0 | 0 |
+| sqlite | match_limit_notices_off | 200 | 26 | 0 | 7.926 | 42.242 | 47.061 | 200 | 0 |
+| sqlite | match_limit_notices_on | 200 | 26 | 0 | 8.505 | 40.068 | 47.320 | 200 | 200 |
+| postgres | zero_rules | 200 | 0 | 0 | 2.841 | 16.815 | 22.251 | 0 | 0 |
+| postgres | 1000_unmatched_rules | 200 | 1000 | 0 | 2.935 | 17.885 | 23.532 | 0 | 0 |
+| postgres | 25_matching_rules | 40 | 25 | 1000 | 8.653 | 23.380 | 21.057 | 0 | 0 |
+| postgres | match_limit_notices_off | 200 | 26 | 0 | 2.881 | 19.724 | 20.962 | 200 | 0 |
+| postgres | match_limit_notices_on | 200 | 26 | 0 | 3.211 | 18.271 | 22.129 | 200 | 200 |
+
+1000 条不匹配规则没有创建事项或回执。匹配场景每库恰好 1000 条创建回执，无重复。通知关闭/开启的失败场景在计时后读取真实异常摘要，两者 automationFailed 均为 200；关闭时通知列表/未读为 0，开启时均为 200。真实异常计数独立于可关闭的消息收件箱。没有待处理事件、全暂停规则、启用但没有事件、以及清空队列后均返回无 timer 的计划。
+
+### 6. 真实 HTTP 执行器与资源互斥
+
+每库分别使用 4 个资源和同一个资源，各排入 12 个执行。参考服务以固定 argv 启动真实 Python 子进程，每次运行 250 ms，输入仅为 stdin JSON。保留生产最小 2 秒回执轮询，因此同资源下一项需等 Home 获得终态后才启动。读取线程覆盖到全部终态；若发生 unknown 或到达截止，会在该明确边界停止并记录，不能通过自动重派获得成功数字。
+
+| 数据库 | 资源数 | 完整阶段秒 | 排队P95 ms | 控制board P95 | 运行中board P95 | 实测HTTP峰值 | 实测子进程峰值 | POST/GET | 错误 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| sqlite | 4 | 7.223 | 4784.725 | 42.052 | 42.737 | 2 | 4 | 12 / 12 | 0 |
+| sqlite | 1 | 26.643 | 24464.774 | 44.450 | 44.836 | 1 | 1 | 12 / 12 | 0 |
+| postgres | 4 | 6.477 | 4297.255 | 22.854 | 22.319 | 2 | 4 | 12 / 12 | 0 |
+| postgres | 1 | 24.842 | 22665.498 | 20.562 | 21.036 | 1 | 1 | 12 / 12 | 0 |
+
+48 个执行全部 succeeded，实际 48 次 POST、48 次 GET，48 个子进程各启动/结束一次。每个资源实际子进程最大并发为 1；4 资源时子进程峰值为 4。本样本出站 HTTP RoundTrip 峰值为 2（同资源为 1），配置池大小 4 不等于实测请求峰值。每场只有 12 个执行，排队 P95 接近本场最大值，不能当作稳定尾延迟或执行器容量上限。
+
+aggregate JSON 同时保留 Go 混合阶段 CPU、参考 HTTP 进程 CPU、已回收子进程 CPU，以及两者 RSS；这些观测范围彼此不同。Go 的 CPU 包含持续前台请求和本地负载客户端，不能当作仅执行器的额外 CPU。PostgreSQL 服务 CPU未计入。
+
+### 7. PostgreSQL 旧库升级
+
+旧回填 EXPLAIN 显示逐行 SubPlan 中重复 WindowAgg/Sort；发现问题时，本测试的相关准备查询已经运行 73 秒。该值是观测下界，不是旧完整迁移耗时。
+
+改为按 id JOIN UPDATE 后，在真实 020 旧库执行完整升级链，10000 个旧事项（两个空间各5000，另一个空空间）共 419.195 ms。所有旧字段 checksum 保留，10000 个编号按 space/created_at/id 确定排序，next_number 分别为 5001/5001/1；既有保留和回滚组也通过。新计划只有一次窗口计算。准备查询与真实升级在索引和事务条件上不同，没有额外重跑慢旧 SQL，不给伪精确提速倍数。
+
+### 8. 页面与关键功能验收
+
+1. **用户体验。** 20 项必要浏览器检查有实际成功记录，覆盖规划字段、目录、关系、保存视图、完整日历计数、WIP、统计、通知、事件和真实执行。以 2560×1440 为基准，并验证 1920×1080、1600×900、2560×1080；大尺寸使用 520 px 内嵌详情，较窄尺寸使用抽屉，长内容内部滚动且操作栏固定。最终完整加载画面经过目视确认。中英文、草稿冲突、响应丢失后的真实读回、资料引用及原认领行为均已覆盖。
+2. **开发体验。** TypeScript/Vite 构建通过。普通看板冷加载没有新增可选目录、通知、统计、自动化或执行记录请求；工作模块关闭后的 16 秒窗口没有 Work 请求或可选页面 chunk。BoardView 单个 JS chunk 约 88.22 kB、gzip 27.23 kB，P0 对应约 104.08/30.28 kB；这是拆分按需组件后的单个 chunk 大小，不等于整个首屏的网络或体验指标。后端双库验证了迁移数据保留/回滚、真实权限、原创建重放、事务原子性、HTTP 在写事务外、真实重启、配置代际切换、迟到结果 CAS，以及外部已成功但本地回执写失败后的恢复。
+3. **AI Agent 使用体验。** 严格核对 101 个工具、67 个事项工具，工作流 v3 和实际执行能力、令牌依赖及网关发现。真实执行器验收使用实际 HTTP 与固定 argv 子进程；丢失响应后读取原执行 ID，未知结果不会自动重发，人工处理前在隔离环境确认外部进程已经退出。前端业务源码与已通过的普通 HTTP/worker 路径在后续 SQL 迁移优化中没有改动，因此没有重复运行无关功能组。
+
+浏览器入口为 [browser_work_planning.cjs](../tests/browser_work_planning.cjs)，核心与执行测试位于 `server/internal/home/work_*_test.go`。参考执行器的 12 项具名必要检查覆盖持久幂等、真实子进程、重启未知、超时、输出和容量。测试副本、进程和数据均与生产分离。
+
+### 复现入口
+
+所有入口只接受新建隔离 fixture。先配置独立 PostgreSQL 测试数据库环境变量 LINGSHU_TEST_STORAGE_POSTGRES_URL；真实执行器另设 WORK_EXECUTOR_TEST_BIND 为测试主机已分配的私网地址，LINGSHU_WORK_EXECUTOR_EXAMPLE_DIR 为仓库 examples/work-executor 的绝对路径。
+
+先在同一 Go 工具链构建测试二进制，构建过程不计入负载窗口；执行时当前目录为 server/internal/home。以下 FLAG 每次只开启相应测量，OUTPUT 写到新的证据路径：
+
+~~~sh
+cd server
+GOMAXPROCS=4 CGO_ENABLED=0 go test -c -p 2 -o ../work-perf.test ./internal/home
+cd internal/home
+~~~
+
+| 入口 | FLAG（设置为1） | OUTPUT |
+| --- | --- | --- |
+| TestWorkPerformanceV028 | LINGSHU_WORK_PERFORMANCE_V028 | 同名加 _OUTPUT |
+| TestWorkCapacityV028 | LINGSHU_WORK_CAPACITY_V028 | 同名加 _OUTPUT |
+| TestWorkStatusChangeCapacityV028 | LINGSHU_WORK_STATUS_CAPACITY_V028 | 同名加 _OUTPUT |
+| TestWorkScheduleCapacityV028 | LINGSHU_WORK_SCHEDULE_CAPACITY_V028 | 同名加 _OUTPUT |
+| TestWorkAutomationCapacityV028 | LINGSHU_WORK_AUTOMATION_CAPACITY_V028 | 同名加 _OUTPUT |
+| TestWorkExecutorCapacityV028 | LINGSHU_WORK_EXECUTOR_CAPACITY_V028 | 同名加 _OUTPUT |
+| TestWorkModelMemoryLayout | LINGSHU_WORK_MODEL_MEMORY | 同名加 _OUTPUT |
+
+~~~sh
+LINGSHU_WORK_STATUS_CAPACITY_V028=1 LINGSHU_WORK_STATUS_CAPACITY_V028_OUTPUT=/absolute/new-evidence/status.json GOMAXPROCS=4 ../../../work-perf.test   -test.run='^TestWorkStatusChangeCapacityV028$' -test.v -test.timeout=300s
+~~~
+
+v0.2.7 的普通请求基线使用该 tag 已有的 TestWorkPerformance / TestWorkCapacityPerformance。相邻状态写入使用同一份 work_status_capacity_v028_linux_test.go 拷入 exact v7 源码；持续读定时基线另拷贝 work_schedule_capacity_v028_linux_test.go 和 work_fixture_v028_linux_test.go。不能将依赖022的事件/执行器测试拷进旧版。两版均使用相同参数、固定数据量、同一个工具链和 PostgreSQL 服务，不用改动中的主树代替旧版基线。
+
+原生 idle 入口为 tests/performance_work_automation_idle.py，参数包括 --binary、--version-file、--web-dir、--output-dir、--seconds；暂停/启用场景增加 --automation-rules 1000、--automation-state paused|enabled、--executors 4、--executor-bind，启用场景再加 --enable-notifications。该脚本自行新建 SQLite 数据目录、端口和随机凭据，不能指向现有服务或数据库。
+
+压测完成后确认所有测量 Home、测试二进制、参考执行器进程退出；本次剩余 0，旧暂停 runner 已结束且未再执行旧版本剩余阶段。隔离 PostgreSQL 服务留供后续测试。原始 JSON、日志、源码/二进制散列及无效首轮均保留；公开 aggregate 不包含凭据、私网地址、PID、原始事项字段或逐请求延迟数组。
+
 This document records reproducible development measurements, their scope, and the changes they motivated. Each section identifies its actual product/build version; earlier development evidence is retained under its original date. These are laboratory samples, not a Lighthouse score, a public-network service guarantee, or real-user Core Web Vitals percentiles.
 
 ## Recurring work — 0.2.7, 2026-11-14

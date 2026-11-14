@@ -738,3 +738,7 @@ For each selected component, choose an enabled source with its matching data for
 **Replace draft layout** changes only the unsaved page arrangement. Existing theme, appearance, header/footer and search/category settings remain. Use **Save page** to persist, or the editor's Cancel/Restore controls to discard the draft. Creating a source inside the dialog saves that source immediately and is a separate operation. Hiding, omitting or removing a component does not disable an existing polling source; disable the source itself to stop its collection.
 
 The [dashboard guide](DASHBOARDS.md) describes each slot. The [data handoff examples](../examples/dashboard-data/README.md) provide eight validated push bodies and a contract index for future adapters. Their fixed example dates and unknown values are for development and are never automatically installed as current observations.
+
+## Work planning and explicit execution
+
+Work now includes short references, priority/labels/assignees/versions, relations, saved views, calendar, WIP advice and real activity statistics. Notifications and event automation are optional. Start from the [planning guide](WORK_PLANNING.md) and [executor guide](WORK_AUTOMATION.md); external execution requires a configured fixed adapter and explicit permission. Unknown outcomes remain occupied until readback or verified manual resolution.

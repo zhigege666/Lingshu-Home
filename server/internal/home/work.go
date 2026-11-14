@@ -19,23 +19,30 @@ const workStatusOrder = "ws.sort_order"
 const workRankStep int64 = 1024
 
 type WorkSummary struct {
-	ID             string             `json:"id"`
-	SpaceID        string             `json:"spaceId"`
-	ProjectID      *string            `json:"projectId"`
-	ProjectName    string             `json:"projectName"`
-	Title          string             `json:"title"`
-	BusinessDate   string             `json:"businessDate,omitempty"`
-	DueAt          string             `json:"dueAt,omitempty"`
-	ScheduleID     string             `json:"scheduleId,omitempty"`
-	Status         string             `json:"status"`
-	NextStep       string             `json:"nextStep"`
-	NeedsAttention bool               `json:"needsAttention"`
-	Archived       bool               `json:"archived"`
-	Revision       string             `json:"revision"`
-	UpdatedAt      string             `json:"updatedAt"`
-	ReferenceCount int                `json:"referenceCount"`
-	Collaboration  *WorkCollaboration `json:"collaboration,omitempty"`
-	rank           int64
+	WorkPlanningFields
+	Number                                                           int64                `json:"number,omitempty"`
+	Key                                                              string               `json:"key,omitempty"`
+	Labels                                                           []WorkLabel          `json:"labels,omitempty"`
+	Version                                                          *WorkVersion         `json:"version,omitempty"`
+	Relations                                                        *WorkRelationSummary `json:"relations,omitempty"`
+	assigneeName, assigneeUserID, versionID, parentID, predecessorID string
+	ID                                                               string             `json:"id"`
+	SpaceID                                                          string             `json:"spaceId"`
+	ProjectID                                                        *string            `json:"projectId"`
+	ProjectName                                                      string             `json:"projectName"`
+	Title                                                            string             `json:"title"`
+	BusinessDate                                                     string             `json:"businessDate,omitempty"`
+	DueAt                                                            string             `json:"dueAt,omitempty"`
+	ScheduleID                                                       string             `json:"scheduleId,omitempty"`
+	Status                                                           string             `json:"status"`
+	NextStep                                                         string             `json:"nextStep"`
+	NeedsAttention                                                   bool               `json:"needsAttention"`
+	Archived                                                         bool               `json:"archived"`
+	Revision                                                         string             `json:"revision"`
+	UpdatedAt                                                        string             `json:"updatedAt"`
+	ReferenceCount                                                   int                `json:"referenceCount"`
+	Collaboration                                                    *WorkCollaboration `json:"collaboration,omitempty"`
+	rank                                                             int64
 }
 type WorkReference struct {
 	Kind      string `json:"kind"`
@@ -73,6 +80,7 @@ func (a *App) registerWorkRoutes() {
 	base := "/api/v1/spaces/{spaceId}/work"
 	a.registerWorkCollaborationRoutes(base)
 	a.registerWorkScheduleRoutes(base)
+	a.registerWorkPlanningRoutes(base)
 	a.route("GET "+base+"/statuses", false, a.getWorkStatuses)
 	a.route("POST "+base+"/statuses/batch-edit", true, a.batchEditWorkStatuses)
 	a.route("GET "+base+"/revision", false, a.getWorkRevision)
@@ -117,6 +125,7 @@ func (r *Request) workSpace(write bool) (*Space, error) {
 		return nil, err
 	}
 	s.CanEdit = !r.Bearer || r.AllowedActions["work:write"]
+	r.WorkSpaceContext = s
 	return s, nil
 }
 func (r *Request) workReads(action string) bool {
@@ -166,21 +175,35 @@ func (a *App) workSummaryColumns(r *Request) string {
 	if r.workReads("documents:read") {
 		count += "+(SELECT COUNT(*) FROM work_item_documents wd WHERE wd.item_id=w.id)"
 	}
-	return "w.id,w.space_id,w.project_id,COALESCE(p.name,''),w.title,w.status,w.next_step,w.needs_attention,w.archived,w.revision,w.updated_at,w.sort_order,w.business_date,w.due_at,w.schedule_id,(" + count + ")"
+	return "w.id,w.space_id,w.project_id,COALESCE(p.name,''),w.title,w.status,w.next_step,w.needs_attention,w.archived,w.revision,w.updated_at,w.sort_order,w.business_date,w.due_at,w.schedule_id,w.number,w.priority,w.label_ids_json,w.assignee_name,w.assignee_user_id,w.version_id,w.parent_id,w.predecessor_id,(" + count + ")"
 }
 func workSummaryScan(s *WorkSummary) ([]any, *sql.NullString, *int64) {
 	var project sql.NullString
 	var revision int64
-	return []any{&s.ID, &s.SpaceID, &project, &s.ProjectName, &s.Title, &s.Status, &s.NextStep, &s.NeedsAttention, &s.Archived, &revision, &s.UpdatedAt, &s.rank, &s.BusinessDate, &s.DueAt, &s.ScheduleID, &s.ReferenceCount}, &project, &revision
+	return []any{&s.ID, &s.SpaceID, &project, &s.ProjectName, &s.Title, &s.Status, &s.NextStep, &s.NeedsAttention, &s.Archived, &revision, &s.UpdatedAt, &s.rank, &s.BusinessDate, &s.DueAt, &s.ScheduleID, &s.Number, &s.Priority, workIDsScanner{&s.LabelIDs}, &s.assigneeName, &s.assigneeUserID, &s.versionID, &s.parentID, &s.predecessorID, &s.ReferenceCount}, &project, &revision
 }
 func finishWorkSummary(s *WorkSummary, project *sql.NullString, revision *int64) {
 	s.Revision = strconv.FormatInt(*revision, 10)
+	if s.Number > 0 {
+		s.Key = "W-" + strconv.FormatInt(s.Number, 10)
+	}
+	if s.assigneeName != "" {
+		s.Assignee = &WorkAssignee{Name: s.assigneeName, UserID: s.assigneeUserID}
+	}
+	if s.versionID != "" {
+		s.VersionID = &s.versionID
+	}
 	if project.Valid {
 		value := project.String
 		s.ProjectID = &value
 	}
 }
 func (a *App) loadWorkItem(r *Request, space, id string) (*WorkItem, error) {
+	var resolveErr error
+	id, resolveErr = a.resolveWorkItemRef(r, space, id)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
 	if !validID(id) {
 		return nil, missing()
 	}
@@ -261,6 +284,9 @@ func (a *App) workItemReply(r *Request, item *WorkItem, flags map[string]any) (*
 		return nil, err
 	}
 	item.BoardRevision = revision
+	if err = a.decorateWorkPlanning(r, item.SpaceID, []*WorkSummary{&item.WorkSummary}, nil); err != nil {
+		return nil, err
+	}
 	item.StatusDefinition, err = a.requireWorkStatus(r, item.SpaceID, item.Status)
 	if err != nil {
 		return nil, err

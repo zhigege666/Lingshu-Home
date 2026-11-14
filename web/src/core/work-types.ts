@@ -1,16 +1,17 @@
+import { normalizePlanning, planningDraft, type WorkPlanning, type WorkPlanningDraft, type WorkRelationSummary, type WorkLabel, type WorkVersion } from './work-planning-types'
 /** State identifiers belong to the space catalog and never follow display names. */
 export type WorkStatus = string
 export const workStatusTypes = ['todo', 'doing', 'waiting', 'done', 'canceled'] as const
 export type WorkStatusType = typeof workStatusTypes[number]
 export type WorkStatusDefinition = {
   id: WorkStatus; name: string; type: WorkStatusType; color: string; description: string;
-  position: number; isDefault: boolean; total?: number; archivedTotal?: number
+  position: number; isDefault: boolean; total?: number; archivedTotal?: number; wipLimit?: number; wip?: { activeCount: number; limit: number; exceeded: boolean }
 }
 export type WorkStatusCatalog = { revision: string; defaultStatus: WorkStatus; canEdit: boolean; items: WorkStatusDefinition[] }
 export type WorkStatusBatch = {
   expectedRevision: string;
-  create?: Pick<WorkStatusDefinition, 'id' | 'name' | 'type' | 'color' | 'description'>[];
-  patches?: (Pick<WorkStatusDefinition, 'id'> & Partial<Pick<WorkStatusDefinition, 'name' | 'type' | 'color' | 'description'>>)[];
+  create?: Pick<WorkStatusDefinition, 'id' | 'name' | 'type' | 'color' | 'description' | 'wipLimit'>[];
+  patches?: (Pick<WorkStatusDefinition, 'id'> & Partial<Pick<WorkStatusDefinition, 'name' | 'type' | 'color' | 'description' | 'wipLimit'>>)[];
   order?: WorkStatus[]; deletions?: { id: WorkStatus; moveToStatus?: WorkStatus }[]; defaultStatus?: WorkStatus
 }
 export type WorkStatusContext = { statuses: WorkStatusDefinition[]; statusRevision: string; defaultStatus: WorkStatus }
@@ -30,7 +31,8 @@ export type WorkEvent = {
   origin: 'web' | 'api' | 'mcp'; actor: { id: string; name: string } | null; session?: WorkSessionSummary; handoff?: WorkHandoff
 }
 export type WorkEventPage = { itemId: string; items: WorkEvent[]; highWatermark: string; nextCursor: string | null; nextAfter: string }
-export type WorkSummary = {
+export type WorkSummary = WorkPlanning & {
+  number?: number; key?: string; labels?: Pick<WorkLabel, 'id' | 'name' | 'color' | 'archived'>[]; version?: Pick<WorkVersion, 'id' | 'name' | 'projectId' | 'targetDate' | 'archived'>; relations?: WorkRelationSummary;
   id: string; spaceId: string; projectId: string | null; projectName: string; title: string; status: WorkStatus;
   revision: string; archived: boolean; updatedAt: string; nextStep: string; needsAttention: boolean; referenceCount: number; businessDate?: string; dueAt?: string; scheduleId?: string; collaboration?: WorkCollaborationSummary
 }
@@ -43,23 +45,23 @@ export type WorkActivityChange = {
 }
 export type WorkActivityEvent = {
   id: string; action: 'create' | 'update' | 'move' | 'archive' | 'restore' | 'status_migrate' | 'status_definition';
-  occurredAt: string; itemRevision: string; actor: { id: string; name: string } | null; origin: 'web' | 'api' | 'mcp' | 'scheduler'; changes: WorkActivityChange[]; session?: WorkSessionSummary
+  occurredAt: string; itemRevision: string; actor: { id: string; name: string } | null; origin: 'web' | 'api' | 'mcp' | 'scheduler' | 'automation'; changes: WorkActivityChange[]; session?: WorkSessionSummary
 }
 export type WorkActivityPage = { itemId: string; revision: string; historyStartedAt: string; historyComplete: boolean; items: WorkActivityEvent[]; nextCursor: string | null }
 export type WorkColumn = { status: WorkStatus; total: number; items: WorkSummary[]; nextCursor: string | null }
 export type WorkBoard = WorkStatusContext & { revision: string; collaborationRevision?: string; canEdit: boolean; columns: WorkColumn[] }
 export type WorkPage = WorkStatusContext & { revision: string; collaborationRevision?: string; canEdit: boolean; items: WorkSummary[]; total: number; nextCursor: string | null }
-export type WorkDraft = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'result' | 'needsAttention' | 'bookmarkIds' | 'documentIds'> & { businessDate: string; dueAt: string }
+export type WorkDraft = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'result' | 'needsAttention' | 'bookmarkIds' | 'documentIds'> & WorkPlanningDraft & { businessDate: string; dueAt: string }
 export type WorkSelection = { id: string; create?: boolean; status?: WorkStatus; projectId?: string | null; needsAttention?: boolean; businessDate?: string; reference?: WorkReference }
 export const workPath = (spaceId: string) => `/spaces/${encodeURIComponent(spaceId)}/work`
 export function newWorkId(): string {
   return [...crypto.getRandomValues(new Uint8Array(16))].map(value => value.toString(16).padStart(2, '0')).join('')
 }
 export function workDraft(item?: Partial<WorkItem>): WorkDraft {
-  return { businessDate: item?.businessDate || '', dueAt: item?.dueAt || '', title: item?.title || '', projectId: item?.projectId || null, status: item?.status || 'todo', description: item?.description || '', nextStep: item?.nextStep || '', result: item?.result || '', needsAttention: item?.needsAttention || false, bookmarkIds: [...(item?.bookmarkIds || [])], documentIds: [...(item?.documentIds || [])] }
+  return { ...planningDraft(item), businessDate: item?.businessDate || '', dueAt: item?.dueAt || '', title: item?.title || '', projectId: item?.projectId || null, status: item?.status || 'todo', description: item?.description || '', nextStep: item?.nextStep || '', result: item?.result || '', needsAttention: item?.needsAttention || false, bookmarkIds: [...(item?.bookmarkIds || [])], documentIds: [...(item?.documentIds || [])] }
 }
 export function normalizeWorkDraft(draft: WorkDraft): WorkDraft {
-  return { ...draft, title: draft.title.trim(), bookmarkIds: [...new Set(draft.bookmarkIds)].sort(), documentIds: [...new Set(draft.documentIds)].sort() }
+  return { ...draft, ...normalizePlanning(draft), title: draft.title.trim(), bookmarkIds: [...new Set(draft.bookmarkIds)].sort(), documentIds: [...new Set(draft.documentIds)].sort() }
 }
 export function changedWorkFields(before: WorkDraft, after: WorkDraft): Partial<WorkDraft> {
   const left = normalizeWorkDraft(before), right = normalizeWorkDraft(after)

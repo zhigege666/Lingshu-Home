@@ -99,6 +99,9 @@ func (a *App) createWorkScheduleOccurrence(r *Request, value *WorkSchedule, plan
 			}
 			var item *WorkItem
 			item, runErr = a.insertWorkItem(execution, value.SpaceID, in, workPayloadHash(in), len(in.DocumentIDs) > 0, value.ID)
+			if runErr == nil && execution.WakeWorkAutomation {
+				r.WakeWorkAutomation = true
+			}
 			if runErr != nil {
 				if _, err = r.Q.ExecContext(r.HTTP.Context(), "ROLLBACK TO SAVEPOINT work_schedule_create"); err != nil {
 					return nil, false, err
@@ -129,7 +132,13 @@ func (a *App) createWorkScheduleOccurrence(r *Request, value *WorkSchedule, plan
 		value.LastError, value.NextRunAt = occurrence.Reason, ""
 	}
 	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_schedules SET last_run_at=?,last_result=?,last_error=?,next_run_at=? WHERE id=?"), value.LastRunAt, value.LastResult, value.LastError, value.NextRunAt, value.ID)
-	return occurrence, false, err
+	if err != nil {
+		return nil, false, err
+	}
+	if err = a.recordWorkScheduleNotice(r, value, occurrence); err != nil {
+		return nil, false, err
+	}
+	return occurrence, false, nil
 }
 
 func (a *App) generateWorkSchedule(r *Request) (*Response, error) {
@@ -365,7 +374,8 @@ func (a *App) workScheduleDueAt(ctx context.Context, now time.Time) ([]string, t
 }
 
 func (a *App) processWorkSchedule(ctx context.Context, id string, now time.Time) error {
-	return a.integrationTransaction(ctx, func(q Queryer) error {
+	wakeAutomation := false
+	err := a.integrationTransaction(ctx, func(q Queryer) error {
 		settings, err := a.loadSettings(ctx, q)
 		if err != nil || !settings.Modules.Work {
 			return err
@@ -389,6 +399,7 @@ func (a *App) processWorkSchedule(ctx context.Context, id string, now time.Time)
 			return err
 		}
 		r := &Request{App: a, HTTP: request, Q: q, Settings: settings}
+		defer func() { wakeAutomation = r.WakeWorkAutomation }()
 		limit := 1
 		if value.MissedPolicy == "all" {
 			limit = 7
@@ -428,4 +439,8 @@ func (a *App) processWorkSchedule(ctx context.Context, id string, now time.Time)
 		_, err = q.ExecContext(ctx, a.store.Query("UPDATE work_schedules SET next_run_at=? WHERE id=?"), value.NextRunAt, id)
 		return err
 	})
+	if err == nil && wakeAutomation {
+		a.wakeWorkAutomation()
+	}
+	return err
 }

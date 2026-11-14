@@ -33,7 +33,7 @@ func scanSpace(row interface{ Scan(...any) error }) (*Space, error) {
 	s := &Space{}
 	var owner sql.NullString
 	var updated databaseTime
-	err := row.Scan(&s.ID, &s.Name, &s.Kind, &owner, &s.Published, &s.DataRevision, &updated)
+	err := row.Scan(&s.ID, &s.Name, &s.Kind, &owner, &s.Published, &s.DataRevision, &updated, &s.WorkNotificationsEnabled, &s.WorkNotificationsRevision, &s.WorkRelationsCount, &s.WorkAutomationEnabled, &s.WorkAutomationRevision, &s.WorkAutomationRuleCount)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func scanSpace(row interface{ Scan(...any) error }) (*Space, error) {
 	return s, nil
 }
 
-const spaceColumns = "id,name,kind,owner_user_id,published,data_revision,updated_at"
+const spaceColumns = "id,name,kind,owner_user_id,published,data_revision,updated_at,work_notifications_enabled,work_notifications_revision,work_relations_count,work_automation_enabled,work_automation_revision,work_automation_rule_count"
 
 func (r *Request) spaceAccess(s *Space) (read, write bool) {
 	if !r.Settings.Initialized {

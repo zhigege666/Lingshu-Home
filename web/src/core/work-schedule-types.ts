@@ -1,7 +1,8 @@
+import { planningDraft, normalizePlanning, type WorkPlanning } from './work-planning-types'
 import { workDraft, type WorkItem, type WorkReference } from './work-types'
 import { workToday, workTimezone } from '../work/work-dates'
 
-export type WorkScheduleTemplate = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'needsAttention' | 'bookmarkIds' | 'documentIds'>
+export type WorkScheduleTemplate = WorkPlanning & Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'needsAttention' | 'bookmarkIds' | 'documentIds'>
 export type WorkScheduleRule = {
   frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly'; time: string; timezone: string;
   startDate: string; endDate?: string; weekdays?: number[]; monthDay?: number;
@@ -30,7 +31,8 @@ export function scheduleDraft(source?: Partial<WorkSchedule>, item?: WorkItem, p
   const base = workDraft(item)
   return {
     name: source?.name || item?.title || '',
-    template: source?.template ? structuredClone(source.template) : {
+    template: source?.template ? { ...structuredClone(source.template), ...planningDraft(source.template) } : {
+      ...planningDraft(item),
       title: item?.title || '', projectId: item?.projectId || projectId || null, status,
       description: base.description, nextStep: base.nextStep, needsAttention: base.needsAttention,
       bookmarkIds: [...base.bookmarkIds], documentIds: [...base.documentIds]
@@ -48,7 +50,7 @@ export function normalizeSchedule(draft: WorkScheduleDraft): WorkScheduleDraft {
   if (rule.dueAfterMinutes !== undefined) { delete rule.dueTime; delete rule.dueDayOffset }
   else if (!rule.dueTime) { delete rule.dueTime; delete rule.dueDayOffset }
   if (!rule.endDate) delete rule.endDate
-  return { ...draft, name: draft.name.trim(), template: { ...draft.template, title: draft.template.title.trim(), bookmarkIds: [...new Set(draft.template.bookmarkIds)].sort(), documentIds: [...new Set(draft.template.documentIds)].sort() }, rule }
+  return { ...draft, name: draft.name.trim(), template: { ...draft.template, ...normalizePlanning(planningDraft(draft.template)), title: draft.template.title.trim(), bookmarkIds: [...new Set(draft.template.bookmarkIds)].sort(), documentIds: [...new Set(draft.template.documentIds)].sort() }, rule }
 }
 
 export function scheduleChanges(base: WorkScheduleDraft, value: WorkScheduleDraft): Partial<WorkScheduleDraft> {

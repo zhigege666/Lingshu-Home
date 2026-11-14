@@ -19,31 +19,33 @@ import (
 )
 
 type App struct {
-	store            *Store
-	config           Config
-	mux              *http.ServeMux
-	writeGate        chan struct{}
-	documentGate     chan struct{}
-	documentScanGate chan struct{}
-	secret           []byte
-	version          string
-	limits           *authLimiter
-	dummyPassword    string
-	ctx              context.Context
-	cancel           context.CancelFunc
-	workers          sync.WaitGroup
-	iconHTTPClient   *http.Client
-	iconFetchGate    chan struct{}
-	integrationWake  chan struct{}
-	workScheduleWake chan struct{}
-	autoIconWake     chan struct{}
-	autoIconMu       sync.Mutex
-	autoIconCancel   context.CancelFunc
-	networkProxy     *networkProxyManager
-	language         atomic.Value
+	store              *Store
+	config             Config
+	mux                *http.ServeMux
+	writeGate          chan struct{}
+	documentGate       chan struct{}
+	documentScanGate   chan struct{}
+	secret             []byte
+	version            string
+	limits             *authLimiter
+	dummyPassword      string
+	ctx                context.Context
+	cancel             context.CancelFunc
+	workers            sync.WaitGroup
+	iconHTTPClient     *http.Client
+	iconFetchGate      chan struct{}
+	integrationWake    chan struct{}
+	workScheduleWake   chan struct{}
+	workAutomationWake chan struct{}
+	autoIconWake       chan struct{}
+	autoIconMu         sync.Mutex
+	autoIconCancel     context.CancelFunc
+	networkProxy       *networkProxyManager
+	language           atomic.Value
 }
 
 type Request struct {
+	WorkSpaceContext    *Space
 	SessionInfo         *SessionRecord
 	App                 *App
 	HTTP                *http.Request
@@ -60,6 +62,7 @@ type Request struct {
 	Bearer              bool
 	WakeIntegrations    bool
 	WakeWorkSchedules   bool
+	WakeWorkAutomation  bool
 	WakeAutoIcons       bool
 	CancelAutoIcons     bool
 	BearerTokenHash     string
@@ -106,6 +109,7 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 	}
 	a := &App{config: c, mux: http.NewServeMux(), writeGate: make(chan struct{}, 1), version: strings.TrimSpace(string(version)), limits: &authLimiter{}, ctx: ctx, cancel: cancel, iconHTTPClient: iconClient, iconFetchGate: make(chan struct{}, 1), integrationWake: make(chan struct{}, 1)}
 	a.workScheduleWake = make(chan struct{}, 1)
+	a.workAutomationWake = make(chan struct{}, 1)
 	a.autoIconWake = make(chan struct{}, 1)
 	a.documentGate = make(chan struct{}, 1)
 	a.documentScanGate = make(chan struct{}, 1)
@@ -127,6 +131,9 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 	if err == nil {
 		err = a.initializeNetworkProxy()
 	}
+	if err == nil {
+		err = a.recoverWorkExecutions(startup)
+	}
 	if err != nil {
 		_ = a.Close()
 		return nil, err
@@ -141,8 +148,10 @@ func openWithIconHTTPClient(c Config, iconClient *http.Client) (*App, error) {
 	a.registerNetworkProxyRoutes()
 	a.registerDocumentRoutes()
 	a.registerWorkRoutes()
+	a.registerWorkAutomationRoutes()
 	a.startIntegrationWorkers()
 	a.startWorkScheduleWorker()
+	a.startWorkAutomationWorker()
 	a.startAutoIconWorker()
 	a.startDocumentWorker()
 	return a, nil
@@ -313,6 +322,9 @@ func (a *App) route(pattern string, write bool, handler handlerFunc) {
 		}
 		if r.WakeWorkSchedules {
 			a.wakeWorkScheduleWorker()
+		}
+		if r.WakeWorkAutomation {
+			a.wakeWorkAutomation()
 		}
 		a.afterAutoIconCommit(r)
 		if response != nil && response.AfterTransaction != nil {

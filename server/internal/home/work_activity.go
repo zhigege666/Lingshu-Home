@@ -74,7 +74,8 @@ func (a *App) recordWorkActivity(r *Request, space, itemID, action, stamp string
 	if session := workRequestSession(r); session != nil {
 		sessionJSON = jsonString(workSessionSnapshot(session))
 	}
-	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_activity(id,item_id,space_id,actor_id,action,origin,occurred_at,item_revision,changes_json,session_json) SELECT ?,id,space_id,?,?,?,?,revision,?,? FROM work_items WHERE id=? AND space_id=?"), newID(), actor, action, workActivityOrigin(r), stamp, string(body), sessionJSON, itemID, space)
+	activityID := newID()
+	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_activity(id,item_id,space_id,actor_id,action,origin,occurred_at,item_revision,changes_json,session_json) SELECT ?,id,space_id,?,?,?,?,revision,?,? FROM work_items WHERE id=? AND space_id=?"), activityID, actor, action, workActivityOrigin(r), stamp, string(body), sessionJSON, itemID, space)
 	if err != nil {
 		return err
 	}
@@ -82,11 +83,17 @@ func (a *App) recordWorkActivity(r *Request, space, itemID, action, stamp string
 	if err == nil && n != 1 {
 		return missing()
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if err = a.recordWorkMetrics(r, space, itemID, action, stamp, changes); err != nil {
+		return err
+	}
+	return a.enqueueWorkActivityAutomation(r, space, itemID, activityID, action, stamp, changes)
 }
 
 func workActivityOrigin(r *Request) string {
-	if origin, _ := r.HTTP.Context().Value(documentActivityOriginKey{}).(string); origin == "scheduler" {
+	if origin, _ := r.HTTP.Context().Value(documentActivityOriginKey{}).(string); origin == "scheduler" || origin == "automation" {
 		return origin
 	}
 	return documentActivityOrigin(r)

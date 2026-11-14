@@ -29,7 +29,7 @@ function changeLabel(change: WorkActivityChange): string {
     const changes = [change.added ? t('新增 {count}', 'Added {count}', { count: change.added }) : '', change.removed ? t('移除 {count}', 'Removed {count}', { count: change.removed }) : ''].filter(Boolean)
     return `${kind}：${changes.join(t('，', ', ')) || t('关联已调整', 'Links changed')}`
   }
-  return ({ businessDate: t('修改业务日期', 'Changed business date'), dueAt: t('修改截止时间', 'Changed due time'), title: t('修改标题', 'Changed title'), description: t('修改说明', 'Changed description'), nextStep: t('更新下一步', 'Changed next step'), result: t('更新结果', 'Changed result'), order: t('调整排序', 'Changed order'), statusDefinition: t('调整状态名称或语义', 'Changed status name or meaning') } as Record<string, string>)[change.field] || t('修改事项字段', 'Changed an item field')
+  return ({ priority: t('修改优先级', 'Changed priority'), labelIds: t('修改标签', 'Changed labels'), assignee: t('修改负责人', 'Changed assignee'), versionId: t('修改版本', 'Changed version'), relations: t('修改事项关系', 'Changed relations'), parentId: t('修改父事项', 'Changed parent item'), blockedByIds: t('修改前置依赖', 'Changed blocking dependencies'), predecessorId: t('修改前一事项', 'Changed previous item'), businessDate: t('修改业务日期', 'Changed business date'), dueAt: t('修改截止时间', 'Changed due time'), title: t('修改标题', 'Changed title'), description: t('修改说明', 'Changed description'), nextStep: t('更新下一步', 'Changed next step'), result: t('更新结果', 'Changed result'), order: t('调整排序', 'Changed order'), statusDefinition: t('调整状态名称或语义', 'Changed status name or meaning') } as Record<string, string>)[change.field] || t('修改事项字段', 'Changed an item field')
 }
 
 export default function WorkActivity({ spaceId, itemId, revision }: { spaceId: string; itemId: string; revision: string }) {
@@ -67,7 +67,7 @@ export default function WorkActivity({ spaceId, itemId, revision }: { spaceId: s
     {loading ? <Loading/> : page && <>
       <ol>{page.items.map(event => <li key={event.id} data-work-activity-id={event.id}>
         <div className="work-activity-heading"><strong>{actionLabel(event.action)}</strong><time dateTime={event.occurredAt} title={formatUpdated(event.occurredAt)}>{formatUpdated(event.occurredAt)}</time></div>
-        <p className="work-activity-actor">{event.actor?.name || t('操作者未记录', 'Actor not recorded')}<span>·</span>{event.origin === 'scheduler' ? t('定时生成', 'Scheduled creation') : event.origin === 'mcp' ? 'MCP' : event.origin === 'api' ? 'API' : t('网页', 'Web')}{event.session && <span className="work-activity-session">{event.session.agentName} · <code title={event.session.id}>{shortWorkSession(event.session.id)}</code></span>}</p>
+        <p className="work-activity-actor">{event.actor?.name || t('操作者未记录', 'Actor not recorded')}<span>·</span>{event.origin === 'automation' ? t('自动化', 'Automation') : event.origin === 'scheduler' ? t('定时生成', 'Scheduled creation') : event.origin === 'mcp' ? 'MCP' : event.origin === 'api' ? 'API' : t('网页', 'Web')}{event.session && <span className="work-activity-session">{event.session.agentName} · <code title={event.session.id}>{shortWorkSession(event.session.id)}</code></span>}</p>
         {event.changes.length > 0 && <ul className="work-activity-changes">{event.changes.map((change, index) => <li key={`${change.field}:${index}`}>{changeLabel(change)}</li>)}</ul>}
       </li>)}</ol>
       {!page.items.length && <p className="work-activity-empty">{t('暂无变更记录', 'No activity recorded yet')}</p>}

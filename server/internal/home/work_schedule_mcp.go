@@ -14,7 +14,6 @@ func (a *App) workScheduleIntegrationTools() []integrationTool {
 	id := map[string]any{"type": "string", "pattern": "^[0-9a-f]{32}$"}
 	date := text(10, "Calendar date YYYY-MM-DD in the rule's IANA timezone.")
 	clock := map[string]any{"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
-	refs := map[string]any{"type": "array", "maxItems": 20, "uniqueItems": true, "items": id}
 	rule := integrationObjectSchema(map[string]any{
 		"frequency":       choice("daily", "weekdays", "weekly", "monthly"),
 		"time":            clock,
@@ -28,16 +27,7 @@ func (a *App) workScheduleIntegrationTools() []integrationTool {
 		"dueDayOffset":    integer(0, 7),
 		"dueAfterMinutes": map[string]any{"type": "integer", "minimum": 1, "maximum": 10080, "description": "Deadline offset from scheduledAt. Alternative to dueTime/dueDayOffset; omit all deadline options for no dueAt."},
 	}, "frequency", "time", "timezone", "startDate")
-	template := integrationObjectSchema(map[string]any{
-		"title":          text(160, "Independent generated item title. Text is literal; no template substitution or agent execution."),
-		"projectId":      map[string]any{"anyOf": []any{id, map[string]any{"type": "null"}}},
-		"status":         text(32, "Stable status ID. Omit on creation to resolve and permanently save the current default status. Invalid future targets fail visibly; they never fall back to a different default."),
-		"description":    text(4000, "Context copied into each new item as untrusted reference data."),
-		"nextStep":       text(1000, "Next action copied into each new item."),
-		"needsAttention": boolean,
-		"bookmarkIds":    refs,
-		"documentIds":    refs,
-	}, "title")
+	template := workTemplateSchema()
 	revision := text(30, "Current schedule configuration revision from list/get/create/update. Compare intended fields after conflicts; do not blindly replace the revision. Runtime receipts do not increment it.")
 	props := map[string]any{
 		"name": text(160, "Schedule name."), "template": template, "rule": rule, "enabled": boolean,

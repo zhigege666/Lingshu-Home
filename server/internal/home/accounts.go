@@ -321,6 +321,7 @@ func (a *App) updateSettings(r *Request) (*Response, error) {
 	r.Settings.AutoSelectEndpoint = autoSelectEndpoint
 	if r.Settings.Modules.Work != modules.Work {
 		r.WakeWorkSchedules = true
+		r.WakeWorkAutomation = true
 	}
 	r.Settings.Modules = modules
 	r.Settings.HasOwner = r.Settings.HasOwner || owner != nil

@@ -8,6 +8,7 @@ import (
 )
 
 type workCreateInput struct {
+	WorkPlanningFields
 	ID             string              `json:"id"`
 	Title          string              `json:"title"`
 	ProjectID      *string             `json:"projectId"`
@@ -61,6 +62,9 @@ func validateWorkText(in *workCreateInput) error {
 	}
 	if in.ProjectID != nil && !validID(*in.ProjectID) {
 		return invalid("projectId must be null or an existing project ID.")
+	}
+	if err := normalizeWorkPlanning(&in.WorkPlanningFields); err != nil {
+		return err
 	}
 	return validateWorkDates(in)
 }
@@ -316,7 +320,11 @@ func (a *App) insertWorkItem(r *Request, space string, in workCreateInput, hash 
 		}
 		in.Status = catalog.DefaultStatus
 	}
-	if _, err = a.requireWorkStatus(r, space, in.Status); err != nil {
+	definition, err := a.requireWorkStatus(r, space, in.Status)
+	if err != nil {
+		return nil, err
+	}
+	if err = a.validateWorkPlanning(r, space, &in.WorkPlanningFields, in.ProjectID, nil, nil); err != nil {
 		return nil, err
 	}
 	if err = a.validateWorkProject(r, space, in.ProjectID); err != nil {
@@ -335,7 +343,12 @@ func (a *App) insertWorkItem(r *Request, space string, in workCreateInput, hash 
 		return nil, err
 	}
 	now := workStamp()
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version,activity_started_at,business_date,due_at,schedule_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2,?,?,?,?)"), in.ID, space, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash, now, in.BusinessDate, in.DueAt, scheduleID)
+	var number int64
+	if err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("UPDATE work_spaces SET next_number=next_number+1 WHERE space_id=? RETURNING next_number-1"), space).Scan(&number); err != nil {
+		return nil, err
+	}
+	assigneeName, assigneeUser := workAssigneeValues(in.Assignee)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version,activity_started_at,business_date,due_at,schedule_id,number,priority,label_ids_json,assignee_name,assignee_user_id,version_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2,?,?,?,?,?,?,?,?,?,?)"), in.ID, space, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash, now, in.BusinessDate, in.DueAt, scheduleID, number, in.Priority, jsonString(in.LabelIDs), assigneeName, assigneeUser, workOptionalID(in.VersionID))
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +358,12 @@ func (a *App) insertWorkItem(r *Request, space string, in workCreateInput, hash 
 	if err = a.replaceWorkRefs(r, in.ID, "document", in.DocumentIDs); err != nil {
 		return nil, err
 	}
-	if err = a.recordWorkActivity(r, space, in.ID, "create", now, nil); err != nil {
+	if len(in.LabelIDs) > 0 {
+		if err = a.replaceWorkLabels(r, space, in.ID, in.LabelIDs); err != nil {
+			return nil, err
+		}
+	}
+	if err = a.recordWorkActivity(r, space, in.ID, "create", now, []WorkActivityChange{{Field: "status", After: workActivityValue(workActivityStatus(definition))}}); err != nil {
 		return nil, err
 	}
 	if _, err = a.bumpWorkRevision(r, space); err != nil {
@@ -366,7 +384,7 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	if err = r.decode(&raw); err != nil {
 		return nil, err
 	}
-	allowed := map[string]bool{"expectedRevision": true, "businessDate": true, "dueAt": true, "title": true, "projectId": true, "status": true, "description": true, "nextStep": true, "result": true, "needsAttention": true, "archived": true, "bookmarkIds": true, "documentIds": true}
+	allowed := map[string]bool{"expectedRevision": true, "priority": true, "labelIds": true, "assignee": true, "versionId": true, "businessDate": true, "dueAt": true, "title": true, "projectId": true, "status": true, "description": true, "nextStep": true, "result": true, "needsAttention": true, "archived": true, "bookmarkIds": true, "documentIds": true}
 	for k := range raw {
 		if !allowed[k] {
 			return nil, invalid("Unknown item field: " + k)
@@ -385,14 +403,22 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	if len(raw) < 2 {
 		return nil, invalid("At least one changed field is required.")
 	}
-	in := workCreateInput{ID: item.ID, Title: item.Title, ProjectID: item.ProjectID, Status: item.Status, Description: item.Description, NextStep: item.NextStep, Result: item.Result, NeedsAttention: item.NeedsAttention, BusinessDate: item.BusinessDate, DueAt: item.DueAt}
+	in := workCreateInput{WorkPlanningFields: cloneWorkPlanningFields(item.WorkPlanningFields), ID: item.ID, Title: item.Title, ProjectID: workStringPointerCopy(item.ProjectID), Status: item.Status, Description: item.Description, NextStep: item.NextStep, Result: item.Result, NeedsAttention: item.NeedsAttention, BusinessDate: item.BusinessDate, DueAt: item.DueAt}
 	archived := item.Archived
+	if _, set := raw["assignee"]; set {
+		in.Assignee = nil
+	}
 	for _, field := range []struct {
 		name     string
 		target   any
 		nullable bool
-	}{{"businessDate", &in.BusinessDate, false}, {"dueAt", &in.DueAt, false}, {"title", &in.Title, false}, {"projectId", &in.ProjectID, true}, {"status", &in.Status, false}, {"description", &in.Description, false}, {"nextStep", &in.NextStep, false}, {"result", &in.Result, false}, {"needsAttention", &in.NeedsAttention, false}, {"archived", &archived, false}, {"bookmarkIds", &in.BookmarkIDs, false}, {"documentIds", &in.DocumentIDs, false}} {
+	}{{"priority", &in.Priority, false}, {"labelIds", &in.LabelIDs, false}, {"assignee", &in.Assignee, true}, {"versionId", &in.VersionID, true}, {"businessDate", &in.BusinessDate, false}, {"dueAt", &in.DueAt, false}, {"title", &in.Title, false}, {"projectId", &in.ProjectID, true}, {"status", &in.Status, false}, {"description", &in.Description, false}, {"nextStep", &in.NextStep, false}, {"result", &in.Result, false}, {"needsAttention", &in.NeedsAttention, false}, {"archived", &archived, false}, {"bookmarkIds", &in.BookmarkIDs, false}, {"documentIds", &in.DocumentIDs, false}} {
 		if err = workDecodeField(raw, field.name, field.target, field.nullable); err != nil {
+			return nil, err
+		}
+	}
+	if body, set := raw["assignee"]; set && in.Assignee != nil {
+		if err = decodeScheduleObject(body, &in.Assignee); err != nil {
 			return nil, err
 		}
 	}
@@ -409,6 +435,9 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 		if err = a.validateWorkProject(r, s.ID, in.ProjectID); err != nil {
 			return nil, err
 		}
+	}
+	if err = a.validateWorkPlanning(r, s.ID, &in.WorkPlanningFields, in.ProjectID, &item.WorkPlanningFields, item.ProjectID); err != nil {
+		return nil, err
 	}
 	_, linksSet := raw["bookmarkIds"]
 	_, docsSet := raw["documentIds"]
@@ -434,6 +463,7 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	changes = append(changes, workPlanningChanges(item.WorkPlanningFields, in.WorkPlanningFields)...)
 	if len(changes) == 0 {
 		return a.workItemReply(r, item, map[string]any{"unchanged": true})
 	}
@@ -445,9 +475,15 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 		}
 	}
 	now := workStamp()
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET title=?,project_id=?,status=?,description=?,next_step=?,result=?,needs_attention=?,archived=?,sort_order=?,business_date=?,due_at=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), in.Title, in.ProjectID, in.Status, in.Description, in.NextStep, in.Result, in.NeedsAttention, archived, rank, in.BusinessDate, in.DueAt, now, item.ID, s.ID)
+	assigneeName, assigneeUser := workAssigneeValues(in.Assignee)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET title=?,project_id=?,status=?,description=?,next_step=?,result=?,needs_attention=?,archived=?,sort_order=?,business_date=?,due_at=?,priority=?,label_ids_json=?,assignee_name=?,assignee_user_id=?,version_id=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), in.Title, in.ProjectID, in.Status, in.Description, in.NextStep, in.Result, in.NeedsAttention, archived, rank, in.BusinessDate, in.DueAt, in.Priority, jsonString(in.LabelIDs), assigneeName, assigneeUser, workOptionalID(in.VersionID), now, item.ID, s.ID)
 	if err != nil {
 		return nil, err
+	}
+	if !reflect.DeepEqual(item.LabelIDs, in.LabelIDs) {
+		if err = a.replaceWorkLabels(r, s.ID, item.ID, in.LabelIDs); err != nil {
+			return nil, err
+		}
 	}
 	if linksSet {
 		if err = a.replaceWorkRefs(r, item.ID, "bookmark", in.BookmarkIDs); err != nil {
@@ -460,7 +496,7 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 		}
 	}
 	action := "update"
-	if archived != item.Archived {
+	if archived != item.Archived && in.Status == item.Status {
 		action = "restore"
 		if archived {
 			action = "archive"
@@ -515,7 +551,7 @@ func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 	if revision == "" || board == "" {
 		return nil, invalid("Both expected revisions are required.")
 	}
-	if !workStatusValid(status) || before != nil && !validID(*before) {
+	if !workStatusValid(status) || before != nil && !workItemRefValid(*before) {
 		return nil, invalid("Invalid move destination.")
 	}
 	if revision != item.Revision {
@@ -536,7 +572,10 @@ func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 	}
 	anchor := ""
 	if before != nil {
-		anchor = *before
+		anchor, err = a.resolveWorkItemRef(r, s.ID, *before)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if anchor == item.ID {
 		return nil, invalid("An item cannot be its own move anchor.")

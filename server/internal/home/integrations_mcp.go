@@ -82,8 +82,8 @@ func (a *App) registerIntegrationRoutes() {
 		if tool.name == "work_sessions_open" || tool.name == "work_events_append" || tool.name == "work_claims_renew" {
 			destructive = false
 		}
-		openWorld := tool.name == "sources_create" || tool.name == "sources_update" || tool.name == "sources_sync"
-		idempotent := tool.name == "sources_snapshot_push" || tool.name == "sources_update" || tool.name == "page_update" || strings.HasSuffix(tool.name, "_delete") || tool.name == "work_items_create" || tool.name == "work_projects_create" || tool.name == "work_schedules_create" || tool.name == "work_schedules_generate" || workCollaborationIdempotentTool(tool.name)
+		openWorld := tool.name == "sources_create" || tool.name == "sources_update" || tool.name == "sources_sync" || workAutomationOpenWorldTool(tool.name)
+		idempotent := tool.name == "sources_snapshot_push" || tool.name == "sources_update" || tool.name == "page_update" || strings.HasSuffix(tool.name, "_delete") || tool.name == "work_items_create" || tool.name == "work_projects_create" || tool.name == "work_schedules_create" || tool.name == "work_schedules_generate" || workCollaborationIdempotentTool(tool.name) || workAutomationIdempotentTool(tool.name)
 		annotations := &mcp.ToolAnnotations{ReadOnlyHint: !tool.write, DestructiveHint: &destructive, IdempotentHint: idempotent, OpenWorldHint: &openWorld}
 		server.AddTool(&mcp.Tool{Name: tool.name, Description: tool.description, InputSchema: schema, Annotations: annotations}, func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			response, err := a.callIntegrationTool(ctx, request, tool)
@@ -226,7 +226,7 @@ func (a *App) integrationTools() []integrationTool {
 	navigation := integrationObjectSchema(map[string]any{"categories": map[string]any{"type": "array", "maxItems": 5000, "items": externalCategory}, "links": map[string]any{"type": "array", "maxItems": 10000, "items": integrationObjectSchema(externalLinkProps, "externalId", "title", "url")}}, "categories", "links")
 	snapshot := integrationObjectSchema(map[string]any{"requestId": str(128), "expectedRevision": str(30), "sourceSequence": integer, "schemaId": str(100), "schemaVersion": integer, "sourceUpdatedAt": nullable(), "data": map[string]any{"anyOf": []any{navigation, map[string]any{"type": "object"}}}}, "requestId", "schemaId", "schemaVersion", "data")
 	page := integrationObjectSchema(map[string]any{"name": str(100), "expectedRevision": str(30), "config": map[string]any{"type": "object"}}, "name", "expectedRevision", "config")
-	return append(append([]integrationTool{
+	return append(append(append([]integrationTool{
 		{"space_current", "当前空间与工作流入口：read the token-bound space, module switches, effective capabilities and workflow.enabled/version/guide. Use when starting tracked work without context or after authorization changes; reuse known context. No Skills, resource/prompt discovery or replacement token is required. Does not grant permissions or execute work.", nil, nil, false, a.integrationCurrentSpace},
 		{"navigation_get", "Read the complete local navigation and its revision; requires navigation:read. Use this revision for navigation_batch_edit.", []string{"spaceId"}, nil, false, a.getNavigation},
 		{"navigation_batch_edit", "Atomically delete selected bookmarks, create categories/bookmarks, apply field patches, then stable-ID moves. Up to 500 operations combined. deleteLinkIds must be unique and cannot also be created, patched, moved or used as move anchors. beforeId:null appends; link moves require categoryId (null means Uncategorized); category moves stay under the patched parent. Requires navigation:write and the expected navigation revision. Unchanged fields and hidden siblings are retained. Returns deletedLinkIds for confirmed deletions; existing usage notes are not replaced by patches. After an uncertain result read back by ID before retrying.", []string{"spaceId"}, navigationBatchEditSchema(link, category), true, a.batchEditNavigation},
@@ -252,7 +252,7 @@ func (a *App) integrationTools() []integrationTool {
 		{"sources_sync", "Queue an enabled polling source; success means queued, not finished.", []string{"id"}, integrationObjectSchema(map[string]any{}), true, a.queueIntegrationSync},
 		{"page_get", "Read a page configuration; requires pages:read.", []string{"spaceId"}, nil, false, a.getIntegrationPage},
 		{"page_update", "Save a page with expectedRevision; requires pages:write and read access to each binding.", []string{"spaceId"}, page, true, a.updatePage},
-	}, a.documentIntegrationTools()...), a.workIntegrationTools()...)
+	}, a.documentIntegrationTools()...), a.workIntegrationTools()...), a.workAutomationIntegrationTools()...)
 }
 func (a *App) callIntegrationTool(ctx context.Context, request *mcp.CallToolRequest, tool integrationTool) (*Response, error) {
 	if request == nil || request.Params == nil || request.Extra == nil {
@@ -355,6 +355,9 @@ func (a *App) callIntegrationTool(ctx context.Context, request *mcp.CallToolRequ
 	}
 	if r.WakeWorkSchedules {
 		a.wakeWorkScheduleWorker()
+	}
+	if r.WakeWorkAutomation {
+		a.wakeWorkAutomation()
 	}
 	a.afterAutoIconCommit(r)
 	if response != nil && response.AfterTransaction != nil {

@@ -9,18 +9,25 @@ import (
 )
 
 type workFilter struct {
-	Date         string `json:"date"`
-	Timezone     string `json:"timezone"`
-	BusinessDate string `json:"businessDate"`
-	cutoff       string
-	Q            string `json:"q"`
-	ItemID       string `json:"itemId"`
-	ProjectID    string `json:"projectId"`
-	Status       string `json:"status"`
-	Archived     bool   `json:"archived"`
-	Attention    bool   `json:"attention"`
-	Limit        int    `json:"limit"`
-	Cursor       string `json:"cursor"`
+	Priority       string   `json:"priority"`
+	LabelIDs       []string `json:"labelIds"`
+	AssigneeUserID string   `json:"assigneeUserId"`
+	VersionID      string   `json:"versionId"`
+	ParentID       string   `json:"parentId"`
+	Blocked        *bool    `json:"blocked"`
+	Fields         []string `json:"fields"`
+	Date           string   `json:"date"`
+	Timezone       string   `json:"timezone"`
+	BusinessDate   string   `json:"businessDate"`
+	cutoff         string
+	Q              string `json:"q"`
+	ItemID         string `json:"itemId"`
+	ProjectID      string `json:"projectId"`
+	Status         string `json:"status"`
+	Archived       bool   `json:"archived"`
+	Attention      bool   `json:"attention"`
+	Limit          int    `json:"limit"`
+	Cursor         string `json:"cursor"`
 }
 type workCursor struct {
 	Cutoff   string `json:"a,omitempty"`
@@ -57,6 +64,19 @@ func readWorkFilter(r *Request) (workFilter, error) {
 	} else {
 		q := r.HTTP.URL.Query()
 		in.Q = q.Get("q")
+		in.Priority = q.Get("priority")
+		in.LabelIDs = q["labelIds"]
+		in.AssigneeUserID = q.Get("assigneeUserId")
+		in.VersionID = q.Get("versionId")
+		in.ParentID = q.Get("parentId")
+		in.Fields = q["fields"]
+		if v := q.Get("blocked"); v != "" {
+			if v != "true" && v != "false" {
+				return in, invalid("blocked must be true or false.")
+			}
+			b := v == "true"
+			in.Blocked = &b
+		}
 		in.Date = q.Get("date")
 		in.Timezone = q.Get("timezone")
 		in.BusinessDate = q.Get("businessDate")
@@ -96,7 +116,7 @@ func readWorkFilter(r *Request) (workFilter, error) {
 	if in.ProjectID != "" && in.ProjectID != "none" && !validID(in.ProjectID) {
 		return in, invalid("Invalid projectId.")
 	}
-	if in.ItemID != "" && !validID(in.ItemID) {
+	if in.ItemID != "" && !workItemRefValid(in.ItemID) {
 		return in, invalid("Invalid itemId.")
 	}
 	if in.Date != "" && in.Date != "today" && in.Date != "overdue" {
@@ -137,6 +157,9 @@ func readWorkFilter(r *Request) (workFilter, error) {
 			in.cutoff = cursor.Cutoff
 		}
 	}
+	if err := workPlanningFilterValid(&in, r); err != nil {
+		return in, err
+	}
 	return in, nil
 }
 func (in workFilter) fingerprint(space string) string {
@@ -146,6 +169,9 @@ func (in workFilter) fingerprint(space string) string {
 	}
 	if in.Date != "" || in.BusinessDate != "" || in.Timezone != "" {
 		values = append(values, in.Date, in.BusinessDate, in.Timezone)
+	}
+	if in.Priority != "" || len(in.LabelIDs) > 0 || in.AssigneeUserID != "" || in.VersionID != "" || in.ParentID != "" || in.Blocked != nil {
+		values = append(values, in.Priority, in.LabelIDs, in.AssigneeUserID, in.VersionID, in.ParentID, in.Blocked)
 	}
 	return workPayloadHash(values)
 }
@@ -180,6 +206,39 @@ func (in workFilter) where(space string) (string, []any) {
 	if in.Attention {
 		where += " AND w.needs_attention=?"
 		args = append(args, true)
+	}
+	if in.Priority == "none" {
+		where += " AND w.priority=''"
+	} else if in.Priority != "" {
+		where += " AND w.priority<>'' AND w.priority=?"
+		args = append(args, in.Priority)
+	}
+	for _, label := range in.LabelIDs {
+		where += " AND EXISTS(SELECT 1 FROM work_item_labels il WHERE il.item_id=w.id AND il.label_id=?)"
+		args = append(args, label)
+	}
+	if in.AssigneeUserID != "" {
+		where += " AND w.assignee_user_id<>'' AND w.assignee_user_id=?"
+		args = append(args, in.AssigneeUserID)
+	}
+	if in.VersionID == "none" {
+		where += " AND w.version_id=''"
+	} else if in.VersionID != "" {
+		where += " AND w.version_id<>'' AND w.version_id=?"
+		args = append(args, in.VersionID)
+	}
+	if in.ParentID == "none" {
+		where += " AND w.parent_id=''"
+	} else if in.ParentID != "" {
+		where += " AND w.parent_id<>'' AND w.parent_id=?"
+		args = append(args, in.ParentID)
+	}
+	if in.Blocked != nil {
+		if *in.Blocked {
+			where += " AND " + workBlockedPredicate("w")
+		} else {
+			where += " AND NOT (" + workBlockedPredicate("w") + ")"
+		}
 	}
 	if in.Q != "" {
 		where += " AND (LOWER(w.title) LIKE ? ESCAPE '\\' OR LOWER(w.next_step) LIKE ? ESCAPE '\\' OR LOWER(w.description) LIKE ? ESCAPE '\\' OR LOWER(w.result) LIKE ? ESCAPE '\\')"
@@ -274,6 +333,9 @@ func (a *App) listWorkItems(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = a.resolveWorkFilterRefs(r, s.ID, &in); err != nil {
+		return nil, err
+	}
 	revision, err := a.workRevision(r, s.ID)
 	if err != nil {
 		return nil, err
@@ -286,6 +348,13 @@ func (a *App) listWorkItems(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = a.decorateWorkPlanning(r, s.ID, workSummaryPointers(page.Items), in.Fields); err != nil {
+		return nil, err
+	}
+	if err = a.decorateWorkWIP(r, s.ID, catalog); err != nil {
+		return nil, err
+	}
+	page.Statuses = catalog.Items
 	return ok(page), nil
 }
 func (a *App) getWorkBoard(r *Request) (*Response, error) {
@@ -299,6 +368,9 @@ func (a *App) getWorkBoard(r *Request) (*Response, error) {
 	}
 	if in.Status != "" || in.Cursor != "" {
 		return nil, invalid("Use items for status-specific or cursor requests.")
+	}
+	if err = a.resolveWorkFilterRefs(r, s.ID, &in); err != nil {
+		return nil, err
 	}
 	revision, err := a.workRevision(r, s.ID)
 	if err != nil {
@@ -338,6 +410,16 @@ func (a *App) getWorkBoard(r *Request) (*Response, error) {
 			return nil, err
 		}
 		columns = append(columns, workColumn{Status: status, Total: page.Total, Items: page.Items, NextCursor: page.NextCursor})
+	}
+	all := []*WorkSummary{}
+	for i := range columns {
+		all = append(all, workSummaryPointers(columns[i].Items)...)
+	}
+	if err = a.decorateWorkPlanning(r, s.ID, all, in.Fields); err != nil {
+		return nil, err
+	}
+	if err = a.decorateWorkWIP(r, s.ID, catalog); err != nil {
+		return nil, err
 	}
 	collaborationRevision, err := a.workCollaborationRevision(r, s.ID)
 	if err != nil {
