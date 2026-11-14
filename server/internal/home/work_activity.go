@@ -74,7 +74,7 @@ func (a *App) recordWorkActivity(r *Request, space, itemID, action, stamp string
 	if session := workRequestSession(r); session != nil {
 		sessionJSON = jsonString(workSessionSnapshot(session))
 	}
-	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_activity(id,item_id,space_id,actor_id,action,origin,occurred_at,item_revision,changes_json,session_json) SELECT ?,id,space_id,?,?,?,?,revision,?,? FROM work_items WHERE id=? AND space_id=?"), newID(), actor, action, documentActivityOrigin(r), stamp, string(body), sessionJSON, itemID, space)
+	result, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_activity(id,item_id,space_id,actor_id,action,origin,occurred_at,item_revision,changes_json,session_json) SELECT ?,id,space_id,?,?,?,?,revision,?,? FROM work_items WHERE id=? AND space_id=?"), newID(), actor, action, workActivityOrigin(r), stamp, string(body), sessionJSON, itemID, space)
 	if err != nil {
 		return err
 	}
@@ -83,6 +83,13 @@ func (a *App) recordWorkActivity(r *Request, space, itemID, action, stamp string
 		return missing()
 	}
 	return err
+}
+
+func workActivityOrigin(r *Request) string {
+	if origin, _ := r.HTTP.Context().Value(documentActivityOriginKey{}).(string); origin == "scheduler" {
+		return origin
+	}
+	return documentActivityOrigin(r)
 }
 
 func workActivityValue(value any) json.RawMessage {
@@ -147,6 +154,11 @@ func (a *App) workItemChanges(r *Request, before *WorkItem, after workCreateInpu
 	} {
 		if text.before != text.after {
 			changes = append(changes, WorkActivityChange{Field: text.field})
+		}
+	}
+	for _, date := range []struct{ field, before, after string }{{"businessDate", before.BusinessDate, after.BusinessDate}, {"dueAt", before.DueAt, after.DueAt}} {
+		if date.before != date.after {
+			changes = append(changes, WorkActivityChange{Field: date.field, Before: workActivityValue(date.before), After: workActivityValue(date.after)})
 		}
 	}
 	if before.Status != after.Status {

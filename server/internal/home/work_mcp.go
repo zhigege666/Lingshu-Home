@@ -1,6 +1,6 @@
 package home
 
-const workMCPInstructions = "事项/任务/看板: work tools manage work items, projects and space-wide status columns; they do not execute or schedule agents. " +
+const workMCPInstructions = "事项/任务/看板: work tools manage work items, projects and space-wide status columns; they do not execute or schedule agents. work_schedules_* manages recurring independent item creation, including preview, pause/resume, manual occurrence generation and paged receipts. businessDate and dueAt are item metadata; list/board accepts date=today|overdue with an IANA timezone. " +
 	"Read work_board_get or work_items_list for work and its status metadata, or work_statuses_get for only the status catalog. Reuse known context; no preliminary lookup is required on every call. " +
 	"Use each status's stable id as the status value, not its display name. Its type defines meaning: todo, doing, waiting, done or canceled; canceled is not successful completion. needsAttention and archived are independent. " +
 	workTaskBoundaryInstructions + " " +
@@ -35,6 +35,8 @@ func (a *App) workIntegrationTools() []integrationTool {
 	projectRevision := text(30, "The project's revision from work_projects_list or its last successful write. On a conflict, reread the project list and compare the intended changes before writing again.")
 	properties := map[string]any{
 		"title":          str(160),
+		"businessDate":   text(10, "YYYY-MM-DD business date. Omit to preserve on update; empty clears."),
+		"dueAt":          text(40, "RFC3339 deadline including offset. Omit to preserve on update; empty clears. scheduleId is read-only provenance."),
 		"projectId":      described(nullableID, "ID from work_projects_list, or null for no project. Omitted on update preserves the project; omitted on create creates unassigned work."),
 		"status":         status,
 		"description":    text(4000, "Work context as reference data. Supplied text replaces this field; omit it on update to preserve existing content."),
@@ -59,12 +61,15 @@ func (a *App) workIntegrationTools() []integrationTool {
 	update := integrationObjectSchema(updateProps, "expectedRevision")
 	update["minProperties"] = 2
 	filters := map[string]any{
-		"q":         text(200, "Search title, description, next step and result. An omitted or empty query matches all text."),
-		"itemId":    described(id, "Optional exact canonical item ID from a prior read or write receipt. Intersects the current space and all other filters; missing or out-of-space IDs return no matches. Use it to locate a known item without changing its order, clearing incompatible filters deliberately when appropriate. Omit for the full filtered collection."),
-		"projectId": text(32, "A project ID from work_projects_list; use the literal none for unassigned work. Omit for all projects."),
-		"archived":  described(boolean, "Defaults to false for active work. true selects archived work only."),
-		"attention": described(boolean, "true selects only needsAttention items. Omitted or false does not filter by attention; it does not mean waiting status."),
-		"limit":     map[string]any{"type": "integer", "minimum": 1, "maximum": 100, "description": "Default 30; maximum 100. For work_board_get this is the number of summaries per column."},
+		"date":         map[string]any{"type": "string", "enum": []string{"today", "overdue"}, "description": "today selects businessDate in timezone; overdue selects dueAt before now, excluding done/canceled states. Alternative to businessDate."},
+		"timezone":     text(100, "IANA timezone for date filters; UTC when omitted."),
+		"businessDate": text(10, "Exact YYYY-MM-DD business date, alternative to date."),
+		"q":            text(200, "Search title, description, next step and result. An omitted or empty query matches all text."),
+		"itemId":       described(id, "Optional exact canonical item ID from a prior read or write receipt. Intersects the current space and all other filters; missing or out-of-space IDs return no matches. Use it to locate a known item without changing its order, clearing incompatible filters deliberately when appropriate. Omit for the full filtered collection."),
+		"projectId":    text(32, "A project ID from work_projects_list; use the literal none for unassigned work. Omit for all projects."),
+		"archived":     described(boolean, "Defaults to false for active work. true selects archived work only."),
+		"attention":    described(boolean, "true selects only needsAttention items. Omitted or false does not filter by attention; it does not mean waiting status."),
+		"limit":        map[string]any{"type": "integer", "minimum": 1, "maximum": 100, "description": "Default 30; maximum 100. For work_board_get this is the number of summaries per column."},
 	}
 	itemFilters := map[string]any{
 		"status": status,
@@ -132,5 +137,5 @@ func (a *App) workIntegrationTools() []integrationTool {
 		}
 		tools[i].description = workCollaborationDiscovery + tools[i].description
 	}
-	return append(tools, a.workCollaborationIntegrationTools()...)
+	return append(append(tools, a.workCollaborationIntegrationTools()...), a.workScheduleIntegrationTools()...)
 }

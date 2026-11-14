@@ -186,8 +186,13 @@ func TestMCPCollaborationDiscoveryAndCapabilities(t *testing.T) {
 					t.Fatalf("gateway search prefix lost collaboration discovery: %s", name)
 				}
 			}
-			if len(catalog) != 55 || catalog["work_claims_resolve"] != nil {
+			if len(catalog) != 62 || catalog["work_claims_resolve"] != nil {
 				t.Fatal("MCP exposed a human-only override or unexpected tool catalog")
+			}
+			for _, name := range []string{"work_schedules_list", "work_schedules_get", "work_schedules_create", "work_schedules_update", "work_schedules_preview", "work_schedules_generate", "work_schedules_occurrences"} {
+				if catalog[name] == nil {
+					t.Fatalf("Missing schedule MCP tool: %s", name)
+				}
 			}
 			for _, name := range []string{"work_items_create", "work_items_update", "work_items_move"} {
 				schema := integrationObject(t, catalog[name]["inputSchema"])

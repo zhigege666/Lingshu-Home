@@ -18,6 +18,8 @@ type workCreateInput struct {
 	NeedsAttention bool                `json:"needsAttention"`
 	BookmarkIDs    []string            `json:"bookmarkIds"`
 	DocumentIDs    []string            `json:"documentIds"`
+	BusinessDate   string              `json:"businessDate,omitempty"`
+	DueAt          string              `json:"dueAt,omitempty"`
 	Placement      workCreatePlacement `json:"placement,omitempty"`
 }
 
@@ -60,7 +62,7 @@ func validateWorkText(in *workCreateInput) error {
 	if in.ProjectID != nil && !validID(*in.ProjectID) {
 		return invalid("projectId must be null or an existing project ID.")
 	}
-	return nil
+	return validateWorkDates(in)
 }
 func (a *App) validateWorkProject(r *Request, space string, id *string) error {
 	if id == nil {
@@ -293,33 +295,47 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 		}
 		return a.workItemReply(r, existing, map[string]any{"replayed": true})
 	}
+	item, err := a.insertWorkItem(r, s.ID, in, hash, docsSet, "")
+	if err != nil {
+		return nil, err
+	}
+	if err = a.finishWorkCreation(r, item, collaborationContext, operationHash); err != nil {
+		return nil, err
+	}
+	return a.workItemReply(r, item, map[string]any{"created": true})
+}
+
+// insertWorkItem is shared by interactive and scheduled creation. Callers supply
+// validated text/IDs; target and reference authorization is checked here.
+func (a *App) insertWorkItem(r *Request, space string, in workCreateInput, hash string, docsSet bool, scheduleID string) (*WorkItem, error) {
+	var err error
 	if in.Status == "" {
-		catalog, err := a.loadWorkStatuses(r, s.ID, false)
+		catalog, err := a.loadWorkStatuses(r, space, false)
 		if err != nil {
 			return nil, err
 		}
 		in.Status = catalog.DefaultStatus
 	}
-	if _, err = a.requireWorkStatus(r, s.ID, in.Status); err != nil {
+	if _, err = a.requireWorkStatus(r, space, in.Status); err != nil {
 		return nil, err
 	}
-	if err = a.validateWorkProject(r, s.ID, in.ProjectID); err != nil {
+	if err = a.validateWorkProject(r, space, in.ProjectID); err != nil {
 		return nil, err
 	}
-	if err = a.validateWorkRefs(r, s.ID, in.ID, "bookmark", in.BookmarkIDs); err != nil {
+	if err = a.validateWorkRefs(r, space, in.ID, "bookmark", in.BookmarkIDs); err != nil {
 		return nil, err
 	}
 	if docsSet {
-		if err = a.validateWorkRefs(r, s.ID, in.ID, "document", in.DocumentIDs); err != nil {
+		if err = a.validateWorkRefs(r, space, in.ID, "document", in.DocumentIDs); err != nil {
 			return nil, err
 		}
 	}
-	rank, err := a.createWorkRank(r, s.ID, in.Status, in.ID, in.Placement)
+	rank, err := a.createWorkRank(r, space, in.Status, in.ID, in.Placement)
 	if err != nil {
 		return nil, err
 	}
 	now := workStamp()
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version,activity_started_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2,?)"), in.ID, s.ID, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash, now)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version,activity_started_at,business_date,due_at,schedule_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2,?,?,?,?)"), in.ID, space, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash, now, in.BusinessDate, in.DueAt, scheduleID)
 	if err != nil {
 		return nil, err
 	}
@@ -329,20 +345,13 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err = a.replaceWorkRefs(r, in.ID, "document", in.DocumentIDs); err != nil {
 		return nil, err
 	}
-	if err = a.recordWorkActivity(r, s.ID, in.ID, "create", now, nil); err != nil {
+	if err = a.recordWorkActivity(r, space, in.ID, "create", now, nil); err != nil {
 		return nil, err
 	}
-	if _, err = a.bumpWorkRevision(r, s.ID); err != nil {
+	if _, err = a.bumpWorkRevision(r, space); err != nil {
 		return nil, err
 	}
-	item, err := a.loadWorkItem(r, s.ID, in.ID)
-	if err != nil {
-		return nil, err
-	}
-	if err = a.finishWorkCreation(r, item, collaborationContext, operationHash); err != nil {
-		return nil, err
-	}
-	return a.workItemReply(r, item, map[string]any{"created": true})
+	return a.loadWorkItem(r, space, in.ID)
 }
 func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	s, err := r.workSpace(true)
@@ -357,7 +366,7 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	if err = r.decode(&raw); err != nil {
 		return nil, err
 	}
-	allowed := map[string]bool{"expectedRevision": true, "title": true, "projectId": true, "status": true, "description": true, "nextStep": true, "result": true, "needsAttention": true, "archived": true, "bookmarkIds": true, "documentIds": true}
+	allowed := map[string]bool{"expectedRevision": true, "businessDate": true, "dueAt": true, "title": true, "projectId": true, "status": true, "description": true, "nextStep": true, "result": true, "needsAttention": true, "archived": true, "bookmarkIds": true, "documentIds": true}
 	for k := range raw {
 		if !allowed[k] {
 			return nil, invalid("Unknown item field: " + k)
@@ -376,13 +385,13 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	if len(raw) < 2 {
 		return nil, invalid("At least one changed field is required.")
 	}
-	in := workCreateInput{ID: item.ID, Title: item.Title, ProjectID: item.ProjectID, Status: item.Status, Description: item.Description, NextStep: item.NextStep, Result: item.Result, NeedsAttention: item.NeedsAttention}
+	in := workCreateInput{ID: item.ID, Title: item.Title, ProjectID: item.ProjectID, Status: item.Status, Description: item.Description, NextStep: item.NextStep, Result: item.Result, NeedsAttention: item.NeedsAttention, BusinessDate: item.BusinessDate, DueAt: item.DueAt}
 	archived := item.Archived
 	for _, field := range []struct {
 		name     string
 		target   any
 		nullable bool
-	}{{"title", &in.Title, false}, {"projectId", &in.ProjectID, true}, {"status", &in.Status, false}, {"description", &in.Description, false}, {"nextStep", &in.NextStep, false}, {"result", &in.Result, false}, {"needsAttention", &in.NeedsAttention, false}, {"archived", &archived, false}, {"bookmarkIds", &in.BookmarkIDs, false}, {"documentIds", &in.DocumentIDs, false}} {
+	}{{"businessDate", &in.BusinessDate, false}, {"dueAt", &in.DueAt, false}, {"title", &in.Title, false}, {"projectId", &in.ProjectID, true}, {"status", &in.Status, false}, {"description", &in.Description, false}, {"nextStep", &in.NextStep, false}, {"result", &in.Result, false}, {"needsAttention", &in.NeedsAttention, false}, {"archived", &archived, false}, {"bookmarkIds", &in.BookmarkIDs, false}, {"documentIds", &in.DocumentIDs, false}} {
 		if err = workDecodeField(raw, field.name, field.target, field.nullable); err != nil {
 			return nil, err
 		}
@@ -436,7 +445,7 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 		}
 	}
 	now := workStamp()
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET title=?,project_id=?,status=?,description=?,next_step=?,result=?,needs_attention=?,archived=?,sort_order=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), in.Title, in.ProjectID, in.Status, in.Description, in.NextStep, in.Result, in.NeedsAttention, archived, rank, now, item.ID, s.ID)
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET title=?,project_id=?,status=?,description=?,next_step=?,result=?,needs_attention=?,archived=?,sort_order=?,business_date=?,due_at=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), in.Title, in.ProjectID, in.Status, in.Description, in.NextStep, in.Result, in.NeedsAttention, archived, rank, in.BusinessDate, in.DueAt, now, item.ID, s.ID)
 	if err != nil {
 		return nil, err
 	}

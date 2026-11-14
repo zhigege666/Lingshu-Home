@@ -24,6 +24,9 @@ type WorkSummary struct {
 	ProjectID      *string            `json:"projectId"`
 	ProjectName    string             `json:"projectName"`
 	Title          string             `json:"title"`
+	BusinessDate   string             `json:"businessDate,omitempty"`
+	DueAt          string             `json:"dueAt,omitempty"`
+	ScheduleID     string             `json:"scheduleId,omitempty"`
 	Status         string             `json:"status"`
 	NextStep       string             `json:"nextStep"`
 	NeedsAttention bool               `json:"needsAttention"`
@@ -69,6 +72,7 @@ type WorkProject struct {
 func (a *App) registerWorkRoutes() {
 	base := "/api/v1/spaces/{spaceId}/work"
 	a.registerWorkCollaborationRoutes(base)
+	a.registerWorkScheduleRoutes(base)
 	a.route("GET "+base+"/statuses", false, a.getWorkStatuses)
 	a.route("POST "+base+"/statuses/batch-edit", true, a.batchEditWorkStatuses)
 	a.route("GET "+base+"/revision", false, a.getWorkRevision)
@@ -162,12 +166,12 @@ func (a *App) workSummaryColumns(r *Request) string {
 	if r.workReads("documents:read") {
 		count += "+(SELECT COUNT(*) FROM work_item_documents wd WHERE wd.item_id=w.id)"
 	}
-	return "w.id,w.space_id,w.project_id,COALESCE(p.name,''),w.title,w.status,w.next_step,w.needs_attention,w.archived,w.revision,w.updated_at,w.sort_order,(" + count + ")"
+	return "w.id,w.space_id,w.project_id,COALESCE(p.name,''),w.title,w.status,w.next_step,w.needs_attention,w.archived,w.revision,w.updated_at,w.sort_order,w.business_date,w.due_at,w.schedule_id,(" + count + ")"
 }
 func workSummaryScan(s *WorkSummary) ([]any, *sql.NullString, *int64) {
 	var project sql.NullString
 	var revision int64
-	return []any{&s.ID, &s.SpaceID, &project, &s.ProjectName, &s.Title, &s.Status, &s.NextStep, &s.NeedsAttention, &s.Archived, &revision, &s.UpdatedAt, &s.rank, &s.ReferenceCount}, &project, &revision
+	return []any{&s.ID, &s.SpaceID, &project, &s.ProjectName, &s.Title, &s.Status, &s.NextStep, &s.NeedsAttention, &s.Archived, &revision, &s.UpdatedAt, &s.rank, &s.BusinessDate, &s.DueAt, &s.ScheduleID, &s.ReferenceCount}, &project, &revision
 }
 func finishWorkSummary(s *WorkSummary, project *sql.NullString, revision *int64) {
 	s.Revision = strconv.FormatInt(*revision, 10)

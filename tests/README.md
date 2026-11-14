@@ -16,6 +16,62 @@
 
 脚本只接受回环地址（例如 `http://127.0.0.1:5188`），不使用系统代理，也不跟随重定向。首次运行会检查服务尚未初始化，并要求 `--allow-destructive`；已初始化实例会在写入测试数据前拒绝执行。请在运行服务的同一台机器执行。
 
+## 定时事项与日期：0.2.6
+
+本轮使用隔离 SQLite 回环实例和独立 PostgreSQL schema，未向日常工作库生成测试事项。源码功能、浏览器与性能验证分别记录；正式标签 CI、发行包和镜像核验仍由发布流程完成，不能从本节的候选结果推断线上实例已升级。
+
+### 后端关键路径
+
+| 测试组 | 实际验证范围 |
+| --- | --- |
+| `TestWorkScheduleCalendar` | 每日／周一至周五／每周／每月、月末跳过／最后一天、日期范围、IANA 时区、生成与截止时间的 DST 缺失分钟、重复分钟同日唯一。 |
+| `TestWorkSchedulesHTTPAndMCP` | SQLite/PostgreSQL 的 CRUD、62 工具目录、配置版本、同日编辑后的生成幂等、只读／只写／来源绑定／跨空间权限、令牌撤销后的失败与显式重试。 |
+| `TestWorkDatesAndLegacyReplay` | 双库可选日期与清除、旧创建哈希重放、今日／逾期过滤；空日期响应可省略。 |
+| `TestWorkOverduePaginationSnapshot` | 双库两页读取跨越截止时间，后页保持首批 cutoff、总数与集合；刷新才纳入新变逾期项。 |
+| `TestWorkScheduleRecoveryAndAtomicity` | 双库错过策略、最多七期、上期未完成、暂停／归档恢复、注入事务失败、八并发同日期生成。 |
+| `TestWorkScheduleReferencesAndModules` | 双库引用权限、资料库关闭后的隐藏投影与保留、事项模块关闭与恢复。 |
+| `TestWorkScheduleRestartRecovery` | SQLite/PostgreSQL 真实 App 关闭重开，规则与发生记录恢复，不重复创建。 |
+| `TestWorkScheduleMigrationPreservesAndRollsBack` | 两库 020 保留原事项、活动、会话归属与创建哈希；迁移末尾注入失败时整体回滚。 |
+
+以上必要分支均实际通过。纯日历组不依赖数据库；有 provider 分支的各组均实际运行两库，未将缺少环境变量的跳过结果计作通过。最初补跑修正了测试对跨空间 404 隐藏资源契约和 SQLite fixture 日期编码的预期；正式结果使用正确的隔离环境。最终日期分页修正只重跑受影响的日期组，没有重复其他已通过组。
+
+四组既有回归 `TestWorkBoardHTTPAndMCP`、`TestWorkCreationPlacementReplay`、`TestWorkCollaborationLegacyCompatibilityAndStatusGuard` 和 `TestWorkBoardQueryBudget` 均在两库通过。查询预算仍为四列 18 SQL、五列 21 SQL，不随已存卡片数量形成 N+1。
+
+复现时从 `server/` 使用 Go 1.26，并配置独立测试数据库。一般工作组读取 `LINGSHU_TEST_STORAGE_POSTGRES_URL`；迁移 helper 使用文档迁移测试的独立配置，按现有 provider 隔离说明设置，不能复用正在运行的 Home 数据库。
+
+```sh
+go test ./internal/home -run '^(TestWorkScheduleCalendar|TestWorkSchedulesHTTPAndMCP|TestWorkDatesAndLegacyReplay|TestWorkOverduePaginationSnapshot|TestWorkScheduleRecoveryAndAtomicity|TestWorkScheduleReferencesAndModules|TestWorkScheduleRestartRecovery|TestWorkScheduleMigrationPreservesAndRollsBack)$' -count=1 -v
+```
+
+### 浏览器与页面
+
+`tests/browser_work_schedules.cjs` 沿用 `UI_FIXTURES`、`OUTPUT_DIR`、`PLAYWRIGHT_MODULE`、`CHROMIUM_PATH`，只操作独立 loopback fixture。按受影响路径续验，覆盖以下 12 类功能（含英文布局变体，共 13 个具名检查有有效 PASS 证据）；英文另外补验七组必要路径，未运行的语言重复组保持 skip，不能相加伪装成一次全量运行。
+
+| 检查 | 覆盖 |
+| --- | --- |
+| 未使用入口 | 普通看板不加载定时 chunk、不请求规则／预览／记录。 |
+| 日期筛选 | 今日／逾期使用服务端业务日期与截止时间，日期新增和清除。 |
+| 原事项引用 | 书签取消／重选，资料库关闭保存其他字段，恢复后原文档仍在。 |
+| 从事项建规则 | 复制标题、说明、下一步与授权引用，旧结果／执行记录不复制；静态标题与独立日期一致。 |
+| 布局与主题 | 2560×1440、2560×1080 内嵌详情；1920×1080、1600×900 抽屉；固定标题／保存栏、内部滚动、浅深色；英文 1600 长标签。 |
+| 生成与定位 | 同日重复生成返回同一事项，不覆盖已写结果；记录定位真实卡片。 |
+| 编辑恢复 | 草稿离开保护、409 比较保留、丢失响应后读取核对，禁止自动换版本重发。 |
+| 日历预览 | 每日／每周／月末规则、截止方式及五次预览。 |
+| 历史与归档 | 32 条记录分页，规则归档／恢复。 |
+| 模块与草稿 | 模块变化保留正在编辑的内容及隐藏引用，只提交实际变更的引用字段。 |
+| 规则列表 | 列表分页、启停、新建入口。 |
+| 关闭事项 | 冷开关闭的事项模块时不发 Work 请求；窗口内没有新增后台请求。 |
+
+浏览器没有未捕获错误，原挂载 Markdown fixture 内容保持不变。四尺寸实际截图已人工查看；最后静态标题／日期预览／实际生成页面另行查看。原有页面结构未因新增能力被替换。fixture 的同 hash 导航不会重新读取 bootstrap，模块切换测试因此使用明确 reload 或冷开，并在恢复模块后检查完整引用；隐藏响应不作为删除证据。
+
+TypeScript/Vite 构建、浏览器脚本语法和受影响文件 diff 检查通过。最终定时页 JS 为 34.22 KB（gzip 10.87 KB），CSS 为 6.07 KB（gzip 1.45 KB），均独立懒加载。Work 关闭后的冷开窗口 16,004 ms 内没有 Work API 请求。普通事项与定时模板共用资料引用组件，原引用回归单独验证。
+
+### 性能与证据
+
+[0.2.6 性能记录](../docs/PERFORMANCE.md#recurring-work--026-2026-11-14)给出未使用、暂停、未来规则、模块关闭的真实进程观测，以及旧版／候选的普通请求和集中生成对照。包括两库 2,200 条到期规则、四个独立同周期并发场景、零重复／HTTP 错误和实际查询计划。读线程有 2,000 请求上限，CPU/RSS 口径、共享主机噪声与静态内存成本均单独声明，不能作为公网容量承诺。
+
+可复现的 opt-in 性能脚本随源码提交；原始日志、JSON 和截图保存在维护环境的 `.runtime/work-schedules-026-20261114` 与 `.runtime/work-performance-20261114`，不随发行包携带数据库、凭据或测试数据。正式发布仍须通过仓库规定的托管 CI、实际 Linux bundle 重启与公开制品／镜像核验。
+
 ## MCP 可视化配置：0.2.5
 
 本轮补齐 0.2.4 配置只读的使用缺口。验收使用独立 SQLite 回环实例与本轮专用 PostgreSQL 集群，没有操作日常数据。以下为源码与浏览器实际验证，正式 CI、发行包、Docker 发布和用户实例升级另行核对。

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Archive, ArchiveRestore, ArrowUpRight, Crosshair, FileText, Link2, Plus, Save, X } from 'lucide-react'
+import { Archive, ArchiveRestore, CalendarClock, Crosshair, Link2, Save, X } from 'lucide-react'
 import { ApiError, messageOf, request } from '../core/api'
 import { t } from '../core/i18n'
 import { requestNavigation } from '../core/navigation'
-import { safeHref, formatUpdated } from '../core/presentation'
+import { formatUpdated } from '../core/presentation'
 import { useUnsavedChanges } from '../core/useUnsavedChanges'
-import { changedWorkFields, normalizeWorkDraft, workDraft, workItemHref, workLibraryHref, workPath, type WorkCollaborationSummary, type WorkStatusCatalog, type WorkStatusDefinition, type WorkDraft, type WorkItem, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
+import { changedWorkFields, normalizeWorkDraft, workDraft, workItemHref, workPath, type WorkCollaborationSummary, type WorkStatusCatalog, type WorkStatusDefinition, type WorkDraft, type WorkItem, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
 import { Button } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
 import { Input } from '../components/ui/input'
@@ -14,13 +14,14 @@ import { StyledSelect } from '../components/ui/select'
 import { Dialog, DialogContent, DialogTitle } from '../components/ui/dialog'
 import { ErrorMessage, Field, handleFormInvalid, Loading } from '../components/Shared'
 import DiscardChangesDialog from '../components/DiscardChangesDialog'
-import ResourcePicker from './ResourcePicker'
+import WorkReferences from './WorkReferences'
 import { useWorkTheme } from './work-theme'
+import { dueInputValue, dueInputISO, workTimezone } from './work-dates'
 import WorkActivity from './WorkActivity'
 import WorkCollaboration, { isWorkClaimError, useWorkCollaboration } from './WorkCollaboration'
 
 export const workStatusLabel = (status: WorkStatus, statuses: WorkStatusDefinition[]) => statuses.find(item => item.id === status)?.name || status
-const fieldLabel = (key: keyof WorkDraft) => ({ title: t('事项标题', 'Item title'), projectId: t('项目', 'Project'), status: t('状态', 'Status'), description: t('说明', 'Description'), nextStep: t('下一步', 'Next step'), result: t('结果', 'Result'), needsAttention: t('待我处理', 'Needs my attention'), bookmarkIds: t('关联书签', 'Linked bookmarks'), documentIds: t('关联文档', 'Linked documents') })[key]
+const fieldLabel = (key: keyof WorkDraft) => ({ title: t('事项标题', 'Item title'), projectId: t('项目', 'Project'), status: t('状态', 'Status'), description: t('说明', 'Description'), nextStep: t('下一步', 'Next step'), result: t('结果', 'Result'), needsAttention: t('待我处理', 'Needs my attention'), bookmarkIds: t('关联书签', 'Linked bookmarks'), documentIds: t('关联文档', 'Linked documents'), businessDate: t('业务日期', 'Business date'), dueAt: t('截止时间', 'Due time') })[key]
 function editorMessageOf(cause: unknown): string {
   if (cause instanceof ApiError && cause.code === 'module_disabled') {
     const detail = cause.details.details
@@ -36,11 +37,11 @@ function useWideEditor() {
   return wide
 }
 
-export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, projects, statuses, defaultStatus, canEdit, documentsEnabled, onClose, onSaved, onStatusesChanged, onReveal, onNotice, onCollaborationChanged }: { spaceId: string; mcpSettingsRevision?: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; documentsEnabled: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string, created: boolean) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void; onReveal: (item: WorkItem) => void; onNotice: (message: string) => void; onCollaborationChanged: () => void }) {
+export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, projects, statuses, defaultStatus, canEdit, documentsEnabled, onClose, onSaved, onStatusesChanged, onReveal, onNotice, onCollaborationChanged, onCreateSchedule }: { spaceId: string; mcpSettingsRevision?: string; selection: WorkSelection; projects: WorkProject[]; statuses: WorkStatusDefinition[]; defaultStatus: WorkStatus; canEdit: boolean; documentsEnabled: boolean; onClose: () => void; onSaved: (item: WorkItem, notice: string, created: boolean) => void; onStatusesChanged: (catalog: WorkStatusCatalog) => void; onReveal: (item: WorkItem) => void; onNotice: (message: string) => void; onCollaborationChanged: () => void; onCreateSchedule: (item: WorkItem) => void }) {
   const theme = useWorkTheme()
   const initial = useRef(selection), alive = useRef(true), running = useRef(false), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement)
   const [creating, setCreating] = useState(!!selection.create), [baseline, setBaseline] = useState<WorkItem | null>(null)
-  const initialDraft = useRef(workDraft({ title: selection.reference?.title || '', status: selection.status || defaultStatus, projectId: selection.projectId || null, needsAttention: selection.needsAttention || false, bookmarkIds: selection.reference?.kind === 'bookmark' ? [selection.reference.id] : [], documentIds: selection.reference?.kind === 'document' ? [selection.reference.id] : [] }))
+  const initialDraft = useRef(workDraft({ title: selection.reference?.title || '', businessDate: selection.businessDate || '', status: selection.status || defaultStatus, projectId: selection.projectId || null, needsAttention: selection.needsAttention || false, bookmarkIds: selection.reference?.kind === 'bookmark' ? [selection.reference.id] : [], documentIds: selection.reference?.kind === 'document' ? [selection.reference.id] : [] }))
   const initialReferences = useRef<WorkReference[]>(selection.reference ? [selection.reference] : [])
   const [draft, setDraft] = useState<WorkDraft>(() => workDraft(initialDraft.current))
   const [references, setReferences] = useState<WorkReference[]>(() => [...initialReferences.current])
@@ -190,29 +191,15 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
         <fieldset disabled={busy || !canEdit} className="admin-plain-fieldset">
           <Field label={t('事项标题', 'Item title')}><Input data-work-title autoFocus={creating} required maxLength={320} value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))}/></Field>
           <div className="work-fields-row"><Field label={t('状态', 'Status')}><StyledSelect value={draft.status} onValueChange={value => setDraft(current => ({ ...current, status: value as WorkStatus }))} disabled={busy || !canEdit} tone="home" theme={theme} options={[...statuses.map(status => ({ value: status.id, label: status.name, title: status.description })), ...(!statuses.some(status => status.id === draft.status) ? [{ value: draft.status, label: t('{name}（已不可用）', '{name} (unavailable)', { name: baseline?.statusDefinition?.name || draft.status }), disabled: true }] : [])]}/></Field><Field label={t('项目', 'Project')}><StyledSelect value={draft.projectId || ''} onValueChange={value => setDraft(current => ({ ...current, projectId: value || null }))} disabled={busy || !canEdit} tone="home" theme={theme} options={projectOptions}/></Field></div>
+          <div className="work-fields-row"><Field label={t('业务日期', 'Business date')}><Input type="date" data-work-business-date value={draft.businessDate} onChange={event => setDraft(current => ({ ...current, businessDate: event.target.value }))}/></Field><Field label={t('截止时间（{timezone}）', 'Due time ({timezone})', { timezone: workTimezone() })}><Input type="datetime-local" data-work-due-at value={dueInputValue(draft.dueAt)} onChange={event => setDraft(current => ({ ...current, dueAt: dueInputISO(event.target.value) }))}/></Field></div>
           <label className="work-attention-check"><Checkbox checked={draft.needsAttention} disabled={busy || !canEdit} onCheckedChange={value => setDraft(current => ({ ...current, needsAttention: !!value }))}/><span>{t('待我处理', 'Needs my attention')}</span></label>
           <Field label={t('下一步', 'Next step')}><Textarea rows={2} maxLength={2000} value={draft.nextStep} onChange={event => setDraft(current => ({ ...current, nextStep: event.target.value }))} placeholder={statuses.find(status => status.id === draft.status)?.type === 'waiting' ? t('在等待什么？', 'What are you waiting for?') : ''}/></Field>
           <Field label={t('说明', 'Description')}><Textarea rows={3} maxLength={8000} value={draft.description} onChange={event => setDraft(current => ({ ...current, description: event.target.value }))}/></Field>
           <Field label={t('结果', 'Result')}><Textarea rows={3} maxLength={8000} value={draft.result} onChange={event => setDraft(current => ({ ...current, result: event.target.value }))}/></Field>
         </fieldset>
-        <section className="work-reference-section"><header><h3>{t('关联资料', 'Linked resources')}</h3>{canEdit && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setPicker(value => !value)}><Plus size={14}/>{t('关联资料', 'Link resources')}</Button>}</header>
-          <div className="work-references">{references.map(item => {
-            const available = item.available && (item.kind !== 'document' || documentsEnabled)
-            const direct = !documentsEnabled && item.kind === 'bookmark'
-            const href = available ? direct ? safeHref(item.url || '') : workLibraryHref(spaceId, item) : undefined
-            return <div key={`${item.kind}:${item.id}`} className={!available ? 'unavailable' : ''}>
-              {item.kind === 'document' ? <FileText size={16}/> : <Link2 size={16}/>}
-              {href ? <a href={href} target={direct ? '_blank' : undefined} rel={direct ? 'noopener noreferrer' : undefined} onClick={event => {
-                if (direct || event.button || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
-                event.preventDefault(); requestNavigation(() => { window.location.hash = href })
-              }} title={item.title}>{item.title}</a> : <span className="work-reference-unavailable">{available ? item.title : t('资料暂不可用', 'Resource unavailable')}</span>}
-              {documentsEnabled && item.kind === 'bookmark' && available && item.url && <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" aria-label={t('打开书签：{title}', 'Open bookmark: {title}', { title: item.title })}><ArrowUpRight size={14}/></a>}
-              {canEdit && (item.kind !== 'document' || documentsEnabled) && <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('取消关联：{title}', 'Unlink: {title}', { title: item.title })} onClick={() => toggleReference(item)}><X size={13}/></Button>}
-            </div>
-          })}</div>
-          {picker && <ResourcePicker spaceId={spaceId} selected={references} disabled={busy} documentsEnabled={documentsEnabled} onToggle={toggleReference} onClose={() => setPicker(false)}/>}
-        </section>
+        <WorkReferences spaceId={spaceId} references={references} documentsEnabled={documentsEnabled} editable={canEdit} busy={busy} picker={picker} onPickerChange={setPicker} onToggle={toggleReference}/>
         {baseline && <div className="work-item-times">{baseline.createdAt && <time className="work-updated" dateTime={baseline.createdAt}>{t('创建于 {time}', 'Created {time}', { time: formatUpdated(baseline.createdAt) })}</time>}<time className="work-updated" dateTime={baseline.updatedAt}>{t('更新于 {time}', 'Updated {time}', { time: formatUpdated(baseline.updatedAt) })}</time></div>}
+        {baseline && canEdit && <Button type="button" variant="ghost" size="sm" className="work-create-template" disabled={busy} onClick={() => guard.requestLeave(() => onCreateSchedule(baseline))}><CalendarClock size={15}/>{t('保存为定时模板', 'Save as recurring template')}</Button>}
         {baseline && <WorkActivity spaceId={spaceId} itemId={baseline.id} revision={baseline.revision}/>}
       </div>
       <footer className="work-detail-footer">{baseline && canEdit && <Button type="button" variant="ghost" disabled={busy || claimBlocked} onClick={() => guard.requestLeave(() => void toggleArchive())}>{baseline.archived ? <ArchiveRestore size={16}/> : <Archive size={16}/>}<span>{baseline.archived ? t('恢复事项', 'Restore item') : t('归档事项', 'Archive item')}</span></Button>}<span className="grow"/><Button type="button" variant="outline" disabled={busy} onClick={close}>{t('关闭', 'Close')}</Button>{canEdit && <Button type="submit" disabled={busy || claimBlocked || !draft.title.trim() || (!creating && !dirty) || uncertain || conflict}><Save size={15}/>{saving ? t('正在保存…', 'Saving…') : creating ? t('创建事项', 'Create item') : t('保存事项', 'Save item')}</Button>}</footer>

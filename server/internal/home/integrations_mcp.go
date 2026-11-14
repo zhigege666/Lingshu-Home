@@ -83,7 +83,7 @@ func (a *App) registerIntegrationRoutes() {
 			destructive = false
 		}
 		openWorld := tool.name == "sources_create" || tool.name == "sources_update" || tool.name == "sources_sync"
-		idempotent := tool.name == "sources_snapshot_push" || tool.name == "sources_update" || tool.name == "page_update" || strings.HasSuffix(tool.name, "_delete") || tool.name == "work_items_create" || tool.name == "work_projects_create" || workCollaborationIdempotentTool(tool.name)
+		idempotent := tool.name == "sources_snapshot_push" || tool.name == "sources_update" || tool.name == "page_update" || strings.HasSuffix(tool.name, "_delete") || tool.name == "work_items_create" || tool.name == "work_projects_create" || tool.name == "work_schedules_create" || tool.name == "work_schedules_generate" || workCollaborationIdempotentTool(tool.name)
 		annotations := &mcp.ToolAnnotations{ReadOnlyHint: !tool.write, DestructiveHint: &destructive, IdempotentHint: idempotent, OpenWorldHint: &openWorld}
 		server.AddTool(&mcp.Tool{Name: tool.name, Description: tool.description, InputSchema: schema, Annotations: annotations}, func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			response, err := a.callIntegrationTool(ctx, request, tool)
@@ -352,6 +352,9 @@ func (a *App) callIntegrationTool(ctx context.Context, request *mcp.CallToolRequ
 	}
 	if r.WakeIntegrations {
 		a.wakeIntegrationWorker()
+	}
+	if r.WakeWorkSchedules {
+		a.wakeWorkScheduleWorker()
 	}
 	a.afterAutoIconCommit(r)
 	if response != nil && response.AfterTransaction != nil {

@@ -5,19 +5,25 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type workFilter struct {
-	Q         string `json:"q"`
-	ItemID    string `json:"itemId"`
-	ProjectID string `json:"projectId"`
-	Status    string `json:"status"`
-	Archived  bool   `json:"archived"`
-	Attention bool   `json:"attention"`
-	Limit     int    `json:"limit"`
-	Cursor    string `json:"cursor"`
+	Date         string `json:"date"`
+	Timezone     string `json:"timezone"`
+	BusinessDate string `json:"businessDate"`
+	cutoff       string
+	Q            string `json:"q"`
+	ItemID       string `json:"itemId"`
+	ProjectID    string `json:"projectId"`
+	Status       string `json:"status"`
+	Archived     bool   `json:"archived"`
+	Attention    bool   `json:"attention"`
+	Limit        int    `json:"limit"`
+	Cursor       string `json:"cursor"`
 }
 type workCursor struct {
+	Cutoff   string `json:"a,omitempty"`
 	Revision string `json:"r"`
 	Filter   string `json:"f"`
 	Status   string `json:"s"`
@@ -51,6 +57,9 @@ func readWorkFilter(r *Request) (workFilter, error) {
 	} else {
 		q := r.HTTP.URL.Query()
 		in.Q = q.Get("q")
+		in.Date = q.Get("date")
+		in.Timezone = q.Get("timezone")
+		in.BusinessDate = q.Get("businessDate")
 		in.ItemID = q.Get("itemId")
 		in.ProjectID = q.Get("projectId")
 		in.Status = q.Get("status")
@@ -90,12 +99,53 @@ func readWorkFilter(r *Request) (workFilter, error) {
 	if in.ItemID != "" && !validID(in.ItemID) {
 		return in, invalid("Invalid itemId.")
 	}
+	if in.Date != "" && in.Date != "today" && in.Date != "overdue" {
+		return in, invalid("date must be today or overdue.")
+	}
+	if in.BusinessDate != "" && !validWorkDate(in.BusinessDate) {
+		return in, invalid("businessDate must be an actual YYYY-MM-DD date.")
+	}
+	if in.Date != "" && in.BusinessDate != "" {
+		return in, invalid("Use date or businessDate, not both.")
+	}
+	if in.Timezone == "" && in.Date != "" {
+		in.Timezone = "UTC"
+	}
+	if in.Timezone != "" {
+		location, err := workLocation(in.Timezone)
+		if err != nil {
+			return in, err
+		}
+		if in.Date == "today" {
+			in.BusinessDate = time.Now().In(location).Format("2006-01-02")
+		}
+	}
+	if in.Date == "overdue" {
+		in.cutoff = workScheduleStamp(time.Now())
+		if in.Cursor != "" {
+			// Time alone can change overdue membership without a board revision.
+			// Keep both total and rows at the first page's cutoff until refresh.
+			var cursor workCursor
+			body, err := base64.RawURLEncoding.DecodeString(in.Cursor)
+			if err != nil || json.Unmarshal(body, &cursor) != nil {
+				return in, invalid("Invalid overdue cursor.")
+			}
+			cutoff, err := time.Parse(time.RFC3339Nano, cursor.Cutoff)
+			if err != nil || cursor.Cutoff != workScheduleStamp(cutoff) || cutoff.After(time.Now()) {
+				return in, invalid("Invalid overdue snapshot. Refresh the first page.")
+			}
+			in.cutoff = cursor.Cutoff
+		}
+	}
 	return in, nil
 }
 func (in workFilter) fingerprint(space string) string {
 	values := []any{space, in.Q, in.ProjectID, in.Status, in.Archived, in.Attention}
 	if in.ItemID != "" {
 		values = append(values, in.ItemID)
+	}
+	if in.Date != "" || in.BusinessDate != "" || in.Timezone != "" {
+		values = append(values, in.Date, in.BusinessDate, in.Timezone)
 	}
 	return workPayloadHash(values)
 }
@@ -105,6 +155,14 @@ func workLike(value string) string {
 func (in workFilter) where(space string) (string, []any) {
 	where := "w.space_id=? AND w.archived=?"
 	args := []any{space, in.Archived}
+	if in.BusinessDate != "" {
+		where += " AND w.business_date<>'' AND w.business_date=?"
+		args = append(args, in.BusinessDate)
+	}
+	if in.Date == "overdue" {
+		where += " AND w.due_at<>'' AND w.due_at<? AND EXISTS (SELECT 1 FROM work_statuses ds WHERE ds.space_id=w.space_id AND ds.id=w.status AND ds.status_type NOT IN ('done','canceled'))"
+		args = append(args, in.cutoff)
+	}
 	if in.ItemID != "" {
 		where += " AND w.id=?"
 		args = append(args, in.ItemID)
@@ -194,7 +252,7 @@ func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string
 	if len(result.Items) > in.Limit {
 		result.Items = result.Items[:in.Limit]
 		last := result.Items[len(result.Items)-1]
-		encoded, _ := json.Marshal(workCursor{Revision: revision, Filter: in.fingerprint(s.ID), Status: last.Status, Rank: last.rank, ID: last.ID})
+		encoded, _ := json.Marshal(workCursor{Cutoff: in.cutoff, Revision: revision, Filter: in.fingerprint(s.ID), Status: last.Status, Rank: last.rank, ID: last.ID})
 		cursor := base64.RawURLEncoding.EncodeToString(encoded)
 		result.NextCursor = &cursor
 	}

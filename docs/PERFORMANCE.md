@@ -2,6 +2,133 @@
 
 This document records reproducible development measurements, their scope, and the changes they motivated. Each section identifies its actual product/build version; earlier development evidence is retained under its original date. These are laboratory samples, not a Lighthouse score, a public-network service guarantee, or real-user Core Web Vitals percentiles.
 
+## Recurring work — 0.2.6, 2026-11-14
+
+结论：本轮必要性能验证全部通过。未启用、全部暂停、关闭事项模块时没有正常周期扫描；30 秒观测内未看到 CPU tick 或 I/O 增长。集中到期会占用资源、增加普通请求延迟，不能称为零开销。
+
+复现脚本随源码提供；本轮原始观测保存在维护环境 `.runtime/work-performance-20261114`，最终流水线退出码为 0。下文按实际候选与方法记录结果，正式标签 CI、发行包和镜像验证另行核对。
+
+### 环境、隔离和版本
+
+- nx11 共享主机，Intel Xeon Skylake/IBRS，4 vCPU，GOMAXPROCS=4，x86_64 Linux 7.0.0-38-generic。
+- Go 1.26.8；PostgreSQL 18.6；SQLite 驱动 modernc.org/sqlite v1.60.1。
+- 全部为本机 loopback HTTP；没有 WAN、浏览器渲染或最大容量含义。
+- 旧版：0.2.5 / 14c197e766e5bf0a830756153d3931aa34f16af2，源码归档在 baseline，独立二进制 home-baseline。
+- 候选：0.2.6，复制后端最后验证的 binary。最终 binary 是 home-candidate-026-final；源文件与 binary 的 SHA256 在 candidate-026-final-manifest.json。
+- HTTP/生成测试使用新 SQLite 数据目录或私有 PostgreSQL 的唯一 schema；真实 idle 脚本自行新建目录、随机 loopback 端口和进程。未向线上 Home 或其他服务施压。
+
+### 未启用时的普通 HTTP 路径
+
+旧/新使用相同 seed 和方法：100 / 1,000 / 10,000 条事项各 25 个顺序样本；10,000 条事项、并发 8、每个工作负载 200 请求；mixed 包含 40 普通创建和 160 读。普通看板 handler SQL 仍为 18，排序索引仍生效。
+
+首轮原证据保留在 baseline-sequential.json / baseline-capacity.json，以及 candidate-026-sequential.json / candidate-026-capacity.json。SQLite 首轮看板 P95 为 161.750 → 162.267 ms，mixed 为 375.682 → 383.052 ms；均无错误。此首轮候选尚未省略空日期字段；后续仅复核最终字节，没有重复已通过的 SQLite 负载组。
+
+首轮 PG 的共享主机负载变化明显，不能直接归因于代码。保留原结果后，在兄弟构建和浏览器停止时只追加一次紧邻 old → candidate PG 对照：
+
+| 请求 | 旧 P50 ms | 新 P50 ms | 旧 P95 ms | 新 P95 ms | 旧 req/s | 新 req/s | 错误 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| board | 32.238 | 32.811 | 57.651 | 54.764 | 225.35 | 227.20 | 0 |
+| bootstrap | 5.730 | 6.528 | 11.364 | 13.729 | 1167.96 | 1000.05 | 0 |
+| mixed | 37.318 | 34.285 | 67.189 | 64.617 | 196.63 | 207.60 | 0 |
+
+证据为 paired-026-postgres-baseline.json / paired-026-postgres-candidate.json。CPU/load 同期记录在最终 status；阶段 host 非空闲 CPU 分别约 54.51% / 53.06%。不能说所有请求都变快；bootstrap 仍有变动，单次共享主机测量不能精确区分调度、GC、环境和代码的微小效应。普通看板和混合路径没有测出可归因的持续回归。
+
+最终正常 board 响应两版均为 8,062,600 B / 200 次，即 40,313 B / 次。可选日期/来源字段使用 omitempty，消除了首轮每项 +45 B、120 卡片 +5,400 B 的空字段成本。
+
+静态内存仍有成本：Go summary 内联布局 168 → 216 B，item 352 → 400 B，均 +48 B。仅指结构体布局，不包括字符串内容、slice、缓存，也不是每条事项的进程常驻内存。空普通 summary 序列化两版均 181 B。见 baseline-026-model-memory.json / candidate-026-model-memory.json。
+
+### 真实独立进程 idle
+
+每次独立新 fixture，准备后取样 30 秒，测量期不发 HTTP 请求；CPU 时钟为 100 Hz。
+
+| 场景 | 规则数 | CPU 秒 | RSS 起/止 KiB | I/O 增量 | 新增事项 |
+|---|---:|---:|---:|---|---:|
+| 0.2.5 旧版 | 0 | 0.00 | 90352 / 90352 | 全 0 | 0 |
+| 0.2.6 无规则 | 0 | 0.00 | 93296 / 93296 | 全 0 | 0 |
+| 0.2.6 全部暂停 | 1000 | 0.00 | 131840 / 131840 | 全 0 | 0 |
+| 0.2.6 明年才开始 | 1000 | 0.00 | 133716 / 133716 | 全 0 | 0 |
+| 0.2.6 明年开始且模块关闭 | 1000 | 0.00 | 133912 / 133912 | 全 0 | 0 |
+
+证据分别在 baseline-idle/measurements.json 和 candidate-026-idle-{zero,paused,future,module-disabled}/measurements.json。
+
+暂停/未来/模块关闭的 RSS 包含 HTTP 创建 1,000 条规则的准备历史、密码 hash 和 Go/SQLite 保留内存，不能按每条规则分摊或线性外推。无规则新版比旧版观察值多 2,944 KiB，也不能单独分解为调度器内存。
+
+无周期扫描由控制流和 helper 共同验证：启动/配置变更唤醒扫描；next=zero 时 tick channel 为 nil，仅等配置 wake/cancel；正常只为最近实际 deadline 设置 timer。两库 helper 验证了 0 规则、全部暂停、模块关闭时 next=zero，未来规则返回 deadline。0 CPU tick/I/O 是支持性观测，不单独证明绝对零成本。真实服务进程的 idle 测量覆盖 SQLite；PG 使用相同 worker 控制流、helper 和活动负载验证。
+
+### 启用并集中到期
+
+每个独立 fixture 先有 1,000 条普通事项，先以 4 并发执行 200 次普通读作为同 fixture 控制组，然后处理 100 / 1,000 条同时到期规则（每批不超过 50）。
+
+生成期间最多 4 个读线程、总上限 2,000 请求，80% board、20% bootstrap。1,000 档达到读上限后停止读并排空生成；下面吞吐是有界混合阶段总体平均，不是持续全程 4 读并发的 SLA。
+
+| 数据库 | 到期规则 | 生成秒数 | 条/秒 | board 对照 P95 ms | 生成中 P95 ms | 生成中 board / 首页样本 | CPU 秒* | RSS 观测峰值 KiB* |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| SQLite | 100 | 1.720 | 58.13 | 36.599 | 48.366 | 290 / 72 | 2.799 | 154400 |
+| SQLite | 1000 | 10.496 | 95.27 | 32.114 | 47.089 | 1600 / 400 | 16.689 | 137684 |
+| PostgreSQL | 100 | 1.381 | 72.39 | 16.769 | 18.054 | 408 / 101 | 2.244 | 150764 |
+| PostgreSQL | 1000 | 11.207 | 89.23 | 15.506 | 18.581 | 1600 / 400 | 12.767 | 153584 |
+
+* CPU/RSS 属于 Go 测试进程，包含 HTTP 客户端。SQLite 引擎在同进程内；PG 服务进程 CPU/RSS 不包含，不能由此直接比较两库总 CPU 效率。RSS 包含 fixture 初始化和 GC 状态。控制组从 1,000 事项开始，生成期增长为 1,100 / 2,000，延迟变化同时包含写入竞争与数据增长。
+
+全部 2,200 条到期规则生成正确，failed/skipped/duplicate 都是 0。另 4 个新周期，每个用 1 worker 和 100 次手动请求（并发 8）竞争，只各增加 1 条 item / receipt；400 个 HTTP 请求均 200。普通读、日期视图、手动生成无 HTTP 错误，未遇到数据库锁失败。
+
+| 数据库 | 规则数 | 今日 P95 ms | 逾期 P95 ms | 同周期竞争 P95 ms |
+|---|---:|---:|---:|---:|
+| SQLite | 100 | 7.092 | 8.232 | 11.954 |
+| SQLite | 1000 | 5.533 | 16.482 | 7.538 |
+| PostgreSQL | 100 | 10.541 | 12.916 | 24.355 |
+| PostgreSQL | 1000 | 18.144 | 28.722 | 24.287 |
+
+日期视图各 25 个顺序请求。完整 P50/P95/max、首页控制项、数量、CPU/RSS 和计划都在 candidate-026-schedules.json。两库 1,000 条规则时 due 查询使用 work_schedules_due；PG 100 条时选择 Seq Scan 属于小表成本选择。
+
+### SQLite 部分索引的实际计划
+
+在 5,000 普通事项 + 100 日期事项的真实 SQLite fixture 中比较等价谓词：
+
+| 路径 | 缺少显式非空谓词 | 加入谓词后 |
+|---|---|---|
+| today / 精确 businessDate | work_items_column | work_items_business_date |
+| overlap=skip | SCAN w | work_items_schedule_date |
+| overdue | 已有非空谓词 | work_items_due_at |
+
+见 candidate-026-date-plans.json。最终代码只补逻辑等价的 business_date<>'' / schedule_id<>''，没有把新索引变为覆盖全部旧卡的全量索引。
+
+### 复现与文件
+
+日常测试不会执行这些 opt-in 压力。PG 必须事先设置独立测试库的 LINGSHU_TEST_STORAGE_POSTGRES_URL；缺少时 fixture 会跳过 PG，不能将 skip 计为双库通过。本轮 PG 均实际执行。
+
+从 server 目录、配置可用 Go 1.26 工具链后运行：
+
+~~~sh
+GOMAXPROCS=4 LINGSHU_WORK_PERFORMANCE=1 LINGSHU_WORK_PERFORMANCE_OUTPUT=/tmp/work-sequential.json go test -p 2 ./internal/home -run "^TestWorkPerformance$" -count=1 -v
+GOMAXPROCS=4 LINGSHU_WORK_CAPACITY=1 LINGSHU_WORK_CAPACITY_OUTPUT=/tmp/work-capacity.json go test -p 2 ./internal/home -run "^TestWorkCapacityPerformance$" -count=1 -v
+GOMAXPROCS=4 LINGSHU_WORK_SCHEDULE_PERFORMANCE=1 LINGSHU_WORK_SCHEDULE_PERFORMANCE_OUTPUT=/tmp/work-schedules.json go test -p 2 ./internal/home -run "^TestWorkSchedulePerformance$" -count=1 -v
+LINGSHU_WORK_DATE_PLAN=1 LINGSHU_WORK_DATE_PLAN_OUTPUT=/tmp/work-date-plans.json go test -p 2 ./internal/home -run "^TestWorkDateQueryPlans$" -count=1 -v
+LINGSHU_WORK_MODEL_MEMORY=1 LINGSHU_WORK_MODEL_MEMORY_OUTPUT=/tmp/work-model.json go test -p 2 ./internal/home -run "^TestWorkModelMemoryLayout$" -count=1 -v
+~~~
+
+Linux idle 从仓库根运行，输出目录必须全新：
+
+~~~sh
+python3 tests/performance_work_idle.py --binary /absolute/path/lingshu-home --version-file VERSION --web-dir /absolute/path/frontend-dist --output-dir /tmp/home-idle-new --seconds 30 --label future --rules 1000 --schedule-state future
+~~~
+
+0 规则省略 rules；暂停用 --schedule-state paused；模块关闭在 future 上加 --disable-work。脚本不接受线上 base URL，只创建和结束自己的进程、目录和端口。
+
+新增测试文件：
+
+1. server/internal/home/work_capacity_performance_test.go
+2. server/internal/home/work_model_memory_test.go
+3. server/internal/home/work_schedule_performance_linux_test.go
+4. tests/performance_work_idle.py
+
+原有 work_performance_test.go 未修改。这些性能文件按显式环境变量开启，日常功能测试不自动执行压力。
+
+### 覆盖边界
+
+未覆盖公网/多机器、数万并发、长时间 Soak、PG 服务进程完整 CPU/RSS、浏览器渲染性能、1,000 规则全程持续读 SLA。后续版本需使用对应源码和独立结果，不能把本轮候选数字当成后续实现的实测。
+
+
 ## Work board — 0.1.0, 2026-11-13
 
 The board is a deferred Library view. Its initial request returns up to 30 summaries per status (120 in total), with cursor-based continuation. Description/result bodies and mounted Markdown contents are not loaded into these summaries. Dragging uses native browser events and existing UI primitives; no new drag-and-drop dependency or background board polling was added.

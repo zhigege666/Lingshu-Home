@@ -198,3 +198,9 @@ Back up the complete appdata/database and matching keys before upgrading. Once d
 The release must retain the application CI, both database providers, HTTP restart acceptance and exact-image packaging gates. The container checks additionally exercise an isolated 0.0.4-to-candidate upgrade and the candidate's mounted Markdown/direct-TLS behavior. Read the actual hosted run and its tested image identity before describing those checks as passed. NAS-specific encryption, kernel I/O behavior and the user's existing deployment remain separate deployment verification.
 
 The consecutive container suites reuse their loopback port. The preflight permits TCP `TIME_WAIT` from the stopped preceding container while still rejecting a live listener, with socket regressions for both boundaries. An actual port conflict remains a test failure; do not bypass it or connect to the process already using that port.
+
+## Version 0.2.6 upgrade and release boundary
+
+0.2.6 adds recurring work, date filters, seven MCP tools and additive migration 020 for both providers. The feature has no new service or environment requirement and is inactive until a rule is configured. Preserve matching pre-upgrade database/data, keys and deployment configuration before migration; rollback to 0.2.5 requires that restore set. See [schedules](WORK_SCHEDULES.md) and [storage](STORAGE.md#recurring-work-migration-020).
+
+The release-specific functional, browser and disabled/enabled performance measurements belong in the test and performance guides. They do not replace the tagged CI, exact-image packaging, public download checks or actual deployed-version check. A published 0.2.6 tag and refreshed MCP definitions do not upgrade the user's running Home instance.

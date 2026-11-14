@@ -4,6 +4,23 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-14
+
+### Recurring work and item dates
+
+- **① User experience:** add a deferred Schedules view, date previews and paginated occurrence history, with create/edit, pause/resume, archive, manual generation and save-from-item entry points. Generated items are independent work records with business dates and optional deadlines. Today/Overdue filters use those dates, while existing update timestamps remain actual history.
+- **② Developer experience:** add migration 020 for SQLite and PostgreSQL; preserve original items, references, stable-create hashes and collaboration protections. Reuse the work mutation transaction for schedule generation. One schedule/date occurrence is unique across worker/manual requests and rule edits. Rule configuration revisions remain separate from run-state changes. Empty, paused or module-disabled schedules do not use a periodic scan loop.
+- **③ AI Agent experience:** add seven schedule MCP tools (62 total, 28 work tools) with the same scoped service handlers as HTTP. Preview before saving, retain stable create IDs, compare configuration revisions and read generation receipts after unknown responses. Optional item dates are additive; existing UUIDs and empty-date create replay stay compatible.
+
+### Calendar and recovery behavior
+
+- Support daily, Monday–Friday, selected weekdays and monthly dates with IANA timezones. Monthly missing days explicitly skip or use the last day. Occurrences with nonexistent local generation/deadline DST minutes are skipped; repeated local minutes cannot generate a second item for the same date. No public-holiday feed or template expression language is introduced.
+- Missed-run handling is explicit: latest missed occurrence by default, skip, or at most seven recent occurrences. Voluntary pause intervals are not backfilled on resume. Previous incomplete work may either coexist with a new occurrence or cause an explicitly recorded skip.
+- Preserve visible failure causes for invalid projects/states or lost creator authority. Never silently move work to another project/state or copy an old completion result/claim into a new occurrence. Rule edits affect future occurrences, and generation is distinct from external execution.
+- Measure unused/paused/module-disabled idle behavior, old-versus-new ordinary HTTP requests and bounded 100/1,000-rule generation with concurrent reads. Empty optional date fields add no normal-card response bytes; static structs still grow by 48 bytes. Concentrated generation increases foreground latency. Exact fixtures, results and limits are in docs/PERFORMANCE.md.
+- SQLite extends the activity origin CHECK by transactionally rebuilding work_activity while preserving existing rows, uniqueness and indexes; its one-time upgrade cost grows with activity history. PostgreSQL changes the corresponding CHECK constraint.
+- Back up the complete database/data, keys and deployment configuration before migration 020. Returning to 0.2.5 or earlier requires the matching pre-upgrade backup. No new service, mount or environment variable is required; upgrading does not enable rules. Refresh Home's gateway catalog after upgrading to expose the added tools and optional date fields.
+
 ## [0.2.5] - 2026-11-14
 
 ### Visual MCP configuration

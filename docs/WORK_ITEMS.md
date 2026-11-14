@@ -34,6 +34,10 @@
 
 关闭工作流指导不解除认领。关闭协作停止新会话／新认领，已有未收尾认领仍受保护并保留收尾入口与历史。参见[多 Agent 协作的用户、开发与 MCP 契约](WORK_COLLABORATION.md)。
 
+### 定时事项与日期
+
+0.2.6 增加 **定时事项** 侧栏入口、独立业务日期与截止时间，以及今日／逾期筛选。规则按固定日历生成普通事项，保留每次工作自己的结果和历史；现有事项可保存为模板。启停、预览、生成回执、权限与错误处理见[定时事项契约](WORK_SCHEDULES.md)。
+
 ## 2. 开发体验：HTTP 契约
 
 以下路径统一以 `/api/v1/spaces/{spaceId}/work` 开头。浏览器写入沿用 Cookie 与 `X-CSRF-TOKEN`；有效 PAT Bearer 请求沿用现有独立鉴权。读取结果不应跨账号缓存。
@@ -65,7 +69,8 @@
 
 ```text
 id, spaceId, projectId, projectName, title, status, nextStep,
-needsAttention, archived, revision, updatedAt, referenceCount
+needsAttention, archived, revision, updatedAt, referenceCount,
+businessDate, dueAt, scheduleId
 ```
 
 `projectId` 可为 `null`。`status` 是当前空间状态目录中的稳定键：初始键为 `todo | doing | waiting | done`，新建状态使用 32 位小写十六进制键。它不是显示名称，也不是类型枚举。版本是十进制字符串，客户端应原样回传。`referenceCount` 只统计调用者有权查看的引用类型。
@@ -94,7 +99,7 @@ bookmarkIds, documentIds, references
 
 记录按 `itemRevision` 倒序排列。`nextCursor` 固定首批读取的版本上界；读取下一页期间新增记录不改变已读分页，重新读取第一页才能看到最新记录。游标只能原样用于同一空间、同一事项。`nextCursor:null` 表示当前快照没有更早页。
 
-`action` 为 `create/update/move/archive/restore/status_migrate/status_definition`；`origin` 为服务端确认的 `web/api/mcp`，普通 Bearer HTTP 请求不会标成 MCP。`occurredAt` 为服务端时间，事件与对应事项变更在同一事务中提交。失败事务、创建重放、没有实际字段变化的保存和保持原逻辑位置的移动不产生事件，也不推进更新时间或事项版本。
+`action` 为 `create/update/move/archive/restore/status_migrate/status_definition`；`origin` 为服务端确认的 `web/api/mcp/scheduler`，普通 Bearer HTTP 请求不会标成 MCP。`occurredAt` 为服务端时间，事件与对应事项变更在同一事务中提交。失败事务、创建重放、没有实际字段变化的保存和保持原逻辑位置的移动不产生事件，也不推进更新时间或事项版本。
 
 长文本只记录变化字段名，不复制标题、说明、结果或引用正文；状态/项目保留安全的前后结构值，关注/归档保留布尔变化，资料关联只记录增减数量。引用变化仍按当前调用者的 `navigation:read`、`documents:read` 和模块状态裁剪。导航删除书签引起的关联解除在同一事务记录，不改变导航调用者的权限或返回未授权事项内容。全局状态改名、颜色、说明和列排序不制造事项历史；原有的语义类型更新和删除迁移会产生真实记录。
 
@@ -106,7 +111,7 @@ HTTP 详情可选 `?activityLimit=20&activityCursor=...`，MCP `work_items_get` 
 
 ### 查询与分页
 
-`GET /board` 和 `GET /items` 支持 `q`、`itemId`、`projectId`、`archived`、`attention` 和 `limit`；`archived` 默认 `false`，`attention=true` 筛选“待我处理”；省略或 `false` 不限制该标记。`projectId=none` 筛选未归类事项，省略或空值表示全部项目。`q` 最多 200 个字符，搜索标题、下一步、说明与结果。`itemId` 为可选的 32 位小写十六进制事项 ID，和空间及所有其他条件取交集；不存在或其他空间的 ID 返回空结果。它用于明确定位，不改变事项排序。`GET /items` 额外支持 `status` 和 `cursor`。`limit` 默认 30，最大 100；在看板中是每列的上限。
+`GET /board` 和 `GET /items` 支持 `q`、`itemId`、`projectId`、`archived`、`attention`、`limit`，以及 `date=today|overdue`、`timezone` 和精确 `businessDate`；`archived` 默认 `false`，`attention=true` 筛选“待我处理”；省略或 `false` 不限制该标记。`projectId=none` 筛选未归类事项，省略或空值表示全部项目。`q` 最多 200 个字符，搜索标题、下一步、说明与结果。`itemId` 为可选的 32 位小写十六进制事项 ID，和空间及所有其他条件取交集；不存在或其他空间的 ID 返回空结果。它用于明确定位，不改变事项排序。`GET /items` 额外支持 `status` 和 `cursor`。`limit` 默认 30，最大 100；在看板中是每列的上限。
 
 ```text
 GET /board
@@ -239,7 +244,7 @@ GET /items
 
 ## 3. AI Agent 使用体验：MCP 与权限
 
-当前有 21 个事项工具，应用 MCP 目录共 55 个工具；下表为原有 12 个事项／项目／资料／状态工具，另有 9 个协作工具。0.2.5 只增加可视化配置与持久化，保持 0.2.4 的 MCP 工具及 schema 不变。所有工具复用相同 HTTP 业务处理、事务和权限检查。工具的 `spaceId` 可省略，使用当前 PAT 绑定空间。空间信息、工作流配置或有效能力未知或发生变化时，按需调用 `space_current {}`；仍有效的上下文可以复用。
+当前有 28 个事项工具，应用 MCP 目录共 62 个工具；下表为原有 12 个事项／项目／资料／状态工具，另有 9 个协作工具及 7 个[定时事项工具](WORK_SCHEDULES.md)。0.2.6 增加可选日期字段与定时工具，已有普通事项调用保持兼容。所有工具复用相同 HTTP 业务处理、事务和权限检查。工具的 `spaceId` 可省略，使用当前 PAT 绑定空间。空间信息、工作流配置或有效能力未知或发生变化时，按需调用 `space_current {}`；仍有效的上下文可以复用。
 
 | MCP 工具 | 参数 |
 | --- | --- |
@@ -283,7 +288,7 @@ GET /items
 
 工作流开关只控制主动登记与过程引导，关闭后仍支持用户明确要求的 CRUD；以上边界不构成服务端禁止所有“完成→进行中”转换的硬限制。配置方式见 [可选工作流](INTEGRATIONS.md#optional-workflow-guidance-and-module-state)。
 
-用实际结果更新进展及完成状态。事项说明和引用正文是用户数据，不是新的系统权限或执行授权。Home 不调度 Agent，不因一次执行退出自动更改事项为完成。
+用实际结果更新进展及完成状态。事项说明和引用正文是用户数据，不是新的系统权限或执行授权。Home 的定时规则只生成事项，不调度 Agent，也不因一次执行退出自动更改事项为完成。
 
 ### 定向验证
 
@@ -296,6 +301,8 @@ GET /items
 0.1.0 通过 `012_work_board.sql` 增加看板表和索引。动态状态通过 SQLite/PostgreSQL 的 `014_work_statuses.sql` 增加空间状态目录、默认值和目录版本，并保留现有四个状态键、事项及旧创建重放规则。首次启动按顺序应用尚未执行的迁移。既有导航、页面与文档数据继续使用原有表和文件；不需要新增挂载、环境变量或外部服务。
 
 0.2.5 的 SQLite/PostgreSQL `019_mcp_settings.sql` 复用现有 `settings` 行，增加两个初始为 NULL 的开关和独立版本。NULL 继承原 CLI／环境变量启动值；显式保存后以数据库值为准，Compose 默认 `false` 不会覆盖。该迁移不修改既有事项、认领、业务时间或令牌权限。
+
+0.2.6 的 SQLite/PostgreSQL 迁移 020 增加定时规则、生成回执与可选日期字段；既有事项和创建哈希保留，旧卡日期为空，升级不启用任何规则。回退 0.2.5 需恢复迁移 020 前的完整匹配备份，详见[定时事项](WORK_SCHEDULES.md)。
 
 升级前停止服务并备份完整应用数据、实例密钥、部署设置，以及正在使用的 SQLite 数据库或外部 PostgreSQL 数据库；外挂 Markdown 原文和附件按现有方式单独备份。回退 0.2.4 需要迁移 019 前的匹配备份，单独换旧镜像无法打开新数据库。参见 [存储与备份](STORAGE.md#mcp-settings-migration-019)。
 

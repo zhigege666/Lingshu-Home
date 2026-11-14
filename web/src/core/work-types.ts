@@ -32,7 +32,7 @@ export type WorkEvent = {
 export type WorkEventPage = { itemId: string; items: WorkEvent[]; highWatermark: string; nextCursor: string | null; nextAfter: string }
 export type WorkSummary = {
   id: string; spaceId: string; projectId: string | null; projectName: string; title: string; status: WorkStatus;
-  revision: string; archived: boolean; updatedAt: string; nextStep: string; needsAttention: boolean; referenceCount: number; collaboration?: WorkCollaborationSummary
+  revision: string; archived: boolean; updatedAt: string; nextStep: string; needsAttention: boolean; referenceCount: number; businessDate?: string; dueAt?: string; scheduleId?: string; collaboration?: WorkCollaborationSummary
 }
 export type WorkItem = WorkSummary & {
   boardRevision: string; description: string; result: string; createdAt: string; bookmarkIds: string[]; documentIds: string[]; references: WorkReference[]; statusDefinition?: WorkStatusDefinition
@@ -43,20 +43,20 @@ export type WorkActivityChange = {
 }
 export type WorkActivityEvent = {
   id: string; action: 'create' | 'update' | 'move' | 'archive' | 'restore' | 'status_migrate' | 'status_definition';
-  occurredAt: string; itemRevision: string; actor: { id: string; name: string } | null; origin: 'web' | 'api' | 'mcp'; changes: WorkActivityChange[]; session?: WorkSessionSummary
+  occurredAt: string; itemRevision: string; actor: { id: string; name: string } | null; origin: 'web' | 'api' | 'mcp' | 'scheduler'; changes: WorkActivityChange[]; session?: WorkSessionSummary
 }
 export type WorkActivityPage = { itemId: string; revision: string; historyStartedAt: string; historyComplete: boolean; items: WorkActivityEvent[]; nextCursor: string | null }
 export type WorkColumn = { status: WorkStatus; total: number; items: WorkSummary[]; nextCursor: string | null }
 export type WorkBoard = WorkStatusContext & { revision: string; collaborationRevision?: string; canEdit: boolean; columns: WorkColumn[] }
 export type WorkPage = WorkStatusContext & { revision: string; collaborationRevision?: string; canEdit: boolean; items: WorkSummary[]; total: number; nextCursor: string | null }
-export type WorkDraft = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'result' | 'needsAttention' | 'bookmarkIds' | 'documentIds'>
-export type WorkSelection = { id: string; create?: boolean; status?: WorkStatus; projectId?: string | null; needsAttention?: boolean; reference?: WorkReference }
+export type WorkDraft = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'result' | 'needsAttention' | 'bookmarkIds' | 'documentIds'> & { businessDate: string; dueAt: string }
+export type WorkSelection = { id: string; create?: boolean; status?: WorkStatus; projectId?: string | null; needsAttention?: boolean; businessDate?: string; reference?: WorkReference }
 export const workPath = (spaceId: string) => `/spaces/${encodeURIComponent(spaceId)}/work`
 export function newWorkId(): string {
   return [...crypto.getRandomValues(new Uint8Array(16))].map(value => value.toString(16).padStart(2, '0')).join('')
 }
 export function workDraft(item?: Partial<WorkItem>): WorkDraft {
-  return { title: item?.title || '', projectId: item?.projectId || null, status: item?.status || 'todo', description: item?.description || '', nextStep: item?.nextStep || '', result: item?.result || '', needsAttention: item?.needsAttention || false, bookmarkIds: [...(item?.bookmarkIds || [])], documentIds: [...(item?.documentIds || [])] }
+  return { businessDate: item?.businessDate || '', dueAt: item?.dueAt || '', title: item?.title || '', projectId: item?.projectId || null, status: item?.status || 'todo', description: item?.description || '', nextStep: item?.nextStep || '', result: item?.result || '', needsAttention: item?.needsAttention || false, bookmarkIds: [...(item?.bookmarkIds || [])], documentIds: [...(item?.documentIds || [])] }
 }
 export function normalizeWorkDraft(draft: WorkDraft): WorkDraft {
   return { ...draft, title: draft.title.trim(), bookmarkIds: [...new Set(draft.bookmarkIds)].sort(), documentIds: [...new Set(draft.documentIds)].sort() }

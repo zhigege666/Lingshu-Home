@@ -149,3 +149,14 @@
   .work-page-actions .work-view-toggle>button>span { display:none; }
   .work-page-actions .work-view-toggle>button { padding:6px 8px; }
 }
+
+/* Business dates stay separate from edit timestamps. */
+.work-date-summary { display:flex; align-items:center; flex-wrap:wrap; gap:5px 12px; color:var(--work-muted); font-size:11px; margin:9px 0 2px; }
+.work-date-summary>span { display:inline-flex; align-items:center; gap:4px; }
+.work-date-summary .overdue { color:var(--work-danger); }
+.work-date-summary .overdue>span { font-size:10px; }
+.work-table .work-date-summary { margin-top:5px; }
+.work-new-actions { display:flex; gap:0; align-items:stretch; flex:none; }
+.work-new-actions:has(.work-new-menu)>[data-work-new] { border-radius:6px 0 0 6px; }
+.work-new-actions>.work-new-menu { border-radius:0 6px 6px 0; border-left:0; width:28px; padding:5px; }
+.work-create-template { margin-top:18px; padding-left:0!important; font-size:12px; }
