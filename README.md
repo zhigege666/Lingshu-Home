@@ -10,6 +10,14 @@ Maintain your links, import browser bookmarks, and compose your homepage from da
 
 The jade folded-house logo is shared throughout the Web interface. [Brand assets, usage and provenance](docs/BRANDING.md) cover the scalable SVG, browser icons and touch icon.
 
+## Development changes (Unreleased)
+
+- **① User experience.** Work IDs share the title line; project boards omit repeated project labels. Details open in centered dialogs with fixed actions, content and property columns, maximize/restore, and distinct Save and Save and close actions. Closing preserves drafts when needed and returns focus to the item.
+- **② Developer experience.** Item, recurring-item, status and automation/execution screens reuse the existing dialog layer at all desktop sizes. Focused browser regressions cover the four supported desktop sizes, keyboard behavior and uncertain/conflicting saves.
+- **③ AI Agent experience.** Short IDs, links, `requestId`, revision checks and claim protections retain their existing contracts. Action selectors and regression instructions describe the same editing flow used by people.
+
+See the [work interaction contract](docs/WORK_ITEMS.md) and [executed checks](tests/README.md). These changes are recorded under Unreleased; this change does not create a new release.
+
 ## New in 0.3.2
 
 - **① User experience.** Work sidebar shortcuts now select one view at a time. Switching from Blocked to Needs my attention clears the previous scope; the heading, highlighted entry, URL and results agree. Project, archived, recurring and saved views use the same current-view semantics. Explicit combinations remain available in Filters and fields and are labeled Filtered items.

@@ -1,5 +1,40 @@
 # 测试与验收
 
+## 紧凑编号与居中事项弹窗：Unreleased
+
+### ① 用户体验
+
+2026-11-15 在独立 SQLite 实例和真实 Chromium 中验证本次前端，取得 **13 个不同检查组的通过证据**。按受影响范围分批执行，不能写成一次全量 13 组运行：
+
+| 执行 | 通过 | 跳过 | 具体范围 |
+| --- | ---: | ---: | --- |
+| 事项弹窗首轮 | 1 | 0 | 编号前置、单卡只显示一次、空摘要不占位、项目内隐藏重复项目标签／跨项目保留标签；随后在几何检查处停止 |
+| 事项弹窗定向续验 | 8 | 1 | 四尺寸居中、背景宽度与列滚动保持、有效可访问标题、Tab 焦点限制、最大化／还原、关闭草稿保护、两种保存、保存后移列焦点、快捷键、清单／日历入口、409 冲突、未确认写入回读、独立卡片菜单，以及状态／定时草稿的居中与丢弃 |
+| 既有短编号回归 | 4 | 0 | 服务端分配编号、复制编号／链接、深链编辑、四尺寸标题与按钮边界、创建已提交但响应丢失的核对、创建未提交时沿用原请求与原内容重试 |
+
+目标尺寸为 **2560×1440、1920×1080、1600×900、2560×1080**。四尺寸断言和真实截图分别留证；人工复核了 2560×1440 与 1600×900 的截图，长标题、正文／属性列、固定保存栏均处于可用区域。没有把“构建成功”作为视觉验收。全部已通过组无未捕获的浏览器异常。
+
+首轮几何检查暴露了两件具体问题：先把目标卡片滚入视口再量测，避免对容器外卡片作错误的同行判断；四类事项弹窗补齐显式 `aria-modal` 声明，并保持原焦点限制与可访问标题。修复后只续验失败及未执行组，未重跑已通过且相关代码未变的编号／项目上下文组。
+
+### ② 开发体验
+
+`npm run build`（TypeScript + Vite）通过。更新的既有浏览器脚本经过语法检查，移除原来的右侧抽屉、520px 宽度和 2200px 切换固定栏预期；其未选中功能组不计入本次执行结果。主分支已有侧栏导航修复被完整保留。
+
+本次只改前端与文档／测试，复用已验证的原后端与一次性测试数据；没有改后端、数据库迁移或 HTTP/MCP 契约，所以不重复运行全仓库、双数据库迁移或性能套件。新截图来自隔离数据，未连接日常使用实例。
+
+从仓库根目录，在已初始化的自有、可丢弃 loopback fixture 上运行；`UI_FIXTURES` 中保留 `url`、`username`、`password`、`shared`，站点名必须为 `Release UI fixture sqlite`：
+
+```bash
+UI_PROVIDER=sqlite UI_FIXTURES=/absolute/path/to/fixture.json OUTPUT_DIR=/absolute/path/to/results node tests/browser_work_dialog.cjs
+UI_PROVIDER=sqlite UI_FIXTURES=/absolute/path/to/fixture.json OUTPUT_DIR=/absolute/path/to/short-id-results node tests/browser_work_short_ids.cjs
+```
+
+浏览器与 Playwright 不在默认路径时沿用现有 `CHROMIUM_PATH`、`PLAYWRIGHT_MODULE` 和运行库配置。新脚本支持 `UI_CHECK_MATCH`／`UI_CHECK_SKIP_MATCH`；报告记录实际通过组和跳过组。本轮续验使用 `UI_CHECK_SKIP_MATCH='^compact_card_id_and_project_context$'`，八组退出码为 0。不得在用户数据上运行造数、冲突或响应丢失用例。
+
+### ③ AI Agent 体验
+
+沿用真实短编号、创建 `requestId`、版本冲突和原请求核对，测试不会把创建请求 ID 当作事项链接。`data-work-save-close` 与 `data-work-maximize` 是稳定操作入口；报告保留失败、跳过与通过记录，凭据不进入输出。浏览器脚本验证的是这些具体 UI 路径，本次没有宣称重新验证所有 MCP 工具、权限场景或外部执行器协议。
+
 ## 事项侧栏与测试索引：0.3.2
 
 ### ① 用户体验

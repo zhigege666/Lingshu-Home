@@ -115,17 +115,18 @@ async function main() {
   });
   await check('scope_switch_guards_draft_and_resets_creation_context', async () => {
     await openBoard(); await createDraft(); await title().fill(prefix + ' retained draft');
-    await page.locator('[data-work-project-id="' + projectA.id + '"] > button').first().click();
+    await button('关闭事项', 'Close item', detail()).click();
     await button('继续编辑', 'Keep editing', page.getByRole('dialog')).click();
     assert.equal(await title().inputValue(), prefix + ' retained draft');
     assert.equal(await projectField().innerText(), l('未分组', 'No project'));
-    await page.locator('[data-work-project-id="' + projectA.id + '"] > button').first().click();
+    await button('关闭事项', 'Close item', detail()).click();
     await button('放弃修改', 'Discard changes', page.getByRole('dialog')).click();
-    await detail().waitFor({ state: 'hidden' }); await createDraft();
+    await detail().waitFor({ state: 'hidden' }); await selectProject(projectA); await createDraft();
     assert.equal(await projectField().innerText(), projectA.name);
-    await title().fill(prefix + ' reload discard'); await reloadBoard();
+    await title().fill(prefix + ' reload discard'); await button('关闭事项', 'Close item', detail()).click();
     await button('放弃修改', 'Discard changes', page.getByRole('dialog')).click();
-    await detail().waitFor(); assert.equal(await title().inputValue(), '');
+    await detail().waitFor({ state: 'hidden' }); await reloadBoard(); await page.locator('.work-board').waitFor(); await createDraft();
+    assert.equal(await title().inputValue(), '');
     assert.equal(await projectField().innerText(), projectA.name);
     await title().fill(prefix + ' preserved project'); const item = await saveCreate();
     assert.equal(item.projectId, projectA.id); await card(item.id).waitFor(); await closeDetail();
@@ -177,8 +178,10 @@ async function main() {
   await check('reference_create_route_is_replay_safe_and_discard_keeps_reference', async () => {
     const fromReference = origin + '/#/library?' + new URLSearchParams({ view: 'board', space: fixture.shared, new: '1', resourceKind: 'bookmark', resourceId: bookmark.id, title: bookmark.title });
     await page.goto(fromReference, { waitUntil: 'domcontentloaded' }); await detail().waitFor();
-    await title().fill(prefix + ' changed reference draft'); await reloadBoard();
+    await title().fill(prefix + ' changed reference draft'); await button('关闭事项', 'Close item', detail()).click();
     await button('放弃修改', 'Discard changes', page.getByRole('dialog')).click();
+    await detail().waitFor({ state: 'hidden' });
+    await page.goto(fromReference, { waitUntil: 'domcontentloaded' }); await detail().waitFor();
     assert.equal(await title().inputValue(), bookmark.title);
     assert.equal(await detail().locator('.work-references a').filter({ hasText: bookmark.title }).count(), 1);
     const item = await saveCreate(); assert.deepEqual(item.bookmarkIds, [bookmark.id]); await card(item.id).waitFor();
@@ -294,13 +297,14 @@ async function main() {
     await detail().locator('.work-references').getByText(document.title,{exact:true}).waitFor(); await closeDetail();
   });
   await check('module_navigation_and_shutdown_preserve_unsaved_drafts', async () => {
-    // The wide layout keeps navigation interactive beside the editor; narrower layouts use a modal drawer.
+    // All desktop sizes use a modal: resolve the item draft before navigating outside it.
     await page.setViewportSize({width:2560,height:1440}); await openBoard(); await createDraft();
     await title().fill(prefix + ' navigation draft');
     const homeLink = () => page.locator('nav.lh-module-nav').getByRole('link',{name:l('导航','Home'),exact:true});
-    await homeLink().click(); await button('继续编辑','Keep editing',page.getByRole('dialog')).click();
+    await button('关闭事项','Close item',detail()).click(); await button('继续编辑','Keep editing',page.getByRole('dialog')).click();
     assert.equal(await title().inputValue(),prefix + ' navigation draft');
-    await homeLink().click(); await button('放弃修改','Discard changes',page.getByRole('dialog')).click();
+    await button('关闭事项','Close item',detail()).click(); await button('放弃修改','Discard changes',page.getByRole('dialog')).click();
+    await detail().waitFor({state:'hidden'}); await homeLink().click();
     await page.locator('.lh-home').waitFor(); assert.equal(await page.getByRole('dialog').count(),0,'One discard decision completes navigation');
     await page.goto(boardURL + '&item=' + seed.id,{waitUntil:'domcontentloaded'}); await detail().waitFor();
     const intended = prefix + ' retained after module shutdown'; await title().fill(intended);
@@ -325,8 +329,10 @@ async function main() {
     await page.waitForFunction(() => document.querySelectorAll('.work-activity [data-work-activity-id]').length === 20);
     // Opening another detail keeps the current board snapshot; explicitly locate this API-created item.
     await detail().getByRole('button',{name:l('定位事项','Locate item'),exact:true}).click();
-    await card(itemId).waitFor();
+    await detail().waitFor({state:'hidden'}); await card(itemId).waitFor();
     assert.equal(await card(itemId).locator('time.work-updated-time').getAttribute('datetime'),item.updatedAt);
+    await card(itemId).locator('.work-card-title').click(); await detail().waitFor();
+    await page.waitForFunction(() => document.querySelectorAll('.work-activity [data-work-activity-id]').length === 20);
     assert.deepEqual(await detail().locator('.work-activity [data-work-activity-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.workActivityId)),expected.items.slice(0,20).map(e=>e.id));
     await detail().locator('.work-activity-more').click();
     await page.waitForFunction(() => document.querySelectorAll('.work-activity [data-work-activity-id]').length === 24);

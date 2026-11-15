@@ -4,6 +4,12 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+### Compact work cards and centered editing
+
+- **① User experience:** place the short item ID before the title in board cards, list rows and calendar agendas, removing its separate metadata line. Omit repeated project badges inside a single-project board. Open item, recurring-item, status and automation/execution details in centered dialogs at every desktop size; preserve the board width and scroll position. Item dialogs keep the heading and actions visible, separate content from properties, support maximize/restore, and offer Save and Save and close with `Ctrl/⌘+S` and `Ctrl/⌘+Enter`.
+- **② Developer experience:** reuse the existing Radix dialog and draft guards, removing the wide-screen drawer/aside branches and their layout squeezing. Restore keyboard focus after closing and after a successful save moves an item to another column. Add focused browser checks for four desktop sizes, keyboard focus, drafts, save outcomes and related dialogs; update existing modal assertions. No new dependency, timer, database migration or backend interface is introduced.
+- **③ AI Agent experience:** preserve short IDs, deep links, server-allocated creation IDs, `requestId` recovery, revision conflicts and claim protections. Save and close only exits after a confirmed write or a matching read-back; unresolved results and unsaved relation/collaboration edits remain visible. Stable action selectors and documented regression commands make the same flows reproducible.
+
 ## [0.3.2] - 2026-11-15
 
 ### Work navigation and regression coverage

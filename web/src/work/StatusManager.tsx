@@ -24,7 +24,7 @@ export default function StatusManager({ spaceId, focusId, onClose, onSaved }: { 
   const [baseline, setBaseline] = useState<WorkStatusCatalog | null>(null), [rows, setRows] = useState<WorkStatusDefinition[]>([]), [defaultStatus, setDefaultStatus] = useState('')
   const [deletions, setDeletions] = useState<Record<string, string>>({}), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const [conflict, setConflict] = useState(false), [uncertain, setUncertain] = useState(false), [latest, setLatest] = useState<WorkStatusCatalog | null>(null), [dropId, setDropId] = useState('')
-  const alive = useRef(true), running = useRef(false), dragId = useRef(''), focusNext = useRef(focusId), body = useRef<HTMLDivElement>(null)
+  const alive = useRef(true), running = useRef(false), dragId = useRef(''), focusNext = useRef(focusId), body = useRef<HTMLDivElement>(null), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement)
   const activeRows = rows.filter(row => !(row.id in deletions))
   const dirty = !!baseline && shape(activeRows, defaultStatus) !== shape(baseline.items, baseline.defaultStatus)
   const guard = useUnsavedChanges(dirty, busy)
@@ -137,7 +137,7 @@ export default function StatusManager({ spaceId, focusId, onClose, onSaved }: { 
       else setError(messageOf(cause))
     } finally { running.current = false; if (alive.current) setBusy(false) }
   }
-  return <><Dialog open onOpenChange={value => { if (!value) close() }}><DialogContent className={`admin-ui work-theme work-theme-${theme} work-drawer work-status-manager`} data-theme={theme} showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }}>
+  return <><Dialog open onOpenChange={value => { if (!value && !busy) close() }}><DialogContent aria-modal="true" className={`admin-ui work-theme work-theme-${theme} work-dialog work-status-manager`} data-theme={theme} showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => { event.preventDefault(); if (returningTo.current?.isConnected) returningTo.current.focus({ preventScroll: true }) }}>
     <header className="work-detail-heading"><DialogTitle>{t('管理状态', 'Manage statuses')}</DialogTitle><Button type="button" variant="ghost" size="icon" disabled={busy} onClick={close} aria-label={t('关闭状态管理', 'Close status manager')}><X size={19}/></Button></header>
     {loading ? <Loading/> : <form className="work-detail-form" onSubmit={event => void save(event)} onInvalidCapture={event => handleFormInvalid(event, setError)}>
       <div className="work-detail-body" ref={body}>

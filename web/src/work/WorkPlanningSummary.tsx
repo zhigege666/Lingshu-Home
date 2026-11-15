@@ -7,7 +7,6 @@ const priorityLabel = (value: string) => ({ low: t('低', 'Low'), normal: t('普
 export default function WorkPlanningSummary({ item, fields }: { item: WorkSummary; fields: WorkDisplayField[] }) {
   const has = (field: WorkDisplayField) => fields.includes(field)
   return <div className="work-planning-summary">
-    {has('id') && <span className="work-item-id">{item.id}</span>}
     {has('priority') && item.priority && <span className={`work-priority work-priority-${item.priority}`}>{priorityLabel(item.priority)}</span>}
     {has('assignee') && item.assignee && <span title={item.assignee.userId ? t('已关联账号：{name}', 'Linked account: {name}', { name: item.assignee.name }) : item.assignee.name}><UserRound size={12}/>{item.assignee.name}</span>}
     {has('version') && item.version && <span><Tag size={12}/>{item.version.name}</span>}

@@ -54,7 +54,8 @@ async function createThroughUI(title) {
 }
 async function geometry(width, height) {
   await page.setViewportSize({ width, height });
-  await page.waitForFunction(wide => { const el = document.querySelector('[data-work-detail-id]'); return el && (el.tagName === 'ASIDE') === wide; }, width >= 2200);
+  await page.locator('.work-item-dialog[role=dialog]').waitFor();
+  assert.equal(await page.locator('aside[data-work-detail-id], .work-drawer').count(), 0, 'All desktop sizes use a centered dialog');
   const value = await detail().evaluate(el => {
     const rect = node => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
     return { panel: rect(el), code: rect(el.querySelector('[data-work-copy-id]')), header: rect(el.querySelector('.work-detail-heading')), footer: rect(el.querySelector('.work-detail-footer')), scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) };

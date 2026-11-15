@@ -72,7 +72,7 @@ export default function WorkSchedules(props: Props) {
       if (alive.current && token === generation.current) setError(cause instanceof ApiError && cause.status < 500 ? cause.status === 409 ? t('规则已更新，请重新读取。', 'The schedule changed. Reload it first.') : messageOf(cause) : t('操作结果未确认，请重新读取规则后核对状态。', 'The result is unconfirmed. Reload and check the schedule state.'))
     } finally { changingRef.current = false; if (alive.current) setChanging('') }
   }
-  return <div className={`work-schedule-shell ${selection ? 'has-selection' : ''}`}>
+  return <div className="work-schedule-shell">
     <section className="work-schedule-list" aria-label={t('定时事项', 'Recurring items')}>
       <div className="work-schedule-list-heading"><span>{page ? t('{count} 条规则', '{count} schedules', { count: page.total }) : ''}</span><Button variant="ghost" size="sm" disabled={loading || !enabled} onClick={() => setVersion(value => value + 1)}><RefreshCw size={14}/>{t('重新读取', 'Reload')}</Button></div>
       <ErrorMessage error={error}/>

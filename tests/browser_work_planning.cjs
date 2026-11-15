@@ -46,9 +46,20 @@ async function ensureExecutor(resource = prefix + '/normal') {
 async function enableAutomation(value = true) { const current = await api(work + '/automation/settings'); if (current.enabled !== value) await api(work + '/automation/settings', 'PATCH', { expectedRevision: current.revision, enabled: value }); }
 async function executorChoose(scope, executor) { await button('选择执行器', 'Choose executor', scope).click(); await scope.locator('.work-picker-options button').filter({ hasText: executor.name }).click(); }
 async function geometry(selector, width, height, name) {
-  await page.setViewportSize({ width, height }); await page.waitForFunction(({ selector, wide }) => { const e = document.querySelector(selector); return e && e.tagName === (wide ? 'ASIDE' : 'DIV'); }, { selector, wide: width >= 2200 });
-  const value = await page.locator(selector).evaluate(element => { const box = e => { const r = e.getBoundingClientRect(); return { x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height }; }; const body = element.querySelector('.work-detail-body'), before = body.scrollTop; body.scrollTop = body.scrollHeight; const scrolls = body.scrollTop > before; body.scrollTop = 0; return { panel:box(element),heading:box(element.querySelector('.work-detail-heading')),footer:box(element.querySelector('.work-detail-footer')),body:box(body),scrolls,pageWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),width:innerWidth,height:innerHeight }; });
-  assert(value.pageWidth <= width + 1); assert(value.panel.x >= 0 && value.panel.right <= width + 1 && value.panel.bottom <= height + 1); if (width >= 2200) assert.equal(Math.round(value.panel.width), 520); assert(value.body.bottom <= value.footer.y + 1 && value.body.y >= value.heading.bottom - 1); assert(value.scrolls, 'Long detail scrolls internally'); report.performance.push({ surface:name,...value }); await shot(name+'-'+width+'x'+height);
+  await page.setViewportSize({ width, height });
+  await page.waitForFunction(selector => document.querySelector(selector)?.closest('[role="dialog"][aria-modal="true"]'), selector);
+  const value = await page.locator(selector).evaluate(element => {
+    const box = e => { const r = e.getBoundingClientRect(); return { x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height }; };
+    const body = element.querySelector('.work-detail-body'); body.scrollTop = 0; body.scrollTop = body.scrollHeight; const scrolls = body.scrollTop > 0; body.scrollTop = 0;
+    return { dialog:box(element.closest('[role="dialog"]')),panel:box(element),heading:box(element.querySelector('.work-detail-heading')),footer:box(element.querySelector('.work-detail-footer')),body:{...box(body),clientHeight:body.clientHeight,scrollHeight:body.scrollHeight,overflow:getComputedStyle(body).overflowY},scrolls,pageWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),width:innerWidth,height:innerHeight };
+  });
+  assert(value.pageWidth <= width + 1);
+  assert(value.dialog.x >= 16 && value.dialog.right <= width - 16 && value.dialog.y >= 16 && value.dialog.bottom <= height - 16, 'Dialog fits viewport margins');
+  assert(Math.abs(value.dialog.x + value.dialog.width / 2 - width / 2) <= 2 && Math.abs(value.dialog.y + value.dialog.height / 2 - height / 2) <= 2, 'Detail is centered at every desktop size');
+  assert(value.body.bottom <= value.footer.y + 1 && value.body.y >= value.heading.bottom - 1);
+  assert(['auto','scroll'].includes(value.body.overflow), 'Content owns the scrollbar');
+  if (value.body.scrollHeight > value.body.clientHeight + 1) assert(value.scrolls, 'Overflowing detail scrolls internally');
+  report.performance.push({ surface:name,...value }); await shot(name+'-'+width+'x'+height);
   if (height === 900) { await page.locator(selector+' .work-detail-body').evaluate(e => { e.scrollTop=e.scrollHeight; }); await shot(name+'-'+width+'x'+height+'-bottom'); }
 }
 
@@ -143,7 +154,12 @@ async function main() {
     await button('新建规则','New rule').click(); await autoDetail().locator('[data-auto-rule-name]').fill(prefix+' UI rule'); await autoDetail().locator('[data-auto-event-type]').fill('INVALID space'); assert(await autoDetail().locator('[data-auto-event-type]').evaluate(input=>input.validity.patternMismatch)); await autoDetail().locator('[data-auto-event-type]').fill('sync.requested'); await autoDetail().locator('[data-auto-template-title]').fill(prefix+' literal event title'); await autoDetail().locator('[data-work-priority]').selectOption('high'); await label('负责人姓名','Assignee name',autoDetail()).fill('Event owner'); await executorChoose(autoDetail(),executor); await autoDetail().locator('[data-auto-rule-enabled]').check();
     const result=await mutation(()=>button('保存规则','Save rule',autoDetail()).click(),work+'/automation/rules','POST'); assert.equal(result.rule.eventType,'sync.requested'); assert.equal(result.rule.executorId,executor.id); assert.equal(result.rule.template.priority,'high'); assert.equal(result.rule.template.assignee.name,'Event owner'); assert(result.rule.enabled);
     if(language==='en') await geometry('[data-work-auto-detail]',1600,900,'automation'); else { await geometry('[data-work-auto-detail]',2560,1080,'automation'); await geometry('[data-work-auto-detail]',1600,900,'automation'); }
-    await page.setViewportSize({width:2560,height:1440}); await page.locator('.home-account-trigger').click(); await page.getByRole('menuitemcheckbox',{name:t('切换深浅色','Toggle light or dark')}).click(); await page.keyboard.press('Escape'); await page.locator('.work-shell[data-theme="dark"]').waitFor(); await shot('automation-dark'); await page.locator('.home-account-trigger').click(); await page.getByRole('menuitemcheckbox',{name:t('切换深浅色','Toggle light or dark')}).click(); await page.keyboard.press('Escape');
+    await page.setViewportSize({width:2560,height:1440});
+    await button('关闭规则','Close rule',autoDetail()).click(); await autoDetail().waitFor({state:'hidden'});
+    await page.locator('.home-account-trigger').click(); await page.getByRole('menuitemcheckbox',{name:t('切换深浅色','Toggle light or dark')}).click(); await page.keyboard.press('Escape'); await page.locator('.work-shell[data-theme="dark"]').waitFor();
+    await openAuto('rules',result.rule.id); await autoDetail().locator('[data-auto-rule-name]').waitFor(); await shot('automation-dark');
+    await button('关闭规则','Close rule',autoDetail()).click(); await autoDetail().waitFor({state:'hidden'});
+    await page.locator('.home-account-trigger').click(); await page.getByRole('menuitemcheckbox',{name:t('切换深浅色','Toggle light or dark')}).click(); await page.keyboard.press('Escape');
   });
   await check('external_event_ui_real_receipts_generated_item_and_no_recursion',async()=>{
     await enableAutomation(); const executor=await ensureExecutor(); const eventType='ui.'+id().slice(0,10), rule=(await api(work+'/automation/rules','POST',{id:id(),name:prefix+' event generation',eventType,template:{title:prefix+' generated literal',status:todo,priority:'urgent',labelIds:[labelA.id],assignee:{name:'Event responsibility'},projectId:project.id,versionId:versionA.id},executorId:executor.id,enabled:true})).rule;

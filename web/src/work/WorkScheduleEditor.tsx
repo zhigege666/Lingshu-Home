@@ -26,16 +26,11 @@ type Props = {
   enabled: boolean; canEdit: boolean; documentsEnabled: boolean; onClose: () => void;
   onSaved: (schedule: WorkSchedule, created: boolean, notify?: boolean) => void; onOpenItem: (id: string) => void; onGenerated: () => void; onNotice: (text: string) => void
 }
-function useWideSchedule() {
-  const [wide, setWide] = useState(() => matchMedia('(min-width:2200px)').matches)
-  useEffect(() => { const media = matchMedia('(min-width:2200px)'), change = () => setWide(media.matches); media.addEventListener('change', change); return () => media.removeEventListener('change', change) }, [])
-  return wide
-}
 function scheduleMessage(cause: unknown): string {
   return cause instanceof ApiError && cause.code === 'module_disabled' ? t('模块已关闭，草稿保留。重新开启后继续。', 'The module is disabled. Your draft is retained; continue after enabling it.') : messageOf(cause)
 }
 export default function WorkScheduleEditor({ spaceId, selection, projects, statuses, defaultStatus, enabled, canEdit, documentsEnabled, onClose, onSaved, onOpenItem, onGenerated, onNotice }: Props) {
-  const theme = useWorkTheme(), wide = useWideSchedule()
+  const theme = useWorkTheme()
   const initial = useRef(scheduleDraft(undefined, selection.source, selection.projectId, selection.source && statuses.some(status => status.id === selection.source!.status && status.type !== 'done' && status.type !== 'canceled') ? selection.source.status : defaultStatus)), initialReferences = useRef(selection.source?.references || [])
   const [draft, setDraft] = useState<WorkScheduleDraft>(() => structuredClone(initial.current)), [baseline, setBaseline] = useState<WorkSchedule | null>(null), [remote, setRemote] = useState<WorkSchedule | null>(null)
   const [references, setReferences] = useState<WorkReference[]>(initialReferences.current), [picker, setPicker] = useState(false)
@@ -43,7 +38,7 @@ export default function WorkScheduleEditor({ spaceId, selection, projects, statu
   const [tab, setTab] = useState<'settings' | 'history'>('settings'), [preview, setPreview] = useState<WorkSchedulePreview | null>(null), [previewError, setPreviewError] = useState(''), [previewBusy, setPreviewBusy] = useState(false)
   const [history, setHistory] = useState<WorkScheduleOccurrences | null>(null), [historyError, setHistoryError] = useState(''), [historyBusy, setHistoryBusy] = useState(false), [historyVersion, setHistoryVersion] = useState(0)
   const [generationDate, setGenerationDate] = useState(() => workToday()), [generationResult, setGenerationResult] = useState<{ occurrence: WorkScheduleOccurrence; replayed: boolean } | null>(null)
-  const alive = useRef(true), running = useRef(false), historyRun = useRef(false), historyGeneration = useRef(0), historyPageAbort = useRef<AbortController | null>(null), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement)
+  const alive = useRef(true), running = useRef(false), historyRun = useRef(false), historyGeneration = useRef(0), historyPageAbort = useRef<AbortController | null>(null), returningTo = useRef<HTMLElement | null>(document.activeElement as HTMLElement), detail = useRef<HTMLDivElement>(null), focused = useRef(!!selection.create)
   const path = `${workPath(spaceId)}/schedules/${encodeURIComponent(selection.id)}`, creating = !baseline && !!selection.create
   const baseDraft = baseline ? scheduleDraft(baseline) : initial.current
   const dirty = Object.keys(scheduleChanges(baseDraft, draft)).length > 0
@@ -61,8 +56,10 @@ export default function WorkScheduleEditor({ spaceId, selection, projects, statu
     return () => abort.abort()
   }, [path, enabled])
   useEffect(() => {
-    if (wide && !loading) document.querySelector<HTMLInputElement>('[data-work-schedule-detail] [data-schedule-name]')?.focus({ preventScroll: true })
-  }, [wide, loading])
+    if (loading || focused.current) return
+    const name = detail.current?.querySelector<HTMLInputElement>('[data-schedule-name]')
+    if (name && !name.matches(':disabled')) { name.focus({ preventScroll: true }); focused.current = true }
+  }, [loading])
   useEffect(() => {
     if (loading || !enabled || tab !== 'settings') return
     const rule = JSON.parse(previewKey) as WorkScheduleRule
@@ -85,7 +82,7 @@ export default function WorkScheduleEditor({ spaceId, selection, projects, statu
     return () => { abort.abort(); historyPageAbort.current?.abort(); historyGeneration.current++; historyRun.current = false }
   }, [path, tab, enabled, historyVersion, baseline?.id])
   function close() {
-    guard.requestLeave(() => { onClose(); requestAnimationFrame(() => { (returningTo.current?.isConnected ? returningTo.current : document.querySelector<HTMLElement>('[data-work-new-schedule]'))?.focus({ preventScroll: true }) }) })
+    guard.requestLeave(onClose)
   }
   function adopt(schedule: WorkSchedule, notify = true) {
     if (!alive.current) return
@@ -216,5 +213,5 @@ export default function WorkScheduleEditor({ spaceId, selection, projects, statu
       <footer className="work-detail-footer">{baseline && canEdit && <><Button type="button" variant="ghost" size="sm" disabled={busy || !enabled || conflict || uncertain} onClick={() => guard.requestLeave(() => void mutate({ archived: !baseline.archived }))}>{baseline.archived ? <ArchiveRestore size={15}/> : <Archive size={15}/>}<span>{baseline.archived ? t('恢复', 'Restore') : t('归档', 'Archive')}</span></Button>{!baseline.archived && <Button type="button" variant="outline" size="sm" disabled={busy || !enabled || conflict || uncertain} onClick={() => guard.requestLeave(() => void mutate({ enabled: !baseline.enabled }))}>{baseline.enabled ? <Pause size={14}/> : <Play size={14}/>}<span>{baseline.enabled ? t('暂停', 'Pause') : t('启用', 'Enable')}</span></Button>}</>}<span className="grow"/><Button type="button" variant="outline" size="sm" disabled={busy} onClick={close}>{t('关闭', 'Close')}</Button>{editable && <Button type="submit" size="sm" disabled={busy || !draft.name.trim() || !draft.template.title.trim() || (!creating && !dirty) || conflict || uncertain}><Save size={14}/>{busy ? t('正在保存…', 'Saving…') : creating ? t('创建规则', 'Create schedule') : t('保存规则', 'Save schedule')}</Button>}</footer>
     </form>}
   </>
-  return <>{wide ? <aside className="work-detail work-schedule-detail" aria-labelledby="work-schedule-editor-title" data-work-schedule-detail={selection.id}>{content}</aside> : <Dialog open onOpenChange={value => { if (!value && !busy) close() }}><DialogContent className={`admin-ui work-theme work-theme-${theme} work-drawer work-schedule-drawer`} data-theme={theme} showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }}><DialogTitle className="sr-only">{creating ? t('新建定时事项', 'New recurring item') : t('定时事项详情', 'Recurring item')}</DialogTitle><div className="work-detail work-schedule-detail" data-work-schedule-detail={selection.id}>{content}</div></DialogContent></Dialog>}{guard.blocked && <DiscardChangesDialog onKeep={guard.keep} onDiscard={guard.discard}/>}</>
+  return <><Dialog open onOpenChange={value => { if (!value && !busy) close() }}><DialogContent aria-modal="true" className={`admin-ui work-theme work-theme-${theme} work-dialog`} data-theme={theme} showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => { event.preventDefault(); (returningTo.current?.isConnected ? returningTo.current : document.querySelector<HTMLElement>('[data-work-new-schedule]'))?.focus({ preventScroll: true }) }}><DialogTitle className="sr-only">{creating ? t('新建定时事项', 'New recurring item') : t('定时事项详情', 'Recurring item')}</DialogTitle><div ref={detail} className="work-detail work-schedule-detail" data-work-schedule-detail={selection.id}>{content}</div></DialogContent></Dialog>{guard.blocked && <DiscardChangesDialog onKeep={guard.keep} onDiscard={guard.discard}/>}</>
 }

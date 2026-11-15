@@ -61,9 +61,6 @@
 .work-schedule-history li>.cn-button { margin-top:6px; padding-left:0; font-size:12px; }
 .work-schedule-history>.cn-button { width:100%; margin-top:14px; }
 .work-schedule-failed { color:var(--work-danger)!important; }
-@media(min-width:2200px) {
-  .work-schedule-shell.has-selection { grid-template-columns:minmax(0,1fr) 520px; }
-}
 @media(max-width:999px) {
   .work-schedule-list { padding:14px; }
 }

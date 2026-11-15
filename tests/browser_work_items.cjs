@@ -359,8 +359,10 @@ async function main() {
           });
           report.layouts ||= []; report.layouts.push({ name, ...before });
           await shot(name);
-          assert(Math.abs(before.footer.bottom - before.dialog.bottom) <= 1, name + ' footer must touch drawer bottom: ' + JSON.stringify(before));
-          assert(before.dialog.left >= -1 && before.dialog.right <= before.viewport.width + 1 && Math.abs(before.dialog.bottom - before.viewport.height) <= 1, name + ' drawer stays in viewport');
+          assert(Math.abs(before.footer.bottom - before.dialog.bottom) <= 2, name + ' footer stays at dialog bottom: ' + JSON.stringify(before));
+          assert(before.dialog.left >= 16 && before.dialog.right <= before.viewport.width - 16 && before.dialog.top >= 16 && before.dialog.bottom <= before.viewport.height - 16, name + ' dialog stays within viewport margins');
+          assert(Math.abs((before.dialog.left + before.dialog.right) / 2 - before.viewport.width / 2) <= 2 && Math.abs((before.dialog.top + before.dialog.bottom) / 2 - before.viewport.height / 2) <= 2, name + ' dialog remains centered');
+          assert.equal(await manager.getAttribute('aria-modal'), 'true', name + ' has modal semantics');
           assert(before.body.top >= before.heading.bottom - 1 && before.body.bottom <= before.footer.top + 1, name + ' content stays between heading and footer');
           assert(['auto', 'scroll'].includes(before.body.overflow), name + ' only content owns scrolling');
           if (scrollExpected) {
