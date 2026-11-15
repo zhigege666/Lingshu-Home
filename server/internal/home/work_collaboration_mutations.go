@@ -79,7 +79,40 @@ func (a *App) updateWorkItem(r *Request) (*Response, error) {
 func (a *App) moveWorkItem(r *Request) (*Response, error) {
 	return a.coordinatedWorkMutation(r, "item.move", a.moveWorkItemValue)
 }
-func (a *App) coordinatedWorkMutation(r *Request, action string, handler handlerFunc) (*Response, error) {
+
+// Prepared values belong only to this mutation's authorized request and
+// transaction. Item mutations do not edit the status catalog, so validation,
+// history and the final reply can share its snapshot.
+type workMutationPrepared struct {
+	space    *Space
+	item     *WorkItem
+	input    map[string]json.RawMessage
+	statuses *WorkStatusCatalog
+}
+
+func (m *workMutationPrepared) requireStatus(r *Request, id string) (*WorkStatusDefinition, error) {
+	if m.statuses == nil {
+		var err error
+		m.statuses, err = r.App.loadWorkStatuses(r, m.space.ID, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if status := m.statuses.find(id); status != nil {
+		return status, nil
+	}
+	return nil, r.App.unavailableWorkStatus(r, m.space.ID, id, m.statuses)
+}
+
+type workMutationResult struct {
+	item          *WorkItem
+	boardRevision string
+	flags         map[string]any
+}
+
+type workMutationHandler func(*Request, *workMutationPrepared) (*workMutationResult, error)
+
+func (a *App) coordinatedWorkMutation(r *Request, action string, handler workMutationHandler) (*Response, error) {
 	s, err := r.workSpace(true)
 	if err != nil {
 		return nil, err
@@ -111,24 +144,31 @@ func (a *App) coordinatedWorkMutation(r *Request, action string, handler handler
 		return nil, err
 	}
 	delete(raw, "context")
-	r.Input = []byte(jsonString(raw))
 	if session != nil {
 		setWorkRequestSession(r, session)
 	}
-	response, err := handler(r)
+	prepared := &workMutationPrepared{space: s, item: item, input: raw}
+	result, err := handler(r, prepared)
 	if err != nil {
 		return nil, err
+	}
+	current := result.item
+	var status *WorkStatusDefinition
+	if c != nil || r.workReads("work:read") {
+		status, err = prepared.requireStatus(r, current.Status)
+		if err != nil {
+			return nil, err
+		}
+	}
+	revision := result.boardRevision
+	if revision == "" {
+		revision, err = a.workRevision(r, s.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c == nil {
-		return response, nil
-	}
-	current, err := a.loadWorkItem(r, s.ID, item.ID)
-	if err != nil {
-		return nil, err
-	}
-	status, err := a.requireWorkStatus(r, s.ID, current.Status)
-	if err != nil {
-		return nil, err
+		return a.workItemReplyValue(r, current, result.flags, revision, status)
 	}
 	// Business revision and terminal release share the same transaction. A late
 	// worker cannot keep writing merely by obtaining this new business revision.
@@ -153,11 +193,7 @@ func (a *App) coordinatedWorkMutation(r *Request, action string, handler handler
 	if err = a.touchWorkSession(r, session.ID, workStamp()); err != nil {
 		return nil, err
 	}
-	response, err = a.workItemReply(r, current, nil)
-	if err != nil {
-		return nil, err
-	}
-	revision, err := a.workRevision(r, s.ID)
+	response, err := a.workItemReplyValue(r, current, nil, revision, status)
 	if err != nil {
 		return nil, err
 	}

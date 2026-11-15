@@ -111,6 +111,9 @@ func (a *App) validateWorkRefs(r *Request, space, itemID, kind string, ids []str
 			return err
 		}
 	}
+	if len(ids) == 0 {
+		return nil
+	}
 	old, err := a.storedWorkIDs(r, itemID, kind)
 	if err != nil {
 		return err
@@ -356,11 +359,17 @@ func (a *App) insertWorkItem(r *Request, space string, in workCreateInput, hash 
 	if err != nil {
 		return nil, err
 	}
-	if err = a.replaceWorkRefs(r, in.ID, "bookmark", in.BookmarkIDs); err != nil {
-		return nil, err
+	// A successful new item INSERT cannot have prior reference rows: both
+	// reference tables require an existing item through their foreign keys.
+	if len(in.BookmarkIDs) > 0 {
+		if err = a.replaceWorkRefs(r, in.ID, "bookmark", in.BookmarkIDs); err != nil {
+			return nil, err
+		}
 	}
-	if err = a.replaceWorkRefs(r, in.ID, "document", in.DocumentIDs); err != nil {
-		return nil, err
+	if len(in.DocumentIDs) > 0 {
+		if err = a.replaceWorkRefs(r, in.ID, "document", in.DocumentIDs); err != nil {
+			return nil, err
+		}
 	}
 	if len(in.LabelIDs) > 0 {
 		if err = a.replaceWorkLabels(r, space, in.ID, in.LabelIDs); err != nil {
@@ -375,19 +384,9 @@ func (a *App) insertWorkItem(r *Request, space string, in workCreateInput, hash 
 	}
 	return a.loadWorkItem(r, space, in.ID)
 }
-func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
-	s, err := r.workSpace(true)
-	if err != nil {
-		return nil, err
-	}
-	item, err := a.loadWorkItem(r, s.ID, r.param("id"))
-	if err != nil {
-		return nil, err
-	}
-	var raw map[string]json.RawMessage
-	if err = r.decode(&raw); err != nil {
-		return nil, err
-	}
+func (a *App) updateWorkItemValue(r *Request, prepared *workMutationPrepared) (*workMutationResult, error) {
+	s, item, raw := prepared.space, prepared.item, prepared.input
+	var err error
 	allowed := map[string]bool{"expectedRevision": true, "priority": true, "labelIds": true, "assignee": true, "versionId": true, "businessDate": true, "dueAt": true, "title": true, "projectId": true, "status": true, "description": true, "nextStep": true, "result": true, "needsAttention": true, "archived": true, "bookmarkIds": true, "documentIds": true}
 	for k := range raw {
 		if !allowed[k] {
@@ -432,7 +431,7 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	if err = validateWorkText(&in); err != nil {
 		return nil, err
 	}
-	if _, err = a.requireWorkStatus(r, s.ID, in.Status); err != nil {
+	if _, err = prepared.requireStatus(r, in.Status); err != nil {
 		return nil, err
 	}
 	if !reflect.DeepEqual(in.ProjectID, item.ProjectID) {
@@ -463,13 +462,13 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 			return nil, err
 		}
 	}
-	changes, err := a.workItemChanges(r, item, in, archived, linksSet, docsSet)
+	changes, err := a.workItemChanges(r, prepared, in, archived, linksSet, docsSet)
 	if err != nil {
 		return nil, err
 	}
 	changes = append(changes, workPlanningChanges(item.WorkPlanningFields, in.WorkPlanningFields)...)
 	if len(changes) == 0 {
-		return a.workItemReply(r, item, map[string]any{"unchanged": true})
+		return &workMutationResult{item: item, flags: map[string]any{"unchanged": true}}, nil
 	}
 	rank := item.rank
 	if in.Status != item.Status || archived != item.Archived {
@@ -509,28 +508,19 @@ func (a *App) updateWorkItemValue(r *Request) (*Response, error) {
 	if err = a.recordWorkActivity(r, s.ID, item.ID, action, now, changes); err != nil {
 		return nil, err
 	}
-	if _, err = a.bumpWorkRevision(r, s.ID); err != nil {
+	boardRevision, err := a.bumpWorkRevision(r, s.ID)
+	if err != nil {
 		return nil, err
 	}
 	item, err = a.loadWorkItem(r, s.ID, item.ID)
 	if err != nil {
 		return nil, err
 	}
-	return a.workItemReply(r, item, nil)
+	return &workMutationResult{item: item, boardRevision: boardRevision}, nil
 }
-func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
-	s, err := r.workSpace(true)
-	if err != nil {
-		return nil, err
-	}
-	item, err := a.loadWorkItem(r, s.ID, r.param("id"))
-	if err != nil {
-		return nil, err
-	}
-	var raw map[string]json.RawMessage
-	if err = r.decode(&raw); err != nil {
-		return nil, err
-	}
+func (a *App) moveWorkItemValue(r *Request, prepared *workMutationPrepared) (*workMutationResult, error) {
+	s, item, raw := prepared.space, prepared.item, prepared.input
+	var err error
 	for k := range raw {
 		if k != "expectedRevision" && k != "expectedBoardRevision" && k != "status" && k != "beforeId" {
 			return nil, invalid("Unknown move field.")
@@ -561,7 +551,7 @@ func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 	if revision != item.Revision {
 		return nil, workConflict("work_item_version_conflict", "The item changed. Refresh before moving it.", item.Revision)
 	}
-	if _, err = a.requireWorkStatus(r, s.ID, status); err != nil {
+	if _, err = prepared.requireStatus(r, status); err != nil {
 		return nil, err
 	}
 	actual, err := a.workRevision(r, s.ID)
@@ -591,7 +581,7 @@ func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 			return nil, err
 		}
 		if successor == anchor {
-			return a.workItemReply(r, item, map[string]any{"unchanged": true})
+			return &workMutationResult{item: item, boardRevision: actual, flags: map[string]any{"unchanged": true}}, nil
 		}
 	}
 	rank, err := a.beforeWorkRank(r, s.ID, status, item.ID, anchor)
@@ -600,11 +590,11 @@ func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 	}
 	changes := []WorkActivityChange{{Field: "order"}}
 	if status != item.Status {
-		oldStatus, err := a.requireWorkStatus(r, s.ID, item.Status)
+		oldStatus, err := prepared.requireStatus(r, item.Status)
 		if err != nil {
 			return nil, err
 		}
-		newStatus, err := a.requireWorkStatus(r, s.ID, status)
+		newStatus, err := prepared.requireStatus(r, status)
 		if err != nil {
 			return nil, err
 		}
@@ -618,12 +608,13 @@ func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 	if err = a.recordWorkActivity(r, s.ID, item.ID, "move", now, changes); err != nil {
 		return nil, err
 	}
-	if _, err = a.bumpWorkRevision(r, s.ID); err != nil {
+	boardRevision, err := a.bumpWorkRevision(r, s.ID)
+	if err != nil {
 		return nil, err
 	}
 	item, err = a.loadWorkItem(r, s.ID, item.ID)
 	if err != nil {
 		return nil, err
 	}
-	return a.workItemReply(r, item, nil)
+	return &workMutationResult{item: item, boardRevision: boardRevision}, nil
 }

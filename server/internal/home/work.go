@@ -159,11 +159,9 @@ func (a *App) workRevision(r *Request, space string) (string, error) {
 	return strconv.FormatInt(revision, 10), err
 }
 func (a *App) bumpWorkRevision(r *Request, space string) (string, error) {
-	_, err := r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_spaces(space_id,revision) VALUES(?,2) ON CONFLICT(space_id) DO UPDATE SET revision=work_spaces.revision+1"), space)
-	if err != nil {
-		return "", err
-	}
-	return a.workRevision(r, space)
+	var revision int64
+	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_spaces(space_id,revision) VALUES(?,2) ON CONFLICT(space_id) DO UPDATE SET revision=work_spaces.revision+1 RETURNING revision"), space).Scan(&revision)
+	return strconv.FormatInt(revision, 10), err
 }
 func (a *App) workSummaryColumns(r *Request) string {
 	count := "0"
@@ -262,6 +260,19 @@ func (a *App) workItemReply(r *Request, item *WorkItem, flags map[string]any) (*
 	if err != nil {
 		return nil, err
 	}
+	var status *WorkStatusDefinition
+	if r.workReads("work:read") {
+		status, err = a.requireWorkStatus(r, item.SpaceID, item.Status)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return a.workItemReplyValue(r, item, flags, revision, status)
+}
+
+// revision and status are from this reply's transaction, after the mutation.
+// A write-only credential still receives only its restricted receipt.
+func (a *App) workItemReplyValue(r *Request, item *WorkItem, flags map[string]any, revision string, status *WorkStatusDefinition) (*Response, error) {
 	if !r.workReads("work:read") {
 		result := map[string]any{"id": item.ID, "revision": item.Revision, "boardRevision": revision}
 		for k, v := range flags {
@@ -269,6 +280,7 @@ func (a *App) workItemReply(r *Request, item *WorkItem, flags map[string]any) (*
 		}
 		return ok(result), nil
 	}
+	var err error
 	item.Collaboration, err = a.workCollaborationSummary(r, item.SpaceID, item.ID)
 	if err != nil {
 		return nil, err
@@ -277,10 +289,7 @@ func (a *App) workItemReply(r *Request, item *WorkItem, flags map[string]any) (*
 	if err = a.decorateWorkPlanning(r, item.SpaceID, []*WorkSummary{&item.WorkSummary}, nil); err != nil {
 		return nil, err
 	}
-	item.StatusDefinition, err = a.requireWorkStatus(r, item.SpaceID, item.Status)
-	if err != nil {
-		return nil, err
-	}
+	item.StatusDefinition = status
 	if err = a.loadWorkReferences(r, item); err != nil {
 		return nil, err
 	}

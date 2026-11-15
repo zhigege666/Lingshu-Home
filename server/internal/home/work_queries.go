@@ -325,15 +325,16 @@ func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string
 	if err != nil {
 		return nil, err
 	}
+	result.Items = make([]WorkSummary, 0, min(result.Total, in.Limit+1))
 	for rows.Next() {
-		item := WorkSummary{}
-		targets, project, rev := workSummaryScan(&item)
+		result.Items = append(result.Items, WorkSummary{})
+		item := &result.Items[len(result.Items)-1]
+		targets, project, rev := workSummaryScan(item)
 		if err = rows.Scan(targets...); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		finishWorkSummary(&item, project, rev)
-		result.Items = append(result.Items, item)
+		finishWorkSummary(item, project, rev)
 	}
 	err = rows.Err()
 	rows.Close()
@@ -346,13 +347,6 @@ func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string
 		encoded, _ := json.Marshal(workCursor{Cutoff: in.cutoff, Revision: revision, Filter: in.fingerprint(s.ID), Status: last.Status, Rank: last.rank, ID: last.ID})
 		cursor := base64.RawURLEncoding.EncodeToString(encoded)
 		result.NextCursor = &cursor
-	}
-	if err = a.decorateWorkCollaboration(r, s.ID, result.Items); err != nil {
-		return nil, err
-	}
-	result.CollaborationRevision, err = a.workCollaborationRevision(r, s.ID)
-	if err != nil {
-		return nil, err
 	}
 	return result, nil
 }
@@ -377,7 +371,15 @@ func (a *App) listWorkItems(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = a.decorateWorkPlanning(r, s.ID, workSummaryPointers(page.Items), in.Fields); err != nil {
+	items := workSummaryPointers(page.Items)
+	if err = a.decorateWorkCollaboration(r, s.ID, items); err != nil {
+		return nil, err
+	}
+	page.CollaborationRevision, err = a.workCollaborationRevision(r, s.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err = a.decorateWorkPlanning(r, s.ID, items, in.Fields); err != nil {
 		return nil, err
 	}
 	if err = a.decorateWorkWIP(r, s.ID, catalog); err != nil {
@@ -426,7 +428,8 @@ func (a *App) getWorkBoard(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	columns := []workColumn{}
+	columns := make([]workColumn, 0, len(catalog.Items))
+	visibleItems := 0
 	for _, definition := range catalog.Items {
 		status := definition.ID
 		in.Status = status
@@ -436,10 +439,16 @@ func (a *App) getWorkBoard(r *Request) (*Response, error) {
 			return nil, err
 		}
 		columns = append(columns, workColumn{Status: status, Total: page.Total, Items: page.Items, NextCursor: page.NextCursor})
+		visibleItems += len(page.Items)
 	}
-	all := []*WorkSummary{}
+	all := make([]*WorkSummary, 0, visibleItems)
 	for i := range columns {
-		all = append(all, workSummaryPointers(columns[i].Items)...)
+		for j := range columns[i].Items {
+			all = append(all, &columns[i].Items[j])
+		}
+	}
+	if err = a.decorateWorkCollaboration(r, s.ID, all); err != nil {
+		return nil, err
 	}
 	if err = a.decorateWorkPlanning(r, s.ID, all, in.Fields); err != nil {
 		return nil, err

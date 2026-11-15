@@ -788,45 +788,52 @@ func (a *App) resolveWorkClaim(r *Request) (*Response, error) {
 	return ok(out), nil
 }
 
-func (a *App) decorateWorkCollaboration(r *Request, space string, items []WorkSummary) error {
-	if len(items) == 0 {
-		return nil
-	}
-	args := []any{space}
-	holders := make([]string, len(items))
-	for i := range items {
-		holders[i] = "?"
-		args = append(args, items[i].ID)
-	}
-	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT c.item_id,c.space_id,c.claim_id,c.session_id,c.generation,c.expires_at,c.last_seen_at,c.last_progress_at,c.released_at,c.unresolved,c.handoff_json,s.user_id,COALESCE(NULLIF(u.display_name,''),u.username),s.agent_name,s.client_name,s.role,s.parent_session_id,s.resumes_session_id,s.created_at,s.last_seen_at,s.closed_at FROM work_claims c JOIN work_sessions s ON s.id=c.session_id AND s.space_id=c.space_id JOIN users u ON u.id=s.user_id WHERE c.space_id=? AND c.item_id IN ("+strings.Join(holders, ",")+")"), args...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	summaries := map[string]*WorkCollaboration{}
-	for rows.Next() {
-		claim := &workClaim{}
-		session := &WorkSession{SpaceID: space, Actor: &WorkActivityActor{}}
-		var handoff string
-		if err = rows.Scan(&claim.ItemID, &claim.SpaceID, &claim.ClaimID, &claim.SessionID, &claim.Generation, &claim.ExpiresAt, &claim.LastSeenAt, &claim.LastProgressAt, &claim.ReleasedAt, &claim.Unresolved, &handoff, &session.Actor.ID, &session.Actor.Name, &session.AgentName, &session.ClientName, &session.Role, &session.ParentSessionID, &session.ResumesSessionID, &session.CreatedAt, &session.LastSeenAt, &session.ClosedAt); err != nil {
+// Bound query parameters and temporary claim projections even at 64 columns of 100 cards.
+const workCollaborationBatchSize = 500
+
+func (a *App) decorateWorkCollaboration(r *Request, space string, items []*WorkSummary) error {
+	for start := 0; start < len(items); start += workCollaborationBatchSize {
+		batch := items[start:min(start+workCollaborationBatchSize, len(items))]
+		args := make([]any, 1, len(batch)+1)
+		args[0] = space
+		holders := make([]string, len(batch))
+		for i := range batch {
+			holders[i] = "?"
+			args = append(args, batch[i].ID)
+		}
+		rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT c.item_id,c.space_id,c.claim_id,c.session_id,c.generation,c.expires_at,c.last_seen_at,c.last_progress_at,c.released_at,c.unresolved,c.handoff_json,s.user_id,COALESCE(NULLIF(u.display_name,''),u.username),s.agent_name,s.client_name,s.role,s.parent_session_id,s.resumes_session_id,s.created_at,s.last_seen_at,s.closed_at FROM work_claims c JOIN work_sessions s ON s.id=c.session_id AND s.space_id=c.space_id JOIN users u ON u.id=s.user_id WHERE c.space_id=? AND c.item_id IN ("+strings.Join(holders, ",")+")"), args...)
+		if err != nil {
 			return err
 		}
-		session.ID = claim.SessionID
-		if handoff != "" {
-			if err = json.Unmarshal([]byte(handoff), &claim.Handoff); err != nil {
+		summaries := map[string]*WorkCollaboration{}
+		for rows.Next() {
+			claim := &workClaim{}
+			session := &WorkSession{SpaceID: space, Actor: &WorkActivityActor{}}
+			var handoff string
+			if err = rows.Scan(&claim.ItemID, &claim.SpaceID, &claim.ClaimID, &claim.SessionID, &claim.Generation, &claim.ExpiresAt, &claim.LastSeenAt, &claim.LastProgressAt, &claim.ReleasedAt, &claim.Unresolved, &handoff, &session.Actor.ID, &session.Actor.Name, &session.AgentName, &session.ClientName, &session.Role, &session.ParentSessionID, &session.ResumesSessionID, &session.CreatedAt, &session.LastSeenAt, &session.ClosedAt); err != nil {
+				rows.Close()
 				return err
 			}
+			session.ID = claim.SessionID
+			if handoff != "" {
+				if err = json.Unmarshal([]byte(handoff), &claim.Handoff); err != nil {
+					rows.Close()
+					return err
+				}
+			}
+			summaries[claim.ItemID] = a.workCollaborationView(r, claim, session)
 		}
-		summaries[claim.ItemID] = a.workCollaborationView(r, claim, session)
-	}
-	if err = rows.Err(); err != nil {
-		return err
-	}
-	for i := range items {
-		if summary, found := summaries[items[i].ID]; found {
-			items[i].Collaboration = summary
-		} else {
-			items[i].Collaboration = a.workCollaborationView(r, nil, nil)
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		for i := range batch {
+			if summary, found := summaries[batch[i].ID]; found {
+				batch[i].Collaboration = summary
+			} else {
+				batch[i].Collaboration = a.workCollaborationView(r, nil, nil)
+			}
 		}
 	}
 	return nil

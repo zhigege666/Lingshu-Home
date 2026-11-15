@@ -207,9 +207,10 @@ func (a *App) getWorkCalendar(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	items := []WorkCalendarItem{}
+	items := make([]WorkCalendarItem, 0, min(total, filter.Limit+1))
 	for rows.Next() {
-		v := WorkCalendarItem{}
+		items = append(items, WorkCalendarItem{})
+		v := &items[len(items)-1]
 		targets, project, rev := workSummaryScan(&v.WorkSummary)
 		if err = rows.Scan(targets...); err != nil {
 			rows.Close()
@@ -225,7 +226,6 @@ func (a *App) getWorkCalendar(r *Request) (*Response, error) {
 			}
 			v.CalendarDate = at.In(window.location).Format("2006-01-02")
 		}
-		items = append(items, v)
 	}
 	err = rows.Err()
 	rows.Close()
@@ -243,18 +243,15 @@ func (a *App) getWorkCalendar(r *Request) (*Response, error) {
 		v := encodeWorkCursor(workCalendarCursor{Filter: fingerprint, Revision: revision, ID: last.ID, At: at, Cutoff: filter.cutoff})
 		next = &v
 	}
-	summaries := make([]WorkSummary, len(items))
+	summaries := make([]*WorkSummary, len(items))
 	for i := range items {
-		summaries[i] = items[i].WorkSummary
+		summaries[i] = &items[i].WorkSummary
 	}
 	if err = a.decorateWorkCollaboration(r, s.ID, summaries); err != nil {
 		return nil, err
 	}
-	if err = a.decorateWorkPlanning(r, s.ID, workSummaryPointers(summaries), filter.Fields); err != nil {
+	if err = a.decorateWorkPlanning(r, s.ID, summaries, filter.Fields); err != nil {
 		return nil, err
-	}
-	for i := range items {
-		items[i].WorkSummary = summaries[i]
 	}
 	return ok(map[string]any{"revision": revision, "from": window.From, "to": window.To, "timezone": window.Timezone, "basis": basis, "items": items, "days": days, "total": total, "nextCursor": next}), nil
 }

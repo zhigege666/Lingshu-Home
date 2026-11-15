@@ -38,18 +38,20 @@ func TestWorkCollaborationBatchedSummary(t *testing.T) {
 			if err = tx.Commit(); err != nil {
 				t.Fatal(err)
 			}
-			measure := func(cards []WorkSummary) int {
+			measure := func(cards []*WorkSummary, enabled bool) int {
 				t.Helper()
 				q := &workMeasuredQueries{Queryer: f.app.store.DB}
 				r := &Request{App: f.app, HTTP: httptest.NewRequest("GET", "/", nil), Q: q}
+				r.Settings.MCP.CollaborationEnabled = enabled
 				if err := f.app.decorateWorkCollaboration(r, f.space, cards); err != nil {
 					t.Fatal(err)
 				}
 				return q.Count
 			}
-			small := measure(items[:1])
-			large := measure(items)
-			if large > small+1 {
+			refs := workSummaryPointers(items)
+			small := measure(refs[:1], true)
+			large := measure(refs, true)
+			if small != 1 || large != 1 {
 				t.Fatalf("collaboration queries grow per card: one=%d 120=%d", small, large)
 			}
 			for i, item := range items {
@@ -57,16 +59,35 @@ func TestWorkCollaborationBatchedSummary(t *testing.T) {
 				if i%2 == 1 {
 					want = "released"
 				}
-				if item.Collaboration == nil || item.Collaboration.State != want || item.Collaboration.Session == nil || item.Collaboration.Session.ID != session["id"] {
+				if item.Collaboration == nil || !item.Collaboration.Enabled || item.Collaboration.State != want || item.Collaboration.Session == nil || item.Collaboration.Session.ID != session["id"] {
 					t.Fatalf("batched card %d lost owner or history", i)
 				}
 			}
-			f.app.config.MCPCollaborationEnabled = false
-			measure(items)
+			// Exercise the maximum board projection without multiplying fixture writes:
+			// only the first 120 visible cards have persisted claims.
+			maximum := make([]*WorkSummary, workStatusLimit*100)
+			copy(maximum, refs)
+			for i := len(refs); i < len(maximum); i++ {
+				maximum[i] = &WorkSummary{ID: formatWorkItemID(firstID + int64(i)), SpaceID: f.space}
+			}
+			wantBatches := (len(maximum) + workCollaborationBatchSize - 1) / workCollaborationBatchSize
+			if queries := measure(maximum, true); queries != wantBatches {
+				t.Fatalf("maximum board claim queries=%d, want %d bounded batches", queries, wantBatches)
+			}
+			for _, item := range maximum[len(refs):] {
+				if item.Collaboration == nil || !item.Collaboration.Enabled || item.Collaboration.State != "unclaimed" {
+					t.Fatal("maximum projection lost a card without a claim")
+				}
+			}
+			unclaimed := maximum[len(maximum)-1]
+			measure(append(refs, unclaimed), false)
 			for _, item := range items {
 				if item.Collaboration == nil || item.Collaboration.Enabled {
 					t.Fatal("disabled flag hid persisted claim history or was ignored")
 				}
+			}
+			if unclaimed.Collaboration != nil {
+				t.Fatal("disabled flag retained unclaimed collaboration projection")
 			}
 		})
 	}

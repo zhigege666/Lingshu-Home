@@ -151,7 +151,8 @@ func workActivityReferences(field string, before, after []string) WorkActivityCh
 	return change
 }
 
-func (a *App) workItemChanges(r *Request, before *WorkItem, after workCreateInput, archived, linksSet, docsSet bool) ([]WorkActivityChange, error) {
+func (a *App) workItemChanges(r *Request, prepared *workMutationPrepared, after workCreateInput, archived, linksSet, docsSet bool) ([]WorkActivityChange, error) {
+	before := prepared.item
 	changes := []WorkActivityChange{}
 	for _, text := range []struct{ field, before, after string }{
 		{"title", before.Title, after.Title},
@@ -169,11 +170,11 @@ func (a *App) workItemChanges(r *Request, before *WorkItem, after workCreateInpu
 		}
 	}
 	if before.Status != after.Status {
-		oldStatus, err := a.requireWorkStatus(r, before.SpaceID, before.Status)
+		oldStatus, err := prepared.requireStatus(r, before.Status)
 		if err != nil {
 			return nil, err
 		}
-		newStatus, err := a.requireWorkStatus(r, before.SpaceID, after.Status)
+		newStatus, err := prepared.requireStatus(r, after.Status)
 		if err != nil {
 			return nil, err
 		}

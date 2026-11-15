@@ -1,7 +1,6 @@
 package home
 
 import (
-	"encoding/json"
 	"reflect"
 	"sort"
 )
@@ -149,19 +148,9 @@ func (a *App) getWorkRelations(r *Request) (*Response, error) {
 func (a *App) updateWorkRelations(r *Request) (*Response, error) {
 	return a.coordinatedWorkMutation(r, "item.relations", a.updateWorkRelationsValue)
 }
-func (a *App) updateWorkRelationsValue(r *Request) (*Response, error) {
-	s, err := r.workSpace(true)
-	if err != nil {
-		return nil, err
-	}
-	item, err := a.loadWorkItem(r, s.ID, r.param("id"))
-	if err != nil {
-		return nil, err
-	}
-	var raw map[string]json.RawMessage
-	if err = r.decode(&raw); err != nil {
-		return nil, err
-	}
+func (a *App) updateWorkRelationsValue(r *Request, prepared *workMutationPrepared) (*workMutationResult, error) {
+	s, item, raw := prepared.space, prepared.item, prepared.input
+	var err error
 	for k := range raw {
 		if k != "expectedRevision" && k != "parentId" && k != "blockedByIds" && k != "predecessorId" {
 			return nil, invalid("Unknown relation field: " + k)
@@ -244,7 +233,7 @@ func (a *App) updateWorkRelationsValue(r *Request) (*Response, error) {
 	}
 	parentID, predecessorID := workOptionalID(parent), workOptionalID(predecessor)
 	if parentID == item.parentID && predecessorID == item.predecessorID && reflect.DeepEqual(blocked, oldBlocked) {
-		return a.workItemReply(r, item, map[string]any{"unchanged": true})
+		return &workMutationResult{item: item, flags: map[string]any{"unchanged": true}}, nil
 	}
 	stamp := workStamp()
 	if _, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("UPDATE work_items SET parent_id=?,predecessor_id=?,revision=revision+1,updated_at=? WHERE id=? AND space_id=?"), parentID, predecessorID, stamp, item.ID, s.ID); err != nil {
@@ -291,14 +280,15 @@ func (a *App) updateWorkRelationsValue(r *Request) (*Response, error) {
 	if err = a.syncWorkBlockedMetrics(r, s.ID, item.ID, stamp, false); err != nil {
 		return nil, err
 	}
-	if _, err = a.bumpWorkRevision(r, s.ID); err != nil {
+	boardRevision, err := a.bumpWorkRevision(r, s.ID)
+	if err != nil {
 		return nil, err
 	}
 	item, err = a.loadWorkItem(r, s.ID, item.ID)
 	if err != nil {
 		return nil, err
 	}
-	return a.workItemReply(r, item, nil)
+	return &workMutationResult{item: item, boardRevision: boardRevision}, nil
 }
 func (a *App) validateWorkRelationGraph(r *Request, space, item, kind string) error {
 	field := "parent_id"

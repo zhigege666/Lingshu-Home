@@ -33,13 +33,13 @@ func workPercentiles(samples []float64) map[string]float64 {
 
 // The warmed handler has six fixed reads: space access, board revision,
 // grouped item counts, catalog revision, catalog rows and collaboration revision.
-// Each status adds its item page and page collaboration revision, plus at most
-// one batched claim/session join for a nonempty page. The budget therefore grows
-// with status count, never with the number of returned cards. Empty columns and
-// future query consolidation may use fewer calls. Authentication and setup are
-// measured separately by the opt-in HTTP latency samples.
+// Each status adds one item page. Claim/session rows are loaded once across the
+// visible board, in bounded batches. At most 100 cards are returned per status;
+// empty columns and smaller pages may use fewer calls than this upper bound.
+// Authentication and setup are measured separately by the HTTP latency samples.
 func workBoardQueryBudget(statusCount int) int {
-	return 6 + 3*statusCount
+	claimBatches := (statusCount*100 + workCollaborationBatchSize - 1) / workCollaborationBatchSize
+	return 6 + statusCount + claimBatches
 }
 
 // Small deterministic regression coverage for the query contract. This is not
@@ -82,7 +82,7 @@ func TestWorkBoardQueryBudget(t *testing.T) {
 			}
 			measure := func(enabled bool, wantStatuses, wantItems int) int {
 				t.Helper()
-				f.app.config.MCPCollaborationEnabled = enabled
+				settings.MCP.CollaborationEnabled = enabled
 				counted := &workMeasuredQueries{Queryer: f.app.store.DB}
 				request := &Request{App: f.app, HTTP: httptest.NewRequest("GET", "http://fixture/work", nil), Q: counted, Settings: settings, User: user, Params: map[string]string{"spaceId": f.space}}
 				response, err := f.app.getWorkBoard(request)
@@ -94,6 +94,14 @@ func TestWorkBoardQueryBudget(t *testing.T) {
 				items := 0
 				for _, column := range board["columns"].([]workColumn) {
 					items += len(column.Items)
+					for _, item := range column.Items {
+						if enabled && (item.Collaboration == nil || !item.Collaboration.Enabled || item.Collaboration.State != "unclaimed") {
+							t.Fatal("enabled board lost unclaimed collaboration projection")
+						}
+						if !enabled && item.Collaboration != nil {
+							t.Fatal("disabled board invented collaboration for an unclaimed item")
+						}
+					}
 				}
 				if statusCount != wantStatuses || items != wantItems {
 					t.Fatalf("fixture response has %d statuses/%d cards; want %d/%d", statusCount, items, wantStatuses, wantItems)

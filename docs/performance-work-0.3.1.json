@@ -1,0 +1,2485 @@
+{
+  "schemaVersion": 1,
+  "releaseVersion": "0.3.1",
+  "candidateLabel": "short-ID integrated performance candidate",
+  "measuredDateUTC": "2026-11-15",
+  "sources": {
+    "baselineCommit": "edbd0e0c15e68f934fc506c868931aaa6656cc84",
+    "baselineVersionFile": "0.2.8",
+    "baselineArchiveSHA256": "ca503e86688b8c2ac77e60c5b15bb42eeadbda4aeeda62f3c0b811d334d78edc",
+    "baselineProductionSourceSHA256": "48524dea2484d36fc4ca13f01aecc6a421cbb5db00e3ff145c91c65a7a27fafe",
+    "candidateMeasurementCommit": "1f7015c6339b797aa4a56f632173d3e92f08995d",
+    "candidateVersionFile": "0.2.9",
+    "candidateArchiveSHA256": "2f526a29985d2e21cc8d46eb26681da994ed5be6f3a3c1bb4ca2c2d6715d6679",
+    "candidateProductionSourceSHA256": "5cbb0fd48b06806e134a4e622e2facb40cc506bbe5df3caae27a973aca2b5538",
+    "baselineTestBinarySHA256": "1934ce12f580788edd6b185e0e4fe5c4882614b4230075a587e5fdfccb34b67e",
+    "candidateTestBinarySHA256": "c9cbc5e1141e7b8ac468f130c49b0c9074a3b2ad9ac2f48f1c73ad5fb143d0a5",
+    "candidateNativeBinarySHA256": "0a203c0010eaf2ca5b31fcd1e6c930edb009774d5b7324a5a1ae14bdf7a83815",
+    "productionSourceHashDefinition": "SHA256 of sorted compact JSON mapping repository-relative paths under server/ (non-test Go, SQL, go.mod and go.sum) to their SHA256",
+    "candidateChangedProductionFiles": [
+      "server/internal/home/work.go",
+      "server/internal/home/work_activity.go",
+      "server/internal/home/work_calendar.go",
+      "server/internal/home/work_collaboration.go",
+      "server/internal/home/work_collaboration_mutations.go",
+      "server/internal/home/work_mutations.go",
+      "server/internal/home/work_queries.go",
+      "server/internal/home/work_relations.go"
+    ],
+    "harnessSHA256": {
+      "work_capacity_v029_linux_test.go": "050454f908aa084ee3ac9ff681da48ec5ee10ce734eee899ee23569ac5288b55",
+      "work_status_v029_linux_test.go": "04f9370a80f1e4ea188af5fbd6033d04ffec45fbe75766cba0a656cec1345bf3",
+      "work_diagnostic_v029_linux_test.go": "5dc403322677023456ea5be71959bffc54bc543dd1295d3659903edd7b2a6892"
+    },
+    "harnessIdenticalBetweenVersions": true,
+    "sourceOrigin": "Exact edbd short-ID baseline and frozen 1f7015c optimization candidate. Neither source was read from a moving development worktree.",
+    "releaseAssociation": {
+      "parent": "398e9de2443a36524d2a34f00012a0a64bc07f6f",
+      "version": "0.3.1",
+      "productionSourceSHA256": "5cbb0fd48b06806e134a4e622e2facb40cc506bbe5df3caae27a973aca2b5538",
+      "productionFilesVerified": 147,
+      "measuredCandidateOrigin": "1f7015c6339b797aa4a56f632173d3e92f08995d",
+      "tokenTestUsesUpstream015Boundary": true,
+      "verifiedSourceSnapshotCommit": "6f4e7c5e2e84492656a5b8f0ef8785e4a4240abd",
+      "publicationDelta": "Final publication adds the integrated report and release documentation only; the backend production fingerprint remains unchanged."
+    },
+    "releaseBackendProductionIdenticalToMeasuredCandidate": true,
+    "postMeasurementSourceDifferences": "Release checkout changes documentation and VERSION to 0.3.1. Its token migration test uses the upstream historical-015 boundary; local 39-scope validation used the frozen 1f7015c test version with exact revision expectation. Final test-only change is for release CI verification, not another runtime build or performance sample.",
+    "testedBinariesAreNotReleaseArtifactHashes": true,
+    "historicalPureVersion028MeasurementsAreSeparate": true
+  },
+  "environment": {
+    "os": "Linux amd64",
+    "logicalCPUs": 4,
+    "totalMemoryKiB": 8126476,
+    "sharedHost": true,
+    "goVersion": "1.26.8",
+    "postgresVersion": "18.6",
+    "sqliteModule": "modernc.org/sqlite v1.60.1",
+    "GOMAXPROCS": 4,
+    "CGO_ENABLED": 0,
+    "testBuildFlags": [
+      "-p",
+      "2",
+      "-c",
+      "-buildvcs=false"
+    ],
+    "nativeBuildFlags": [
+      "-p",
+      "2",
+      "-buildvcs=false"
+    ],
+    "storageIsolation": "Fresh disposable SQLite directories or unique PostgreSQL schemas in one dedicated test cluster; no production service load.",
+    "sqliteHTTPFixtureFilesystem": "tmpfs temporary directories",
+    "nativeIdleSQLiteFilesystem": "task runtime directory on the host disk",
+    "postgresDataFilesystem": "tmpfs",
+    "postgresSettings": {
+      "minWalSize": "32MB",
+      "maxWalSize": "64MB",
+      "fsync": "on",
+      "fullPageWrites": "on",
+      "synchronousCommit": "on",
+      "sharedBuffers": "64MB",
+      "serverVersion": "18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)"
+    },
+    "postgresBothVersionsUseSameClusterSettings": true,
+    "postgresAbsoluteTimesNotComparableWithPreviousDiskBackedRound": true,
+    "privateCompilationCacheRemovedBeforeValidationAndMeasurements": true,
+    "availableSpaceFloorBytes": 536870912,
+    "minimumMainDiskAvailableBytesDuringWorkloads": 674177024,
+    "minimumTmpfsAvailableBytesDuringWorkloads": 2878128128,
+    "minimumMemAvailableBytesDuringWorkloads": 3665137664,
+    "nativeIdleStaticAssets": {
+      "webSnapshotVersion": "0.2.8",
+      "webIndexSHA256": "f86e606037e335538264de17535a2ccfc7487df2f522bb32096b6340ae086c4c",
+      "webScope": "previous frozen static assets only; no browser or frontend validation in idle observations",
+      "nativeVersionFileValue": "0.2.9"
+    }
+  },
+  "methods": {
+    "comparison": "One unprofiled baseline then candidate pair for each provider and workload; no reverse-order repetition or best-result selection.",
+    "ordinary": "Real loopback TCP HTTP. 10000 short-ID items, 8 clients, 200 requests per board/bootstrap/mixed workload. Board returns 4 columns and 120 cards. Mixed includes 40 requestId creates and 160 reads. Global-ID reservation, seeding, setup, warmup and SQL probes are outside timing.",
+    "status": "200 requestId HTTP creates; returned server IDs are used for 200 doing PATCH requests then 200 done PATCH requests at concurrency 8. Phase timing/CPU excludes setup and metric serialization.",
+    "sql": "Separate direct handler probe with existing settings and user, excluding HTTP authentication and transaction entry. Status probes roll back before the measured HTTP workload. QueryRow INSERT/UPDATE RETURNING is DML, classified from saved SQL text; Query/Exec method counts are separate.",
+    "schedules": "1000 due rules and 1000 ordinary short-ID items, one production generation-helper lane, four ordinary TCP readers maintained until all rules finish without a request-count cutoff. Also 100 same-period HTTP calls racing one worker.",
+    "events": "25 matching rules times 40 events, HTTP admission concurrency 8 then sequential production event transaction helpers. Four TCP readers cover complete admission and processing. Autonomous coordinator scheduling overhead is excluded.",
+    "cpu": "Go test CPU and allocation figures include Home plus the local HTTP client. SQLite is in the same process. PostgreSQL server CPU is excluded; no cross-provider total-CPU claim.",
+    "idle": "Candidate native SQLite Home process only, without a browser or active API calls in the sampling windows. Configuration happens before timing. 100Hz CPU accounting, I/O and database row counts are distinct observations. Frozen old static assets are served but no UI is exercised.",
+    "profiles": "No CPU or allocation profiling in this integrated round. Earlier diagnostic profiles and pure-version performance measurements remain separate historical evidence."
+  },
+  "ordinary": [
+    {
+      "versionLabel": "baseline",
+      "provider": "sqlite",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 1.835299413,
+      "requestsPerSecond": 108.97404455280562,
+      "p50Ms": 54.705,
+      "p95Ms": 179.388,
+      "maxMs": 368.022,
+      "errorCount": 0,
+      "responseBytes": 7385800,
+      "allocatedBytes": 73198240,
+      "allocationCount": 889903,
+      "allocatedBytesPerRequest": 365991.2,
+      "allocationsPerRequest": 4449.515,
+      "gcCycles": 17,
+      "gcPauseNanoseconds": 7502349,
+      "heapAllocatedBytesBefore": 88115176,
+      "heapAllocatedBytesAfter": 3636656,
+      "dbWaitCount": 199,
+      "dbWaitNanoseconds": 12403435594,
+      "dbMaxOpenConnections": 1,
+      "dbOpenConnectionsBefore": 1,
+      "dbOpenConnectionsAfter": 1,
+      "dbInUseBefore": 0,
+      "dbInUseAfter": 0,
+      "testProcessCPUSeconds": 2.576296,
+      "testProcessRSSBeforeKiB": 116548,
+      "testProcessRSSAfterKiB": 57592,
+      "boardHandlerSQL": {
+        "selectCalls": 18,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 18,
+        "queryMethodCalls": 18,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "sqlite",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.110290272,
+      "requestsPerSecond": 1813.3965613939188,
+      "p50Ms": 3.549,
+      "p95Ms": 10.895,
+      "maxMs": 19.46,
+      "errorCount": 0,
+      "responseBytes": 467600,
+      "allocatedBytes": 7260856,
+      "allocationCount": 127968,
+      "allocatedBytesPerRequest": 36304.28,
+      "allocationsPerRequest": 639.84,
+      "gcCycles": 4,
+      "gcPauseNanoseconds": 1826489,
+      "heapAllocatedBytesBefore": 3673072,
+      "heapAllocatedBytesAfter": 3166800,
+      "dbWaitCount": 199,
+      "dbWaitNanoseconds": 673733377,
+      "dbMaxOpenConnections": 1,
+      "dbOpenConnectionsBefore": 1,
+      "dbOpenConnectionsAfter": 1,
+      "dbInUseBefore": 0,
+      "dbInUseAfter": 0,
+      "testProcessCPUSeconds": 0.23328400000000027,
+      "testProcessRSSBeforeKiB": 41080,
+      "testProcessRSSAfterKiB": 37520,
+      "boardHandlerSQL": {
+        "selectCalls": 18,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 18,
+        "queryMethodCalls": 18,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "sqlite",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 3.949633166,
+      "requestsPerSecond": 50.637614075575144,
+      "p50Ms": 96.822,
+      "p95Ms": 493.98,
+      "maxMs": 629.435,
+      "errorCount": 0,
+      "responseBytes": 3745514,
+      "allocatedBytes": 41044416,
+      "allocationCount": 531296,
+      "allocatedBytesPerRequest": 205222.08,
+      "allocationsPerRequest": 2656.48,
+      "gcCycles": 22,
+      "gcPauseNanoseconds": 9437795,
+      "heapAllocatedBytesBefore": 3597512,
+      "heapAllocatedBytesAfter": 2631376,
+      "dbWaitCount": 198,
+      "dbWaitNanoseconds": 15773074678,
+      "dbMaxOpenConnections": 1,
+      "dbOpenConnectionsBefore": 1,
+      "dbOpenConnectionsAfter": 1,
+      "dbInUseBefore": 0,
+      "dbInUseAfter": 0,
+      "testProcessCPUSeconds": 4.589498000000001,
+      "testProcessRSSBeforeKiB": 37628,
+      "testProcessRSSAfterKiB": 38808,
+      "boardHandlerSQL": {
+        "selectCalls": 18,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 18,
+        "queryMethodCalls": 18,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "sqlite",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 1.635382948,
+      "requestsPerSecond": 122.29551509301906,
+      "p50Ms": 46.692,
+      "p95Ms": 179.527,
+      "maxMs": 295.045,
+      "errorCount": 0,
+      "responseBytes": 7385800,
+      "allocatedBytes": 45543480,
+      "allocationCount": 790469,
+      "allocatedBytesPerRequest": 227717.4,
+      "allocationsPerRequest": 3952.345,
+      "gcCycles": 1,
+      "gcPauseNanoseconds": 296407,
+      "heapAllocatedBytesBefore": 87247960,
+      "heapAllocatedBytesAfter": 3003416,
+      "dbWaitCount": 199,
+      "dbWaitNanoseconds": 11023859455,
+      "dbMaxOpenConnections": 1,
+      "dbOpenConnectionsBefore": 1,
+      "dbOpenConnectionsAfter": 1,
+      "dbInUseBefore": 0,
+      "dbInUseAfter": 0,
+      "testProcessCPUSeconds": 2.2337430000000005,
+      "testProcessRSSBeforeKiB": 115556,
+      "testProcessRSSAfterKiB": 162704,
+      "boardHandlerSQL": {
+        "selectCalls": 11,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 11,
+        "queryMethodCalls": 11,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "sqlite",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.115478081,
+      "requestsPerSecond": 1731.9304085075678,
+      "p50Ms": 3.361,
+      "p95Ms": 12.058,
+      "maxMs": 23.412,
+      "errorCount": 0,
+      "responseBytes": 467600,
+      "allocatedBytes": 7288024,
+      "allocationCount": 127963,
+      "allocatedBytesPerRequest": 36440.12,
+      "allocationsPerRequest": 639.815,
+      "gcCycles": 4,
+      "gcPauseNanoseconds": 1183390,
+      "heapAllocatedBytesBefore": 2928200,
+      "heapAllocatedBytesAfter": 3286048,
+      "dbWaitCount": 198,
+      "dbWaitNanoseconds": 692211708,
+      "dbMaxOpenConnections": 1,
+      "dbOpenConnectionsBefore": 1,
+      "dbOpenConnectionsAfter": 1,
+      "dbInUseBefore": 0,
+      "dbInUseAfter": 0,
+      "testProcessCPUSeconds": 0.262057,
+      "testProcessRSSBeforeKiB": 161184,
+      "testProcessRSSAfterKiB": 142284,
+      "boardHandlerSQL": {
+        "selectCalls": 11,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 11,
+        "queryMethodCalls": 11,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "sqlite",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 3.862183506,
+      "requestsPerSecond": 51.7841784807208,
+      "p50Ms": 113.178,
+      "p95Ms": 399.94,
+      "maxMs": 660.219,
+      "errorCount": 0,
+      "responseBytes": 3745562,
+      "allocatedBytes": 27835944,
+      "allocationCount": 485567,
+      "allocatedBytesPerRequest": 139179.72,
+      "allocationsPerRequest": 2427.835,
+      "gcCycles": 14,
+      "gcPauseNanoseconds": 5440077,
+      "heapAllocatedBytesBefore": 2831728,
+      "heapAllocatedBytesAfter": 3645712,
+      "dbWaitCount": 198,
+      "dbWaitNanoseconds": 20488660207,
+      "dbMaxOpenConnections": 1,
+      "dbOpenConnectionsBefore": 1,
+      "dbOpenConnectionsAfter": 1,
+      "dbInUseBefore": 0,
+      "dbInUseAfter": 0,
+      "testProcessCPUSeconds": 4.498447,
+      "testProcessRSSBeforeKiB": 139604,
+      "testProcessRSSAfterKiB": 38360,
+      "boardHandlerSQL": {
+        "selectCalls": 11,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 11,
+        "queryMethodCalls": 11,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "postgres",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.952027399,
+      "requestsPerSecond": 210.07798747187107,
+      "p50Ms": 36.711,
+      "p95Ms": 53.88,
+      "maxMs": 94.387,
+      "errorCount": 0,
+      "responseBytes": 7385800,
+      "allocatedBytes": 80376736,
+      "allocationCount": 919183,
+      "allocatedBytesPerRequest": 401883.68,
+      "allocationsPerRequest": 4595.915,
+      "gcCycles": 23,
+      "gcPauseNanoseconds": 20066793,
+      "heapAllocatedBytesBefore": 110496144,
+      "heapAllocatedBytesAfter": 3215760,
+      "dbWaitCount": 195,
+      "dbWaitNanoseconds": 2367722656,
+      "dbMaxOpenConnections": 6,
+      "dbOpenConnectionsBefore": 4,
+      "dbOpenConnectionsAfter": 4,
+      "dbInUseBefore": 1,
+      "dbInUseAfter": 1,
+      "testProcessCPUSeconds": 1.1024629999999997,
+      "testProcessRSSBeforeKiB": 133416,
+      "testProcessRSSAfterKiB": 33740,
+      "boardHandlerSQL": {
+        "selectCalls": 18,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 18,
+        "queryMethodCalls": 18,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "postgres",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.159361871,
+      "requestsPerSecond": 1255.0053456638948,
+      "p50Ms": 4.983,
+      "p95Ms": 12.758,
+      "maxMs": 34.156,
+      "errorCount": 0,
+      "responseBytes": 467600,
+      "allocatedBytes": 8894288,
+      "allocationCount": 138614,
+      "allocatedBytesPerRequest": 44471.44,
+      "allocationsPerRequest": 693.07,
+      "gcCycles": 3,
+      "gcPauseNanoseconds": 2198045,
+      "heapAllocatedBytesBefore": 3201192,
+      "heapAllocatedBytesAfter": 6025432,
+      "dbWaitCount": 102,
+      "dbWaitNanoseconds": 108098650,
+      "dbMaxOpenConnections": 6,
+      "dbOpenConnectionsBefore": 4,
+      "dbOpenConnectionsAfter": 4,
+      "dbInUseBefore": 1,
+      "dbInUseAfter": 1,
+      "testProcessCPUSeconds": 0.28832900000000006,
+      "testProcessRSSBeforeKiB": 32840,
+      "testProcessRSSAfterKiB": 33712,
+      "boardHandlerSQL": {
+        "selectCalls": 18,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 18,
+        "queryMethodCalls": 18,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "postgres",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 1.023301819,
+      "requestsPerSecond": 195.4457583154164,
+      "p50Ms": 37.322,
+      "p95Ms": 71.947,
+      "maxMs": 84.901,
+      "errorCount": 0,
+      "responseBytes": 3745514,
+      "allocatedBytes": 46092744,
+      "allocationCount": 557226,
+      "allocatedBytesPerRequest": 230463.72,
+      "allocationsPerRequest": 2786.13,
+      "gcCycles": 18,
+      "gcPauseNanoseconds": 13235482,
+      "heapAllocatedBytesBefore": 5037280,
+      "heapAllocatedBytesAfter": 6397760,
+      "dbWaitCount": 175,
+      "dbWaitNanoseconds": 1498198197,
+      "dbMaxOpenConnections": 6,
+      "dbOpenConnectionsBefore": 4,
+      "dbOpenConnectionsAfter": 4,
+      "dbInUseBefore": 1,
+      "dbInUseAfter": 1,
+      "testProcessCPUSeconds": 0.8834569999999999,
+      "testProcessRSSBeforeKiB": 33432,
+      "testProcessRSSAfterKiB": 33940,
+      "boardHandlerSQL": {
+        "selectCalls": 18,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 18,
+        "queryMethodCalls": 18,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "postgres",
+      "kind": "board",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.822008363,
+      "requestsPerSecond": 243.30652704077173,
+      "p50Ms": 31.445,
+      "p95Ms": 48.123,
+      "maxMs": 63.934,
+      "errorCount": 0,
+      "responseBytes": 7385800,
+      "allocatedBytes": 54218720,
+      "allocationCount": 820694,
+      "allocatedBytesPerRequest": 271093.6,
+      "allocationsPerRequest": 4103.47,
+      "gcCycles": 12,
+      "gcPauseNanoseconds": 12916725,
+      "heapAllocatedBytesBefore": 109810432,
+      "heapAllocatedBytesAfter": 4592912,
+      "dbWaitCount": 194,
+      "dbWaitNanoseconds": 1985395581,
+      "dbMaxOpenConnections": 6,
+      "dbOpenConnectionsBefore": 4,
+      "dbOpenConnectionsAfter": 4,
+      "dbInUseBefore": 1,
+      "dbInUseAfter": 1,
+      "testProcessCPUSeconds": 0.8519480000000001,
+      "testProcessRSSBeforeKiB": 132624,
+      "testProcessRSSAfterKiB": 33560,
+      "boardHandlerSQL": {
+        "selectCalls": 11,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 11,
+        "queryMethodCalls": 11,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "postgres",
+      "kind": "bootstrap",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.165079636,
+      "requestsPerSecond": 1211.5364732207188,
+      "p50Ms": 4.886,
+      "p95Ms": 14.345,
+      "maxMs": 26.959,
+      "errorCount": 0,
+      "responseBytes": 467600,
+      "allocatedBytes": 9322320,
+      "allocationCount": 140389,
+      "allocatedBytesPerRequest": 46611.6,
+      "allocationsPerRequest": 701.945,
+      "gcCycles": 4,
+      "gcPauseNanoseconds": 1931250,
+      "heapAllocatedBytesBefore": 3698352,
+      "heapAllocatedBytesAfter": 3550976,
+      "dbWaitCount": 109,
+      "dbWaitNanoseconds": 157145945,
+      "dbMaxOpenConnections": 6,
+      "dbOpenConnectionsBefore": 4,
+      "dbOpenConnectionsAfter": 4,
+      "dbInUseBefore": 1,
+      "dbInUseAfter": 1,
+      "testProcessCPUSeconds": 0.266324,
+      "testProcessRSSBeforeKiB": 33144,
+      "testProcessRSSAfterKiB": 33040,
+      "boardHandlerSQL": {
+        "selectCalls": 11,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 11,
+        "queryMethodCalls": 11,
+        "execMethodCalls": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "postgres",
+      "kind": "mixed",
+      "items": 10000,
+      "concurrency": 8,
+      "requests": 200,
+      "seconds": 0.976657065,
+      "requestsPerSecond": 204.78017020232173,
+      "p50Ms": 35.669,
+      "p95Ms": 59.634,
+      "maxMs": 95.003,
+      "errorCount": 0,
+      "responseBytes": 3745514,
+      "allocatedBytes": 33500288,
+      "allocationCount": 511360,
+      "allocatedBytesPerRequest": 167501.44,
+      "allocationsPerRequest": 2556.8,
+      "gcCycles": 13,
+      "gcPauseNanoseconds": 14643202,
+      "heapAllocatedBytesBefore": 4967088,
+      "heapAllocatedBytesAfter": 5760496,
+      "dbWaitCount": 181,
+      "dbWaitNanoseconds": 1487911143,
+      "dbMaxOpenConnections": 6,
+      "dbOpenConnectionsBefore": 4,
+      "dbOpenConnectionsAfter": 4,
+      "dbInUseBefore": 1,
+      "dbInUseAfter": 1,
+      "testProcessCPUSeconds": 0.8128419999999998,
+      "testProcessRSSBeforeKiB": 33044,
+      "testProcessRSSAfterKiB": 33960,
+      "boardHandlerSQL": {
+        "selectCalls": 11,
+        "dmlCalls": 0,
+        "otherCalls": 0,
+        "totalCalls": 11,
+        "queryMethodCalls": 11,
+        "execMethodCalls": 0
+      }
+    }
+  ],
+  "statusTransitions": [
+    {
+      "versionLabel": "baseline",
+      "provider": "sqlite",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "setupHTTPItemCreates": 200,
+      "seconds": 1.3021727300000001,
+      "requestsPerSecond": 307.1789101281517,
+      "p50Ms": 25.759,
+      "p95Ms": 31.438,
+      "maxMs": 35.094,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "cycleObservations": 200,
+      "unfinishedCycleObservations": 0,
+      "testProcessCPUSeconds": 2.119604,
+      "testProcessRSSBeforeKiB": 108760,
+      "testProcessRSSAfterKiB": 144360,
+      "phases": [
+        {
+          "targetStatus": "doing",
+          "seconds": 0.650917349,
+          "samples": 200,
+          "p50Ms": 25.291,
+          "p95Ms": 31.766,
+          "maxMs": 35.094,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 1.069787,
+          "measuredPhaseRSSBeforeKiB": 108836,
+          "measuredPhaseRSSAfterKiB": 126788,
+          "allocatedBytes": 16725384,
+          "allocationCount": 339569,
+          "allocatedBytesPerRequest": 83626.92,
+          "allocationsPerRequest": 1697.845,
+          "gcCycles": 0,
+          "gcPauseNanoseconds": 0,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 1
+        },
+        {
+          "targetStatus": "done",
+          "seconds": 0.651255381,
+          "samples": 200,
+          "p50Ms": 26.068,
+          "p95Ms": 30.755,
+          "maxMs": 33.118,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 1.0498169999999996,
+          "measuredPhaseRSSBeforeKiB": 126816,
+          "measuredPhaseRSSAfterKiB": 144324,
+          "allocatedBytes": 16468472,
+          "allocationCount": 338155,
+          "allocatedBytesPerRequest": 82342.36,
+          "allocationsPerRequest": 1690.775,
+          "gcCycles": 0,
+          "gcPauseNanoseconds": 0,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 1
+        }
+      ],
+      "allocatedBytes": 33193856,
+      "allocationCount": 677724,
+      "gcCycles": 0,
+      "gcPauseNanoseconds": 0,
+      "dbWaitCount": 0,
+      "dbWaitNanoseconds": 0,
+      "allocatedBytesPerRequest": 82984.64,
+      "allocationsPerRequest": 1694.31,
+      "statusHandlerSQL": [
+        {
+          "targetStatus": "doing",
+          "selectCalls": 20,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 24,
+          "queryMethodCalls": 20,
+          "execMethodCalls": 4
+        },
+        {
+          "targetStatus": "done",
+          "selectCalls": 20,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 24,
+          "queryMethodCalls": 20,
+          "execMethodCalls": 4
+        }
+      ]
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "sqlite",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "setupHTTPItemCreates": 200,
+      "seconds": 0.98718438,
+      "requestsPerSecond": 405.1927969119609,
+      "p50Ms": 19.546,
+      "p95Ms": 23.696,
+      "maxMs": 26.365,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "cycleObservations": 200,
+      "unfinishedCycleObservations": 0,
+      "testProcessCPUSeconds": 1.5960139999999994,
+      "testProcessRSSBeforeKiB": 107988,
+      "testProcessRSSAfterKiB": 133192,
+      "phases": [
+        {
+          "targetStatus": "doing",
+          "seconds": 0.495546209,
+          "samples": 200,
+          "p50Ms": 19.634,
+          "p95Ms": 24.196,
+          "maxMs": 26.365,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 0.8031979999999996,
+          "measuredPhaseRSSBeforeKiB": 108056,
+          "measuredPhaseRSSAfterKiB": 120836,
+          "allocatedBytes": 11781944,
+          "allocationCount": 226382,
+          "allocatedBytesPerRequest": 58909.72,
+          "allocationsPerRequest": 1131.91,
+          "gcCycles": 0,
+          "gcPauseNanoseconds": 0,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 1
+        },
+        {
+          "targetStatus": "done",
+          "seconds": 0.491638171,
+          "samples": 200,
+          "p50Ms": 19.533,
+          "p95Ms": 23.392,
+          "maxMs": 25.695,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 0.7928159999999997,
+          "measuredPhaseRSSBeforeKiB": 120872,
+          "measuredPhaseRSSAfterKiB": 133164,
+          "allocatedBytes": 11521856,
+          "allocationCount": 224989,
+          "allocatedBytesPerRequest": 57609.28,
+          "allocationsPerRequest": 1124.945,
+          "gcCycles": 0,
+          "gcPauseNanoseconds": 0,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 1
+        }
+      ],
+      "allocatedBytes": 23303800,
+      "allocationCount": 451371,
+      "gcCycles": 0,
+      "gcPauseNanoseconds": 0,
+      "dbWaitCount": 0,
+      "dbWaitNanoseconds": 0,
+      "allocatedBytesPerRequest": 58259.5,
+      "allocationsPerRequest": 1128.4275,
+      "statusHandlerSQL": [
+        {
+          "targetStatus": "doing",
+          "selectCalls": 10,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 14,
+          "queryMethodCalls": 11,
+          "execMethodCalls": 3
+        },
+        {
+          "targetStatus": "done",
+          "selectCalls": 10,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 14,
+          "queryMethodCalls": 11,
+          "execMethodCalls": 3
+        }
+      ]
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "postgres",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "setupHTTPItemCreates": 200,
+      "seconds": 3.5623722250000003,
+      "requestsPerSecond": 112.28472903333395,
+      "p50Ms": 70.917,
+      "p95Ms": 85.779,
+      "maxMs": 100.309,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "cycleObservations": 200,
+      "unfinishedCycleObservations": 0,
+      "testProcessCPUSeconds": 3.468401,
+      "testProcessRSSBeforeKiB": 109424,
+      "testProcessRSSAfterKiB": 158076,
+      "phases": [
+        {
+          "targetStatus": "doing",
+          "seconds": 1.7626295650000001,
+          "samples": 200,
+          "p50Ms": 69.357,
+          "p95Ms": 85.01,
+          "maxMs": 96.556,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 1.686257,
+          "measuredPhaseRSSBeforeKiB": 109504,
+          "measuredPhaseRSSAfterKiB": 134416,
+          "allocatedBytes": 23479328,
+          "allocationCount": 370658,
+          "allocatedBytesPerRequest": 117396.64,
+          "allocationsPerRequest": 1853.29,
+          "gcCycles": 0,
+          "gcPauseNanoseconds": 0,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 6
+        },
+        {
+          "targetStatus": "done",
+          "seconds": 1.7997426600000002,
+          "samples": 200,
+          "p50Ms": 71.518,
+          "p95Ms": 86.153,
+          "maxMs": 100.309,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 1.7821440000000002,
+          "measuredPhaseRSSBeforeKiB": 134452,
+          "measuredPhaseRSSAfterKiB": 158040,
+          "allocatedBytes": 23185264,
+          "allocationCount": 369335,
+          "allocatedBytesPerRequest": 115926.32,
+          "allocationsPerRequest": 1846.675,
+          "gcCycles": 1,
+          "gcPauseNanoseconds": 187733,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 6
+        }
+      ],
+      "allocatedBytes": 46664592,
+      "allocationCount": 739993,
+      "gcCycles": 1,
+      "gcPauseNanoseconds": 187733,
+      "dbWaitCount": 0,
+      "dbWaitNanoseconds": 0,
+      "allocatedBytesPerRequest": 116661.48,
+      "allocationsPerRequest": 1849.9825,
+      "statusHandlerSQL": [
+        {
+          "targetStatus": "doing",
+          "selectCalls": 20,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 24,
+          "queryMethodCalls": 20,
+          "execMethodCalls": 4
+        },
+        {
+          "targetStatus": "done",
+          "selectCalls": 20,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 24,
+          "queryMethodCalls": 20,
+          "execMethodCalls": 4
+        }
+      ]
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "postgres",
+      "items": 200,
+      "concurrency": 8,
+      "measuredHTTPRequests": 400,
+      "setupHTTPItemCreates": 200,
+      "seconds": 2.627580256,
+      "requestsPerSecond": 152.23131589857707,
+      "p50Ms": 51.547,
+      "p95Ms": 65.18,
+      "maxMs": 70.905,
+      "errorCount": 0,
+      "completedItems": 200,
+      "unexpectedItemRevisions": 0,
+      "cycleObservations": 200,
+      "unfinishedCycleObservations": 0,
+      "testProcessCPUSeconds": 2.492942,
+      "testProcessRSSBeforeKiB": 108516,
+      "testProcessRSSAfterKiB": 143296,
+      "phases": [
+        {
+          "targetStatus": "doing",
+          "seconds": 1.243127518,
+          "samples": 200,
+          "p50Ms": 48.315,
+          "p95Ms": 62.049,
+          "maxMs": 67.902,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 1.198385,
+          "measuredPhaseRSSBeforeKiB": 108592,
+          "measuredPhaseRSSAfterKiB": 126320,
+          "allocatedBytes": 16570672,
+          "allocationCount": 248103,
+          "allocatedBytesPerRequest": 82853.36,
+          "allocationsPerRequest": 1240.515,
+          "gcCycles": 0,
+          "gcPauseNanoseconds": 0,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 6
+        },
+        {
+          "targetStatus": "done",
+          "seconds": 1.384452738,
+          "samples": 200,
+          "p50Ms": 54.562,
+          "p95Ms": 66.993,
+          "maxMs": 70.905,
+          "errorCount": 0,
+          "profileEnabled": false,
+          "measuredPhaseCPUSeconds": 1.2945570000000002,
+          "measuredPhaseRSSBeforeKiB": 126372,
+          "measuredPhaseRSSAfterKiB": 143260,
+          "allocatedBytes": 16277984,
+          "allocationCount": 246710,
+          "allocatedBytesPerRequest": 81389.92,
+          "allocationsPerRequest": 1233.55,
+          "gcCycles": 0,
+          "gcPauseNanoseconds": 0,
+          "dbWaitCount": 0,
+          "dbWaitNanoseconds": 0,
+          "dbMaxOpenConnections": 6
+        }
+      ],
+      "allocatedBytes": 32848656,
+      "allocationCount": 494813,
+      "gcCycles": 0,
+      "gcPauseNanoseconds": 0,
+      "dbWaitCount": 0,
+      "dbWaitNanoseconds": 0,
+      "allocatedBytesPerRequest": 82121.64,
+      "allocationsPerRequest": 1237.0325,
+      "statusHandlerSQL": [
+        {
+          "targetStatus": "doing",
+          "selectCalls": 10,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 14,
+          "queryMethodCalls": 11,
+          "execMethodCalls": 3
+        },
+        {
+          "targetStatus": "done",
+          "selectCalls": 10,
+          "dmlCalls": 4,
+          "otherCalls": 0,
+          "totalCalls": 14,
+          "queryMethodCalls": 11,
+          "execMethodCalls": 3
+        }
+      ]
+    }
+  ],
+  "schedules": [
+    {
+      "versionLabel": "baseline",
+      "provider": "sqlite",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "processed": 1000,
+      "batches": 20,
+      "generationSeconds": 22.396012068,
+      "generatedPerSecond": 44.650806445529014,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "testProcessCPUSeconds": 35.975094000000006,
+      "testProcessRSSBeforeKiB": 160916,
+      "testProcessRSSAfterKiB": 39220,
+      "testProcessRSSPeakObservedKiB": 160916,
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 0.98813031,
+        "lastIssuedSeconds": 0.974279947,
+        "board": {
+          "samples": 160,
+          "p50Ms": 16.72,
+          "p95Ms": 48.729,
+          "maxMs": 68.994,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 12.449,
+          "p95Ms": 29.89,
+          "maxMs": 72.338,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 0,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 22.419269213,
+        "lastIssuedSeconds": 22.393086556,
+        "board": {
+          "samples": 3173,
+          "p50Ms": 19.014,
+          "p95Ms": 53.161,
+          "maxMs": 162.315,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 793,
+          "p50Ms": 14.903,
+          "p95Ms": 52.051,
+          "maxMs": 121.072,
+          "errorCount": 0
+        },
+        "issuedRequests": 3966,
+        "fullSecondsObserved": 22,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "samePeriodRace": {
+        "samples": 100,
+        "concurrency": 8,
+        "seconds": 0.07373842,
+        "p50Ms": 5.354,
+        "p95Ms": 8.41,
+        "maxMs": 11.225,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "dateViewsAfterGeneration": {
+        "overdue": {
+          "samples": 25,
+          "p50Ms": 10.507,
+          "p95Ms": 13.319,
+          "maxMs": 13.516,
+          "errorCount": 0
+        },
+        "today": {
+          "samples": 25,
+          "p50Ms": 4.962,
+          "p95Ms": 7.266,
+          "maxMs": 8.083,
+          "errorCount": 0
+        }
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "sqlite",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "processed": 1000,
+      "batches": 20,
+      "generationSeconds": 19.977715948,
+      "generatedPerSecond": 50.05577227161004,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "testProcessCPUSeconds": 31.405017000000004,
+      "testProcessRSSBeforeKiB": 139824,
+      "testProcessRSSAfterKiB": 38940,
+      "testProcessRSSPeakObservedKiB": 139824,
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 0.87758414,
+        "lastIssuedSeconds": 0.866196939,
+        "board": {
+          "samples": 160,
+          "p50Ms": 14.954,
+          "p95Ms": 37.121,
+          "maxMs": 52.824,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 11.437,
+          "p95Ms": 34.302,
+          "maxMs": 73.348,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 0,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 19.993260381,
+        "lastIssuedSeconds": 19.973980277,
+        "board": {
+          "samples": 3152,
+          "p50Ms": 17.098,
+          "p95Ms": 47.654,
+          "maxMs": 124.548,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 787,
+          "p50Ms": 13.294,
+          "p95Ms": 46.764,
+          "maxMs": 132.289,
+          "errorCount": 0
+        },
+        "issuedRequests": 3939,
+        "fullSecondsObserved": 19,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "samePeriodRace": {
+        "samples": 100,
+        "concurrency": 8,
+        "seconds": 0.068833886,
+        "p50Ms": 5.222,
+        "p95Ms": 7.134,
+        "maxMs": 8.893,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "dateViewsAfterGeneration": {
+        "overdue": {
+          "samples": 25,
+          "p50Ms": 10.176,
+          "p95Ms": 14.697,
+          "maxMs": 15.867,
+          "errorCount": 0
+        },
+        "today": {
+          "samples": 25,
+          "p50Ms": 4.041,
+          "p95Ms": 6.766,
+          "maxMs": 6.964,
+          "errorCount": 0
+        }
+      }
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "postgres",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "processed": 1000,
+      "batches": 20,
+      "generationSeconds": 12.551193766,
+      "generatedPerSecond": 79.67369627492371,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "testProcessCPUSeconds": 19.517677,
+      "testProcessRSSBeforeKiB": 142204,
+      "testProcessRSSAfterKiB": 35004,
+      "testProcessRSSPeakObservedKiB": 142204,
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 0.532518785,
+        "lastIssuedSeconds": 0.523811533,
+        "board": {
+          "samples": 160,
+          "p50Ms": 11.183,
+          "p95Ms": 18.141,
+          "maxMs": 46.815,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.259,
+          "p95Ms": 6.413,
+          "maxMs": 7.363,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 0,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 12.565273768,
+        "lastIssuedSeconds": 12.550002274,
+        "board": {
+          "samples": 3003,
+          "p50Ms": 14.873,
+          "p95Ms": 22.905,
+          "maxMs": 54.655,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 750,
+          "p50Ms": 3.788,
+          "p95Ms": 7.037,
+          "maxMs": 25.067,
+          "errorCount": 0
+        },
+        "issuedRequests": 3753,
+        "fullSecondsObserved": 12,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "samePeriodRace": {
+        "samples": 100,
+        "concurrency": 8,
+        "seconds": 0.232722589,
+        "p50Ms": 17.109,
+        "p95Ms": 26.082,
+        "maxMs": 29.535,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "dateViewsAfterGeneration": {
+        "overdue": {
+          "samples": 25,
+          "p50Ms": 21.202,
+          "p95Ms": 26.97,
+          "maxMs": 31.18,
+          "errorCount": 0
+        },
+        "today": {
+          "samples": 25,
+          "p50Ms": 14.233,
+          "p95Ms": 16.709,
+          "maxMs": 16.946,
+          "errorCount": 0
+        }
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "postgres",
+      "rules": 1000,
+      "ordinaryItemsBefore": 1000,
+      "processed": 1000,
+      "batches": 20,
+      "generationSeconds": 11.878059906,
+      "generatedPerSecond": 84.18883284928265,
+      "items": 2000,
+      "occurrences": 1000,
+      "nonCreatedOccurrences": 0,
+      "duplicateOccurrences": 0,
+      "testProcessCPUSeconds": 17.438952999999998,
+      "testProcessRSSBeforeKiB": 144988,
+      "testProcessRSSAfterKiB": 35168,
+      "testProcessRSSPeakObservedKiB": 144988,
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 0.493290615,
+        "lastIssuedSeconds": 0.483642183,
+        "board": {
+          "samples": 160,
+          "p50Ms": 10.272,
+          "p95Ms": 17.299,
+          "maxMs": 40.121,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.317,
+          "p95Ms": 6.525,
+          "maxMs": 7.174,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 0,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringGeneration": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 11.889204338999999,
+        "lastIssuedSeconds": 11.875179372,
+        "board": {
+          "samples": 3197,
+          "p50Ms": 12.892,
+          "p95Ms": 20.648,
+          "maxMs": 53.354,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 799,
+          "p50Ms": 3.958,
+          "p95Ms": 7.572,
+          "maxMs": 24.211,
+          "errorCount": 0
+        },
+        "issuedRequests": 3996,
+        "fullSecondsObserved": 11,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "samePeriodRace": {
+        "samples": 100,
+        "concurrency": 8,
+        "seconds": 0.260734808,
+        "p50Ms": 19.354,
+        "p95Ms": 26.661,
+        "maxMs": 40.347,
+        "errorCount": 0,
+        "itemsAfter": 2001,
+        "occurrencesAfter": 1001
+      },
+      "dateViewsAfterGeneration": {
+        "overdue": {
+          "samples": 25,
+          "p50Ms": 20.084,
+          "p95Ms": 24.825,
+          "maxMs": 25.643,
+          "errorCount": 0
+        },
+        "today": {
+          "samples": 25,
+          "p50Ms": 12.791,
+          "p95Ms": 16.81,
+          "maxMs": 19.348,
+          "errorCount": 0
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "versionLabel": "baseline",
+      "provider": "sqlite",
+      "scenario": "25_matching_rules",
+      "events": 40,
+      "rules": 25,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 0.945605913,
+      "processingSeconds": 1.9539960600000001,
+      "activeWindowSeconds": 2.89961203,
+      "processedPerSecond": 13.794948974604715,
+      "processedEvents": 40,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 2000,
+      "receipts": 1000,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "testProcessCPUSeconds": 4.700354,
+      "testProcessRSSBeforeKiB": 160636,
+      "testProcessRSSAfterKiB": 38956,
+      "ingestion": {
+        "samples": 40,
+        "p50Ms": 180.96,
+        "p95Ms": 243.798,
+        "maxMs": 285.612,
+        "errorCount": 0
+      },
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 1.017341285,
+        "lastIssuedSeconds": 0.998165385,
+        "board": {
+          "samples": 160,
+          "p50Ms": 17.639,
+          "p95Ms": 44.706,
+          "maxMs": 65.585,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 13.082,
+          "p95Ms": 37.798,
+          "maxMs": 66.414,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 1,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 2.913930609,
+        "lastIssuedSeconds": 2.865445956,
+        "board": {
+          "samples": 262,
+          "p50Ms": 20.33,
+          "p95Ms": 114.489,
+          "maxMs": 200.969,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 65,
+          "p50Ms": 27.178,
+          "p95Ms": 122.606,
+          "maxMs": 213.281,
+          "errorCount": 0
+        },
+        "issuedRequests": 327,
+        "fullSecondsObserved": 2,
+        "fullSecondsWithoutIssuedRequests": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "sqlite",
+      "scenario": "25_matching_rules",
+      "events": 40,
+      "rules": 25,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 0.771921552,
+      "processingSeconds": 1.8837821099999998,
+      "activeWindowSeconds": 2.655718469,
+      "processedPerSecond": 15.061837490275028,
+      "processedEvents": 40,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 2000,
+      "receipts": 1000,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "testProcessCPUSeconds": 4.256107,
+      "testProcessRSSBeforeKiB": 139104,
+      "testProcessRSSAfterKiB": 38772,
+      "ingestion": {
+        "samples": 40,
+        "p50Ms": 161.508,
+        "p95Ms": 184.898,
+        "maxMs": 196.145,
+        "errorCount": 0
+      },
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 0.881736065,
+        "lastIssuedSeconds": 0.860302335,
+        "board": {
+          "samples": 160,
+          "p50Ms": 14.789,
+          "p95Ms": 40.19,
+          "maxMs": 56.982,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 14.283,
+          "p95Ms": 33.573,
+          "maxMs": 48.194,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 0,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 2.679036236,
+        "lastIssuedSeconds": 2.6144070729999997,
+        "board": {
+          "samples": 268,
+          "p50Ms": 19.94,
+          "p95Ms": 94.949,
+          "maxMs": 227.185,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 66,
+          "p50Ms": 23.474,
+          "p95Ms": 80.402,
+          "maxMs": 136.148,
+          "errorCount": 0
+        },
+        "issuedRequests": 334,
+        "fullSecondsObserved": 2,
+        "fullSecondsWithoutIssuedRequests": 0
+      }
+    },
+    {
+      "versionLabel": "baseline",
+      "provider": "postgres",
+      "scenario": "25_matching_rules",
+      "events": 40,
+      "rules": 25,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 0.248830781,
+      "processingSeconds": 8.088399861,
+      "activeWindowSeconds": 8.337240421,
+      "processedPerSecond": 4.797750572149417,
+      "processedEvents": 40,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 2000,
+      "receipts": 1000,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "testProcessCPUSeconds": 13.64504,
+      "testProcessRSSBeforeKiB": 145616,
+      "testProcessRSSAfterKiB": 35424,
+      "ingestion": {
+        "samples": 40,
+        "p50Ms": 44.816,
+        "p95Ms": 64.778,
+        "maxMs": 73.572,
+        "errorCount": 0
+      },
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 0.517683101,
+        "lastIssuedSeconds": 0.509915075,
+        "board": {
+          "samples": 160,
+          "p50Ms": 10.896,
+          "p95Ms": 17.412,
+          "maxMs": 42.408,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 3.261,
+          "p95Ms": 5.028,
+          "maxMs": 5.876,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 0,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 8.344334618,
+        "lastIssuedSeconds": 8.329686388,
+        "board": {
+          "samples": 2140,
+          "p50Ms": 13.956,
+          "p95Ms": 21.002,
+          "maxMs": 56.703,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 534,
+          "p50Ms": 3.615,
+          "p95Ms": 6.482,
+          "maxMs": 18.845,
+          "errorCount": 0
+        },
+        "issuedRequests": 2674,
+        "fullSecondsObserved": 8,
+        "fullSecondsWithoutIssuedRequests": 0
+      }
+    },
+    {
+      "versionLabel": "candidate",
+      "provider": "postgres",
+      "scenario": "25_matching_rules",
+      "events": 40,
+      "rules": 25,
+      "ordinaryItemsBefore": 1000,
+      "notificationsEnabled": false,
+      "ingestionConcurrency": 8,
+      "ingestionSeconds": 0.232502728,
+      "processingSeconds": 7.081153435,
+      "activeWindowSeconds": 7.313668176,
+      "processedPerSecond": 5.469211760421547,
+      "processedEvents": 40,
+      "failedEvents": 0,
+      "queuedEvents": 0,
+      "itemsAfter": 2000,
+      "receipts": 1000,
+      "duplicateReceipts": 0,
+      "noticeRows": 0,
+      "testProcessCPUSeconds": 10.982463,
+      "testProcessRSSBeforeKiB": 144120,
+      "testProcessRSSAfterKiB": 36196,
+      "ingestion": {
+        "samples": 40,
+        "p50Ms": 42.36,
+        "p95Ms": 53.37,
+        "maxMs": 62.391,
+        "errorCount": 0
+      },
+      "readControl": {
+        "concurrency": 4,
+        "requestLimit": 200,
+        "windowSeconds": 0.440936197,
+        "lastIssuedSeconds": 0.438186406,
+        "board": {
+          "samples": 160,
+          "p50Ms": 8.968,
+          "p95Ms": 14.345,
+          "maxMs": 38.851,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 40,
+          "p50Ms": 2.989,
+          "p95Ms": 4.546,
+          "maxMs": 6.97,
+          "errorCount": 0
+        },
+        "issuedRequests": 200,
+        "fullSecondsObserved": 0,
+        "fullSecondsWithoutIssuedRequests": 0
+      },
+      "readsDuringEvents": {
+        "concurrency": 4,
+        "requestLimit": 0,
+        "windowSeconds": 7.337134566,
+        "lastIssuedSeconds": 7.307628023,
+        "board": {
+          "samples": 2024,
+          "p50Ms": 12.827,
+          "p95Ms": 19.368,
+          "maxMs": 53.943,
+          "errorCount": 0
+        },
+        "bootstrap": {
+          "samples": 505,
+          "p50Ms": 3.73,
+          "p95Ms": 7.189,
+          "maxMs": 15.875,
+          "errorCount": 0
+        },
+        "issuedRequests": 2529,
+        "fullSecondsObserved": 7,
+        "fullSecondsWithoutIssuedRequests": 0
+      }
+    }
+  ],
+  "nativeIdle": [
+    {
+      "provider": "sqlite",
+      "processScope": "native Home server only",
+      "scenario": "unused",
+      "wallSeconds": 30.0291579910554,
+      "fixtureSetupSeconds": 0.00011873012408614159,
+      "cpuSeconds": 0.0,
+      "cpuClockTicksPerSecond": 100,
+      "rssStartKiB": 94156,
+      "rssEndKiB": 94156,
+      "rssPeakObservedKiB": 94156,
+      "ioDelta": {
+        "rchar": 0,
+        "wchar": 0,
+        "syscr": 0,
+        "syscw": 0,
+        "read_bytes": 0,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      "httpRequestsDuringWindow": 0,
+      "unexpectedExecutorConnections": 0,
+      "fixtureCountsBefore": {
+        "work_items": 0,
+        "work_schedules": 0,
+        "work_schedule_occurrences": 0,
+        "work_automation_rules": 0,
+        "work_automation_events": 0,
+        "work_executors": 0,
+        "work_executions": 0,
+        "work_notices": 0,
+        "work_metric_intervals": 0
+      },
+      "fixtureCountsAfter": {
+        "work_items": 0,
+        "work_schedules": 0,
+        "work_schedule_occurrences": 0,
+        "work_automation_rules": 0,
+        "work_automation_events": 0,
+        "work_executors": 0,
+        "work_executions": 0,
+        "work_notices": 0,
+        "work_metric_intervals": 0
+      },
+      "cpuTicks": 0
+    },
+    {
+      "provider": "sqlite",
+      "processScope": "native Home server only",
+      "scenario": "paused",
+      "wallSeconds": 20.02031270135194,
+      "fixtureSetupSeconds": 7.514718584250659,
+      "cpuSeconds": 0.0,
+      "cpuClockTicksPerSecond": 100,
+      "rssStartKiB": 134844,
+      "rssEndKiB": 134844,
+      "rssPeakObservedKiB": 134844,
+      "ioDelta": {
+        "rchar": 0,
+        "wchar": 0,
+        "syscr": 0,
+        "syscw": 0,
+        "read_bytes": 0,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      "httpRequestsDuringWindow": 0,
+      "unexpectedExecutorConnections": 0,
+      "fixtureCountsBefore": {
+        "work_items": 0,
+        "work_schedules": 0,
+        "work_schedule_occurrences": 0,
+        "work_automation_rules": 1000,
+        "work_automation_events": 0,
+        "work_executors": 4,
+        "work_executions": 0,
+        "work_notices": 0,
+        "work_metric_intervals": 0
+      },
+      "fixtureCountsAfter": {
+        "work_items": 0,
+        "work_schedules": 0,
+        "work_schedule_occurrences": 0,
+        "work_automation_rules": 1000,
+        "work_automation_events": 0,
+        "work_executors": 4,
+        "work_executions": 0,
+        "work_notices": 0,
+        "work_metric_intervals": 0
+      },
+      "cpuTicks": 0
+    },
+    {
+      "provider": "sqlite",
+      "processScope": "native Home server only",
+      "scenario": "enabled",
+      "wallSeconds": 20.021198567934334,
+      "fixtureSetupSeconds": 7.7497492879629135,
+      "cpuSeconds": 0.0,
+      "cpuClockTicksPerSecond": 100,
+      "rssStartKiB": 135648,
+      "rssEndKiB": 135648,
+      "rssPeakObservedKiB": 135648,
+      "ioDelta": {
+        "rchar": 0,
+        "wchar": 0,
+        "syscr": 0,
+        "syscw": 0,
+        "read_bytes": 0,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      "httpRequestsDuringWindow": 0,
+      "unexpectedExecutorConnections": 0,
+      "fixtureCountsBefore": {
+        "work_items": 0,
+        "work_schedules": 0,
+        "work_schedule_occurrences": 0,
+        "work_automation_rules": 1000,
+        "work_automation_events": 0,
+        "work_executors": 4,
+        "work_executions": 0,
+        "work_notices": 0,
+        "work_metric_intervals": 0
+      },
+      "fixtureCountsAfter": {
+        "work_items": 0,
+        "work_schedules": 0,
+        "work_schedule_occurrences": 0,
+        "work_automation_rules": 1000,
+        "work_automation_events": 0,
+        "work_executors": 4,
+        "work_executions": 0,
+        "work_notices": 0,
+        "work_metric_intervals": 0
+      },
+      "cpuTicks": 0
+    }
+  ],
+  "comparisons": [
+    {
+      "provider": "sqlite",
+      "workload": "board",
+      "p50ChangePercent": -14.647655607348497,
+      "p95ChangePercent": 0.07748567351215652,
+      "throughputChangePercent": 12.224443531375261,
+      "goProcessCPUChangePercent": -13.296337066858765,
+      "allocatedBytesPerRequestChangePercent": -37.78063516281266
+    },
+    {
+      "provider": "sqlite",
+      "workload": "bootstrap",
+      "p50ChangePercent": -5.297266835728365,
+      "p95ChangePercent": 10.674621385956872,
+      "throughputChangePercent": -4.492462080314619,
+      "goProcessCPUChangePercent": 12.333893451758238,
+      "allocatedBytesPerRequestChangePercent": 0.3741707589298038
+    },
+    {
+      "provider": "sqlite",
+      "workload": "mixed",
+      "p50ChangePercent": 16.892854929664747,
+      "p95ChangePercent": -19.037207984128912,
+      "throughputChangePercent": 2.264254400759169,
+      "goProcessCPUChangePercent": -1.9838988926457968,
+      "allocatedBytesPerRequestChangePercent": -32.18092322229654
+    },
+    {
+      "provider": "sqlite",
+      "workload": "status",
+      "p50ChangePercent": -24.11972514460965,
+      "p95ChangePercent": -24.62624848908963,
+      "throughputChangePercent": 31.907752632795948,
+      "goProcessCPUChangePercent": -24.70225570436744,
+      "allocatedBytesPerRequestChangePercent": -29.794839141315787
+    },
+    {
+      "provider": "postgres",
+      "workload": "board",
+      "p50ChangePercent": -14.344474408215513,
+      "p95ChangePercent": -10.68485523385302,
+      "throughputChangePercent": 15.81724004917453,
+      "goProcessCPUChangePercent": -22.72321157263325,
+      "allocatedBytesPerRequestChangePercent": -32.5442625587583
+    },
+    {
+      "provider": "postgres",
+      "workload": "bootstrap",
+      "p50ChangePercent": -1.9466185029098804,
+      "p95ChangePercent": 12.4392538015363,
+      "throughputChangePercent": -3.4636404214024363,
+      "goProcessCPUChangePercent": -7.631906606688899,
+      "allocatedBytesPerRequestChangePercent": 4.812436925811259
+    },
+    {
+      "provider": "postgres",
+      "workload": "mixed",
+      "p50ChangePercent": -4.429023096297103,
+      "p95ChangePercent": -17.113986684642867,
+      "throughputChangePercent": 4.775960331582718,
+      "goProcessCPUChangePercent": -7.993031918927585,
+      "allocatedBytesPerRequestChangePercent": -27.319822833719776
+    },
+    {
+      "provider": "postgres",
+      "workload": "status",
+      "p50ChangePercent": -27.313620147496376,
+      "p95ChangePercent": -24.01403606943423,
+      "throughputChangePercent": 35.576152883072986,
+      "goProcessCPUChangePercent": -28.124170186780596,
+      "allocatedBytesPerRequestChangePercent": -29.606893380745724
+    }
+  ],
+  "sqlBudget": {
+    "sqlite": {
+      "baseline": {
+        "board": {
+          "selectCalls": 18,
+          "dmlCalls": 0,
+          "otherCalls": 0,
+          "totalCalls": 18,
+          "queryMethodCalls": 18,
+          "execMethodCalls": 0
+        },
+        "statusTransitions": [
+          {
+            "targetStatus": "doing",
+            "selectCalls": 20,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 24,
+            "queryMethodCalls": 20,
+            "execMethodCalls": 4
+          },
+          {
+            "targetStatus": "done",
+            "selectCalls": 20,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 24,
+            "queryMethodCalls": 20,
+            "execMethodCalls": 4
+          }
+        ]
+      },
+      "candidate": {
+        "board": {
+          "selectCalls": 11,
+          "dmlCalls": 0,
+          "otherCalls": 0,
+          "totalCalls": 11,
+          "queryMethodCalls": 11,
+          "execMethodCalls": 0
+        },
+        "statusTransitions": [
+          {
+            "targetStatus": "doing",
+            "selectCalls": 10,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 14,
+            "queryMethodCalls": 11,
+            "execMethodCalls": 3
+          },
+          {
+            "targetStatus": "done",
+            "selectCalls": 10,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 14,
+            "queryMethodCalls": 11,
+            "execMethodCalls": 3
+          }
+        ]
+      }
+    },
+    "postgres": {
+      "baseline": {
+        "board": {
+          "selectCalls": 18,
+          "dmlCalls": 0,
+          "otherCalls": 0,
+          "totalCalls": 18,
+          "queryMethodCalls": 18,
+          "execMethodCalls": 0
+        },
+        "statusTransitions": [
+          {
+            "targetStatus": "doing",
+            "selectCalls": 20,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 24,
+            "queryMethodCalls": 20,
+            "execMethodCalls": 4
+          },
+          {
+            "targetStatus": "done",
+            "selectCalls": 20,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 24,
+            "queryMethodCalls": 20,
+            "execMethodCalls": 4
+          }
+        ]
+      },
+      "candidate": {
+        "board": {
+          "selectCalls": 11,
+          "dmlCalls": 0,
+          "otherCalls": 0,
+          "totalCalls": 11,
+          "queryMethodCalls": 11,
+          "execMethodCalls": 0
+        },
+        "statusTransitions": [
+          {
+            "targetStatus": "doing",
+            "selectCalls": 10,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 14,
+            "queryMethodCalls": 11,
+            "execMethodCalls": 3
+          },
+          {
+            "targetStatus": "done",
+            "selectCalls": 10,
+            "dmlCalls": 4,
+            "otherCalls": 0,
+            "totalCalls": 14,
+            "queryMethodCalls": 11,
+            "execMethodCalls": 3
+          }
+        ]
+      }
+    }
+  },
+  "sharedHostWindows": [
+    {
+      "name": "formal-baseline-capacity-sqlite",
+      "kind": "capacity",
+      "provider": "sqlite",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        1.224609375,
+        1.19140625,
+        1.19580078125
+      ],
+      "loadAfter": [
+        1.7255859375,
+        1.30078125,
+        1.2314453125
+      ],
+      "minimumAvailableBytes": 687894528,
+      "minimumTmpAvailableBytes": 2878128128,
+      "minimumMemAvailableBytes": 3673866240,
+      "hostBusyPercent": 31.204694511563687,
+      "hostIOSWaitPercent": 0.10355540214014498,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-capacity-sqlite",
+      "kind": "capacity",
+      "provider": "sqlite",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        1.7255859375,
+        1.30078125,
+        1.2314453125
+      ],
+      "loadAfter": [
+        1.748046875,
+        1.3125,
+        1.23583984375
+      ],
+      "minimumAvailableBytes": 687869952,
+      "minimumTmpAvailableBytes": 2894622720,
+      "minimumMemAvailableBytes": 3665137664,
+      "hostBusyPercent": 30.32877724418175,
+      "hostIOSWaitPercent": 0.03694126339120798,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-baseline-capacity-postgres",
+      "kind": "capacity",
+      "provider": "postgres",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        1.748046875,
+        1.3125,
+        1.23583984375
+      ],
+      "loadAfter": [
+        1.7685546875,
+        1.32421875,
+        1.240234375
+      ],
+      "minimumAvailableBytes": 687824896,
+      "minimumTmpAvailableBytes": 2915123200,
+      "minimumMemAvailableBytes": 3683627008,
+      "hostBusyPercent": 49.08136482939633,
+      "hostIOSWaitPercent": 0.04374453193350831,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-capacity-postgres",
+      "kind": "capacity",
+      "provider": "postgres",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        1.7685546875,
+        1.32421875,
+        1.240234375
+      ],
+      "loadAfter": [
+        1.7236328125,
+        1.32958984375,
+        1.2431640625
+      ],
+      "minimumAvailableBytes": 687812608,
+      "minimumTmpAvailableBytes": 2935021568,
+      "minimumMemAvailableBytes": 3701510144,
+      "hostBusyPercent": 48.23788546255506,
+      "hostIOSWaitPercent": 0.04405286343612335,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-baseline-status-sqlite",
+      "kind": "status",
+      "provider": "sqlite",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        1.7236328125,
+        1.32958984375,
+        1.2431640625
+      ],
+      "loadAfter": [
+        1.7236328125,
+        1.32958984375,
+        1.2431640625
+      ],
+      "minimumAvailableBytes": 687796224,
+      "minimumTmpAvailableBytes": 2944000000,
+      "minimumMemAvailableBytes": 3739037696,
+      "hostBusyPercent": 35.497835497835496,
+      "hostIOSWaitPercent": 0.10822510822510822,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-status-sqlite",
+      "kind": "status",
+      "provider": "sqlite",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        1.7236328125,
+        1.32958984375,
+        1.2431640625
+      ],
+      "loadAfter": [
+        1.66552734375,
+        1.32373046875,
+        1.24169921875
+      ],
+      "minimumAvailableBytes": 687775744,
+      "minimumTmpAvailableBytes": 2943971328,
+      "minimumMemAvailableBytes": 3739979776,
+      "hostBusyPercent": 30.70362473347548,
+      "hostIOSWaitPercent": 0.10660980810234541,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-baseline-status-postgres",
+      "kind": "status",
+      "provider": "postgres",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        1.66552734375,
+        1.32373046875,
+        1.24169921875
+      ],
+      "loadAfter": [
+        2.0126953125,
+        1.4013671875,
+        1.267578125
+      ],
+      "minimumAvailableBytes": 687747072,
+      "minimumTmpAvailableBytes": 2945785856,
+      "minimumMemAvailableBytes": 3714940928,
+      "hostBusyPercent": 36.40552995391705,
+      "hostIOSWaitPercent": 0.04608294930875576,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-status-postgres",
+      "kind": "status",
+      "provider": "postgres",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        2.0126953125,
+        1.4013671875,
+        1.267578125
+      ],
+      "loadAfter": [
+        2.251953125,
+        1.46142578125,
+        1.2880859375
+      ],
+      "minimumAvailableBytes": 687726592,
+      "minimumTmpAvailableBytes": 2944499712,
+      "minimumMemAvailableBytes": 3717271552,
+      "hostBusyPercent": 35.17505470459518,
+      "hostIOSWaitPercent": 0.05470459518599562,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-baseline-schedules-sqlite",
+      "kind": "schedules",
+      "provider": "sqlite",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        1.640625,
+        1.40185546875,
+        1.2724609375
+      ],
+      "loadAfter": [
+        2.28759765625,
+        1.5703125,
+        1.33154296875
+      ],
+      "minimumAvailableBytes": 687611904,
+      "minimumTmpAvailableBytes": 2941980672,
+      "minimumMemAvailableBytes": 3751133184,
+      "hostBusyPercent": 42.35385641253612,
+      "hostIOSWaitPercent": 0.06668148477439431,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-schedules-sqlite",
+      "kind": "schedules",
+      "provider": "sqlite",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        2.28759765625,
+        1.5703125,
+        1.33154296875
+      ],
+      "loadAfter": [
+        2.4677734375,
+        1.67041015625,
+        1.3720703125
+      ],
+      "minimumAvailableBytes": 687669248,
+      "minimumTmpAvailableBytes": 2941796352,
+      "minimumMemAvailableBytes": 3733925888,
+      "hostBusyPercent": 40.476778656126484,
+      "hostIOSWaitPercent": 0.06175889328063241,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-baseline-schedules-postgres",
+      "kind": "schedules",
+      "provider": "postgres",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        2.4677734375,
+        1.67041015625,
+        1.3720703125
+      ],
+      "loadAfter": [
+        3.06005859375,
+        1.8486328125,
+        1.43603515625
+      ],
+      "minimumAvailableBytes": 687656960,
+      "minimumTmpAvailableBytes": 2941575168,
+      "minimumMemAvailableBytes": 3712679936,
+      "hostBusyPercent": 72.73171526307216,
+      "hostIOSWaitPercent": 0.04886789379377749,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-schedules-postgres",
+      "kind": "schedules",
+      "provider": "postgres",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        3.06005859375,
+        1.8486328125,
+        1.43603515625
+      ],
+      "loadAfter": [
+        3.85302734375,
+        2.0849609375,
+        1.5205078125
+      ],
+      "minimumAvailableBytes": 687640576,
+      "minimumTmpAvailableBytes": 2940747776,
+      "minimumMemAvailableBytes": 3718164480,
+      "hostBusyPercent": 73.84642173080272,
+      "hostIOSWaitPercent": 0.01741250217656277,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-baseline-events-sqlite",
+      "kind": "events",
+      "provider": "sqlite",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        3.85302734375,
+        2.0849609375,
+        1.5205078125
+      ],
+      "loadAfter": [
+        3.865234375,
+        2.1171875,
+        1.5341796875
+      ],
+      "minimumAvailableBytes": 687525888,
+      "minimumTmpAvailableBytes": 2942193664,
+      "minimumMemAvailableBytes": 3748470784,
+      "hostBusyPercent": 39.551786795881284,
+      "hostIOSWaitPercent": 0.06056935190793458,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-events-sqlite",
+      "kind": "events",
+      "provider": "sqlite",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        3.865234375,
+        2.1171875,
+        1.5341796875
+      ],
+      "loadAfter": [
+        3.95654296875,
+        2.16552734375,
+        1.55322265625
+      ],
+      "minimumAvailableBytes": 687525888,
+      "minimumTmpAvailableBytes": 2942205952,
+      "minimumMemAvailableBytes": 3716403200,
+      "hostBusyPercent": 37.90419161676647,
+      "hostIOSWaitPercent": 0.0,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-baseline-events-postgres",
+      "kind": "events",
+      "provider": "postgres",
+      "versionLabel": "baseline",
+      "loadBefore": [
+        3.95654296875,
+        2.16552734375,
+        1.55322265625
+      ],
+      "loadAfter": [
+        4.35791015625,
+        2.30908203125,
+        1.6064453125
+      ],
+      "minimumAvailableBytes": 687607808,
+      "minimumTmpAvailableBytes": 2943172608,
+      "minimumMemAvailableBytes": 3736178688,
+      "hostBusyPercent": 73.66071428571429,
+      "hostIOSWaitPercent": 0.0496031746031746,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    },
+    {
+      "name": "formal-candidate-events-postgres",
+      "kind": "events",
+      "provider": "postgres",
+      "versionLabel": "candidate",
+      "loadBefore": [
+        4.35791015625,
+        2.30908203125,
+        1.6064453125
+      ],
+      "loadAfter": [
+        5.212890625,
+        2.5625,
+        1.69677734375
+      ],
+      "minimumAvailableBytes": 687599616,
+      "minimumTmpAvailableBytes": 2942271488,
+      "minimumMemAvailableBytes": 3720613888,
+      "hostBusyPercent": 72.17962760131435,
+      "hostIOSWaitPercent": 0.027382256297918947,
+      "scope": "whole shared host during runner stage, including fixture setup"
+    }
+  ],
+  "functionalValidation": {
+    "candidateTestSourceCommit": "1f7015c6339b797aa4a56f632173d3e92f08995d",
+    "testNames": [
+      "TestWorkMutationPreparedQueryBudget",
+      "TestWorkMutationPreparedContextReply",
+      "TestWorkEmptyReferenceMutationQueries",
+      "TestWorkBoardQueryBudget",
+      "TestWorkCollaborationBatchedSummary",
+      "TestWorkBoardHTTPAndMCP",
+      "TestWorkPlanningMetadataHTTPMCP",
+      "TestWorkPlanningRelationsViewsCalendarWIP",
+      "TestWorkCollaborationTerminalReleaseAtomicAndReplay",
+      "TestWorkCollaborationContentionRecoveryAndOffProtection",
+      "TestWorkActivityPermissionsAndMCP",
+      "TestWorkPlanningRelationClaimProtection",
+      "TestWorkPlanningMetricsNoticesAndRestart",
+      "TestWorkShortIDBoundaries",
+      "TestWorkShortIDRecoveryAndScope",
+      "TestWorkShortIDConcurrentCreation",
+      "TestMCPWorkShortIDContract",
+      "TestWorkShortIDsMigrationPreservesAndRollsBack",
+      "TestIntegrationTokenMigrationPreservesLegacyTokens"
+    ],
+    "topLevelTestGroupsPassed": 19,
+    "requiredPassScopes": [
+      "TestWorkMutationPreparedQueryBudget/sqlite",
+      "TestWorkMutationPreparedQueryBudget/postgres",
+      "TestWorkMutationPreparedContextReply/sqlite",
+      "TestWorkMutationPreparedContextReply/postgres",
+      "TestWorkEmptyReferenceMutationQueries/sqlite",
+      "TestWorkEmptyReferenceMutationQueries/postgres",
+      "TestWorkBoardQueryBudget/sqlite",
+      "TestWorkBoardQueryBudget/postgres",
+      "TestWorkCollaborationBatchedSummary/sqlite",
+      "TestWorkCollaborationBatchedSummary/postgres",
+      "TestWorkBoardHTTPAndMCP/sqlite",
+      "TestWorkBoardHTTPAndMCP/postgres",
+      "TestWorkPlanningMetadataHTTPMCP/sqlite",
+      "TestWorkPlanningMetadataHTTPMCP/postgres",
+      "TestWorkPlanningRelationsViewsCalendarWIP/sqlite",
+      "TestWorkPlanningRelationsViewsCalendarWIP/postgres",
+      "TestWorkCollaborationTerminalReleaseAtomicAndReplay/sqlite",
+      "TestWorkCollaborationTerminalReleaseAtomicAndReplay/postgres",
+      "TestWorkCollaborationContentionRecoveryAndOffProtection/sqlite",
+      "TestWorkCollaborationContentionRecoveryAndOffProtection/postgres",
+      "TestWorkActivityPermissionsAndMCP/sqlite",
+      "TestWorkActivityPermissionsAndMCP/postgres",
+      "TestWorkPlanningRelationClaimProtection/sqlite",
+      "TestWorkPlanningRelationClaimProtection/postgres",
+      "TestWorkPlanningMetricsNoticesAndRestart/sqlite",
+      "TestWorkPlanningMetricsNoticesAndRestart/postgres",
+      "TestWorkShortIDRecoveryAndScope/sqlite",
+      "TestWorkShortIDRecoveryAndScope/postgres",
+      "TestWorkShortIDConcurrentCreation/sqlite",
+      "TestWorkShortIDConcurrentCreation/postgres",
+      "TestMCPWorkShortIDContract/sqlite",
+      "TestMCPWorkShortIDContract/postgres",
+      "TestWorkShortIDBoundaries",
+      "TestWorkShortIDsMigrationPreservesAndRollsBack/postgres-false/rollback-false",
+      "TestWorkShortIDsMigrationPreservesAndRollsBack/postgres-false/rollback-true",
+      "TestWorkShortIDsMigrationPreservesAndRollsBack/postgres-true/rollback-false",
+      "TestWorkShortIDsMigrationPreservesAndRollsBack/postgres-true/rollback-true",
+      "TestIntegrationTokenMigrationPreservesLegacyTokens/postgres-false",
+      "TestIntegrationTokenMigrationPreservesLegacyTokens/postgres-true"
+    ],
+    "requiredPassScopesPassed": 39,
+    "scopeBreakdown": {
+      "regularSQLiteAndPostgresScopes": 32,
+      "shortIDMigrationProviderRollbackScopes": 4,
+      "legacyTokenMigrationProviderScopes": 2,
+      "shortIDBoundaryUnitScope": 1
+    },
+    "providers": [
+      "sqlite",
+      "postgres"
+    ],
+    "skipCount": 0,
+    "missingPassScopes": [],
+    "localRaceBuild": false,
+    "releaseCISeparate": true,
+    "upstreamHistorical015TokenTestIsNotTheLocallyMeasuredTestVersion": true
+  },
+  "validation": {
+    "allSelectedWorkloadsPassed": true,
+    "unexpectedHTTPErrors": 0,
+    "duplicateScheduleOccurrences": 0,
+    "duplicateEventReceipts": 0,
+    "allFullLoadSecondsHadReads": true,
+    "ordinaryBoardResponseBytesPerRequest": {
+      "sqlite": {
+        "baseline": 36929.0,
+        "candidate": 36929.0
+      },
+      "postgres": {
+        "baseline": 36929.0,
+        "candidate": 36929.0
+      }
+    },
+    "bootstrapResponseBytesPerRequest": {
+      "sqlite": {
+        "baseline": 2338.0,
+        "candidate": 2338.0
+      },
+      "postgres": {
+        "baseline": 2338.0,
+        "candidate": 2338.0
+      }
+    },
+    "samePeriodRaceHTTPCallsPerCase": 100,
+    "samePeriodRaceNewOccurrencesPerCase": 1,
+    "candidateIdleUnexpectedOutboundConnections": 0,
+    "candidateIdleDatabaseCountsUnchanged": true,
+    "ownedPostgresStoppedNormally": true,
+    "remainingOwnedMeasurementProcesses": 0,
+    "originalAndFinalColdDatabaseArchivesPreserved": true,
+    "noProductionServicesOrOtherDatabaseInstancesStopped": true
+  },
+  "limits": [
+    "Single-pass bounded measurements on a shared host, not an SLA, WAN latency, sustainable peak capacity or long-duration soak test.",
+    "SQLite ordinary board P95 is essentially unchanged in this sample. Fewer SQL calls and allocations, a lower median and greater throughput do not prove improved tail latency.",
+    "Bootstrap control P95 increased in both providers. This variation is retained and is not used to dismiss every change.",
+    "SQLite mixed-workload median latency increased while P95 decreased; throughput changed only modestly. All metrics are retained.",
+    "PostgreSQL data is on tmpfs with explicit 32MB/64MB min/max WAL settings. Compare only the adjacent edbd-to-candidate samples from this round, not earlier disk-backed PostgreSQL timings.",
+    "Native idle covers only the candidate SQLite Home process, not PostgreSQL background activity. Zero measured ticks or I/O does not prove absolute zero cost or independently prove zero SQL.",
+    "The old native idle, execution HTTP load, executor resource-contention matrix and notification-limit scenarios were not rerun; this integration changes query preparation and short-ID contracts.",
+    "DB connection wait is cumulative across concurrent calls and excludes earlier waiting such as the application write gate.",
+    "Every status workload retains 200 completed cycle observations with no unfinished intervals or unexpected item revisions.",
+    "No performance sample was collected during low-disk preparation. The initial launcher failed before invoking the compiler; it was corrected once and preserved separately. Both measurement binaries were then built once."
+  ]
+}

@@ -1,5 +1,58 @@
 # 测试与验收
 
+## 事项性能回归：0.3.1
+
+本轮最终对照以固定短编号基线 edbd0e0c15e68f934fc506c868931aaa6656cc84 与冻结优化候选进行；最终 0.3.1 的 147 个后端生产文件与候选逐文件一致。固定 SQL 预算、业务真实性、普通 HTTP 延迟、批量生成和真实进程空闲分别计量。19 个功能组、39 个明确 PASS scope，skip=0；测量来源、测试源码差异与局限见 [性能报告](../docs/PERFORMANCE.md) 和 [0.3.1 机器可读数据](../docs/performance-work-0.3.1.json)。V029 harness 名称保留以便复现，下文历史章节保留当时结果。
+
+### SQL 预算与业务真实性
+
+| 回归入口 | 覆盖范围 |
+| --- | --- |
+| `TestWorkBoardQueryBudget` | 常规四列 120 卡／五列 150 卡的 SQL 预算分别为 11／12；协作实际开关、返回数量与投影均核对。 |
+| `TestWorkCollaborationBatchedSummary` | 批量 claim/session 投影、关闭协作后的已有认领；每批最多 500 项，6400 项集合为 13 批。 |
+| `TestWorkMutationPreparedQueryBudget` | 普通状态变化最多 14 次 SQL，仍有事项、历史、周期、看板版本四次必要写入；同值保存最多 9 次且零写入，跨请求目录变化和陈旧 revision 保护继续生效。 |
+| `TestWorkMutationPreparedContextReply` | 完成写入最多 22 次 SQL；最终回复包含已释放认领和唯一引用，重放最多 4 次只读查询，事件、历史与真实周期不重复。 |
+| `TestWorkEmptyReferenceMutationQueries` | 新空引用不读旧 ID／执行空 DELETE；显式空文档数组仍受模块开关限制，非空引用创建、清空及原请求重放保留。 |
+
+减少查询不能跳过认领、权限、事务回滚或真实统计记录。对应既有终态认领原子性、HTTP/MCP 权限及关系保护组按受影响范围验证；不因优化默认重跑全仓。
+
+从 `server/` 运行，PostgreSQL 需预先配置专用可丢弃库的 `LINGSHU_TEST_STORAGE_POSTGRES_URL`；未配置而跳过不能记为通过：
+
+```sh
+go test ./internal/home -run '^(TestWorkBoardQueryBudget|TestWorkCollaborationBatchedSummary|TestWorkMutationPreparedQueryBudget|TestWorkMutationPreparedContextReply|TestWorkEmptyReferenceMutationQueries)$' -count=1 -v
+```
+
+### Linux 可选负载与诊断入口
+
+本轮三个 v029 文件中有两个独立测试入口，第三个是共享诊断 helper；不设置启用变量时负载测试跳过。
+
+| 文件（`server/internal/home/`） | 入口与启用变量 | 测量范围与输出 |
+| --- | --- | --- |
+| `work_capacity_v029_linux_test.go` | `TestWorkCapacityDiagnosticV029`；`LINGSHU_WORK_CAPACITY_DIAGNOSTIC_V029=1` | 10000 项，每种负载 200 次真实 loopback HTTP、并发 8；board/bootstrap/mixed，mixed 为 40 次普通创建加 160 次读取。`LINGSHU_WORK_CAPACITY_DIAGNOSTIC_V029_OUTPUT` 指定 JSON 文件。 |
+| `work_status_v029_linux_test.go` | `TestWorkStatusDiagnosticV029`；`LINGSHU_WORK_STATUS_DIAGNOSTIC_V029=1` | 200 个 HTTP 创建事项，分两阶段进行 400 次 todo→doing→done PATCH，每阶段并发 8；核对 200 条完整周期、最终 revision=3 和错误数。`LINGSHU_WORK_STATUS_DIAGNOSTIC_V029_OUTPUT` 指定 JSON 文件。 |
+| `work_diagnostic_v029_linux_test.go` | 无独立 Test 或启用变量，由前两者调用 | handler SQL 计数、CPU/RSS、分配、GC 和连接池等待；可通过下述 profile 变量保存诊断文件。 |
+
+`LINGSHU_WORK_DIAGNOSTIC_KIND` 可限定 capacity 为 `board`、`bootstrap` 或 `mixed`，空值执行三种。SQL 探针不含 HTTP 鉴权和事务入口；状态探针回滚，不混入随后 200 个真实 HTTP 周期。原始诊断的 reads/writes 按数据库调用方法计数，`QueryRowContext` 执行的 `RETURNING` 仍属于实际写入，不能把方法计数直接当成 SQL 语义读写数。
+
+以下为不启用 CPU profile 的比较入口，仍从 `server/` 运行；两个数据库使用各自独立 fixture，输出目录由调用者创建：
+
+```sh
+mkdir -p ../.runtime/work-performance-029
+
+LINGSHU_WORK_CAPACITY_DIAGNOSTIC_V029=1 \
+LINGSHU_WORK_CAPACITY_DIAGNOSTIC_V029_OUTPUT=../.runtime/work-performance-029/capacity.json \
+LINGSHU_WORK_DIAGNOSTIC_KIND= \
+LINGSHU_WORK_DIAGNOSTIC_PROFILE_DIR= \
+go test ./internal/home -run '^TestWorkCapacityDiagnosticV029$' -count=1 -v
+
+LINGSHU_WORK_STATUS_DIAGNOSTIC_V029=1 \
+LINGSHU_WORK_STATUS_DIAGNOSTIC_V029_OUTPUT=../.runtime/work-performance-029/status.json \
+LINGSHU_WORK_DIAGNOSTIC_PROFILE_DIR= \
+go test ./internal/home -run '^TestWorkStatusDiagnosticV029$' -count=1 -v
+```
+
+需要定位原因时，另开诊断轮设置 `LINGSHU_WORK_DIAGNOSTIC_PROFILE_DIR`；可用 `LINGSHU_WORK_DIAGNOSTIC_PROFILE_PHASE` 限定阶段，例如 `sqlite-board`、`postgres-doing`，省略则采集本次运行的全部阶段。文件包括 `<阶段>.cpu.pprof` 和前后 `allocs.pprof`；profile 轮包含诊断 GC，不作为普通延迟比较样本。CPU 与分配包含同一 Go 测试进程中的 HTTP 客户端，排除独立 PostgreSQL 服务进程；初始化、迁移、造数与 profile 刷盘不计入报告的请求阶段。压力数据是有界样本，不代表最大容量或延迟承诺。
+
 ## 卡片短编号改造（0.3.0）
 
 卡片主键改为五位起步的全实例 36 进制编号；旧长卡片 ID、W-n、旧创建参数 id 不再接受。以下是本次针对性验证入口，不是要求每次运行全仓：

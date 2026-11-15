@@ -321,6 +321,8 @@ GET /items
 
 性能与验收数据以 [测试记录](../tests/README.md) 和 [性能报告](PERFORMANCE.md) 的具体版本、环境及测试范围为准。
 
+0.3.1 的 `work_mutation_queries_test.go` 覆盖状态写入 SQL 预算、真实周期记录、跨请求状态目录更新、终态认领回复、原操作重放及空引用的模块边界。`TestWorkBoardQueryBudget` 与 `TestWorkCollaborationBatchedSummary` 覆盖整板批量装饰、固定分块及关闭协作后的既有认领投影。复现入口见 [测试记录](../tests/README.md)，具体环境、测量口径和结果见 [性能报告](PERFORMANCE.md) 与 [0.3.1 机器可读数据](performance-work-0.3.1.json)。
+
 ## 0.2.8 规划与执行
 
 0.2.8 增加规划字段、关系、保存视图、日历、WIP 提醒、真实统计与站内通知；0.3.0 统一卡片短编号，详见[规划契约](WORK_PLANNING.md)。事件规则、固定 HTTP 执行器、稳定执行 ID、资源串行和未知回执处理见[自动化契约](WORK_AUTOMATION.md)。新增页面按需打开，原有草稿、资料权限、认领和完成边界继续生效。

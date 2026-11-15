@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.3.0/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home logo" width="80" height="80">
+<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.3.1/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home logo" width="80" height="80">
 
 # Lingshu-Home
 
@@ -10,13 +10,21 @@ Maintain your links, import browser bookmarks, and compose your homepage from da
 
 The jade folded-house logo is shared throughout the Web interface. [Brand assets, usage and provenance](docs/BRANDING.md) cover the scalable SVG, browser icons and touch icon.
 
-## New in 0.3.0
+## New in 0.3.1
+
+- **① User experience.** Board and calendar reads avoid repeated collaboration lookups and summary copies. Real status changes and concentrated automatic creation do less database work, while preserving the short-ID interface introduced in 0.3.0.
+- **② Developer experience.** Four/five-column board SQL budgets fall from 18/21 to 11/12. A normal status update uses 14 SQL calls instead of 24 and retains all four real writes. Reuse explicit transaction-local mutation context, return the board revision from its existing write, and skip empty-reference work. This optimization adds no migration, dependency, cross-request cache or fallback/retry layer.
+- **③ AI Agent experience.** Preserve the 0.3.0 short-ID and `requestId` contract, workflow v4, permissions, revision conflicts and original operation receipts. A terminal update releases its claim before producing one final response; replay remains read-only. Current-request status validation and unresolved-claim protection still apply.
+
+See the [0.3.1 performance evidence](docs/PERFORMANCE.md), [integrated measurements](docs/performance-work-0.3.1.json), [test instructions](tests/README.md) and [0.3.1 changelog](CHANGELOG.md#031---2026-11-15). Measurements identify exact source snapshots, storage conditions and tail-latency limits. Unused, paused and enabled-with-no-work observations are separate; a finite zero-tick window is not zero startup, memory or active-work cost.
+
+### Included from 0.3.0
 
 - **① User experience.** Cards use five-character-minimum IDs such as `00001` and `0000a` for copying, search, links and details. Existing cards are renumbered while their content, relationships, history and visible order are preserved.
 - **② Developer experience.** SQLite/PostgreSQL migration **023** replaces actual card primary keys with instance-wide unique base-36 IDs. Creation uses a separate `requestId` for idempotency. Old aliases and `number/key` are removed; long card IDs and `W-n` have no runtime compatibility path.
 - **③ AI Agent experience.** MCP card reads and writes use short IDs, allocated by the server. Workflow guidance advances to **v4**. Recover an uncertain creation using its original `requestId` and report the short ID with the title.
 
-This release changes card IDs, links and the item-create API. Old card links and creation bodies containing `id` are rejected. Coordinate clients and Agents, retain a complete pre-upgrade backup and refresh Gate tool definitions after upgrading. Returning to 0.2.8 or earlier requires restoring that matching backup. See the [0.3.0 changelog](CHANGELOG.md#030---2026-11-15), [card contract](docs/WORK_ITEMS.md) and [migration/recovery](docs/STORAGE.md#short-card-id-migration-023).
+Version 0.3.0 changes card IDs, links and the item-create API. Old card links and creation bodies containing `id` are rejected. Coordinate clients and Agents, retain a complete pre-upgrade backup and refresh Gate tool definitions after upgrading. Returning to 0.2.8 or earlier requires restoring that matching backup. See the [0.3.0 changelog](CHANGELOG.md#030---2026-11-15), [card contract](docs/WORK_ITEMS.md) and [migration/recovery](docs/STORAGE.md#short-card-id-migration-023).
 
 ### Included from 0.2.8
 
@@ -131,7 +139,7 @@ Version 0.0.2 restores the spacing around shared form notices and explains the f
 
 ## Quick start
 
-These instructions target **[0.3.0](VERSION)** and **Linux amd64 (x86-64)**. Use **[Release v0.3.0](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.3.0)** for the Linux executable, Docker image archive, source and checksums. Choose one installation below; all support embedded SQLite without an external database or other Home service. A new unconfigured instance confirms its storage choice in the browser.
+These instructions target **[0.3.1](VERSION)** and **Linux amd64 (x86-64)**. Use **[Release v0.3.1](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.3.1)** for the Linux executable, Docker image archive, source and checksums. Choose one installation below; all support embedded SQLite without an external database or other Home service. A new unconfigured instance confirms its storage choice in the browser.
 
 ### Docker image
 
@@ -149,17 +157,17 @@ docker run -d --name lingshu-home \
   ghcr.io/zhigege666/lingshu-home:latest
 ```
 
-`latest` follows the highest verified stable release; prereleases are excluded. To stay on this specific release, use `ghcr.io/zhigege666/lingshu-home:0.3.0` instead. A moving tag does not update a running container: review the release notes, back up data, then pull and recreate it to upgrade.
+`latest` follows the highest verified stable release; prereleases are excluded. To stay on this specific release, use `ghcr.io/zhigege666/lingshu-home:0.3.1` instead. A moving tag does not update a running container: review the release notes, back up data, then pull and recreate it to upgrade.
 
 Open **http://127.0.0.1:5180** on the Docker host. The named volume `lingshu-home-data` retains the database, saved storage selection, instance keys and assets when the container is replaced. The image runs as UID/GID `10001:10001`; a custom bind mount at `/data` must be writable by that identity. To check startup, run `docker logs --tail=100 lingshu-home`.
 
 ### Linux amd64 release
 
-Download `Lingshu-Home-0.3.0-linux-amd64.tar.gz` from the release, then extract and run it from its directory. Go and Node.js are not required:
+Download `Lingshu-Home-0.3.1-linux-amd64.tar.gz` from the release, then extract and run it from its directory. Go and Node.js are not required:
 
 ```bash
-tar -xzf Lingshu-Home-0.3.0-linux-amd64.tar.gz
-cd Lingshu-Home-0.3.0-linux-amd64
+tar -xzf Lingshu-Home-0.3.1-linux-amd64.tar.gz
+cd Lingshu-Home-0.3.1-linux-amd64
 ./lingshu-home --language en --data-dir "$HOME/.local/share/lingshu-home"
 ```
 
@@ -195,7 +203,7 @@ An unpublished build that already applied `008_session_retention.sql` has a narr
 
 Pull the selected image and recreate the container with the existing settings. A container restart alone does not install a new image. In Unraid, use the installed container's update action and retain its saved mappings. New optional template fields may not appear in that saved configuration; check and add the needed variables when enabling a feature. Add document Paths/root allowlist or the certificate mount/TLS pair only when enabling those features. The source Compose deployment below uses its own project-scoped `home-data` volume; switching installation methods does not move data automatically.
 
-Returning from 0.3.0 to 0.2.8 or earlier requires the matching complete pre-023 database/data, keys and deployment configuration. Stop Home, retain a separate backup of newer data, restore that matching set, then start the older image. Older applications do not recognize migration 023 or the new card identifiers. Changing only the image tag, deleting migration records, dropping columns or fabricating an old-ID mapping is not a supported rollback. Disabling collaboration is a feature setting, not a database downgrade; it keeps outstanding claims protected until cleanup. Restoring Home does not stop external Agent processes or undo changes to mounted Markdown originals; check those separately. See [storage and recovery](docs/STORAGE.md).
+Returning from 0.3.1 to 0.2.8 or earlier requires the matching complete pre-023 database/data, keys and deployment configuration. Stop Home, retain a separate backup of newer data, restore that matching set, then start the older image. Older applications do not recognize migration 023 or the new card identifiers. Changing only the image tag, deleting migration records, dropping columns or fabricating an old-ID mapping is not a supported rollback. Disabling collaboration is a feature setting, not a database downgrade; it keeps outstanding claims protected until cleanup. Restoring Home does not stop external Agent processes or undo changes to mounted Markdown originals; check those separately. See [storage and recovery](docs/STORAGE.md).
 
 For everyday operation, see the **[English user guide](docs/USER_GUIDE.md)** or **[中文使用手册](docs/USER_GUIDE.zh-CN.md)**. They cover accounts, link maintenance, bookmark and icon import, visual editing, themes, category linking, page content, language, integrations and recovery.
 
@@ -209,7 +217,7 @@ In **Page options → Adjust layout → Add → Document activity**, add Documen
 
 Since 0.0.5, **Library** is available beside Home: bookmarks with optional Markdown usage notes, and existing file-backed Markdown directories with reading/editing, source/folder filters, content search, tags, bookmark relations, conflict checks and recovery history. **Admin → Document directories** connects multiple directories to one space; a directory has one managing space. Connections default to read-only and new files remain unpublished until explicitly published.
 
-Configure the container-directory allowlist with `LINGSHU_DOCUMENT_ROOTS='["/documents/notes","/documents/projects"]'` and mount the existing host directories separately from `/data`. [compose.documents.yaml](compose.documents.yaml) supplies a two-directory example without creating missing host paths. See the [complete document-library guide](docs/DOCUMENT_LIBRARY.md) for Docker/Unraid setup, ownership, API/MCP, source restrictions, backup and migration **008**. The **0.3.0** image and Linux release retain these library and HTTPS features. The supplied Compose files build the matching source checkout; image installations can add the same mounts and environment settings to their existing deployment.
+Configure the container-directory allowlist with `LINGSHU_DOCUMENT_ROOTS='["/documents/notes","/documents/projects"]'` and mount the existing host directories separately from `/data`. [compose.documents.yaml](compose.documents.yaml) supplies a two-directory example without creating missing host paths. See the [complete document-library guide](docs/DOCUMENT_LIBRARY.md) for Docker/Unraid setup, ownership, API/MCP, source restrictions, backup and migration **008**. The **0.3.1** image and Linux release retain these library and HTTPS features. The supplied Compose files build the matching source checkout; image installations can add the same mounts and environment settings to their existing deployment.
 
 Optional direct HTTPS uses `LINGSHU_TLS_CERT_FILE` and `LINGSHU_TLS_KEY_FILE`; configure both or neither. Invalid certificates fail startup without falling back to HTTP. [compose.tls.yaml](compose.tls.yaml) and the [transport encryption guide](docs/TRANSPORT_SECURITY.md) cover direct TLS and reverse proxies. `LINGSHU_SECURE_COOKIES` still controls cookie transport and does not itself turn on HTTPS. A network-mounted NAS needs its own encrypted transport; raw Markdown stays compatible with external editors.
 
@@ -262,11 +270,11 @@ Earlier Classic, admin and preview captures remain available as historical examp
 The commands in this section require a source checkout, not the extracted Linux executable bundle. Get the release source with Git:
 
 ```bash
-git clone --branch v0.3.0 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
+git clone --branch v0.3.1 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
 cd Lingshu-Home
 ```
 
-That checkout pins **0.3.0**, including short card IDs, request-key creation recovery, planning and execution tools, recurring work, date filters, optional Agent sessions/claims/handoffs, profile-based browser preferences, iteration-aware MCP guidance, unified application headers, optional Library/Work modules and work activity history. Dynamic states, editable access tokens, resource references, account features, Library and HTTPS remain included.
+That checkout pins **0.3.1**, including work query/mutation optimizations, short card IDs, request-key creation recovery, planning and execution tools, recurring work, date filters, optional Agent sessions/claims/handoffs, profile-based browser preferences, iteration-aware MCP guidance, unified application headers, optional Library/Work modules and work activity history. Dynamic states, editable access tokens, resource references, account features, Library and HTTPS remain included.
 
 ### Build a Docker image from the checkout
 
@@ -315,7 +323,7 @@ The background helper is for Linux development and identifies the process it sta
 
 ### Runtime configuration and language
 
-These options apply to **0.3.0**. A new instance can choose its language once at startup or on the first-run page; a saved choice takes precedence.
+These options apply to **0.3.1**. A new instance can choose its language once at startup or on the first-run page; a saved choice takes precedence.
 
 | Variable | Default / meaning |
 | --- | --- |
@@ -370,7 +378,7 @@ Link/category pagination limits mounted rows while retaining the current authori
 
 The component/source iteration adds a [public template import and data contract](docs/COMPONENTS.md). A template can configure an installed renderer; it does not execute a webpage or install remote JavaScript. Calendar, weather, metric and status sources keep one bounded latest snapshot, and an empty polling schedule has no periodic wakeup. Chinese and English setup packs contain different curated links; Setup chooses the matching collection automatically from the saved instance language.
 
-**Page options → Adjust layout → Add → Dashboard presets** provides Personal overview, Service operations and Data summary layouts. Choose compatible existing sources for the components you want, or explicitly skip a component. Applying a preset replaces the component layout in the unsaved draft while retaining the current theme, page content and valid navigation sources; **Save page** persists it. Presets do not start collectors or insert example values. [Preset layouts and integration guide](docs/DASHBOARDS.md) · [Versioned data examples](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/examples/dashboard-data/README.md).
+**Page options → Adjust layout → Add → Dashboard presets** provides Personal overview, Service operations and Data summary layouts. Choose compatible existing sources for the components you want, or explicitly skip a component. Applying a preset replaces the component layout in the unsaved draft while retaining the current theme, page content and valid navigation sources; **Save page** persists it. Presets do not start collectors or insert example values. [Preset layouts and integration guide](docs/DASHBOARDS.md) · [Versioned data examples](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.1/examples/dashboard-data/README.md).
 
 Two extension types are part of the contract: typed panel renderers and full-page themes. Installing arbitrary third-party theme packages, knowledge-base connectors, and general real-time adapters are future work. The admin and login pages remain host-owned interfaces.
 
@@ -414,17 +422,17 @@ cd server
 go test ./...
 ```
 
-The HTTP runner exercises fresh disposable instances and a real process restart. It refuses existing initialized databases and non-loopback targets. Go provider suites use nine distinct fresh PostgreSQL databases through `LINGSHU_TEST_POSTGRES_URL`, `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`, `LINGSHU_TEST_ICONS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENTS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL`, `LINGSHU_TEST_NAVIGATION_POSTGRES_URL`, `LINGSHU_TEST_DOCUMENT_POSTGRES_URL`, `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` and `LINGSHU_TEST_STORAGE_POSTGRES_URL`. These include component, navigation, document, bookmark-context and storage/profile groups; document migrations 008/009 have preservation and rollback cases for both providers; language and migration 007 cases use isolated schemas in the icon test database. HTTP acceptance uses its own databases. An unset PostgreSQL variable skips its suite and is not a passing provider check. See [test instructions and coverage](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/tests/README.md) and [provider isolation](docs/STORAGE.md#provider-validation).
+The HTTP runner exercises fresh disposable instances and a real process restart. It refuses existing initialized databases and non-loopback targets. Go provider suites use nine distinct fresh PostgreSQL databases through `LINGSHU_TEST_POSTGRES_URL`, `LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`, `LINGSHU_TEST_ICONS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENTS_POSTGRES_URL`, `LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL`, `LINGSHU_TEST_NAVIGATION_POSTGRES_URL`, `LINGSHU_TEST_DOCUMENT_POSTGRES_URL`, `LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` and `LINGSHU_TEST_STORAGE_POSTGRES_URL`. These include component, navigation, document, bookmark-context and storage/profile groups; document migrations 008/009 have preservation and rollback cases for both providers; language and migration 007 cases use isolated schemas in the icon test database. HTTP acceptance uses its own databases. An unset PostgreSQL variable skips its suite and is not a passing provider check. See [test instructions and coverage](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.1/tests/README.md) and [provider isolation](docs/STORAGE.md#provider-validation).
 
 Every change set maintains the changelog and relevant public documentation. **Every release must update both `README.md` and `README.zh-CN.md` and its dated `CHANGELOG.md` section**, including the current version, download/source links, image pin, visible changes and upgrade guidance. The release gate checks both READMEs and the changelog against the preceding release; GitHub release notes come from the same dated entry. `VERSION` is the only manually maintained product version. Build outputs and release tags derive from it. Release descriptions come from the matching dated changelog entry, and release automation requires the application validation gates before publication. Creating or pushing a tag is a separate release action.
 
 Private design documents and visual explorations are excluded from Git, Docker contexts, frontend resources, and release artifacts. Public API and deployment documentation are maintained in `docs/`.
 
-Tailwind class discovery is explicitly limited to `web/src`. Build-output directories, public assets and private documents do not influence generated styles. Source-file counts, output identity checks and browser timings belong to the specific run recorded in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/tests/README.md) and [PERFORMANCE.md](docs/PERFORMANCE.md), rather than a standing performance promise.
+Tailwind class discovery is explicitly limited to `web/src`. Build-output directories, public assets and private documents do not influence generated styles. Source-file counts, output identity checks and browser timings belong to the specific run recorded in [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.1/tests/README.md) and [PERFORMANCE.md](docs/PERFORMANCE.md), rather than a standing performance promise.
 
 ### Historical verification
 
-The following paragraph records the earlier visual-editor/icon development iteration. It does not establish the complete verification result for 0.3.0; use the release-specific verification record for that scope.
+The following paragraph records the earlier visual-editor/icon development iteration. It does not establish the complete verification result for 0.3.1; use the release-specific verification record for that scope.
 
 The earlier visual editor passed eight real browser workflows in each interface language, including a deliberate save, full reload and revision-checked restoration. Icon import, persistence, reference protection and invalid-pack rollback passed in both languages; website retrieval and a repeat cache hit were verified against the TypeScript website. GitHub lookup still timed out in the validation environment. SQLite, isolated PostgreSQL databases and the Docker runtime were also checked; see the [verification record](https://github.com/zhigege666/Lingshu-Home/blob/v0.0.1/tests/README.md) for each result's scope. The [performance report](docs/PERFORMANCE.md) compares the development build with its predecessor using twelve fresh desktop browser contexts. Earlier interface checks are retained as historical evidence.
 
@@ -448,10 +456,10 @@ The earlier visual editor passed eight real browser workflows in each interface 
 | Sources, external pushes, MCP, GitHub Traffic | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) |
 | Components, calendar/weather, template import and data contracts | [docs/COMPONENTS.md](docs/COMPONENTS.md) |
 | Icon libraries, formats and website cache | [docs/ICONS.md](docs/ICONS.md) |
-| Test instructions | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/tests/README.md) |
+| Test instructions | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.1/tests/README.md) |
 | Changes | [CHANGELOG.md](CHANGELOG.md) |
-| Contribution rules | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/AGENTS.md) |
-| Bundled icon sources | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/assets/icons/manifest.json) |
+| Contribution rules | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.1/AGENTS.md) |
+| Bundled icon sources | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.1/assets/icons/manifest.json) |
 | Versioning and releases | [docs/RELEASING.md](docs/RELEASING.md) |
 | Third-party notices | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 

@@ -4,6 +4,18 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-15
+
+### Work query and mutation performance
+
+- **① User experience:** batch collaboration projection across the visible board, reuse item summaries in calendar reads, and reduce repeated database work in status changes and automatic creation. Preserve the current short-ID response, reference visibility, drafts, real history and claim state. The performance changes add no further frontend or layout changes.
+- **② Developer experience:** lower four/five-column board SQL budgets from 18/21 to 11/12. A normal status mutation drops from 24 SQL calls to 14 (20 to 10 reads), retaining all four real writes and actual cycle observations. Pass authorized space, prior item, decoded input and the current transaction's status catalog explicitly; return the board revision from its existing UPSERT. Avoid empty-reference existence checks and DELETEs after a successful new item INSERT. Bound claim projection to 500 IDs per query. Add focused dual-provider regressions and reproducible opt-in Linux measurement harnesses.
+- **③ AI Agent experience:** preserve the newly integrated short-ID HTTP/MCP contract, capabilities, permissions, revision checks, claim fencing and receipt replay. A terminal collaboration write releases its claim and records events before constructing one final response. Replay remains read-only; no cached status catalog survives a request.
+- The final integrated comparison uses the fixed short-ID baseline and the measured optimization candidate on the same shared host, without profiling. Status PATCH P95 changes from 31.438 to 23.696 ms on SQLite and 85.779 to 65.180 ms on PostgreSQL. PostgreSQL board P95 changes from 53.880 to 48.123 ms; SQLite board P95 remains essentially flat at 179.388 to 179.527 ms. Board allocation bytes per request fall by 37.8%/32.5%. Preserve the bootstrap control drift and the worse SQLite mixed median alongside its lower P95.
+- With four foreground readers throughout each workload, 1,000 due schedules finish in 19.978/11.878 seconds (SQLite/PostgreSQL), versus 22.396/12.551 seconds. Forty events matching 25 rules produce exactly 1,000 items/receipts in 2.656/7.314 seconds, versus 2.900/8.337 seconds. These helper-level bounded samples exclude autonomous coordinator overhead. PostgreSQL uses the same tmpfs test cluster for both sides; do not compare absolute values with earlier disk-backed measurements.
+- Recheck native unused, paused and enabled-with-no-work configurations: finite 30/20/20-second windows record zero CPU ticks, I/O increments and outbound connections. Retain startup, memory, active-work and PostgreSQL scope qualifications. Pass 19 targeted test groups with 39 explicit scopes and no skips; final release CI remains a separate gate. Full measurements and provenance appear in [PERFORMANCE.md](docs/PERFORMANCE.md) and [performance-work-0.3.1.json](docs/performance-work-0.3.1.json). The pure-v0.2.8 comparison remains separate historical evidence.
+- The performance patch adds no migration, dependency, service, configuration switch, worker polling, cross-request cache or fallback/retry layer. Version 0.3.1 builds on the short-ID migration/API released in 0.3.0.
+
 ## [0.3.0] - 2026-11-15
 
 ### Short card identifiers
