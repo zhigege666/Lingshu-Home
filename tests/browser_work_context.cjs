@@ -43,7 +43,7 @@ async function main() {
   const projectField = () => label('项目', 'Project', detail());
   const projectA = await api(work + '/projects', 'POST', { id: id(), name: prefix + ' Alpha' });
   const projectB = await api(work + '/projects', 'POST', { id: id(), name: prefix + ' Beta' });
-  const seed = await api(work + '/items', 'POST', { id: id(), title: prefix + ' seed', projectId: projectA.id });
+  const seed = await api(work + '/items', 'POST', { requestId: id(), title: prefix + ' seed', projectId: projectA.id });
   const bookmark = await api(space + '/links', 'POST', { title: prefix + ' reference', url: 'https://example.invalid/context', iconMode: 'manual', icon: 'lucide:link', tags: [] }, 201);
   const boardURL = origin + '/#/library?view=board&space=' + fixture.shared;
   async function shot(name) { const filename = provider + '-' + name + '.png'; await page.screenshot({ path: path.join(output, filename), animations: 'disabled' }); report.screenshots.push(filename); }
@@ -150,7 +150,7 @@ async function main() {
   await check('first_page_creation_and_explicit_existing_item_location', async () => {
     const pagedProject = await api(work + '/projects', 'POST', { id: id(), name: prefix + ' paged' });
     const items = [];
-    for (let n = 0; n < 35; n++) items.push(await api(work + '/items', 'POST', { id: id(), title: prefix + ' page ' + n, projectId: pagedProject.id }));
+    for (let n = 0; n < 35; n++) items.push(await api(work + '/items', 'POST', { requestId: id(), title: prefix + ' page ' + n, projectId: pagedProject.id }));
     await openBoard(); await selectProject(pagedProject); await createDraft(); await title().fill(prefix + ' first page');
     const item = await saveCreate(); await card(item.id).waitFor();
     assert.equal(await page.locator('.work-lane[data-work-status="todo"] .work-card').first().getAttribute('data-work-id'), item.id);
@@ -252,7 +252,7 @@ async function main() {
     await api(space + '/document-sources/' + source.id + '/scan', 'POST', {});
     const document = (await api(space + '/documents?sourceId=' + source.id)).items.find(x => x.relativePath === 'plan.md');
     assert(document, 'Owned document fixture exists');
-    let linked = await api(work + '/items', 'POST', { id:id(),title:prefix + ' retained links',projectId:projectA.id,bookmarkIds:[bookmark.id],documentIds:[document.id] });
+    let linked = await api(work + '/items', 'POST', { requestId:id(),title:prefix + ' retained links',projectId:projectA.id,bookmarkIds:[bookmark.id],documentIds:[document.id] });
     async function settingsUI(modules) {
       await page.goto(origin + '/#/admin?tab=access', { waitUntil:'domcontentloaded' });
       const library = label('启用资料库','Enable library'), items = label('启用事项','Enable work');
@@ -316,8 +316,8 @@ async function main() {
     assert.equal(saved.title,intended); await closeDetail();
   });
   await check('work_activity_timestamps_pagination_and_live_update', async () => {
-    const itemId = id();
-    let item = await api(work + '/items','POST',{id:itemId,title:prefix + ' activity',projectId:projectA.id});
+    let item = await api(work + '/items','POST',{requestId:id(),title:prefix + ' activity',projectId:projectA.id});
+    const itemId = item.id;
     for (let n=0;n<23;n++) item = await api(work + '/items/' + itemId,'PATCH',{expectedRevision:item.revision,result:'Verified milestone ' + (n+1)});
     const expected = await api(work + '/items/' + itemId + '/activity?limit=100');
     assert.equal(expected.items.length,24); assert.equal(expected.historyComplete,true);

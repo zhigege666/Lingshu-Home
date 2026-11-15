@@ -24,8 +24,8 @@ type WorkScheduleTemplate struct {
 	DocumentIDs    []string `json:"documentIds"`
 }
 
-func (in WorkScheduleTemplate) workInput(id string) workCreateInput {
-	return workCreateInput{WorkPlanningFields: in.WorkPlanningFields, ID: id, Title: in.Title, ProjectID: in.ProjectID, Status: in.Status, Description: in.Description, NextStep: in.NextStep, NeedsAttention: in.NeedsAttention, BookmarkIDs: in.BookmarkIDs, DocumentIDs: in.DocumentIDs}
+func (in WorkScheduleTemplate) workInput() workCreateInput {
+	return workCreateInput{WorkPlanningFields: in.WorkPlanningFields, Title: in.Title, ProjectID: in.ProjectID, Status: in.Status, Description: in.Description, NextStep: in.NextStep, NeedsAttention: in.NeedsAttention, BookmarkIDs: in.BookmarkIDs, DocumentIDs: in.DocumentIDs}
 }
 
 type WorkSchedule struct {
@@ -156,7 +156,7 @@ func (a *App) createWorkSchedule(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	template := in.Template.workInput("")
+	template := in.Template.workInput()
 	if err = validateWorkText(&template); err != nil {
 		return nil, err
 	}

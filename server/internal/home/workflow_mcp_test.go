@@ -69,7 +69,7 @@ func TestMCPWorkflowContextAndGatewayDiscovery(t *testing.T) {
 			if statusIDs["done"] == "" || statusIDs["doing"] == "" {
 				t.Fatal("fixture needs semantic completion and active statuses")
 			}
-			completed := agent.tool(full, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Completed delivery", "status": statusIDs["done"]}}, "")
+			completed := agent.tool(full, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Completed delivery", "status": statusIDs["done"]}}, "")
 			reason := "User explicitly requested verification of this same delivery; reopening reason retained."
 			reopened := agent.tool(full, "work_items_update", map[string]any{"id": completed["id"], "input": map[string]any{"expectedRevision": completed["revision"], "status": statusIDs["doing"], "result": reason}}, "")
 			if reopened["id"] != completed["id"] || reopened["status"] != statusIDs["doing"] || reopened["result"] != reason {
@@ -117,7 +117,7 @@ func TestMCPWorkflowContextAndGatewayDiscovery(t *testing.T) {
 				t.Fatalf("gateway JSON text differs from structured result: %v", err)
 			}
 			guide := integrationObject(t, structured["workflow"])["guide"].(string)
-			for _, invariant := range []string{"语义去重", "没有仓库绑定", "不得只替换 revision", "不自动修改共享状态目录", "不擅自挂载目录或发布文档"} {
+			for _, invariant := range []string{"短编号＋标题", "requestId", "语义去重", "没有仓库绑定", "不得只替换 revision", "不自动修改共享状态目录", "不擅自挂载目录或发布文档"} {
 				if !strings.Contains(guide, invariant) {
 					t.Fatalf("workflow omitted %s", invariant)
 				}
@@ -173,7 +173,7 @@ func TestMCPWorkflowContextAndGatewayDiscovery(t *testing.T) {
 func TestMCPTaskBoundaryGuidance(t *testing.T) {
 	full := integrationContextCapabilities{Work: integrationOperationCapability{Read: true, Write: true}}
 	modules := ModuleSettings{Work: true, Documents: true}
-	required := []string{"未结束的同一轮目标", "已完成/取消", "新版本", "新验收范围", "已知目标版本", "前序真实事项 ID", "版本未定不编造", "仅用户明确要求", "纠正/补验同一次交付", "记录原因", "无限追加"}
+	required := []string{"未结束的同一轮目标", "已完成/取消", "新版本", "新验收范围", "已知目标版本", "前序真实事项短编号", "版本未定不编造", "仅用户明确要求", "纠正/补验同一次交付", "记录原因", "无限追加"}
 	assertBoundary := func(t *testing.T, text string) {
 		t.Helper()
 		for _, phrase := range required {

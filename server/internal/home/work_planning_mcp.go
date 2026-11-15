@@ -13,7 +13,10 @@ func workMCPInteger(min, max int) map[string]any {
 }
 func workMCPID() map[string]any { return map[string]any{"type": "string", "pattern": "^[0-9a-f]{32}$"} }
 func workMCPItemRef() map[string]any {
-	return map[string]any{"type": "string", "pattern": "^([0-9a-f]{32}|W-[1-9][0-9]*)$", "description": "Canonical item ID or this space's immutable W-number. Replies always identify canonical IDs."}
+	return map[string]any{"type": "string", "minLength": 5, "maxLength": 13, "pattern": "^([0-9a-z]{5}|[1-9a-z][0-9a-z]{5,12})$", "not": map[string]any{"const": "00000"}, "description": "Existing globally unique short item ID, such as 0000a, from a prior read or creation receipt. Report this ID with the title to users. Retired long IDs and W-numbers are not accepted; no preliminary mapping lookup is needed."}
+}
+func workMCPRequestID() map[string]any {
+	return map[string]any{"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable creation request key, not an item ID. Choose once and retain the original normalized payload for retries; the server assigns the short item ID. Keys are scoped to the authenticated user and space."}
 }
 func workMCPNullable(value any) map[string]any {
 	return map[string]any{"anyOf": []any{value, map[string]any{"type": "null"}}}
@@ -31,7 +34,7 @@ func workPlanningInputProperties() map[string]any {
 }
 func workPlanningFilterProperties() map[string]any {
 	return map[string]any{
-		"priority": workMCPChoice("none", "low", "normal", "high", "urgent"), "labelIds": workMCPIDs(20), "assigneeUserId": workMCPText(32, "One bound account ID or me; free names do not match me."), "versionId": workMCPText(32, "One target version ID, or none."), "parentId": workMCPText(32, "Canonical ID, W-number, or none for top-level items."), "blocked": map[string]any{"type": "boolean"}, "fields": map[string]any{"type": "array", "maxItems": 11, "uniqueItems": true, "items": workMCPChoice("key", "priority", "labels", "assignee", "version", "project", "nextStep", "businessDate", "dueAt", "relations", "collaboration")},
+		"priority": workMCPChoice("none", "low", "normal", "high", "urgent"), "labelIds": workMCPIDs(20), "assigneeUserId": workMCPText(32, "One bound account ID or me; free names do not match me."), "versionId": workMCPText(32, "One target version ID, or none."), "parentId": map[string]any{"anyOf": []any{workMCPItemRef(), map[string]any{"const": "none"}}, "description": "Short parent item ID, or none for top-level items."}, "blocked": map[string]any{"type": "boolean"}, "fields": map[string]any{"type": "array", "maxItems": 11, "uniqueItems": true, "items": workMCPChoice("id", "priority", "labels", "assignee", "version", "project", "nextStep", "businessDate", "dueAt", "relations", "collaboration")},
 	}
 }
 func workTemplateSchema() map[string]any {

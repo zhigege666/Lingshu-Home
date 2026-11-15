@@ -63,7 +63,7 @@ func workerTestExecutor(t *testing.T, f *workStatusFixture, resource string) map
 }
 func workerTestQueue(t *testing.T, f *workStatusFixture, executor map[string]any, title string) (map[string]any, *WorkExecution) {
 	t.Helper()
-	item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": title})
+	item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": title})
 	v := automationObject(f.owner.ok("POST", f.base+"/executions", map[string]any{"id": newID(), "executorId": executor["id"], "itemId": item["id"], "expectedItemRevision": item["revision"]}), "execution")
 	return item, workerTestLoad(t, f.app, v["id"].(string))
 }
@@ -417,7 +417,7 @@ func TestWorkExecutionHTTPOutsideTransactionAndLateCAS(t *testing.T) {
 			})
 			executor := workerTestExecutor(t, f, "blocked-http")
 			_, first := workerTestQueue(t, f, executor, "Module changes during HTTP")
-			unrelated := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Unrelated writer"})
+			unrelated := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Unrelated writer"})
 			result := make(chan error, 1)
 			go func() { err, _ := a.runWorkExecution(context.Background(), first.ID); result <- err }()
 			workerTestReceive(t, postEntered, "accepted HTTP request")

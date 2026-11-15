@@ -193,7 +193,7 @@ func TestMCPWorkStatusDiscoveryAndMutation(t *testing.T) {
 	if catalog["defaultStatus"] != customID || len(catalog["items"].([]any)) != 5 {
 		t.Fatalf("status batch did not return the updated catalog: %v", catalog)
 	}
-	item := agent.tool(both, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Dynamic default through MCP"}}, "")
+	item := agent.tool(both, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Dynamic default through MCP"}}, "")
 	if item["status"] != customID {
 		t.Fatalf("MCP item did not use the configured default status: %v", item)
 	}

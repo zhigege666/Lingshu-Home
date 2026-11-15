@@ -5,7 +5,7 @@ import { t } from '../core/i18n'
 import { requestNavigation } from '../core/navigation'
 import { formatUpdated } from '../core/presentation'
 import { useUnsavedChanges } from '../core/useUnsavedChanges'
-import { changedWorkFields, normalizeWorkDraft, workDraft, workItemHref, workPath, type WorkCollaborationSummary, type WorkStatusCatalog, type WorkStatusDefinition, type WorkDraft, type WorkItem, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
+import { changedWorkFields, normalizeWorkDraft, workDraft, workItemHref, workPath, type WorkCollaborationSummary, type WorkStatusCatalog, type WorkStatusDefinition, type WorkDraft, type WorkItem, type WorkPage, type WorkProject, type WorkReference, type WorkSelection, type WorkStatus } from '../core/work-types'
 import { Button } from '../components/ui/button'
 import { Checkbox } from '../components/ui/checkbox'
 import { Input } from '../components/ui/input'
@@ -36,6 +36,8 @@ function editorMessageOf(cause: unknown): string {
   }
   return messageOf(cause)
 }
+type WorkCreateRequest = Partial<WorkDraft> & { requestId: string; placement: 'start' }
+
 function useWideEditor() {
   const [wide, setWide] = useState(() => matchMedia('(min-width: 2200px)').matches)
   useEffect(() => { const media = matchMedia('(min-width: 2200px)'), changed = () => setWide(media.matches); media.addEventListener('change', changed); return () => media.removeEventListener('change', changed) }, [])
@@ -48,6 +50,7 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
   const [creating, setCreating] = useState(!!selection.create), [baseline, setBaseline] = useState<WorkItem | null>(null)
   const initialDraft = useRef(workDraft({ title: selection.reference?.title || '', businessDate: selection.businessDate || '', status: selection.status || defaultStatus, projectId: selection.projectId || null, needsAttention: selection.needsAttention || false, bookmarkIds: selection.reference?.kind === 'bookmark' ? [selection.reference.id] : [], documentIds: selection.reference?.kind === 'document' ? [selection.reference.id] : [] }))
   const initialReferences = useRef<WorkReference[]>(selection.reference ? [selection.reference] : [])
+  const pendingCreate = useRef<WorkCreateRequest | null>(null)
   const [draft, setDraft] = useState<WorkDraft>(() => workDraft(initialDraft.current))
   const [references, setReferences] = useState<WorkReference[]>(() => [...initialReferences.current])
   const [loading, setLoading] = useState(!selection.create), [saving, setBusy] = useState(false), [error, setError] = useState(''), [linkError, setLinkError] = useState('')
@@ -62,7 +65,8 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
   const wide = useWideEditor()
   const dirty = (creating || !!baseline) && Object.keys(changedWorkFields(creating ? initialDraft.current : workDraft(baseline || undefined), draft)).length > 0
   const guard = useUnsavedChanges(dirty || collaborationPending.dirty || relationsPending.dirty, busy, () => { collaborationPending.discard(); relationsPending.discard(); setDraft(workDraft(baseline || initialDraft.current)); setReferences([...(baseline?.references || initialReferences.current)]); setPicker(false) })
-  const path = `${workPath(spaceId)}/items/${encodeURIComponent(selection.id)}`
+  const itemID = baseline?.id || selection.id, creationPending = creating && !!pendingCreate.current
+  const path = `${workPath(spaceId)}/items/${encodeURIComponent(itemID)}`
   useEffect(() => {
     alive.current = true
     if (initial.current.create) return () => { alive.current = false }
@@ -76,20 +80,33 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
     const title = document.querySelector<HTMLInputElement>('.work-detail [data-work-title]')
     title?.focus({ preventScroll: true })
   }, [wide, loading])
-  function close() { guard.requestLeave(() => { onClose(); requestAnimationFrame(() => { const target = returningTo.current?.isConnected ? returningTo.current : document.querySelector<HTMLElement>(`[data-work-id="${CSS.escape(selection.id)}"] .work-card-title, [data-work-id="${CSS.escape(selection.id)}"] .work-list-title`) || document.querySelector<HTMLElement>('[data-work-new]'); target?.focus({ preventScroll: true }) }) }) }
+  function close() { guard.requestLeave(() => { onClose(); requestAnimationFrame(() => { const target = returningTo.current?.isConnected ? returningTo.current : document.querySelector<HTMLElement>(`[data-work-id="${CSS.escape(itemID)}"] .work-card-title, [data-work-id="${CSS.escape(itemID)}"] .work-list-title`) || document.querySelector<HTMLElement>('[data-work-new]'); target?.focus({ preventScroll: true }) }) }) }
   function adopt(item: WorkItem, message: string) {
     if (!alive.current) return
-    setCreating(false); setBaseline(item); setCollaboration(item.collaboration); setExternalRevision(''); setDraft(workDraft(item)); setReferences(item.references || []); setConflict(false); setRemote(null); setUncertain(false); setError(''); setLinkError(''); setPicker(false)
+    pendingCreate.current = null; setCreating(false); setBaseline(item); setCollaboration(item.collaboration); setExternalRevision(''); setDraft(workDraft(item)); setReferences(item.references || []); setConflict(false); setRemote(null); setUncertain(false); setError(''); setLinkError(''); setPicker(false)
     onSaved(item, message, creating)
+  }
+  async function readCurrentItem(): Promise<WorkItem | null> {
+    if (!creating) return request<WorkItem>(path)
+    const params = new URLSearchParams({ requestId: selection.create ? selection.requestId : '', limit: '1' })
+    const result = await request<WorkPage>(`${workPath(spaceId)}/items?${params}`)
+    if (!result.items.length) return null
+    return request<WorkItem>(`${workPath(spaceId)}/items/${encodeURIComponent(result.items[0].id)}`)
+  }
+  function creationNotFound() {
+    setUncertain(false); setConflict(false)
+    setError(t('暂未找到创建结果，可使用原请求重试。', 'No creation result was found. You can retry the original request.'))
   }
   async function readLatest() {
     if (running.current || collaborationPending.busy) return
     running.current = true; setBusy(true)
     try {
-      const item = await request<WorkItem>(path)
+      const item = await readCurrentItem()
       if (!alive.current) return
+      if (!item) { creationNotFound(); return }
+      if (creating) { adopt(item, t('事项已创建，已读取最新内容。', 'The item was created. Its latest content is loaded.')); return }
       setCollaboration(item.collaboration)
-      const intended = normalizeWorkDraft(draft), changes = creating ? intended : changedWorkFields(workDraft(baseline || undefined), intended)
+      const intended = normalizeWorkDraft(draft), changes = changedWorkFields(workDraft(baseline || undefined), intended)
       const actual = normalizeWorkDraft(workDraft(item))
       const matches = Object.entries(changes).every(([key, value]) => JSON.stringify(actual[key as keyof WorkDraft]) === JSON.stringify(value))
       if (uncertain && matches) adopt(item, t('已读到与当前草稿一致的内容。', 'The current record matches your draft.'))
@@ -125,21 +142,25 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
     // document list as part of an otherwise unrelated create or edit.
     if (!documentsEnabled) delete changes.documentIds
     if (!creating && !Object.keys(changes).length) return
+    if (creating && !pendingCreate.current) pendingCreate.current = { requestId: selection.create ? selection.requestId : '', ...changes, placement: 'start' }
     running.current = true; setBusy(true); setError('')
     try {
-      const item = await request<WorkItem>(creating ? `${workPath(spaceId)}/items` : path, { method: creating ? 'POST' : 'PATCH', body: creating ? { id: selection.id, ...changes, placement: 'start' } : { expectedRevision: against || baseline?.revision, ...changes } })
+      const item = await request<WorkItem>(creating ? `${workPath(spaceId)}/items` : path, { method: creating ? 'POST' : 'PATCH', body: creating ? pendingCreate.current : { expectedRevision: against || baseline?.revision, ...changes } })
       adopt(item, creating ? t('事项已创建', 'Item created') : t('事项已保存', 'Item saved'))
     } catch (cause) {
       if (!alive.current) return
       const definite = cause instanceof ApiError && cause.status < 500
-      if (cause instanceof ApiError && cause.code === 'work_status_unavailable') await loadStatuses()
-      else if (isWorkClaimError(cause)) { setError(t('执行认领已变化，草稿已保留。请查看协作记录并核实后继续。', 'Execution ownership changed. Your draft is retained. Review the collaboration records and verify before continuing.')); try { const item = await request<WorkItem>(path); if (alive.current) setCollaboration(item.collaboration) } catch {} }
+      if (definite && cause.status !== 409) pendingCreate.current = null
+      if (cause instanceof ApiError && cause.code === 'work_status_unavailable') { pendingCreate.current = null; await loadStatuses() }
+      else if (isWorkClaimError(cause)) { setError(t('执行认领已变化，草稿已保留。请查看协作记录并核实后继续。', 'Execution ownership changed. Your draft is retained. Review the collaboration records and verify before continuing.')); try { const item = await readCurrentItem(); if (alive.current && item) setCollaboration(item.collaboration) } catch {} }
       else if (cause instanceof ApiError && cause.status === 409) { setConflict(true); setError(t('事项已被更新，当前草稿已保留。读取最新版本后比较。', 'This item changed elsewhere. Your draft is retained. Read the latest version to compare.')) }
       else if (!definite) {
         setUncertain(true); setError(t('保存结果尚未确认。正在读取现有记录，草稿会保留。', 'The save result is unconfirmed. Reading the current record; your draft is retained.'))
         try {
-          const item = await request<WorkItem>(path)
+          const item = await readCurrentItem()
           if (!alive.current) return
+          if (!item) { creationNotFound(); return }
+          if (creating) { adopt(item, t('事项已创建，已读取最新内容。', 'The item was created. Its latest content is loaded.')); return }
           const actual = normalizeWorkDraft(workDraft(item)), matches = Object.entries(changes).every(([key, value]) => JSON.stringify(actual[key as keyof WorkDraft]) === JSON.stringify(value))
           if (matches) adopt(item, t('已读到与当前草稿一致的内容。', 'The current record matches your draft.'))
           else { setRemote(item); setConflict(true); setError(t('当前记录与草稿不同，保存结果尚未确认。请比较后选择。', 'The current record differs from your draft; the save is unconfirmed. Compare before continuing.')) }
@@ -153,13 +174,19 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
     const intended = !baseline.archived
     running.current = true; setBusy(true); setError('')
     try { const item = await request<WorkItem>(path, { method: 'PATCH', body: { expectedRevision: baseline.revision, archived: intended } }); adopt(item, intended ? t('事项已归档', 'Item archived') : t('事项已恢复', 'Item restored')) }
-    catch (cause) { if (alive.current) { if (cause instanceof ApiError && cause.code === 'module_disabled') setError(editorMessageOf(cause)); else if (isWorkClaimError(cause)) { setError(editorMessageOf(cause)); try { const item = await request<WorkItem>(path); if (alive.current) setCollaboration(item.collaboration) } catch {} } else { setError(cause instanceof ApiError && cause.status === 409 ? t('事项已更新，请读取最新版本后操作。', 'The item changed. Read its latest version before continuing.') : t('操作结果未确认，请重新读取。', 'The result is unconfirmed. Read the latest record.')); setConflict(true) } } }
+    catch (cause) { if (alive.current) { if (cause instanceof ApiError && cause.code === 'module_disabled') setError(editorMessageOf(cause)); else if (isWorkClaimError(cause)) { setError(editorMessageOf(cause)); try { const item = await readCurrentItem(); if (alive.current && item) setCollaboration(item.collaboration) } catch {} } else { setError(cause instanceof ApiError && cause.status === 409 ? t('事项已更新，请读取最新版本后操作。', 'The item changed. Read its latest version before continuing.') : t('操作结果未确认，请重新读取。', 'The result is unconfirmed. Read the latest record.')); setConflict(true) } } }
     finally { running.current = false; if (alive.current) setBusy(false) }
   }
   function toggleReference(item: WorkReference) {
     const key = item.kind === 'bookmark' ? 'bookmarkIds' : 'documentIds', present = draft[key].includes(item.id)
     setDraft(current => ({ ...current, [key]: present ? current[key].filter(id => id !== item.id) : [...current[key], item.id] }))
     setReferences(current => present ? current.filter(value => value.kind !== item.kind || value.id !== item.id) : [...current, item])
+  }
+  async function copyID() {
+    if (!baseline) return
+    setLinkError('')
+    try { await navigator.clipboard.writeText(baseline.id); onNotice(t('事项编号已复制', 'Item ID copied')) }
+    catch { setLinkError(t('无法复制编号，请选择编号后手动复制。', 'The ID could not be copied. Select it and copy manually.')) }
   }
   async function copyLink() {
     if (!baseline) return
@@ -190,7 +217,7 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
     return value[key] || t('空', 'Empty')
   }
   const content = <>
-    <header className="work-detail-heading"><div><h2 id="work-editor-title">{creating ? t('新建事项', 'New item') : baseline?.key || t('事项详情', 'Item details')}</h2>{baseline?.archived && <span className="work-archived-label">{t('已归档', 'Archived')}</span>}</div><div className="work-detail-actions">{baseline && <><Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onReveal(baseline)} aria-label={t('定位事项', 'Locate item')} title={t('清除筛选并定位此事项', 'Clear filters and locate this item')}><Crosshair size={16}/><span>{t('定位', 'Locate')}</span></Button><Button type="button" variant="ghost" size="icon-sm" disabled={busy} onClick={() => void copyLink()} aria-label={t('复制事项链接', 'Copy item link')} title={t('复制事项链接', 'Copy item link')}><Link2 size={16}/></Button></>}<Button type="button" variant="ghost" size="icon" disabled={busy} onClick={close} aria-label={t('关闭事项', 'Close item')}><X size={19}/></Button></div></header>
+    <header className="work-detail-heading"><div><h2 id="work-editor-title">{creating ? t('新建事项', 'New item') : baseline ? <Button type="button" variant="ghost" size="sm" className="work-item-id-copy" data-work-copy-id onClick={() => void copyID()} aria-label={t('复制事项编号', 'Copy item ID')} title={t('复制事项编号', 'Copy item ID')}>{baseline.id}</Button> : t('事项详情', 'Item details')}</h2>{baseline?.archived && <span className="work-archived-label">{t('已归档', 'Archived')}</span>}</div><div className="work-detail-actions">{baseline && <><Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onReveal(baseline)} aria-label={t('定位事项', 'Locate item')} title={t('清除筛选并定位此事项', 'Clear filters and locate this item')}><Crosshair size={16}/><span>{t('定位', 'Locate')}</span></Button><Button type="button" variant="ghost" size="icon-sm" disabled={busy} onClick={() => void copyLink()} aria-label={t('复制事项链接', 'Copy item link')} title={t('复制事项链接', 'Copy item link')}><Link2 size={16}/></Button></>}<Button type="button" variant="ghost" size="icon" disabled={busy} onClick={close} aria-label={t('关闭事项', 'Close item')}><X size={19}/></Button></div></header>
     {loading ? <Loading/> : !creating && !baseline ? <div className="work-detail-body"><ErrorMessage error={error}/><Button onClick={close}>{t('关闭', 'Close')}</Button></div> : <form className="work-detail-form" onSubmit={event => void save(event)} onInvalidCapture={event => handleFormInvalid(event, setError)} onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault() }}>
       <div className="work-detail-body">
         <ErrorMessage error={error}/><ErrorMessage error={linkError}/>{statusesStale && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void readStatuses()}>{t('读取最新状态', 'Reload statuses')}</Button>}
@@ -198,25 +225,25 @@ export default function WorkEditor({ spaceId, mcpSettingsRevision, selection, pr
         {externalRevision && !conflict && <div className="work-collaboration-updated"><span>{t('事项已有其他更新，当前草稿已保留。', 'The item has other updates. Your draft is retained.')}</span><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void readLatest()}>{t('读取最新版本', 'Read latest version')}</Button></div>}
         {baseline && <WorkCollaboration model={collaborationModel}/>}
         {claimBlocked && dirty && <p className="work-collaboration-draft">{t('保存前需核实并解除认领，草稿已保留。', 'Verify and release the claim before saving. Your draft is retained.')}</p>}
-        <fieldset disabled={busy || !canEdit} className="admin-plain-fieldset">
+        <fieldset disabled={busy || !canEdit || creationPending} className="admin-plain-fieldset">
           <Field label={t('事项标题', 'Item title')}><Input data-work-title autoFocus={creating} required maxLength={320} value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))}/></Field>
-          <div className="work-fields-row"><Field label={t('状态', 'Status')}><StyledSelect value={draft.status} onValueChange={value => setDraft(current => ({ ...current, status: value as WorkStatus }))} disabled={busy || !canEdit} tone="home" theme={theme} options={[...statuses.map(status => ({ value: status.id, label: status.name, title: status.description })), ...(!statuses.some(status => status.id === draft.status) ? [{ value: draft.status, label: t('{name}（已不可用）', '{name} (unavailable)', { name: baseline?.statusDefinition?.name || draft.status }), disabled: true }] : [])]}/></Field><Field label={t('项目', 'Project')}><StyledSelect value={draft.projectId || ''} onValueChange={value => setDraft(current => ({ ...current, projectId: value || null }))} disabled={busy || !canEdit} tone="home" theme={theme} options={projectOptions}/></Field></div>
+          <div className="work-fields-row"><Field label={t('状态', 'Status')}><StyledSelect value={draft.status} onValueChange={value => setDraft(current => ({ ...current, status: value as WorkStatus }))} disabled={busy || !canEdit || creationPending} tone="home" theme={theme} options={[...statuses.map(status => ({ value: status.id, label: status.name, title: status.description })), ...(!statuses.some(status => status.id === draft.status) ? [{ value: draft.status, label: t('{name}（已不可用）', '{name} (unavailable)', { name: baseline?.statusDefinition?.name || draft.status }), disabled: true }] : [])]}/></Field><Field label={t('项目', 'Project')}><StyledSelect value={draft.projectId || ''} onValueChange={value => setDraft(current => ({ ...current, projectId: value || null }))} disabled={busy || !canEdit || creationPending} tone="home" theme={theme} options={projectOptions}/></Field></div>
           <div className="work-fields-row"><Field label={t('业务日期', 'Business date')}><Input type="date" data-work-business-date value={draft.businessDate} onChange={event => setDraft(current => ({ ...current, businessDate: event.target.value }))}/></Field><Field label={t('截止时间（{timezone}）', 'Due time ({timezone})', { timezone: workTimezone() })}><Input type="datetime-local" data-work-due-at value={dueInputValue(draft.dueAt)} onChange={event => setDraft(current => ({ ...current, dueAt: dueInputISO(event.target.value) }))}/></Field></div>
-          <Suspense fallback={<Loading/>}><WorkPlanningFields spaceId={spaceId} projectId={draft.projectId} value={draft} hints={baseline || undefined} enabled={enabled} disabled={busy || !canEdit} onChange={patch => setDraft(current => ({ ...current, ...patch }))}/></Suspense>
-          <label className="work-attention-check"><Checkbox checked={draft.needsAttention} disabled={busy || !canEdit} onCheckedChange={value => setDraft(current => ({ ...current, needsAttention: !!value }))}/><span>{t('待我处理', 'Needs my attention')}</span></label>
+          <Suspense fallback={<Loading/>}><WorkPlanningFields spaceId={spaceId} projectId={draft.projectId} value={draft} hints={baseline || undefined} enabled={enabled} disabled={busy || !canEdit || creationPending} onChange={patch => setDraft(current => ({ ...current, ...patch }))}/></Suspense>
+          <label className="work-attention-check"><Checkbox checked={draft.needsAttention} disabled={busy || !canEdit || creationPending} onCheckedChange={value => setDraft(current => ({ ...current, needsAttention: !!value }))}/><span>{t('待我处理', 'Needs my attention')}</span></label>
           <Field label={t('下一步', 'Next step')}><Textarea rows={2} maxLength={2000} value={draft.nextStep} onChange={event => setDraft(current => ({ ...current, nextStep: event.target.value }))} placeholder={statuses.find(status => status.id === draft.status)?.type === 'waiting' ? t('在等待什么？', 'What are you waiting for?') : ''}/></Field>
           <Field label={t('说明', 'Description')}><Textarea rows={3} maxLength={8000} value={draft.description} onChange={event => setDraft(current => ({ ...current, description: event.target.value }))}/></Field>
           <Field label={t('结果', 'Result')}><Textarea rows={3} maxLength={8000} value={draft.result} onChange={event => setDraft(current => ({ ...current, result: event.target.value }))}/></Field>
         </fieldset>
-        <WorkReferences spaceId={spaceId} references={references} documentsEnabled={documentsEnabled} editable={canEdit} busy={busy} picker={picker} onPickerChange={setPicker} onToggle={toggleReference}/>
+        <WorkReferences spaceId={spaceId} references={references} documentsEnabled={documentsEnabled} editable={canEdit && !creationPending} busy={busy || creationPending} picker={picker} onPickerChange={setPicker} onToggle={toggleReference}/>
         {baseline && <div className="work-item-times">{baseline.createdAt && <time className="work-updated" dateTime={baseline.createdAt}>{t('创建于 {time}', 'Created {time}', { time: formatUpdated(baseline.createdAt) })}</time>}<time className="work-updated" dateTime={baseline.updatedAt}>{t('更新于 {time}', 'Updated {time}', { time: formatUpdated(baseline.updatedAt) })}</time></div>}
         {baseline && canEdit && <Button type="button" variant="ghost" size="sm" className="work-create-template" disabled={busy} onClick={() => guard.requestLeave(() => onCreateSchedule(baseline))}><CalendarClock size={15}/>{t('保存为定时模板', 'Save as recurring template')}</Button>}
         {baseline && <Suspense fallback={<Loading/>}><WorkRelationsEditor spaceId={spaceId} item={baseline} enabled={enabled} disabled={busy || !canEdit || claimBlocked} itemDirty={dirty} onPendingChange={setRelationsPending} onSaved={item => adopt(item, t('关系已保存', 'Relations saved'))}/></Suspense>}
         {baseline && <Suspense fallback={<Loading/>}><WorkExecutionPanel spaceId={spaceId} item={baseline} enabled={enabled} disabled={busy || claimBlocked || relationsPending.dirty} itemDirty={dirty} onOpenItem={() => onReveal(baseline)}/></Suspense>}
         {baseline && <WorkActivity spaceId={spaceId} itemId={baseline.id} revision={baseline.revision}/>}
       </div>
-      <footer className="work-detail-footer">{baseline && canEdit && <Button type="button" variant="ghost" disabled={busy || claimBlocked} onClick={() => guard.requestLeave(() => void toggleArchive())}>{baseline.archived ? <ArchiveRestore size={16}/> : <Archive size={16}/>}<span>{baseline.archived ? t('恢复事项', 'Restore item') : t('归档事项', 'Archive item')}</span></Button>}<span className="grow"/><Button type="button" variant="outline" disabled={busy} onClick={close}>{t('关闭', 'Close')}</Button>{canEdit && <Button type="submit" disabled={busy || claimBlocked || relationsPending.dirty || !draft.title.trim() || (!creating && !dirty) || uncertain || conflict}><Save size={15}/>{saving ? t('正在保存…', 'Saving…') : creating ? t('创建事项', 'Create item') : t('保存事项', 'Save item')}</Button>}</footer>
+      <footer className="work-detail-footer">{baseline && canEdit && <Button type="button" variant="ghost" disabled={busy || claimBlocked} onClick={() => guard.requestLeave(() => void toggleArchive())}>{baseline.archived ? <ArchiveRestore size={16}/> : <Archive size={16}/>}<span>{baseline.archived ? t('恢复事项', 'Restore item') : t('归档事项', 'Archive item')}</span></Button>}<span className="grow"/><Button type="button" variant="outline" disabled={busy} onClick={close}>{t('关闭', 'Close')}</Button>{canEdit && <Button type="submit" disabled={busy || claimBlocked || relationsPending.dirty || !draft.title.trim() || (!creating && !dirty) || uncertain || conflict}><Save size={15}/>{saving ? t('正在保存…', 'Saving…') : creating ? creationPending ? t('重试创建', 'Retry creation') : t('创建事项', 'Create item') : t('保存事项', 'Save item')}</Button>}</footer>
     </form>}
   </>
-  return <>{wide ? <aside className="work-detail" aria-labelledby="work-editor-title" data-work-detail-id={selection.id}>{content}</aside> : <Dialog open onOpenChange={value => { if (!value && !busy) close() }}><DialogContent className={`admin-ui work-theme work-theme-${theme} work-drawer`} data-theme={theme} showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }} onCloseAutoFocus={event => { if (!returningTo.current?.isConnected) { event.preventDefault(); document.querySelector<HTMLElement>('[data-work-new]')?.focus() } }}><DialogTitle className="sr-only">{creating ? t('新建事项', 'New item') : t('事项详情', 'Item details')}</DialogTitle><div className="work-detail" data-work-detail-id={selection.id}>{content}</div></DialogContent></Dialog>}{guard.blocked && <DiscardChangesDialog onKeep={guard.keep} onDiscard={guard.discard}/>}</>
+  return <>{wide ? <aside className="work-detail" aria-labelledby="work-editor-title" data-work-detail-id={itemID}>{content}</aside> : <Dialog open onOpenChange={value => { if (!value && !busy) close() }}><DialogContent className={`admin-ui work-theme work-theme-${theme} work-drawer`} data-theme={theme} showCloseButton={false} aria-describedby={undefined} onEscapeKeyDown={event => { if (busy) event.preventDefault() }} onPointerDownOutside={event => { if (busy) event.preventDefault() }} onCloseAutoFocus={event => { if (!returningTo.current?.isConnected) { event.preventDefault(); document.querySelector<HTMLElement>('[data-work-new]')?.focus() } }}><DialogTitle className="sr-only">{creating ? t('新建事项', 'New item') : t('事项详情', 'Item details')}</DialogTitle><div className="work-detail" data-work-detail-id={itemID}>{content}</div></DialogContent></Dialog>}{guard.blocked && <DiscardChangesDialog onKeep={guard.keep} onDiscard={guard.discard}/>}</>
 }

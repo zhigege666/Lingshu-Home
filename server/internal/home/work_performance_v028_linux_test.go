@@ -35,8 +35,9 @@ func TestWorkPerformanceV028(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
+					firstID := reserveWorkTestIDs(t, app.store, tx, size)
 					for i := 0; i < size; i++ {
-						_, err = tx.Exec(app.store.Query("INSERT INTO work_items(id,space_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?)"), fmt.Sprintf("%032x", i+1), space, fmt.Sprintf("Fixture item %05d", i), strings.Repeat("Description ", 30), "Continue from the linked evidence", strings.Repeat("Result ", 20), workStatuses[i%4], i%11 == 0, false, int64(i/4+1)*workRankStep, stamp, stamp, "performance-fixture")
+						_, err = tx.Exec(app.store.Query("INSERT INTO work_items(id,space_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?)"), formatWorkItemID(firstID+int64(i)), space, fmt.Sprintf("Fixture item %05d", i), strings.Repeat("Description ", 30), "Continue from the linked evidence", strings.Repeat("Result ", 20), workStatuses[i%4], i%11 == 0, false, int64(i/4+1)*workRankStep, stamp, stamp, "performance-fixture")
 						if err != nil {
 							tx.Rollback()
 							t.Fatal(err)
@@ -74,7 +75,7 @@ func TestWorkPerformanceV028(t *testing.T) {
 						stats["responseBytes"] = len(bytes)
 						metrics[kind] = stats
 					}
-					item := owner.ok("GET", workItemPath(space, fmt.Sprintf("%032x", 1)), nil)
+					item := owner.ok("GET", workItemPath(space, formatWorkItemID(firstID)), nil)
 					samples := []float64{}
 					for i := 0; i < 25; i++ {
 						start := time.Now()

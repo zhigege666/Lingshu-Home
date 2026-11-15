@@ -13,7 +13,7 @@ import (
 
 // Upgrade a real 020 schema, including tied creation times and several spaces.
 // EXPLAIN does not execute the former quadratic query; only the current full
-// production migration chain executes against the ten thousand legacy items.
+// published 021 migration executes against the ten thousand legacy items.
 func TestWorkPlanningPostgresNumberingScale(t *testing.T) {
 	db, store := documentMigrationDB(t, true)
 	seedSessionUpgrade(t, db, store, 9, false, nil)
@@ -139,7 +139,7 @@ func TestWorkPlanningPostgresNumberingScale(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	started := time.Now()
-	if err = store.migrate(ctx); err != nil {
+	if err = applyHistoricalWorkMigration(ctx, store, "021_work_planning.sql"); err != nil {
 		t.Fatal(err)
 	}
 	elapsed := time.Since(started)

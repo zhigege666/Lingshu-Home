@@ -71,10 +71,10 @@ async function main() {
   const documentSource = await api(space + '/document-sources', 'POST', { name: prefix + ' notes', path: f.documentRoot, readOnly: true, defaultWrite: false, defaultFolder: '', scanIntervalSeconds: 0 }, 201);
   await api(space + '/document-sources/' + documentSource.id + '/scan', 'POST', {});
   const document = (await api(space + '/documents?sourceId=' + documentSource.id)).items.find(item => item.relativePath === 'plan.md'); assert(document);
-  sourceItem = await api(work + '/items', 'POST', { id: id(), title: prefix + ' daily sync', projectId: project.id, status: catalog.defaultStatus, description: 'Verify the synchronization output', nextStep: 'Compare source and destination', result: 'Previous result must not be copied', needsAttention: true, bookmarkIds: [bookmark.id], documentIds: [document.id], businessDate: today, dueAt: new Date(Date.now() - 3600000).toISOString() });
-  const undated = await api(work + '/items', 'POST', { id: id(), title: prefix + ' undated' });
+  sourceItem = await api(work + '/items', 'POST', { requestId: id(), title: prefix + ' daily sync', projectId: project.id, status: catalog.defaultStatus, description: 'Verify the synchronization output', nextStep: 'Compare source and destination', result: 'Previous result must not be copied', needsAttention: true, bookmarkIds: [bookmark.id], documentIds: [document.id], businessDate: today, dueAt: new Date(Date.now() - 3600000).toISOString() });
+  const undated = await api(work + '/items', 'POST', { requestId: id(), title: prefix + ' undated' });
   const doneStatus = catalog.items.find(item => item.type === 'done'); assert(doneStatus);
-  const done = await api(work + '/items', 'POST', { id: id(), title: prefix + ' complete', status: doneStatus.id, businessDate: today, dueAt: new Date(Date.now() - 3600000).toISOString() });
+  const done = await api(work + '/items', 'POST', { requestId: id(), title: prefix + ' complete', status: doneStatus.id, businessDate: today, dueAt: new Date(Date.now() - 3600000).toISOString() });
   const boardURL = origin + '/#/library?view=board&space=' + f.shared;
   await check('ordinary_board_does_not_load_recurring_chunk_or_api', async () => {
     await page.goto(boardURL, { waitUntil: 'networkidle' }); await page.locator('[data-work-id="' + sourceItem.id + '"]').waitFor();

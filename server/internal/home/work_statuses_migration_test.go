@@ -53,7 +53,7 @@ func TestWorkStatusesMigrationPreservesAndRollsBack(t *testing.T) {
 				}
 				if rollback {
 					// Fail only when the migration records its success, after all DDL and
-					// row copies have run. The real migration runner must roll everything back.
+					// row copies have run. The version-scoped transaction must roll everything back.
 					if postgres {
 						exec("CREATE FUNCTION work_status_migration_fail_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.version='014_work_statuses.sql' THEN RAISE EXCEPTION 'intentional status migration failure'; END IF; RETURN NEW; END $$")
 						exec("CREATE TRIGGER work_status_migration_fail BEFORE INSERT ON schema_migrations FOR EACH ROW EXECUTE FUNCTION work_status_migration_fail_fn()")
@@ -65,7 +65,7 @@ func TestWorkStatusesMigrationPreservesAndRollsBack(t *testing.T) {
 				for table, original := range before {
 					before[table] = workStatusTestRows(t, db, table, original.columns)
 				}
-				err := store.migrate(context.Background())
+				err := applyHistoricalWorkMigration(context.Background(), store, "014_work_statuses.sql")
 				if rollback {
 					if err == nil {
 						t.Fatal("injected migration failure succeeded")
@@ -142,8 +142,8 @@ func TestWorkStatusesMigrationPreservesAndRollsBack(t *testing.T) {
 				if err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version='014_work_statuses.sql'").Scan(&count); err != nil || count != 1 {
 					t.Fatal("successful migration was not recorded once", err)
 				}
-				if err = store.migrate(context.Background()); err != nil {
-					t.Fatal("reopening a migrated database failed", err)
+				if err = applyHistoricalWorkMigration(context.Background(), store, "014_work_statuses.sql"); err != nil {
+					t.Fatal("reapplying the historical migration failed", err)
 				}
 				foreign := newID()
 				exec("INSERT INTO work_statuses(space_id,id,name,name_key,status_type,color,sort_order) VALUES(?,?,?,?,?,?,?)", "empty-space", foreign, "Foreign only", "foreign only", "waiting", "#5596bc", 4)

@@ -30,7 +30,7 @@ func (f *collabCoreFixture) session(name string) map[string]any {
 	return f.call("POST", f.base+"/sessions", map[string]any{"registrationId": newID(), "agentName": name, "clientName": "Core test", "role": "implementation"}, 200)
 }
 func (f *collabCoreFixture) item(title string) map[string]any {
-	return f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": title})
+	return f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": title})
 }
 func collabCoreContext(session, claim map[string]any) map[string]any {
 	return map[string]any{"sessionId": session["id"], "claimId": claim["claimId"], "claimGeneration": claim["generation"], "operationId": newID()}
@@ -244,7 +244,7 @@ func TestWorkCollaborationTerminalReleaseAtomicAndReplay(t *testing.T) {
 		t.Run(provider, func(t *testing.T) {
 			f := newCollabCoreFixture(t, provider)
 			session := f.session("implementer")
-			create := map[string]any{"id": newID(), "title": "Atomic completion", "context": map[string]any{"sessionId": session["id"], "operationId": newID()}}
+			create := map[string]any{"requestId": newID(), "title": "Atomic completion", "context": map[string]any{"sessionId": session["id"], "operationId": newID()}}
 			item := f.call("POST", f.base+"/items", create, 200)
 			path := workItemPath(f.space, item["id"].(string))
 			claim := f.claim(item, session)
@@ -298,19 +298,19 @@ func TestWorkCollaborationTerminalReleaseAtomicAndReplay(t *testing.T) {
 	}
 }
 
-func TestWorkCollaborationLegacyCompatibilityAndStatusGuard(t *testing.T) {
+func TestWorkCollaborationCreationReplayAndStatusGuard(t *testing.T) {
 	for _, provider := range []string{"sqlite", "postgres"} {
 		t.Run(provider, func(t *testing.T) {
 			f := newCollabCoreFixture(t, provider)
 			f.app.config.MCPCollaborationEnabled = false
-			input := map[string]any{"id": newID(), "title": "Original create before upgrade"}
+			input := map[string]any{"requestId": newID(), "title": "Original create before collaboration enabled"}
 			item := f.call("POST", f.base+"/items", input, 200)
 			f.app.config.MCPCollaborationEnabled = true
 			same := f.call("POST", f.base+"/items", input, 200)
 			if same["id"] != item["id"] || same["revision"] != item["revision"] {
-				t.Fatal("legacy hash changed after collaboration enabled")
+				t.Fatal("creation replay changed after collaboration enabled")
 			}
-			f.call("POST", f.base+"/items", map[string]any{"id": newID(), "title": "New without session"}, 409)
+			f.call("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "New without session"}, 409)
 			registration := map[string]any{"registrationId": newID(), "agentName": "Session name"}
 			session := f.call("POST", f.base+"/sessions", registration, 200)
 			if !reflect.DeepEqual(session, f.call("POST", f.base+"/sessions", registration, 200)) {
@@ -321,7 +321,7 @@ func TestWorkCollaborationLegacyCompatibilityAndStatusGuard(t *testing.T) {
 			catalog := f.owner.ok("GET", f.base+"/statuses", nil)
 			statusID := newID()
 			catalog = f.owner.ok("POST", f.base+"/statuses/batch-edit", map[string]any{"expectedRevision": catalog["revision"], "create": []map[string]any{{"id": statusID, "name": "Agent running", "type": "doing"}}})
-			item = f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Protected custom state", "status": statusID})
+			item = f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Protected custom state", "status": statusID})
 			claim := f.claim(item, session)
 			path := workItemPath(f.space, item["id"].(string))
 			for _, change := range []map[string]any{{"expectedRevision": catalog["revision"], "patches": []map[string]any{{"id": statusID, "type": "done"}}}, {"expectedRevision": catalog["revision"], "deletions": []map[string]any{{"id": statusID, "moveToStatus": "done"}}}} {

@@ -95,7 +95,7 @@ func TestModuleBoundariesPreserveDataAndNavigation(t *testing.T) {
 			docPath := documentURL(f.space, doc)
 			f.owner.ok("POST", docPath+"/publish", map[string]any{"expectedRevision": doc["revision"], "expectedMetadataRevision": doc["metadataRevision"]})
 			link := f.owner.ok("POST", "/spaces/"+f.space+"/links", coreLink("Retained bookmark", "https://example.com/modules"))
-			item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Retained work", "documentIds": []any{doc["id"]}, "bookmarkIds": []any{link["id"]}})
+			item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Retained work", "documentIds": []any{doc["id"]}, "bookmarkIds": []any{link["id"]}})
 			page := integrationObject(t, f.owner.ok("GET", "/dashboard?spaceId="+f.space, nil)["page"])
 			f.owner.ok("PUT", "/spaces/"+f.space+"/page", map[string]any{"name": "Modules dashboard", "expectedRevision": page["revision"], "config": activityCompositionConfig(t)})
 			api := &integrationTestBrowser{t: t, base: f.owner.base, client: f.owner.client, csrf: f.owner.csrf}
@@ -107,10 +107,10 @@ func TestModuleBoundariesPreserveDataAndNavigation(t *testing.T) {
 			for _, path := range []string{"/board", "/items", "/projects", "/statuses", "/revision"} {
 				moduleTestDisabled(t, statusWant(t, f.owner, http.StatusForbidden, "GET", f.base+path, nil), "work")
 			}
-			moduleTestDisabled(t, statusWant(t, f.owner, http.StatusForbidden, "POST", f.base+"/items", map[string]any{"id": newID(), "title": "Must not create"}), "work")
+			moduleTestDisabled(t, statusWant(t, f.owner, http.StatusForbidden, "POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Must not create"}), "work")
 			moduleTestDisabled(t, agent.tool(full, "work_items_get", map[string]any{"id": item["id"]}, "module_disabled"), "work")
 			// Missing write permission retains its existing error before module state.
-			agent.tool(read, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Forbidden"}}, "forbidden")
+			agent.tool(read, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Forbidden"}}, "forbidden")
 			visitor := newCoreBrowser(t, f.owner.base)
 			visitor.bootstrap()
 			statusWant(t, visitor, http.StatusUnauthorized, "GET", f.base+"/board", nil)
@@ -142,7 +142,7 @@ func TestModuleBoundariesPreserveDataAndNavigation(t *testing.T) {
 			}
 			moduleTestDisabled(t, statusWant(t, f.owner, http.StatusForbidden, "PATCH", itemPath, map[string]any{"expectedRevision": visible["revision"], "documentIds": []any{}}), "documents")
 			f.owner.ok("PATCH", itemPath, map[string]any{"expectedRevision": visible["revision"], "nextStep": "Preserve hidden document relation"})
-			f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Work without document references remains available"})
+			f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Work without document references remains available"})
 			f.owner.ok("GET", f.base+"/resources?kind=bookmark", nil)
 			agent.tool(full, "navigation_get", map[string]any{}, "")
 			link = f.owner.ok("PUT", "/spaces/"+f.space+"/links/"+link["id"].(string)+"/context", map[string]any{"contextMarkdown": "Navigation notes remain available", "expectedUpdatedAt": link["updatedAt"]})

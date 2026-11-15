@@ -61,7 +61,7 @@
 
 原 create／update／move 输入增加可选 `context:{sessionId,claimId?,claimGeneration?,operationId}`。协作开启时，MCP／Bearer 新建要求会话和操作标识；修改／移动／归档要求当前有效认领、代次及原有 expected revision。存在未解决认领时，关闭配置也不能绕过保护。网页无认领编辑保持原交互。
 
-旧事项创建标识与历史内容摘要保持兼容。请求结果未知先回读；相同操作的精确重放不会再次产生事件。事项修改的重放回执保留 `id/revision/boardRevision/replayed`，不会缓存并泄露后来被撤销的资料读取权限；它表示原操作结果，需重新读取事项取得当前状态。认领／事件回执也可能已经被后续操作取代，不能当作实时状态。
+当前开发版本的卡片 `id` 为短编号，卡片创建使用独立 `requestId`，原长卡片编码停用；`sessionId/claimId/operationId` 仍是各自的技术标识。请求结果未知先按原请求键回读；相同操作的精确重放不会再次产生事件。事项修改的重放回执保留 `id/revision/boardRevision/replayed`，不会缓存并泄露后来被撤销的资料读取权限；它表示原操作结果，需重新读取事项取得当前状态。认领／事件回执也可能已经被后续操作取代，不能当作实时状态。
 
 记录分页默认 30、最大 100 条，按空间内独立序列升序。返回 `{itemId,items,highWatermark,nextCursor,nextAfter}`；`nextCursor` 固定首批上界，翻页期间新增事件不进入旧快照。读完后用 `after:nextAfter` 增量读取新快照；`cursor` 与 `after` 互斥。空间序列间隙可能属于其他事项，不表示当前事项丢失记录。事件包含真实 `actor/origin` 与可选声明 `session`；原字段变更历史继续按事项版本分页。
 

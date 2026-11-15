@@ -77,10 +77,10 @@ func TestIntegrationTokenEditingAndLivePermissions(t *testing.T) {
 			}
 			f.agent.call("GET", board, nil, 200, raw)
 			f.agent.tool(raw, "work_board_get", map[string]any{}, "")
-			f.agent.tool(raw, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Created with the original PAT"}}, "")
+			f.agent.tool(raw, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Created with the original PAT"}}, "")
 			credential = f.owner.object("PATCH", path, map[string]any{"expectedRevision": credential["revision"], "actions": []string{"navigation:read"}}, 200, "")
 			f.agent.call("GET", board, nil, 403, raw)
-			f.agent.tool(raw, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Must be rejected immediately"}}, "forbidden")
+			f.agent.tool(raw, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Must be rejected immediately"}}, "forbidden")
 			if !reflect.DeepEqual(immutable, componentCaptureRows(t, f.app.store.DB, "integration_tokens WHERE id='"+id+"'", immutableColumns)) {
 				t.Fatal("editing rotated or rebound the token, or changed its identity epochs")
 			}
@@ -241,7 +241,7 @@ func TestIntegrationTokenCatalogAllModeAndScope(t *testing.T) {
 			}
 			id := credential["id"].(string)
 			path := "/api/v1/integrations/tokens/" + id
-			f.agent.tool(all, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "All mode write"}}, "")
+			f.agent.tool(all, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "All mode write"}}, "")
 			f.agent.call("GET", "/api/v1/integrations/token-actions", nil, 403, all)
 			f.agent.call("POST", "/api/v1/integrations/tokens", map[string]any{}, 403, all)
 			f.agent.call("POST", "/api/v1/admin/users", map[string]any{}, 403, all)
@@ -259,7 +259,7 @@ func TestIntegrationTokenCatalogAllModeAndScope(t *testing.T) {
 				}
 			}
 			f.agent.tool(readOnlyAll, "bookmarks_list", map[string]any{}, "")
-			f.agent.tool(readOnlyAll, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "No account write permission"}}, "forbidden")
+			f.agent.tool(readOnlyAll, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "No account write permission"}}, "forbidden")
 			member.call("POST", "/api/v1/integrations/tokens", map[string]any{"name": "Cannot select writes", "spaceId": f.space, "actions": []string{"navigation:write"}, "expiresAt": nil}, 403, "")
 			source := f.owner.source(f.space, "Scoped all")
 			scopedCreated := f.owner.object("POST", "/api/v1/integrations/tokens", map[string]any{"name": "Source-bound all", "spaceId": f.space, "sourceId": source["id"], "permissionMode": "all", "expiresAt": nil}, 201, "")

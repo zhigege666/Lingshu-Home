@@ -2,16 +2,17 @@ package home
 
 import "strings"
 
-const mcpWorkflowVersion = "3"
+const mcpWorkflowVersion = "4"
 
 // Agent task boundaries are guidance, not a blanket server state-transition ban.
 // Explicit corrections of the same delivery retain the existing CRUD path.
-const workTaskBoundaryInstructions = "任务边界：未结束的同一轮目标复用原事项；已完成/取消后的新版本或新验收范围另建新事项，标题注明已知目标版本，说明中引用前序真实事项 ID；版本未定不编造。仅用户明确要求纠正/补验同一次交付时重开并记录原因，不得把后续工作无限追加到已完成事项。"
+const workTaskBoundaryInstructions = "任务边界：未结束的同一轮目标复用原事项；已完成/取消后的新版本或新验收范围另建新事项，标题注明已知目标版本，说明中引用前序真实事项短编号；版本未定不编造。仅用户明确要求纠正/补验同一次交付时重开并记录原因，不得把后续工作无限追加到已完成事项。"
 
 // This stays useful when a gateway forwards only tools and their results.
 // It must not depend on initialize/server-discover or resources/prompts being
 // exposed to the model, and never grants permissions or schedules an agent.
 const mcpContextInstructions = "Home 管理当前授权空间的事项、项目和资料。定时规则创建事项；只有配置执行器并具备 work:execute 才可发起外部执行，结果未知时禁止盲重发。" +
+	"事项使用服务端分配的短编号；向用户汇报短编号＋标题。旧长编码和 W-编号已弃用。创建使用稳定 requestId，服务端返回真实短编号。" +
 	"space_current 返回模块开关、实际可用能力、工作流与独立的协作开关/入口；新任务缺少上下文或授权变化时按需读取，已知有效上下文可复用。" +
 	"工作流引导关闭不绕过会话、认领、权限、并发版本、幂等和恢复规则。协作会话使用工具 input.sessionId 或 input.context.sessionId，不是网关传输会话。" +
 	"Omit spaceId to use the token-bound space. Each operation is restricted to its account, space and action scopes. "
@@ -175,14 +176,14 @@ func integrationWorkflowGuide(enabled bool, modules ModuleSettings, capabilities
 		parts = append(parts,
 			"对需要持续推进或交接的工作，先区分本轮与已结束的交付；同一轮未结束目标优先复用已知事项 ID，没有 ID 时按项目、目标和已知版本查找。项目优先使用项目配置给出的 ID；项目目前没有仓库绑定，不能只凭名称保证判断正确。简单问答不必登记。",
 			"事项说明保留目标、范围、验收条件与必要步骤，按实际进展更新，不把计划写成已完成结果。",
-			"创建只生成一次稳定 ID并保存；超时重试保留原 ID和原始输入。同 ID重放安全不代表不同 Agent使用不同 ID时能够语义去重。",
+			"事项以服务端短编号定位，向用户汇报短编号＋标题；不使用旧长编码或 W-编号。创建只确定一次 requestId 并保存原始输入，服务端分配真实短编号；超时可用 work_items_list 的 requestId 核对当前账号与空间中的创建结果，重试保留原 requestId 和原始输入。不同 Agent 使用不同 requestId 不会语义去重。",
 			"实际开始、重要阶段结果、阻塞或交付时更新。使用状态目录中的 ID，以 type 理解语义；复用 board/list 已返回的状态元数据，不必每次初始化。等待、需要人工处理与归档相互独立，不自动修改共享状态目录。",
 			"nextStep 写下一步具体动作，result 写实际结果和验证证据；仅在用户目标达成后标记完成，完成后不默认归档。进程退出或产生提交不代表完成；取消不代表成功。",
 			"创建、关键状态变更及关联后，以实际回执或必要的回读确认；请求发出不等于完成。写入冲突或结果不确定时，重新读取并比较原意与当前字段，再决定保留、合并或补充必要改动；不得只替换 revision 重放。交接保留事项 ID、环境/仓库、已验收结果、剩余工作与阻塞。")
 	case capabilities.Work.Read:
 		parts = append(parts, "当前只能读取事项：可查找已有项目/事项及读取状态和交接信息，不能创建、改状态或回写结果。需要修改授权时，由令牌所有者编辑现有令牌，无需更换令牌值。")
 	case capabilities.Work.Write:
-		parts = append(parts, "当前事项权限为只写：只能按已知且已授权的输入执行操作并接收 ID/revision 凭据，不能查找历史或读取冲突内容。创建超时重试保留原 ID和原始输入；编辑/移动结果不确定时必须保留未知结果，不得换 ID或盲目替换 revision。完整工作流需另获 work:read。")
+		parts = append(parts, "当前事项权限为只写：只能按已知且已授权的输入执行操作并接收 ID/revision 凭据，不能查找历史或读取冲突内容。创建超时重试保留原 requestId 和原始输入；编辑/移动结果不确定时必须保留未知结果，不得另建事项或盲目替换 revision。完整工作流需另获 work:read。")
 	default:
 		parts = append(parts, "当前没有可用的事项权限，不进行工作登记或状态更新。缺少操作授权时可由令牌所有者编辑现有令牌；空间访问限制仍然有效。")
 	}

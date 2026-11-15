@@ -9,7 +9,8 @@ import (
 
 type workCreateInput struct {
 	WorkPlanningFields
-	ID             string              `json:"id"`
+	ID             string              `json:"-"`
+	RequestID      string              `json:"requestId,omitempty"`
 	Title          string              `json:"title"`
 	ProjectID      *string             `json:"projectId"`
 	Status         string              `json:"status"`
@@ -264,8 +265,8 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 			return nil, invalid("documentIds must be an array of IDs.")
 		}
 	}
-	if !validID(in.ID) {
-		return nil, invalid("id must be 32 lowercase hexadecimal characters.")
+	if !validWorkRequestID(in.RequestID) {
+		return nil, invalid("requestId must contain 1–80 ASCII letters, digits, dots, underscores, colons or hyphens and remain unchanged for retries.")
 	}
 	if err = validateWorkText(&in); err != nil {
 		return nil, err
@@ -284,8 +285,7 @@ func (a *App) createWorkItem(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Legacy creation replay precedes the collaboration flag: an upgrade must
-	// never change an already stored creation intent or demand a new item ID.
+	// Creation retries reuse the original request key and never allocate another item.
 	if existing != nil && collaborationContext == nil {
 		return a.workItemReply(r, existing, map[string]any{"replayed": true})
 	}
@@ -338,17 +338,21 @@ func (a *App) insertWorkItem(r *Request, space string, in workCreateInput, hash 
 			return nil, err
 		}
 	}
+	in.ID, err = a.allocateWorkItemID(r)
+	if err != nil {
+		return nil, err
+	}
 	rank, err := a.createWorkRank(r, space, in.Status, in.ID, in.Placement)
 	if err != nil {
 		return nil, err
 	}
 	now := workStamp()
-	var number int64
-	if err = r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("UPDATE work_spaces SET next_number=next_number+1 WHERE space_id=? RETURNING next_number-1"), space).Scan(&number); err != nil {
-		return nil, err
+	createUser := ""
+	if in.RequestID != "" {
+		createUser = r.User.ID
 	}
 	assigneeName, assigneeUser := workAssigneeValues(in.Assignee)
-	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version,activity_started_at,business_date,due_at,schedule_id,number,priority,label_ids_json,assignee_name,assignee_user_id,version_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2,?,?,?,?,?,?,?,?,?,?)"), in.ID, space, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash, now, in.BusinessDate, in.DueAt, scheduleID, number, in.Priority, jsonString(in.LabelIDs), assigneeName, assigneeUser, workOptionalID(in.VersionID))
+	_, err = r.Q.ExecContext(r.HTTP.Context(), a.store.Query("INSERT INTO work_items(id,space_id,project_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash,create_hash_version,activity_started_at,business_date,due_at,schedule_id,priority,label_ids_json,assignee_name,assignee_user_id,version_id,create_request_id,create_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,2,?,?,?,?,?,?,?,?,?,?,?)"), in.ID, space, in.ProjectID, in.Title, in.Description, in.NextStep, in.Result, in.Status, in.NeedsAttention, false, rank, now, now, hash, now, in.BusinessDate, in.DueAt, scheduleID, in.Priority, jsonString(in.LabelIDs), assigneeName, assigneeUser, workOptionalID(in.VersionID), in.RequestID, createUser)
 	if err != nil {
 		return nil, err
 	}
@@ -572,10 +576,7 @@ func (a *App) moveWorkItemValue(r *Request) (*Response, error) {
 	}
 	anchor := ""
 	if before != nil {
-		anchor, err = a.resolveWorkItemRef(r, s.ID, *before)
-		if err != nil {
-			return nil, err
-		}
+		anchor = *before
 	}
 	if anchor == item.ID {
 		return nil, invalid("An item cannot be its own move anchor.")

@@ -18,8 +18,9 @@ func TestWorkCollaborationBatchedSummary(t *testing.T) {
 				t.Fatal(err)
 			}
 			items := make([]WorkSummary, 120)
+			firstID := reserveWorkTestIDs(t, f.app.store, tx, len(items))
 			for i := range items {
-				id := newID()
+				id := formatWorkItemID(firstID + int64(i))
 				items[i] = WorkSummary{ID: id, SpaceID: f.space}
 				if _, err = tx.Exec(f.app.store.Query("INSERT INTO work_items(id,space_id,title,status,sort_order,revision,created_at,updated_at,create_hash) VALUES(?,?,?,'todo',?,1,?,?,'summary-fixture')"), id, f.space, "Batched card", i*1024, stamp, stamp); err != nil {
 					tx.Rollback()

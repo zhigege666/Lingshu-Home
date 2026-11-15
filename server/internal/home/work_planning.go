@@ -68,35 +68,6 @@ func (s workIDsScanner) Scan(value any) error {
 	}
 	return json.Unmarshal(body, s.ids)
 }
-func workKeyNumber(ref string) (int64, bool) {
-	if !strings.HasPrefix(ref, "W-") {
-		return 0, false
-	}
-	n, err := strconv.ParseInt(strings.TrimPrefix(ref, "W-"), 10, 64)
-	return n, err == nil && n > 0 && ref == "W-"+strconv.FormatInt(n, 10)
-}
-func workItemRefValid(ref string) bool {
-	if validID(ref) {
-		return true
-	}
-	_, ok := workKeyNumber(ref)
-	return ok
-}
-func (a *App) resolveWorkItemRef(r *Request, space, ref string) (string, error) {
-	if validID(ref) {
-		return ref, nil
-	}
-	n, ok := workKeyNumber(ref)
-	if !ok {
-		return "", missing()
-	}
-	var id string
-	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT id FROM work_items WHERE space_id=? AND number>0 AND number=?"), space, n).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", missing()
-	}
-	return id, err
-}
 func normalizeWorkPlanning(in *WorkPlanningFields) error {
 	switch in.Priority {
 	case "", "low", "normal", "high", "urgent":
@@ -380,23 +351,5 @@ func workPlanningFilterValid(in *workFilter, r *Request) error {
 		}
 	}
 	sort.Strings(in.Fields)
-	return nil
-}
-func (a *App) resolveWorkFilterRefs(r *Request, space string, in *workFilter) error {
-	for _, ref := range []*string{&in.ItemID, &in.ParentID} {
-		if *ref == "" || *ref == "none" || validID(*ref) {
-			continue
-		}
-		id, err := a.resolveWorkItemRef(r, space, *ref)
-		if err != nil {
-			var api *APIError
-			if errors.As(err, &api) && api.Status == 404 {
-				*ref = "00000000000000000000000000000000"
-				continue
-			}
-			return err
-		}
-		*ref = id
-	}
 	return nil
 }

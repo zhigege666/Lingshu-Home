@@ -1,5 +1,16 @@
 # 测试与验收
 
+## 卡片短编号改造（未发布）
+
+卡片主键改为五位起步的全实例 36 进制编号；旧长卡片 ID、W-n、旧创建参数 id 不再接受。以下是本次针对性验证入口，不是要求每次运行全仓：
+
+- `server/internal/home/work_short_ids_test.go`：编号进位与规范性、请求键恢复及归档/权限边界、32个并发请求含16个精确重试、分页稳定性和序列不重复消耗。
+- `server/internal/home/work_short_ids_mcp_test.go`：已发布工具schema、服务端分配卡片ID、按requestId核对、短号读写/移动/关系、旧号拒绝及其他资源ID边界。
+- `server/internal/home/work_short_ids_migration_test.go`：SQLite/PostgreSQL真实023迁移、全部结构化引用、可见排序、视图及执行快照、指定故障后的完整回滚。历史迁移测试明确其目标版本，不用旧“不换号”断言限制023。
+- `tests/browser_work_short_ids.cjs`：普通创建/复制/链接/更新、已提交但回包丢失、未提交时原请求安全重试，覆盖2560×1440、1920×1080、1600×900、2560×1080。
+
+浏览器脚本仅用于本轮新建且由测试者拥有的loopback fixture，沿用 `UI_FIXTURES`、`OUTPUT_DIR`、`PLAYWRIGHT_MODULE`、`CHROMIUM_PATH`；成功后停止自建实例。PostgreSQL使用独立临时数据库；未配置环境导致的skip不算通过。并发请求中的延迟日志是本地正确性测试观察值，不是持续压测或生产容量承诺。
+
 脚本针对当前 Go 服务的 `/api/v1`、页面 Schema 2 和独立版本的数据集信封。实际执行记录按数据库类型分别报告，不能把构建通过、未设置 PostgreSQL 环境变量的跳过结果，或旧源码的测试记录当作当前 HTTP 验收通过。
 
 本文记录 HTTP、Go 集成、Docker、开发启动器与发布边界的不同验证范围。正式标签打包、GitHub 托管工作流和浏览器交互的状态单独说明；已经通过的服务测试不替代这些检查。

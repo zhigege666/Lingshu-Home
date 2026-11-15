@@ -43,7 +43,7 @@ async function tool(name, args, error = false) {
   assert.equal(!!r.isError, error, name + ': ' + JSON.stringify(r.structuredContent));
   assert(r.structuredContent && typeof r.structuredContent === 'object'); return r.structuredContent;
 }
-async function create(label) { return api(work + '/items', 'POST', { id: id(), title: label, placement: 'start' }, 200); }
+async function create(label) { return api(work + '/items', 'POST', { requestId: id(), title: label, placement: 'start' }, 200); }
 async function read(item) { return api(work + '/items/' + item.id); }
 async function acquire(item, session = sessionA) {
   const current = await read(item);

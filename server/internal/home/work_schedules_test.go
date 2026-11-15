@@ -192,7 +192,7 @@ func TestWorkSchedulesHTTPAndMCP(t *testing.T) {
 	}
 }
 
-func TestWorkDatesAndLegacyReplay(t *testing.T) {
+func TestWorkDatesAndCreationReplay(t *testing.T) {
 	for _, provider := range []string{"sqlite", "postgres"} {
 		t.Run(provider, func(t *testing.T) {
 			app, server := newAccountProfileHTTPFixture(t, provider)
@@ -201,14 +201,14 @@ func TestWorkDatesAndLegacyReplay(t *testing.T) {
 			owner.ok("POST", "/setup", map[string]any{"siteName": "Dates", "mode": ModePublicRead, "username": "owner", "password": "schedule fixture password", "seedDemo": false})
 			space := coreSpace(owner.bootstrap(), "shared")
 			base := "/spaces/" + space + "/work"
-			original := map[string]any{"id": newID(), "title": "Old normalized intent"}
+			original := map[string]any{"requestId": newID(), "title": "Normalized creation intent"}
 			item := owner.ok("POST", base+"/items", original)
 			var originalHash string
 			if err := app.store.DB.QueryRow(app.store.Query("SELECT create_hash FROM work_items WHERE id=?"), item["id"]).Scan(&originalHash); err != nil {
 				t.Fatal(err)
 			}
-			legacy := struct {
-				ID             string              `json:"id"`
+			canonical := struct {
+				RequestID      string              `json:"requestId,omitempty"`
 				Title          string              `json:"title"`
 				ProjectID      *string             `json:"projectId"`
 				Status         string              `json:"status"`
@@ -219,15 +219,15 @@ func TestWorkDatesAndLegacyReplay(t *testing.T) {
 				BookmarkIDs    []string            `json:"bookmarkIds"`
 				DocumentIDs    []string            `json:"documentIds"`
 				Placement      workCreatePlacement `json:"placement,omitempty"`
-			}{ID: original["id"].(string), Title: "Old normalized intent", BookmarkIDs: []string{}, DocumentIDs: []string{}}
-			if originalHash != workPayloadHash(legacy) {
-				t.Fatal("new empty date fields changed legacy create hash")
+			}{RequestID: original["requestId"].(string), Title: "Normalized creation intent", BookmarkIDs: []string{}, DocumentIDs: []string{}}
+			if originalHash != workPayloadHash(canonical) {
+				t.Fatal("empty date fields changed the normalized creation hash")
 			}
 			today := time.Now().UTC().Format("2006-01-02")
 			due := time.Now().Add(-time.Hour).Format(time.RFC3339Nano)
 			updated := owner.ok("PATCH", workItemPath(space, item["id"].(string)), map[string]any{"expectedRevision": item["revision"], "businessDate": today, "dueAt": due})
 			if replay := owner.ok("POST", base+"/items", original); replay["id"] != updated["id"] || replay["revision"] != updated["revision"] {
-				t.Fatal("legacy replay modified dated item", replay)
+				t.Fatal("creation replay modified dated item", replay)
 			}
 			if got := owner.ok("GET", base+"/items?date=today&timezone=UTC", nil); got["total"] != float64(1) {
 				t.Fatal("today filter", got)
@@ -243,10 +243,10 @@ func TestWorkDatesAndLegacyReplay(t *testing.T) {
 			if updated["businessDate"] != nil || updated["dueAt"] != nil {
 				t.Fatal("dates not cleared", updated)
 			}
-			statusWant(t, owner, 400, "POST", base+"/items", map[string]any{"id": newID(), "title": "Bad date", "businessDate": "2026-02-30"})
-			statusWant(t, owner, 400, "POST", base+"/items", map[string]any{"id": newID(), "title": "Bad due", "dueAt": "2026-01-01T10:00:00"})
+			statusWant(t, owner, 400, "POST", base+"/items", map[string]any{"requestId": newID(), "title": "Bad date", "businessDate": "2026-02-30"})
+			statusWant(t, owner, 400, "POST", base+"/items", map[string]any{"requestId": newID(), "title": "Bad due", "dueAt": "2026-01-01T10:00:00"})
 			for i := 0; i < 2; i++ {
-				owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "Dated", "businessDate": today})
+				owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "Dated", "businessDate": today})
 			}
 			page := owner.ok("GET", base+"/items?date=today&timezone=UTC&limit=1", nil)
 			statusWant(t, owner, 400, "GET", base+"/items?date=overdue&timezone=UTC&cursor="+url.QueryEscape(page["nextCursor"].(string)), nil)
@@ -537,10 +537,10 @@ func TestWorkOverduePaginationSnapshot(t *testing.T) {
 			owner.ok("POST", "/setup", map[string]any{"siteName": "Overdue snapshot", "mode": ModePublicRead, "username": "owner", "password": "schedule fixture password", "seedDemo": false})
 			space := coreSpace(owner.bootstrap(), "shared")
 			base := "/spaces/" + space + "/work"
-			first := owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "First overdue", "dueAt": workScheduleStamp(time.Now().Add(-time.Hour))})
+			first := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "First overdue", "dueAt": workScheduleStamp(time.Now().Add(-time.Hour))})
 			deadline := time.Now().Add(2 * time.Second)
-			owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "Becomes overdue between pages", "dueAt": workScheduleStamp(deadline)})
-			last := owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "Second original overdue", "dueAt": workScheduleStamp(time.Now().Add(-time.Hour))})
+			owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "Becomes overdue between pages", "dueAt": workScheduleStamp(deadline)})
+			last := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "Second original overdue", "dueAt": workScheduleStamp(time.Now().Add(-time.Hour))})
 			page := owner.ok("GET", base+"/items?date=overdue&timezone=UTC&limit=1", nil)
 			if page["total"] != float64(2) || page["items"].([]any)[0].(map[string]any)["id"] != first["id"] {
 				t.Fatal("initial overdue page", page)

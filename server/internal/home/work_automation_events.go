@@ -371,7 +371,7 @@ func (a *App) applyWorkAutomationRule(actor *Request, event *WorkAutomationEvent
 		if _, err = actor.Q.ExecContext(actor.HTTP.Context(), "SAVEPOINT work_automation_rule"); err != nil {
 			return nil, err
 		}
-		in := rule.Template.workInput(workAutomationDerivedID("item", event.ID, rule.ID))
+		in := rule.Template.workInput()
 		var item *WorkItem
 		item, runErr = a.insertWorkItem(r, rule.SpaceID, in, workPayloadHash(in), len(in.DocumentIDs) > 0, "")
 		if runErr == nil {

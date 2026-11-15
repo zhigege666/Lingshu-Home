@@ -4,6 +4,18 @@ The Go service supports SQLite and PostgreSQL through `database/sql`, using `mod
 
 Version **0.0.2** introduced persisted instance language and migration **007**; **0.0.5** added the document library in **008**. Version **0.0.6** adds document activity in **009** and browser-session retention in **010**, applied automatically on first startup. Version **0.0.7** adds click statistics in **011**, **0.1.0** adds work items in **012**, and **0.1.1** adds private account avatars in **013**. Version **0.2.4** adds work collaboration in **018**; **0.2.5** persists visual MCP settings in **019**. Follow the upgrade and restore rules below for each schema boundary; replacing the executable alone does not downgrade a database.
 
+## Short card ID migration 023 (unreleased)
+
+Migration `023_work_short_ids.sql` replaces the actual `work_items.id` values with instance-wide lowercase base-36 IDs, padded to at least five characters. This is a breaking card-identifier change. Old UUIDs, `W-n` aliases, creation bodies containing `id` and old card URLs are retired; no persistent alias table or runtime fallback remains. Other entity identifiers are unchanged.
+
+Both provider migrations run in one transaction. They update the 13 foreign-key columns and non-FK card references, relation-change history, saved view filters/fields, card-shaped operation receipts and queued execution snapshots. They preserve visible column order even when legacy sort ranks tie, and advance board/view revisions to invalidate stale pagination. The old per-space number columns are removed. A one-row global sequence and actor/space-scoped `create_request_id` uniqueness support new creation using `requestId`.
+
+Already-dispatched execution snapshots retain their original bytes as evidence of the request actually sent. They are not a current card-identifier lookup path. Stored operation hashes also remain unchanged; an old in-flight request must be reconciled, never rewritten and blindly replayed after the upgrade. Migration does not re-dispatch work, cancel external processes or release outstanding claims.
+
+Before upgrading, coordinate active Agents and clients, stop Home and retain the complete pre-023 database, data directory, keys and deployment configuration. After upgrading, reload the frontend, refresh Gate's changed MCP schemas and use the short IDs returned by the new API. Recovery of a new uncertain creation uses `work_items_list.input.requestId` scoped to its authenticated user and space, including archived cards unless explicitly filtered.
+
+A migration failure rolls back card IDs, all references, the sequence and migration ledger together. Rolling back an already successful upgrade requires restoring the matching complete pre-023 backup with the previous application. An older image alone, manual migration-ledger edits or fabricated UUID mappings are not supported recovery methods.
+
 ## First-run storage setup
 
 Version 0.0.6 uses the same storage initialization for Docker, the Linux executable and source runs. An unconfigured new instance selects storage before language and account setup; explicit or existing configuration continues to select the original target.

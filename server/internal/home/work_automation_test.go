@@ -86,7 +86,7 @@ func TestWorkAutomationEventsAndAtomicity(t *testing.T) {
 			statusWant(t, owner, 409, "POST", base+"/automation/events", changed)
 			// Server-observed events are emitted once; generated work cannot recurse.
 			owner.ok("POST", base+"/automation/rules", automationTestRule("Created follow-up", "work.created"))
-			created := owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "Actual source"})
+			created := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "Actual source"})
 			var internal string
 			if err := a.store.DB.QueryRow(a.store.Query("SELECT id FROM work_automation_events WHERE source_item_id=? AND event_type='work.created'"), created["id"]).Scan(&internal); err != nil {
 				t.Fatal(err)
@@ -195,7 +195,7 @@ func TestWorkExecutorsPermissionsAndReceipts(t *testing.T) {
 				statusWant(t, owner, 400, "POST", base+"/executors", bad)
 			}
 			statusWant(t, owner, 400, "PATCH", base+"/executors/"+id, map[string]any{"expectedRevision": "1", "timeoutSeconds": nil})
-			item := owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "Execute once"})
+			item := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "Execute once"})
 			start := map[string]any{"id": newID(), "executorId": id, "itemId": item["id"], "expectedItemRevision": item["revision"]}
 			execution := automationObject(owner.ok("POST", base+"/executions", start), "execution")
 			executionID := execution["id"].(string)

@@ -63,9 +63,10 @@ func TestWorkScheduleCapacityV028(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				firstID := reserveWorkTestIDs(t, app.store, txItems, 1000)
 				for i := 0; i < 1000; i++ {
 					_, err = txItems.ExecContext(ctx, app.store.Query("INSERT INTO work_items(id,space_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?)"),
-						newID(), space, fmt.Sprintf("Ordinary load item %04d", i), strings.Repeat("Description ", 30), "Continue with evidence", "", workStatuses[i%4], false, false, int64(i/4+1)*workRankStep, workStamp(), workStamp(), "schedule-load-fixture")
+						formatWorkItemID(firstID+int64(i)), space, fmt.Sprintf("Ordinary load item %04d", i), strings.Repeat("Description ", 30), "Continue with evidence", "", workStatuses[i%4], false, false, int64(i/4+1)*workRankStep, workStamp(), workStamp(), "schedule-load-fixture")
 					if err != nil {
 						txItems.Rollback()
 						t.Fatal(err)

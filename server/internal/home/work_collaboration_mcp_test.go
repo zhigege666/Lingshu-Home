@@ -112,7 +112,7 @@ func TestMCPCollaborationDiscoveryAndCapabilities(t *testing.T) {
 			if integrationObject(t, collaboration["entrypoints"])["openSession"] != nil || integrationObject(t, collaboration["entrypoints"])["releaseClaim"] != "work_claims_release" {
 				t.Fatal("disabled collaboration advertised new sessions or hid cleanup")
 			}
-			legacy := agent.tool(full, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Legacy default-off task"}}, "")
+			legacy := agent.tool(full, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Default-off task"}}, "")
 			agent.tool(full, "work_items_update", map[string]any{"id": legacy["id"], "input": map[string]any{"expectedRevision": legacy["revision"], "nextStep": "Legacy updates remain available"}}, "")
 			collaborationMCPCall(t, agent, full, "work_sessions_open", map[string]any{"input": map[string]any{"registrationId": newID(), "agentName": "Disabled"}}, true)
 			// With no saved override, startup defaults remain authoritative. Fixture
@@ -245,12 +245,12 @@ func TestMCPCollaborationSameTokenWorkflow(t *testing.T) {
 				t.Fatal("same-token sessions did not preserve distinct labels and trusted principal")
 			}
 			call("work_sessions_get", map[string]any{"id": a["id"]})
-			create := map[string]any{"input": map[string]any{"id": newID(), "title": "Independent sessions coordinate one fixture", "context": map[string]any{"sessionId": a["id"], "operationId": newID()}}}
+			create := map[string]any{"input": map[string]any{"requestId": newID(), "title": "Independent sessions coordinate one fixture", "context": map[string]any{"sessionId": a["id"], "operationId": newID()}}}
 			item := call("work_items_create", create)
 			if replay := call("work_items_create", create); replay["id"] != item["id"] || replay["revision"] != item["revision"] {
 				t.Fatal("nested create context was not replay-safe")
 			}
-			reject("work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Missing collaboration context"}})
+			reject("work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Missing collaboration context"}})
 			id := item["id"]
 			get := func() map[string]any { return call("work_items_get", map[string]any{"id": id}) }
 			item = get()

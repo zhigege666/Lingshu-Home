@@ -20,6 +20,15 @@ func workIDsFromPage(value map[string]any) []string {
 	}
 	return ids
 }
+func reserveWorkTestIDs(t *testing.T, store *Store, q Queryer, count int) int64 {
+	t.Helper()
+	var first int64
+	if err := q.QueryRowContext(context.Background(), store.Query("UPDATE work_item_sequence SET next_number=next_number+? WHERE id=1 RETURNING next_number-?"), count, count).Scan(&first); err != nil {
+		t.Fatal(err)
+	}
+	return first
+}
+
 func TestWorkBoardHTTPAndMCP(t *testing.T) {
 	for _, provider := range []string{"sqlite", "postgres"} {
 		t.Run(provider, func(t *testing.T) {
@@ -33,7 +42,7 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 			anonymous := newCoreBrowser(t, server.URL)
 			anonymous.bootstrap()
 			statusWant(t, anonymous, 401, "GET", base+"/board", nil)
-			statusWant(t, anonymous, 401, "POST", base+"/items", map[string]any{"id": newID(), "title": "Anonymous"})
+			statusWant(t, anonymous, 401, "POST", base+"/items", map[string]any{"requestId": newID(), "title": "Anonymous"})
 			projectBody := map[string]any{"id": newID(), "name": "Home"}
 			project := owner.ok("POST", base+"/projects", projectBody)
 			replayProject := owner.ok("POST", base+"/projects", projectBody)
@@ -47,7 +56,7 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 			fixture := &documentFixture{app: app, server: server, owner: owner, root: app.config.DocumentRoots[0], shared: space, personal: personal}
 			fixture.source(t, space, "notes", false, map[string]string{"guide.md": "# Reference guide\nBody canary must never be embedded in board\n"})
 			document := documentByPath(t, owner, space, "guide.md")
-			body := map[string]any{"id": newID(), "title": "Visible alpha", "projectId": project["id"], "description": "private description needle", "nextStep": "Verify result", "result": "result canary", "needsAttention": true, "bookmarkIds": []string{link["id"].(string)}, "documentIds": []string{document["id"].(string)}}
+			body := map[string]any{"requestId": newID(), "title": "Visible alpha", "projectId": project["id"], "description": "private description needle", "nextStep": "Verify result", "result": "result canary", "needsAttention": true, "bookmarkIds": []string{link["id"].(string)}, "documentIds": []string{document["id"].(string)}}
 			first := owner.ok("POST", base+"/items", body)
 			id := first["id"].(string)
 			if first["referenceCount"] != float64(2) || len(first["references"].([]any)) != 2 {
@@ -57,9 +66,9 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 			if first["revision"] != replay["revision"] || first["boardRevision"] != replay["boardRevision"] {
 				t.Fatal("create replay mutated state")
 			}
-			changed := map[string]any{"id": id, "title": "Different payload"}
+			changed := map[string]any{"requestId": body["requestId"], "title": "Different payload"}
 			statusWant(t, owner, 409, "POST", base+"/items", changed)
-			statusWant(t, owner, 404, "POST", base+"/items", map[string]any{"id": newID(), "title": "Foreign reference", "bookmarkIds": []string{foreign["id"].(string)}})
+			statusWant(t, owner, 404, "POST", base+"/items", map[string]any{"requestId": newID(), "title": "Foreign reference", "bookmarkIds": []string{foreign["id"].(string)}})
 			board := owner.ok("GET", base+"/board", nil)
 			encoded, _ := json.Marshal(board)
 			if strings.Contains(string(encoded), "private description") || strings.Contains(string(encoded), "result canary") || strings.Contains(string(encoded), "Body canary") {
@@ -109,8 +118,8 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 			}
 			statusWant(t, owner, 400, "PATCH", workItemPath(space, id), map[string]any{"expectedRevision": first["revision"], "archived": nil})
 			// Source filtering must not lose hidden siblings or confuse column tail with loaded tail.
-			hidden := owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "Hidden sibling"})
-			tail := owner.ok("POST", base+"/items", map[string]any{"id": newID(), "title": "Visible omega"})
+			hidden := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "Hidden sibling"})
+			tail := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": "Visible omega"})
 			first = owner.ok("PATCH", workItemPath(space, id), map[string]any{"expectedRevision": first["revision"], "title": "Visible alpha"})
 			firstPage := owner.ok("GET", base+"/items?status=todo&limit=1", nil)
 			cursor := firstPage["nextCursor"].(string)
@@ -155,7 +164,7 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 			if owner.ok("GET", workItemPath(space, id), nil)["archived"] != false {
 				t.Fatal("project archive cascaded to item")
 			}
-			statusWant(t, owner, 409, "POST", base+"/items", map[string]any{"id": newID(), "title": "Archived target", "projectId": project["id"]})
+			statusWant(t, owner, 409, "POST", base+"/items", map[string]any{"requestId": newID(), "title": "Archived target", "projectId": project["id"]})
 			project = owner.ok("PATCH", base+"/projects/"+project["id"].(string), map[string]any{"expectedRevision": project["revision"], "archived": false, "name": "Home renamed"})
 			if owner.ok("GET", workItemPath(space, id), nil)["projectName"] != "Home renamed" {
 				t.Fatal("rename did not reach view")
@@ -174,16 +183,16 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 				t.Fatal("missing content scope exposed references")
 			}
 			caller.tool(read, "work_resources_search", map[string]any{"input": map[string]any{"kind": "document"}}, "forbidden")
-			writeBody := map[string]any{"id": newID(), "title": "Write-only private canary"}
+			writeBody := map[string]any{"requestId": newID(), "title": "Write-only private canary"}
 			receipt := caller.tool(write, "work_items_create", map[string]any{"input": writeBody}, "")
-			if receipt["id"] != writeBody["id"] || receipt["title"] != nil || receipt["references"] != nil || len(receipt) != 4 {
+			if receipt["id"] == nil || !workItemRefValid(receipt["id"].(string)) || receipt["title"] != nil || receipt["references"] != nil || len(receipt) != 4 {
 				t.Fatalf("write-only receipt leaked fields: %v", receipt)
 			}
 			receipt2 := caller.tool(write, "work_items_create", map[string]any{"input": writeBody}, "")
 			if receipt2["id"] != receipt["id"] || receipt2["replayed"] != true {
 				t.Fatal("MCP replay not stable")
 			}
-			caller.tool(write, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "No content read", "bookmarkIds": []string{link["id"].(string)}}}, "forbidden")
+			caller.tool(write, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "No content read", "bookmarkIds": []string{link["id"].(string)}}}, "forbidden")
 			// A write-only caller can remove or preserve references without reading them.
 			removed := caller.tool(write, "work_items_update", map[string]any{"id": id, "input": map[string]any{"expectedRevision": first["revision"], "bookmarkIds": []string{}, "documentIds": []string{}}}, "")
 			if removed["title"] != nil {
@@ -200,9 +209,9 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			caller.tool(write, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Scoped"}}, "forbidden")
+			caller.tool(write, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Scoped"}}, "forbidden")
 			// CSRF remains required for browser work writes.
-			reply := accountProfileRawCall(t, owner.client, server.URL, "POST", base+"/items", map[string]any{"id": newID(), "title": "Bad CSRF"}, "", "")
+			reply := accountProfileRawCall(t, owner.client, server.URL, "POST", base+"/items", map[string]any{"requestId": newID(), "title": "Bad CSRF"}, "", "")
 			if reply.status != 403 {
 				t.Fatalf("missing CSRF status=%d", reply.status)
 			}
@@ -230,7 +239,7 @@ func TestWorkBoardHTTPAndMCP(t *testing.T) {
 			memberSpace := coreSpace(memberBoot, "personal")
 			statusWant(t, member, 403, "GET", base+"/board", nil)
 			statusWant(t, member, 404, "GET", "/spaces/"+personal+"/work/board", nil)
-			own := member.ok("POST", "/spaces/"+memberSpace+"/work/items", map[string]any{"id": newID(), "title": "Member private"})
+			own := member.ok("POST", "/spaces/"+memberSpace+"/work/items", map[string]any{"requestId": newID(), "title": "Member private"})
 			statusWant(t, owner, 404, "GET", workItemPath(memberSpace, own["id"].(string)), nil)
 			// Anonymous open-edit remains public navigation only, not private work.
 			owner.ok("PUT", "/settings", map[string]any{"siteName": "Open navigation", "mode": ModeOpenEdit, "registrationEnabled": false})

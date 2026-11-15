@@ -7,7 +7,7 @@ export type WorkVersion = { id: string; name: string; projectId: string | null; 
 export type WorkPlanning = { priority?: WorkPriority; labelIds?: string[]; assignee?: WorkAssignee | null; versionId?: string | null }
 export type WorkPlanningDraft = { priority: WorkPriority; labelIds: string[]; assignee: WorkAssignee | null; versionId: string | null }
 export type WorkCatalogPage<T> = { items: T[]; revision: string; canEdit: boolean; total: number; nextCursor: string | null; missingIds?: string[] }
-export type WorkLink = { id: string; key: string; title: string; status: string; statusType: WorkStatusType; archived: boolean }
+export type WorkLink = { id: string; title: string; status: string; statusType: WorkStatusType; archived: boolean }
 export type WorkRelations = { itemId: string; revision: string; parent: WorkLink | null; blockedBy: WorkLink[]; predecessor: WorkLink | null; childrenCount: number; blockedCount: number }
 export type WorkRelationSummary = { parent: WorkLink | null; predecessor: WorkLink | null; childrenCount: number; blockedByCount: number; blockedCount: number; isBlocked: boolean }
 export type WorkFilters = {
@@ -15,9 +15,9 @@ export type WorkFilters = {
   date?: 'today' | 'overdue'; timezone?: string; businessDate?: string; priority?: Exclude<WorkPriority, ''> | 'none';
   labelIds?: string[]; assigneeUserId?: string; versionId?: string; parentId?: string; blocked?: boolean
 }
-export const workDisplayFields = ['key', 'priority', 'labels', 'assignee', 'version', 'project', 'nextStep', 'businessDate', 'dueAt', 'relations', 'collaboration'] as const
+export const workDisplayFields = ['id', 'priority', 'labels', 'assignee', 'version', 'project', 'nextStep', 'businessDate', 'dueAt', 'relations', 'collaboration'] as const
 export type WorkDisplayField = typeof workDisplayFields[number]
-export const defaultWorkFields: WorkDisplayField[] = ['key', 'priority', 'labels', 'assignee', 'version', 'project', 'nextStep', 'businessDate', 'dueAt', 'collaboration']
+export const defaultWorkFields: WorkDisplayField[] = ['id', 'priority', 'labels', 'assignee', 'version', 'project', 'nextStep', 'businessDate', 'dueAt', 'collaboration']
 export type WorkLayout = 'board' | 'list' | 'calendar'
 export type WorkCalendarBasis = 'businessDate' | 'dueAt'
 export type WorkViewDefinition = { layout: WorkLayout; filters: WorkFilters; fields: WorkDisplayField[]; calendarBasis?: WorkCalendarBasis }

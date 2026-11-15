@@ -107,7 +107,7 @@ func TestWorkStatusesCatalogAndSemantics(t *testing.T) {
 			if workStatusTestDefinition(t, catalog, review).Color != "#aabbcc" {
 				t.Fatal("color was not normalized")
 			}
-			item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Use configured default", "needsAttention": true})
+			item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Use configured default", "needsAttention": true})
 			if item["status"] != review {
 				t.Fatal("create ignored dynamic default")
 			}
@@ -167,20 +167,15 @@ func TestWorkStatusesRetirementReferencesAndReplay(t *testing.T) {
 			docFixture := &documentFixture{app: f.app, owner: f.owner, root: f.app.config.DocumentRoots[0], shared: f.space, personal: f.personal}
 			docFixture.source(t, f.space, "notes", false, map[string]string{"status.md": "# Preserved original\n"})
 			document := documentByPath(t, f.owner, f.space, "status.md")
-			omittedBody := map[string]any{"id": newID(), "title": "Original default request"}
+			omittedBody := map[string]any{"requestId": newID(), "title": "Original default request"}
 			original := f.owner.ok("POST", f.base+"/items", omittedBody)
-			legacyBody := map[string]any{"id": newID(), "title": "Legacy omitted-status request"}
-			legacy := f.owner.ok("POST", f.base+"/items", legacyBody)
-			// Version 0.1.1 hashed its resolved default, before hash-version metadata existed.
-			legacyHash := workPayloadHash(workCreateInput{ID: legacy["id"].(string), Title: legacyBody["title"].(string), Status: "todo", BookmarkIDs: []string{}, DocumentIDs: []string{}})
-			if _, err := f.app.store.DB.Exec(f.app.store.Query("UPDATE work_items SET create_hash=?,create_hash_version=1 WHERE id=?"), legacyHash, legacy["id"]); err != nil {
-				t.Fatal(err)
-			}
-			linkedBody := map[string]any{"id": newID(), "title": "Linked active request", "status": review, "bookmarkIds": []string{link["id"].(string)}, "documentIds": []string{document["id"].(string)}, "needsAttention": true}
+			explicitBody := map[string]any{"requestId": newID(), "title": "Explicit original default request", "status": "todo"}
+			explicit := f.owner.ok("POST", f.base+"/items", explicitBody)
+			linkedBody := map[string]any{"requestId": newID(), "title": "Linked active request", "status": review, "bookmarkIds": []string{link["id"].(string)}, "documentIds": []string{document["id"].(string)}, "needsAttention": true}
 			active := f.owner.ok("POST", f.base+"/items", linkedBody)
-			archived := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Archived review", "status": review})
+			archived := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Archived review", "status": review})
 			archived = f.owner.ok("PATCH", workItemPath(f.space, archived["id"].(string)), map[string]any{"expectedRevision": archived["revision"], "archived": true})
-			existingTail := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Existing target tail", "status": "waiting"})
+			existingTail := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Existing target tail", "status": "waiting"})
 			catalog = workStatusTestCatalog(t, f.owner.ok("GET", f.base+"/statuses", nil))
 			if status := workStatusTestDefinition(t, catalog, review); status.Total != 1 || status.ArchivedTotal != 1 {
 				t.Fatal("retirement counts omitted active or archived items")
@@ -188,7 +183,7 @@ func TestWorkStatusesRetirementReferencesAndReplay(t *testing.T) {
 			errBody := statusWant(t, f.owner, 409, "POST", f.base+"/statuses/batch-edit", map[string]any{"expectedRevision": catalog.Revision, "deletions": []map[string]any{{"id": review}}})
 			workStatusTestCode(t, errBody, "work_status_in_use")
 			catalog = workStatusTestCatalog(t, f.owner.ok("POST", f.base+"/statuses/batch-edit", map[string]any{"expectedRevision": catalog.Revision, "defaultStatus": review}))
-			for _, body := range []map[string]any{omittedBody, legacyBody} {
+			for _, body := range []map[string]any{omittedBody, explicitBody} {
 				replayed := f.owner.ok("POST", f.base+"/items", body)
 				if replayed["status"] != "todo" || replayed["revision"] != original["revision"] {
 					t.Fatal("new default reinterpreted a successful omitted-status creation")
@@ -201,16 +196,17 @@ func TestWorkStatusesRetirementReferencesAndReplay(t *testing.T) {
 			if len(catalog.Items) != 3 || catalog.DefaultStatus != "doing" {
 				t.Fatal("retirement retained deleted columns or lost the new default")
 			}
-			for _, record := range []map[string]any{active, archived, original, legacy} {
+			for _, record := range []map[string]any{active, archived, original, explicit} {
 				current := f.owner.ok("GET", workItemPath(f.space, record["id"].(string)), nil)
 				if current["status"] != "waiting" || current["archived"] != record["archived"] || current["revision"] == record["revision"] {
 					t.Fatal("retirement did not migrate both active and archived items")
 				}
 			}
 			beforeReplay := f.owner.ok("GET", f.base+"/revision", nil)
-			for _, body := range []map[string]any{omittedBody, legacyBody, linkedBody} {
+			expectedIDs := map[string]any{omittedBody["requestId"].(string): original["id"], explicitBody["requestId"].(string): explicit["id"], linkedBody["requestId"].(string): active["id"]}
+			for _, body := range []map[string]any{omittedBody, explicitBody, linkedBody} {
 				current := f.owner.ok("POST", f.base+"/items", body)
-				if current["id"] != body["id"] || current["status"] != "waiting" {
+				if current["id"] != expectedIDs[body["requestId"].(string)] || current["status"] != "waiting" {
 					t.Fatal("retry after retirement duplicated or resurrected an old state")
 				}
 			}
@@ -221,7 +217,7 @@ func TestWorkStatusesRetirementReferencesAndReplay(t *testing.T) {
 				t.Fatalf("retries duplicated active items: %v", count)
 			}
 			ids := workIDsFromPage(f.owner.ok("GET", f.base+"/items?status=waiting", nil))
-			if !reflect.DeepEqual(ids, []string{existingTail["id"].(string), active["id"].(string), original["id"].(string), legacy["id"].(string)}) {
+			if !reflect.DeepEqual(ids, []string{existingTail["id"].(string), active["id"].(string), original["id"].(string), explicit["id"].(string)}) {
 				t.Fatalf("migration failed to preserve the target tail: %v", ids)
 			}
 			current := f.owner.ok("GET", workItemPath(f.space, active["id"].(string)), nil)
@@ -232,7 +228,7 @@ func TestWorkStatusesRetirementReferencesAndReplay(t *testing.T) {
 			if err != nil || string(originalFile) != "# Preserved original\n" {
 				t.Fatal("state migration altered the original document", err)
 			}
-			errBody = statusWant(t, f.owner, 400, "POST", f.base+"/items", map[string]any{"id": newID(), "title": "Retired key", "status": review})
+			errBody = statusWant(t, f.owner, 400, "POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Retired key", "status": review})
 			unavailable := workStatusTestCode(t, errBody, "work_status_unavailable")
 			details, ok := unavailable["details"].(map[string]any)
 			if !ok || details["replacementStatus"] != "waiting" || details["statusRevision"] != catalog.Revision {
@@ -280,7 +276,7 @@ func TestWorkStatusesConcurrencyAndScope(t *testing.T) {
 			privateCatalog := workStatusTestCatalog(t, f.owner.ok("GET", privateBase+"/statuses", nil))
 			foreign := newID()
 			f.owner.ok("POST", privateBase+"/statuses/batch-edit", map[string]any{"expectedRevision": privateCatalog.Revision, "create": []map[string]any{{"id": foreign, "name": "Private status canary", "type": "waiting"}}})
-			errBody := statusWant(t, f.owner, 400, "POST", f.base+"/items", map[string]any{"id": newID(), "title": "Foreign status", "status": foreign})
+			errBody := statusWant(t, f.owner, 400, "POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Foreign status", "status": foreign})
 			workStatusTestCode(t, errBody, "work_status_unavailable")
 			encoded, _ := json.Marshal(errBody)
 			if strings.Contains(string(encoded), "Private status canary") {
@@ -301,7 +297,7 @@ func TestWorkStatusesConcurrencyAndScope(t *testing.T) {
 				t.Fatalf("write-only catalog update leaked data or lacked a receipt: %v", receipt)
 			}
 			caller.object("GET", "/api/v1"+f.base+"/statuses", nil, 403, write)
-			body := caller.object("POST", "/api/v1"+f.base+"/items", map[string]any{"id": newID(), "title": "Unknown write-only status", "status": foreign}, 400, write)
+			body := caller.object("POST", "/api/v1"+f.base+"/items", map[string]any{"requestId": newID(), "title": "Unknown write-only status", "status": foreign}, 400, write)
 			unavailable := workStatusTestCode(t, body, "work_status_unavailable")
 			if unavailable["details"] != nil {
 				t.Fatal("write-only error disclosed readable state metadata")
@@ -322,7 +318,7 @@ func TestWorkStatusesLateFailureRollsBackBatch(t *testing.T) {
 			catalog = workStatusTestCatalog(t, f.owner.ok("POST", f.base+"/statuses/batch-edit", map[string]any{"expectedRevision": catalog.Revision, "create": []map[string]any{{"id": review, "name": "Review", "type": "waiting"}}}))
 			link := f.owner.ok("POST", "/spaces/"+f.space+"/links", coreLink("Rollback link", "https://example.com/rollback"))
 			for _, archived := range []bool{false, true} {
-				item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Migrate atomically", "status": review, "bookmarkIds": []string{link["id"].(string)}})
+				item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Migrate atomically", "status": review, "bookmarkIds": []string{link["id"].(string)}})
 				if archived {
 					f.owner.ok("PATCH", workItemPath(f.space, item["id"].(string)), map[string]any{"expectedRevision": item["revision"], "archived": true})
 				}

@@ -10,6 +10,14 @@ Maintain your links, import browser bookmarks, and compose your homepage from da
 
 The jade folded-house logo is shared throughout the Web interface. [Brand assets, usage and provenance](docs/BRANDING.md) cover the scalable SVG, browser icons and touch icon.
 
+## In development: short card IDs (unreleased)
+
+- **① User experience.** Cards use five-character-minimum IDs such as `00001` and `0000a` for copying, search, links and details. Existing cards are renumbered while their content, relationships, history and visible order are preserved.
+- **② Developer experience.** SQLite/PostgreSQL migration **023** replaces actual card primary keys with instance-wide unique base-36 IDs. Creation uses a separate `requestId` for idempotency. Old aliases and `number/key` are removed; long card IDs and `W-n` have no runtime compatibility path.
+- **③ AI Agent experience.** MCP card reads and writes use short IDs, allocated by the server. Workflow guidance advances to **v4**. Recover an uncertain creation using its original `requestId` and report the short ID with the title.
+
+This changes the card API and links: coordinate clients/Agents, back up complete data and refresh Gate tool definitions before upgrading. Old card links stop working. The current released version remains **0.2.8**. See the [card contract](docs/WORK_ITEMS.md) and [migration/recovery](docs/STORAGE.md#short-card-id-migration-023-unreleased).
+
 ## New in 0.2.8
 
 - **① User experience.** Work gains short references (`W-123`), priority, labels, responsible people, target versions, parent/dependency/predecessor relations, private/shared saved views, a calendar, advisory WIP limits and statistics from real activity. Notifications and event automation default off. Optional panels and execution records load when opened; normal item drafts and collaboration protections remain intact.

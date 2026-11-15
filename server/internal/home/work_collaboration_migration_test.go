@@ -58,7 +58,7 @@ func TestWorkCollaborationMigrationPreservesAndRollsBack(t *testing.T) {
 				for table, old := range before {
 					before[table] = workStatusTestRows(t, db, table, old.columns)
 				}
-				err = store.migrate(context.Background())
+				err = applyHistoricalWorkMigration(context.Background(), store, "018_work_collaboration.sql")
 				if rollback {
 					if err == nil {
 						t.Fatal("injected migration failure succeeded")
@@ -100,12 +100,12 @@ func TestWorkCollaborationMigrationPreservesAndRollsBack(t *testing.T) {
 				for table, old := range migrated {
 					migrated[table] = workStatusTestRows(t, db, table, old.columns)
 				}
-				if err = store.migrate(context.Background()); err != nil {
-					t.Fatal("second startup failed", err)
+				if err = applyHistoricalWorkMigration(context.Background(), store, "018_work_collaboration.sql"); err != nil {
+					t.Fatal("reapplying the historical migration failed", err)
 				}
 				for table, old := range migrated {
 					if !reflect.DeepEqual(workStatusTestRows(t, db, table, old.columns), old) {
-						t.Fatalf("second startup changed %s", table)
+						t.Fatalf("reapplying the historical migration changed %s", table)
 					}
 				}
 				var count int

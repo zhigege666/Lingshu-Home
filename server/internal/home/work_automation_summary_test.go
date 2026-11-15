@@ -15,7 +15,7 @@ func TestWorkExecutionSummaryUsesLatestReceipt(t *testing.T) {
 			f.app.cancel()
 			f.app.workers.Wait()
 			executor := automationObject(f.owner.ok("POST", f.base+"/executors", map[string]any{"id": newID(), "name": "Summary fixture", "endpoint": "https://example.com/executor", "resourceKey": "summary:resource", "enabled": true, "secret": map[string]any{"bearerToken": "summary-fixture-credential"}}), "executor")
-			item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "One item, successive receipts"})
+			item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "One item, successive receipts"})
 			start := func() map[string]any {
 				return automationObject(f.owner.ok("POST", f.base+"/executions", map[string]any{"id": newID(), "executorId": executor["id"], "itemId": item["id"], "expectedItemRevision": item["revision"]}), "execution")
 			}

@@ -490,29 +490,17 @@ func (a *App) batchEditWorkStatuses(r *Request) (*Response, error) {
 	return ok(updated), nil
 }
 
-// Preserve the original interpretation of legacy requests during creation replay.
-func legacyWorkCreateHash(in workCreateInput) string {
-	if in.Status == "" {
-		in.Status = "todo"
-	}
-	return workPayloadHash(in)
-}
-
 func (a *App) existingWorkCreation(r *Request, space string, in workCreateInput, hash string) (*WorkItem, error) {
-	var existingSpace, existingHash string
-	var version int
-	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT space_id,create_hash,create_hash_version FROM work_items WHERE id=?"), in.ID).Scan(&existingSpace, &existingHash, &version)
+	var id, existingHash string
+	err := r.Q.QueryRowContext(r.HTTP.Context(), a.store.Query("SELECT id,create_hash FROM work_items WHERE space_id=? AND create_user_id=? AND create_request_id<>'' AND create_request_id=?"), space, r.User.ID, in.RequestID).Scan(&id, &existingHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	if version == 1 {
-		hash = legacyWorkCreateHash(in)
+	if existingHash != hash {
+		return nil, workConflict("work_request_conflict", "This requestId was already used with a different creation payload. Keep the original requestId and payload for retries.", "")
 	}
-	if existingSpace != space || existingHash != hash {
-		return nil, workConflict("work_id_conflict", "This ID is already used by a different create request.", "")
-	}
-	return a.loadWorkItem(r, space, in.ID)
+	return a.loadWorkItem(r, space, id)
 }

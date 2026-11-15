@@ -99,7 +99,7 @@ async function main() {
         await api(space + '/document-sources/' + source.id + '/scan', 'POST', {});
         document = (await api(space + '/documents?sourceId=' + source.id)).items.find(x => x.relativePath === 'plan.md');
         assert(document, 'Mounted original is indexed');
-        const input = { id: newID(), title: prefix + ' initial', projectId: project.id, nextStep: 'Check the original reference', bookmarkIds: [bookmark.id], documentIds: [document.id] };
+        const input = { requestId: newID(), title: prefix + ' initial', projectId: project.id, nextStep: 'Check the original reference', bookmarkIds: [bookmark.id], documentIds: [document.id] };
         item = await api(work + '/items', 'POST', input);
         const replay = await api(work + '/items', 'POST', input, [200, 201]);
         assert.equal(replay.id, item.id); assert.equal(replay.revision, item.revision);
@@ -109,7 +109,7 @@ async function main() {
         item = await api(work + '/items/' + item.id, 'PATCH', { expectedRevision: before, needsAttention: true });
         await api(work + '/items/' + item.id, 'PATCH', { expectedRevision: before, title: 'must not overwrite' }, 409);
         assert.equal((await api(work + '/items/' + item.id)).title, input.title);
-        second = await api(work + '/items', 'POST', { id: newID(), title: prefix + ' second', status: 'waiting' });
+        second = await api(work + '/items', 'POST', { requestId: newID(), title: prefix + ' second', status: 'waiting' });
         const board = await api(work + '/board?limit=1');
         assert.equal(board.columns.find(c => c.status === 'todo').total, 1);
         const onlyAttention = await api(work + '/items?attention=true');
@@ -123,7 +123,7 @@ async function main() {
       // A selected regression receives fresh setup records without rerunning prior check groups.
       if (!project) {
         project = await api(work + '/projects', 'POST', { id: newID(), name: prefix + ' project' });
-        item = await api(work + '/items', 'POST', { id: newID(), title: prefix + ' initial', projectId: project.id });
+        item = await api(work + '/items', 'POST', { requestId: newID(), title: prefix + ' initial', projectId: project.id });
       }
       const detail = () => page.locator('[data-work-detail-id]');
       const card = id => page.locator('[data-work-id="' + id + '"]');
@@ -164,7 +164,7 @@ async function main() {
       });
       if (!uiItem) {
         uiProject = await api(work + '/projects', 'POST', { id: newID(), name: prefix + ' UI project' });
-        uiItem = await api(work + '/items', 'POST', { id: newID(), title: prefix + ' UI item', projectId: uiProject.id });
+        uiItem = await api(work + '/items', 'POST', { requestId: newID(), title: prefix + ' UI item', projectId: uiProject.id });
         await openBoard();
       }
       await check(provider + '/ui_native_drag_and_keyboard_status', async () => {
@@ -314,7 +314,7 @@ async function main() {
         await label('说明', 'Description', detail()).fill('Keep the original work and archived records when the workflow changes.');
         const activeItem = await mutation(() => button('创建事项', 'Create item', detail()).click(), work + '/items', 'POST');
         assert.equal(activeItem.status, statusId); await closeDetail();
-        let archivedItem = await api(work + '/items', 'POST', { id: newID(), title: prefix + ' archived review', status: statusId });
+        let archivedItem = await api(work + '/items', 'POST', { requestId: newID(), title: prefix + ' archived review', status: statusId });
         archivedItem = await api(work + '/items/' + archivedItem.id, 'PATCH', { expectedRevision: archivedItem.revision, archived: true });
         manager = await openStatuses(); row = manager.locator('[data-status-id="' + statusId + '"]');
         await row.locator('[data-status-name]').fill(editedName);

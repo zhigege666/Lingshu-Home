@@ -211,9 +211,10 @@ func TestWorkExecutorCapacityV028(t *testing.T) {
 				itemIDs, executionIDs := make([]string, total), make([]string, total)
 				resourceForExecution := map[string]int{}
 				for i := 0; i < total; i++ {
-					itemIDs[i], executionIDs[i] = newID(), newID()
+					executionIDs[i] = newID()
 					resourceForExecution[executionIDs[i]] = i % resources
-					owner.ok("POST", base+"/items", map[string]any{"id": itemIDs[i], "title": fmt.Sprintf("Fixed-command load %02d", i)})
+					item := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": fmt.Sprintf("Fixed-command load %02d", i)})
+					itemIDs[i] = item["id"].(string)
 				}
 				outbound := &workPerfOutboundStats{methods: map[string]int{}, statuses: map[int]int{}}
 				app.config.workExecutorClientFactory = func(private bool) *http.Client {

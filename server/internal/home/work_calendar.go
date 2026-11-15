@@ -109,9 +109,6 @@ func (a *App) getWorkCalendar(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = a.resolveWorkFilterRefs(r, s.ID, &filter); err != nil {
-		return nil, err
-	}
 	revision, err := a.workRevision(r, s.ID)
 	if err != nil {
 		return nil, err
@@ -120,7 +117,7 @@ func (a *App) getWorkCalendar(r *Request) (*Response, error) {
 	var page workCalendarCursor
 	if cursor != "" {
 		raw, e := base64.RawURLEncoding.DecodeString(cursor)
-		if e != nil || json.Unmarshal(raw, &page) != nil || page.Filter != fingerprint || !validID(page.ID) {
+		if e != nil || json.Unmarshal(raw, &page) != nil || page.Filter != fingerprint || !workItemRefValid(page.ID) {
 			return nil, invalid("Invalid calendar cursor for this window.")
 		}
 		if page.Revision != revision {

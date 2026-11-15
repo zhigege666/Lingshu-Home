@@ -161,7 +161,7 @@ func (a *App) createWorkAutomationRule(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	text := in.Template.workInput("")
+	text := in.Template.workInput()
 	if err = validateWorkText(&text); err != nil {
 		return nil, err
 	}

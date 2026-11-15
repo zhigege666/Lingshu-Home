@@ -33,8 +33,8 @@ func TestWorkStatusChangeCapacityV028(t *testing.T) {
 			const items, concurrency = 200, 8
 			ids := make([]string, items)
 			for i := range ids {
-				ids[i] = newID()
-				item := owner.ok("POST", base+"/items", map[string]any{"id": ids[i], "title": fmt.Sprintf("Status measurement %03d", i), "status": "todo"})
+				item := owner.ok("POST", base+"/items", map[string]any{"requestId": newID(), "title": fmt.Sprintf("Status measurement %03d", i), "status": "todo"})
+				ids[i] = item["id"].(string)
 				if item["revision"] != "1" || item["status"] != "todo" {
 					t.Fatalf("unexpected initial item: %v", item)
 				}

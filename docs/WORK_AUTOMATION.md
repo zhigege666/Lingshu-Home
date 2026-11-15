@@ -79,7 +79,7 @@ Content-Type: application/json
 ```
 
 ```json
-{"id":"0123456789abcdef0123456789abcdef","item":{"id":"...","key":"W-123","revision":"4","title":"同步任务"},"event":{"id":"...","type":"sync.requested","summary":"...","details":"...","url":"","origin":"external"}}
+{"id":"0123456789abcdef0123456789abcdef","item":{"id":"0000a","revision":"4","title":"同步任务"},"event":{"id":"...","type":"sync.requested","summary":"...","details":"...","url":"","origin":"external"}}
 ```
 
 `event` 可以省略；`item` 只包含选定的工作内容、规划和日期字段。执行器应持久保存 ID 与请求内容哈希，新任务返回 202，同 ID／同内容返回原回执，同 ID／不同内容返回 409。状态查询为 `GET <endpoint>/runs/<id>`，使用相同 Bearer。
@@ -114,7 +114,7 @@ POST 只发送一次。连接错误、超时、5xx、408／409、未知拒绝状
 
 ## 3. AI Agent 使用体验
 
-新增 19 个工具：`work_automation_settings_get/update`、`work_automation_rules_list/get/create/update`、`work_automation_events_list/get/publish/retry`、`work_executors_list/get/create/update`、`work_executions_list/get/start/reconcile/resolve`。加上规划工具后目录共 **101 个工具，其中 67 个事项工具**；旧工具名称和真实 UUID 保持有效。
+新增 19 个工具：`work_automation_settings_get/update`、`work_automation_rules_list/get/create/update`、`work_automation_events_list/get/publish/retry`、`work_executors_list/get/create/update`、`work_executions_list/get/start/reconcile/resolve`。加上规划工具后目录共 **101 个工具，其中 67 个事项工具**；工具名称保持不变；规则、执行器、事件和执行的技术 ID 保持原契约，卡片 `itemId` 与快照中的 `item.id` 统一使用短编号。
 
 `work:execute` 是独立且默认不选中的动作，依赖 `work:read` 和 `work:write`。选择式旧令牌不会自动获得它；明确选择“全部当前和未来动作”的既有令牌继续遵守原 all-mode 契约。配置执行器和人工处理还要求 Owner，不能借新工具获得全局账号或 PAT 管理能力。`space_current.capabilities.executions` 返回实际 `read/execute/configure`，工作流版本为 3，保留既有 `capabilities.work.read/write` 结构。
 

@@ -32,7 +32,7 @@ export type WorkEvent = {
 }
 export type WorkEventPage = { itemId: string; items: WorkEvent[]; highWatermark: string; nextCursor: string | null; nextAfter: string }
 export type WorkSummary = WorkPlanning & {
-  number?: number; key?: string; labels?: Pick<WorkLabel, 'id' | 'name' | 'color' | 'archived'>[]; version?: Pick<WorkVersion, 'id' | 'name' | 'projectId' | 'targetDate' | 'archived'>; relations?: WorkRelationSummary;
+  labels?: Pick<WorkLabel, 'id' | 'name' | 'color' | 'archived'>[]; version?: Pick<WorkVersion, 'id' | 'name' | 'projectId' | 'targetDate' | 'archived'>; relations?: WorkRelationSummary;
   id: string; spaceId: string; projectId: string | null; projectName: string; title: string; status: WorkStatus;
   revision: string; archived: boolean; updatedAt: string; nextStep: string; needsAttention: boolean; referenceCount: number; businessDate?: string; dueAt?: string; scheduleId?: string; collaboration?: WorkCollaborationSummary
 }
@@ -52,7 +52,7 @@ export type WorkColumn = { status: WorkStatus; total: number; items: WorkSummary
 export type WorkBoard = WorkStatusContext & { revision: string; collaborationRevision?: string; canEdit: boolean; columns: WorkColumn[] }
 export type WorkPage = WorkStatusContext & { revision: string; collaborationRevision?: string; canEdit: boolean; items: WorkSummary[]; total: number; nextCursor: string | null }
 export type WorkDraft = Pick<WorkItem, 'title' | 'projectId' | 'status' | 'description' | 'nextStep' | 'result' | 'needsAttention' | 'bookmarkIds' | 'documentIds'> & WorkPlanningDraft & { businessDate: string; dueAt: string }
-export type WorkSelection = { id: string; create?: boolean; status?: WorkStatus; projectId?: string | null; needsAttention?: boolean; businessDate?: string; reference?: WorkReference }
+export type WorkSelection = ({ id: string; create?: false } | { id: ''; create: true; requestId: string }) & { status?: WorkStatus; projectId?: string | null; needsAttention?: boolean; businessDate?: string; reference?: WorkReference }
 export const workPath = (spaceId: string) => `/spaces/${encodeURIComponent(spaceId)}/work`
 export function newWorkId(): string {
   return [...crypto.getRandomValues(new Uint8Array(16))].map(value => value.toString(16).padStart(2, '0')).join('')

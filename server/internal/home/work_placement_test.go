@@ -1,7 +1,6 @@
 package home
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -34,13 +33,13 @@ func TestWorkCreationPlacementOrder(t *testing.T) {
 		t.Run(provider, func(t *testing.T) {
 			f := newWorkStatusFixture(t, provider)
 			project := f.owner.ok("POST", f.base+"/projects", map[string]any{"id": newID(), "name": "First-page project"})
-			other := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Empty column", "status": "doing", "placement": "start"})
-			archived := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Archived sibling"})
+			other := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Empty column", "status": "doing", "placement": "start"})
+			archived := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Archived sibling"})
 			f.owner.ok("PATCH", workItemPath(f.space, archived["id"].(string)), map[string]any{"expectedRevision": archived["revision"], "archived": true})
 			otherRank, archivedRank := workPlacementRank(t, f, other["id"].(string)), workPlacementRank(t, f, archived["id"].(string))
 			original := []string{}
 			for i := 0; i < 31; i++ {
-				body := map[string]any{"id": newID(), "title": fmt.Sprintf("Existing %02d", i)}
+				body := map[string]any{"requestId": newID(), "title": fmt.Sprintf("Existing %02d", i)}
 				if i%2 == 0 {
 					body["projectId"] = project["id"]
 				}
@@ -49,7 +48,7 @@ func TestWorkCreationPlacementOrder(t *testing.T) {
 			}
 			// Preserve the existing tail default, including an explicit end choice.
 			for _, placement := range []string{"", "end"} {
-				body := map[string]any{"id": newID(), "title": "Tail " + placement}
+				body := map[string]any{"requestId": newID(), "title": "Tail " + placement}
 				if placement != "" {
 					body["placement"] = placement
 				}
@@ -59,7 +58,7 @@ func TestWorkCreationPlacementOrder(t *testing.T) {
 			if _, err := f.app.store.DB.Exec(f.app.store.Query("UPDATE work_items SET sort_order=1 WHERE id=?"), original[0]); err != nil {
 				t.Fatal(err)
 			}
-			front := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Created at start", "projectId": project["id"], "placement": "start"})
+			front := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Created at start", "projectId": project["id"], "placement": "start"})
 			want := append([]string{front["id"].(string)}, original...)
 			if got := workIDsFromPage(f.owner.ok("GET", f.base+"/items?status=todo&limit=100", nil)); !reflect.DeepEqual(got, want) {
 				t.Fatalf("creation changed sibling order: %v want %v", got, want)
@@ -72,7 +71,7 @@ func TestWorkCreationPlacementOrder(t *testing.T) {
 				t.Fatal("first-position creation changed another status or archive ordering")
 			}
 			for _, value := range []any{"", "middle", "START", nil, true, float64(1)} {
-				statusWant(t, f.owner, 400, "POST", f.base+"/items", map[string]any{"id": newID(), "title": "Invalid placement", "placement": value})
+				statusWant(t, f.owner, 400, "POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Invalid placement", "placement": value})
 			}
 			statusWant(t, f.owner, 400, "PATCH", workItemPath(f.space, front["id"].(string)), map[string]any{"expectedRevision": front["revision"], "title": "Must not save", "placement": "start"})
 			current := f.owner.ok("GET", workItemPath(f.space, front["id"].(string)), nil)
@@ -88,31 +87,29 @@ func TestWorkCreationPlacementReplay(t *testing.T) {
 		t.Run(provider, func(t *testing.T) {
 			f := newWorkStatusFixture(t, provider)
 			bodies := []map[string]any{}
-			for _, version := range []int{1, 2} {
-				id, title := newID(), fmt.Sprintf("Historical v%d create", version)
-				body := map[string]any{"id": id, "title": title}
-				f.owner.ok("POST", f.base+"/items", body)
-				status := ""
-				if version == 1 {
-					status = "todo"
+			ids := map[string]string{}
+			for _, explicitEnd := range []bool{false, true} {
+				body := map[string]any{"requestId": newID(), "title": fmt.Sprintf("Normalized end choice %v", explicitEnd)}
+				if explicitEnd {
+					body["placement"] = "end"
 				}
-				// Frozen pre-placement wire shape, independent of workCreateInput.
-				canonical := fmt.Sprintf(`{"id":%q,"title":%q,"projectId":null,"status":%q,"description":"","nextStep":"","result":"","needsAttention":false,"bookmarkIds":[],"documentIds":[]}`, id, title, status)
-				hash := fmt.Sprintf("%x", sha256.Sum256([]byte(canonical)))
-				if _, err := f.app.store.DB.Exec(f.app.store.Query("UPDATE work_items SET create_hash=?,create_hash_version=? WHERE id=?"), hash, version, id); err != nil {
-					t.Fatal(err)
-				}
-				// Explicit end is equivalent to the historical omitted position.
+				item := f.owner.ok("POST", f.base+"/items", body)
+				ids[body["requestId"].(string)] = item["id"].(string)
+				// Explicit end and an omitted position share one creation intent.
 				body["placement"] = "end"
-				f.owner.ok("POST", f.base+"/items", body)
+				if replay := f.owner.ok("POST", f.base+"/items", body); replay["id"] != item["id"] {
+					t.Fatal("equivalent end placement allocated another item")
+				}
 				bodies = append(bodies, body)
 			}
-			explicit := map[string]any{"id": newID(), "title": "Explicit start state", "status": "todo", "placement": "start"}
+			explicit := map[string]any{"requestId": newID(), "title": "Explicit start state", "status": "todo", "placement": "start"}
 			item := f.owner.ok("POST", f.base+"/items", explicit)
+			ids[explicit["requestId"].(string)] = item["id"].(string)
 			item = f.owner.ok("POST", workItemPath(f.space, item["id"].(string))+"/move", map[string]any{"expectedRevision": item["revision"], "expectedBoardRevision": item["boardRevision"], "status": "doing", "beforeId": nil})
 			f.owner.ok("PATCH", workItemPath(f.space, item["id"].(string)), map[string]any{"expectedRevision": item["revision"], "archived": true})
-			omitted := map[string]any{"id": newID(), "title": "Omitted start state", "placement": "start"}
-			f.owner.ok("POST", f.base+"/items", omitted)
+			omitted := map[string]any{"requestId": newID(), "title": "Omitted start state", "placement": "start"}
+			item = f.owner.ok("POST", f.base+"/items", omitted)
+			ids[omitted["requestId"].(string)] = item["id"].(string)
 			bodies = append(bodies, explicit, omitted)
 			catalog := workStatusTestCatalog(t, f.owner.ok("GET", f.base+"/statuses", nil))
 			f.owner.ok("POST", f.base+"/statuses/batch-edit", map[string]any{"expectedRevision": catalog.Revision, "defaultStatus": "doing", "deletions": []map[string]any{{"id": "todo", "moveToStatus": "waiting"}}})
@@ -120,7 +117,7 @@ func TestWorkCreationPlacementReplay(t *testing.T) {
 			before := workStatusTestRows(t, f.app.store.DB, "work_items", columns)
 			revision := f.owner.ok("GET", f.base+"/revision", nil)
 			for _, body := range bodies {
-				current := f.owner.ok("GET", workItemPath(f.space, body["id"].(string)), nil)
+				current := f.owner.ok("GET", workItemPath(f.space, ids[body["requestId"].(string)]), nil)
 				replay := f.owner.ok("POST", f.base+"/items", body)
 				if !reflect.DeepEqual(current, replay) {
 					t.Fatal("replay failed to return the current moved/archived/retired-state item")
@@ -129,8 +126,9 @@ func TestWorkCreationPlacementReplay(t *testing.T) {
 			if !reflect.DeepEqual(before, workStatusTestRows(t, f.app.store.DB, "work_items", columns)) || !reflect.DeepEqual(revision, f.owner.ok("GET", f.base+"/revision", nil)) {
 				t.Fatal("create replay repositioned or modified existing work")
 			}
-			statusWant(t, f.owner, 409, "POST", f.base+"/items", map[string]any{"id": omitted["id"], "title": omitted["title"], "placement": "end"})
-			statusWant(t, f.owner, 409, "POST", f.base+"/items", map[string]any{"id": bodies[1]["id"], "title": bodies[1]["title"], "placement": "start"})
+			statusWant(t, f.owner, 409, "POST", f.base+"/items", map[string]any{"requestId": omitted["requestId"], "title": omitted["title"], "placement": "end"})
+			statusWant(t, f.owner, 409, "POST", f.base+"/items", map[string]any{"requestId": bodies[1]["requestId"], "title": bodies[1]["title"], "placement": "start"})
+			statusWant(t, f.owner, 400, "POST", f.base+"/items", map[string]any{"id": newID(), "title": "Retired creation contract"})
 		})
 	}
 }
@@ -139,9 +137,9 @@ func TestWorkCreationPlacementConcurrent(t *testing.T) {
 	for _, provider := range []string{"sqlite", "postgres"} {
 		t.Run(provider, func(t *testing.T) {
 			f := newWorkStatusFixture(t, provider)
-			tail := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Existing tail"})
-			first := map[string]any{"id": newID(), "title": "Concurrent first", "placement": "start"}
-			second := map[string]any{"id": newID(), "title": "Concurrent second", "placement": "start"}
+			tail := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Existing tail"})
+			first := map[string]any{"requestId": newID(), "title": "Concurrent first", "placement": "start"}
+			second := map[string]any{"requestId": newID(), "title": "Concurrent second", "placement": "start"}
 			var wait sync.WaitGroup
 			start, codes := make(chan struct{}), make(chan int, 3)
 			for _, body := range []map[string]any{first, second, first} {
@@ -162,7 +160,12 @@ func TestWorkCreationPlacementConcurrent(t *testing.T) {
 				}
 			}
 			ids := workIDsFromPage(f.owner.ok("GET", f.base+"/items?status=todo", nil))
-			if len(ids) != 3 || ids[2] != tail["id"] || ids[0] == ids[1] || (ids[0] != first["id"] && ids[0] != second["id"]) || (ids[1] != first["id"] && ids[1] != second["id"]) {
+			firstIDs := workIDsFromPage(f.owner.ok("GET", f.base+"/items?requestId="+first["requestId"].(string), nil))
+			secondIDs := workIDsFromPage(f.owner.ok("GET", f.base+"/items?requestId="+second["requestId"].(string), nil))
+			if len(firstIDs) != 1 || len(secondIDs) != 1 {
+				t.Fatal("concurrent creation request did not identify exactly one item")
+			}
+			if len(ids) != 3 || ids[2] != tail["id"] || ids[0] == ids[1] || (ids[0] != firstIDs[0] && ids[0] != secondIDs[0]) || (ids[1] != firstIDs[0] && ids[1] != secondIDs[0]) {
 				t.Fatalf("concurrent start insertion lost or duplicated an item: %v", ids)
 			}
 			var ranks int
@@ -184,9 +187,9 @@ func TestWorkItemExactFilter(t *testing.T) {
 		t.Run(provider, func(t *testing.T) {
 			f := newWorkStatusFixture(t, provider)
 			project := f.owner.ok("POST", f.base+"/projects", map[string]any{"id": newID(), "name": "Located project"})
-			first := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Locate first"})
-			second := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Locate second", "projectId": project["id"], "needsAttention": true})
-			foreign := f.owner.ok("POST", "/spaces/"+f.personal+"/work/items", map[string]any{"id": newID(), "title": "Personal canary"})
+			first := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Locate first"})
+			second := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Locate second", "projectId": project["id"], "needsAttention": true})
+			foreign := f.owner.ok("POST", "/spaces/"+f.personal+"/work/items", map[string]any{"requestId": newID(), "title": "Personal canary"})
 			id := second["id"].(string)
 			if got := workIDsFromPage(f.owner.ok("GET", f.base+"/items?itemId="+id, nil)); !reflect.DeepEqual(got, []string{id}) {
 				t.Fatalf("exact list did not find the later item: %v", got)
@@ -194,13 +197,13 @@ func TestWorkItemExactFilter(t *testing.T) {
 			if got := workPlacementBoardIDs(t, f.owner.ok("GET", f.base+"/board?itemId="+id, nil)); !reflect.DeepEqual(got, []string{id}) {
 				t.Fatalf("exact board did not find the later item: %v", got)
 			}
-			for _, query := range []string{"itemId=" + newID(), "itemId=" + foreign["id"].(string), "itemId=" + id + "&q=absent", "itemId=" + id + "&projectId=none", "itemId=" + id + "&status=doing", "itemId=" + id + "&archived=true", "itemId=" + first["id"].(string) + "&attention=true"} {
+			for _, query := range []string{"itemId=zzzzz", "itemId=" + foreign["id"].(string), "itemId=" + id + "&q=absent", "itemId=" + id + "&projectId=none", "itemId=" + id + "&status=doing", "itemId=" + id + "&archived=true", "itemId=" + first["id"].(string) + "&attention=true"} {
 				if page := f.owner.ok("GET", f.base+"/items?"+query, nil); page["total"] != float64(0) || len(workIDsFromPage(page)) != 0 {
 					t.Fatalf("exact item filter bypassed another filter: %s", query)
 				}
 			}
-			statusWant(t, f.owner, 400, "GET", f.base+"/items?itemId=invalid", nil)
-			statusWant(t, f.owner, 400, "GET", f.base+"/board?itemId=invalid", nil)
+			statusWant(t, f.owner, 400, "GET", f.base+"/items?itemId=invalid!", nil)
+			statusWant(t, f.owner, 400, "GET", f.base+"/board?itemId=invalid!", nil)
 			page := f.owner.ok("GET", f.base+"/items?status=todo&limit=1", nil)
 			cursor := page["nextCursor"].(string)
 			statusWant(t, f.owner, 400, "GET", f.base+"/items?status=todo&limit=1&itemId="+id+"&cursor="+url.QueryEscape(cursor), nil)
@@ -248,9 +251,10 @@ func TestWorkItemExactFilter(t *testing.T) {
 			anonymous := newCoreBrowser(t, f.owner.base)
 			anonymous.bootstrap()
 			statusWant(t, anonymous, 401, "GET", f.base+"/board?itemId="+id, nil)
-			createdID := newID()
-			receipt := caller.tool(write, "work_items_create", map[string]any{"input": map[string]any{"id": createdID, "title": "MCP first", "placement": "start"}}, "")
-			if receipt["id"] != createdID || receipt["created"] != true || receipt["title"] != nil || len(receipt) != 4 {
+			requestID := newID()
+			receipt := caller.tool(write, "work_items_create", map[string]any{"input": map[string]any{"requestId": requestID, "title": "MCP first", "placement": "start"}}, "")
+			createdID, ok := receipt["id"].(string)
+			if !ok || !workItemRefValid(createdID) || receipt["created"] != true || receipt["title"] != nil || len(receipt) != 4 {
 				t.Fatalf("placement changed the write-only receipt boundary: %v", receipt)
 			}
 			if got := workIDsFromPage(f.owner.ok("GET", f.base+"/items?status=todo&limit=1", nil)); !reflect.DeepEqual(got, []string{createdID}) {

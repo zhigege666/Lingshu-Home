@@ -42,7 +42,7 @@ func decodeWorkTemplatePatch(raw json.RawMessage, previous WorkScheduleTemplate)
 	return value, nil
 }
 func (a *App) normalizeWorkTemplate(r *Request, spaceID string, value *WorkScheduleTemplate, previous *WorkScheduleTemplate) error {
-	in := value.workInput("")
+	in := value.workInput()
 	if err := validateWorkText(&in); err != nil {
 		return err
 	}

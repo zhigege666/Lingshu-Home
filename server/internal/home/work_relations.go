@@ -4,12 +4,10 @@ import (
 	"encoding/json"
 	"reflect"
 	"sort"
-	"strconv"
 )
 
 type WorkItemLink struct {
 	ID         string `json:"id"`
-	Key        string `json:"key"`
 	Title      string `json:"title"`
 	Status     string `json:"status"`
 	StatusType string `json:"statusType"`
@@ -34,19 +32,15 @@ func (a *App) workItemLinks(r *Request, space string, ids []string) (map[string]
 	}
 	slots, args := workPlaceholders(ids)
 	args = append([]any{space}, args...)
-	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT w.id,w.number,w.title,w.status,s.status_type,w.archived FROM work_items w JOIN work_statuses s ON s.space_id=w.space_id AND s.id=w.status WHERE w.space_id=? AND w.id IN ("+slots+")"), args...)
+	rows, err := r.Q.QueryContext(r.HTTP.Context(), a.store.Query("SELECT w.id,w.title,w.status,s.status_type,w.archived FROM work_items w JOIN work_statuses s ON s.space_id=w.space_id AND s.id=w.status WHERE w.space_id=? AND w.id IN ("+slots+")"), args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		v := &WorkItemLink{}
-		var number int64
-		if err = rows.Scan(&v.ID, &number, &v.Title, &v.Status, &v.StatusType, &v.Archived); err != nil {
+		if err = rows.Scan(&v.ID, &v.Title, &v.Status, &v.StatusType, &v.Archived); err != nil {
 			return nil, err
-		}
-		if number > 0 {
-			v.Key = "W-" + strconv.FormatInt(number, 10)
 		}
 		result[v.ID] = v
 	}
@@ -220,14 +214,12 @@ func (a *App) updateWorkRelationsValue(r *Request) (*Response, error) {
 		refs = append(refs, &blocked[i])
 	}
 	for _, ref := range refs {
-		id, err := a.resolveWorkItemRef(r, s.ID, *ref)
-		if err != nil {
-			return nil, err
+		if !workItemRefValid(*ref) {
+			return nil, missing()
 		}
-		if id == item.ID {
+		if *ref == item.ID {
 			return nil, workConflict("work_relation_cycle", "An item cannot refer to itself.", item.Revision)
 		}
-		*ref = id
 	}
 	targets := []string{}
 	seen := map[string]bool{}

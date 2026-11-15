@@ -36,19 +36,19 @@ func TestWorkPlanningMetadataHTTPMCP(t *testing.T) {
 			project := f.owner.ok("POST", b+"/projects", map[string]any{"id": newID(), "name": "Primary"})
 			other := f.owner.ok("POST", b+"/projects", map[string]any{"id": newID(), "name": "Other"})
 			version := f.owner.ok("POST", b+"/versions", map[string]any{"id": newID(), "name": "v-next", "projectId": project["id"], "targetDate": "2026-12-01"})
-			body := map[string]any{"id": newID(), "title": "Plan release", "projectId": project["id"], "priority": "high", "labelIds": []any{second["id"], label["id"]}, "versionId": version["id"], "assignee": map[string]any{"name": "Release lead"}}
+			body := map[string]any{"requestId": newID(), "title": "Plan release", "projectId": project["id"], "priority": "high", "labelIds": []any{second["id"], label["id"]}, "versionId": version["id"], "assignee": map[string]any{"name": "Release lead"}}
 			item := f.owner.ok("POST", b+"/items", body)
 			id := item["id"].(string)
-			if item["number"] != float64(1) || item["key"] != "W-1" || len(item["labels"].([]any)) != 2 || item["version"].(map[string]any)["name"] != "v-next" {
+			if item["number"] != nil || item["key"] != nil || item["id"] != "00001" || len(item["labels"].([]any)) != 2 || item["version"].(map[string]any)["name"] != "v-next" {
 				t.Fatal("planning data missing", item)
 			}
-			if replay := f.owner.ok("POST", b+"/items", body); replay["key"] != item["key"] {
+			if replay := f.owner.ok("POST", b+"/items", body); replay["id"] != item["id"] {
 				t.Fatal("replay allocated another number")
 			}
-			if got := f.owner.ok("GET", b+"/items/W-1", nil); got["id"] != id {
-				t.Fatal("short reference did not resolve canonical ID")
+			if got := f.owner.ok("GET", b+"/items/"+id, nil); got["id"] != id {
+				t.Fatal("short item ID did not resolve")
 			}
-			if got := f.owner.ok("GET", b+"/items?itemId=W-1&priority=high&labelIds="+label["id"].(string)+"&labelIds="+second["id"].(string), nil); got["total"] != float64(1) {
+			if got := f.owner.ok("GET", b+"/items?itemId="+id+"&priority=high&labelIds="+label["id"].(string)+"&labelIds="+second["id"].(string), nil); got["total"] != float64(1) {
 				t.Fatal("planning filter intersection", got)
 			}
 			statusWant(t, f.owner, 409, "PATCH", workItemPath(f.space, id), map[string]any{"expectedRevision": item["revision"], "projectId": other["id"]})
@@ -58,7 +58,7 @@ func TestWorkPlanningMetadataHTTPMCP(t *testing.T) {
 			if len(item["labelIds"].([]any)) != 2 {
 				t.Fatal("omission cleared labels")
 			}
-			statusWant(t, f.owner, 409, "POST", b+"/items", map[string]any{"id": newID(), "title": "Cannot newly assign archived label", "labelIds": []any{label["id"]}})
+			statusWant(t, f.owner, 409, "POST", b+"/items", map[string]any{"requestId": newID(), "title": "Cannot newly assign archived label", "labelIds": []any{label["id"]}})
 			item = planningPatch(f, item, map[string]any{"priority": "", "labelIds": []any{}, "assignee": nil, "versionId": nil, "projectId": other["id"]})
 			for _, field := range []string{"priority", "labelIds", "assignee", "versionId"} {
 				if item[field] != nil {
@@ -71,7 +71,7 @@ func TestWorkPlanningMetadataHTTPMCP(t *testing.T) {
 				t.Fatal("batch catalog IDs", batch)
 			}
 			foreign := f.owner.ok("POST", "/spaces/"+f.personal+"/work/labels", map[string]any{"id": newID(), "name": "Private label"})
-			statusWant(t, f.owner, 404, "POST", b+"/items", map[string]any{"id": newID(), "title": "Cross-space label", "labelIds": []any{foreign["id"]}})
+			statusWant(t, f.owner, 404, "POST", b+"/items", map[string]any{"requestId": newID(), "title": "Cross-space label", "labelIds": []any{foreign["id"]}})
 			auth := &integrationTestBrowser{t: t, base: f.owner.base, client: f.owner.client, csrf: f.owner.csrf}
 			caller := integrationBrowser(t, f.owner.base)
 			read, _ := auth.token(f.space, "", "work:read")
@@ -83,7 +83,9 @@ func TestWorkPlanningMetadataHTTPMCP(t *testing.T) {
 				t.Fatal("write-only metadata leaked", receipt)
 			}
 			caller.tool(write, "work_labels_list", map[string]any{}, "forbidden")
-			caller.tool(both, "work_items_get", map[string]any{"id": "W-1"}, "")
+			caller.tool(both, "work_items_get", map[string]any{"id": id}, "")
+			statusWant(t, f.owner, 404, "GET", b+"/items/W-1", nil)
+			statusWant(t, f.owner, 404, "GET", b+"/items/"+newID(), nil)
 			caller.tool(read, "work_labels_list", map[string]any{"spaceId": f.personal}, "not_found")
 			source := auth.source(f.space, "Planning scope")
 			sourceToken, sourceID := auth.token(f.space, "", "work:read", "work:write")
@@ -117,11 +119,11 @@ func TestWorkPlanningRelationsViewsCalendarWIP(t *testing.T) {
 			f := newWorkStatusFixture(t, provider)
 			b := f.base
 			makeItem := func(title string) map[string]any {
-				return f.owner.ok("POST", b+"/items", map[string]any{"id": newID(), "title": title, "businessDate": "2026-03-08", "dueAt": "2026-03-08T07:30:00Z"})
+				return f.owner.ok("POST", b+"/items", map[string]any{"requestId": newID(), "title": title, "businessDate": "2026-03-08", "dueAt": "2026-03-08T07:30:00Z"})
 			}
 			parent, child, blocker := makeItem("Parent"), makeItem("Child"), makeItem("Blocker")
 			path := workItemPath(f.space, child["id"].(string))
-			child = f.owner.ok("PATCH", path+"/relations", map[string]any{"expectedRevision": child["revision"], "parentId": parent["key"], "blockedByIds": []any{blocker["key"]}, "predecessorId": parent["id"]})
+			child = f.owner.ok("PATCH", path+"/relations", map[string]any{"expectedRevision": child["revision"], "parentId": parent["id"], "blockedByIds": []any{blocker["id"]}, "predecessorId": parent["id"]})
 			rel := f.owner.ok("GET", path+"/relations", nil)
 			if rel["blockedCount"] != float64(1) || rel["isBlocked"] != true || rel["parent"].(map[string]any)["id"] != parent["id"] {
 				t.Fatal("relation details", rel)
@@ -168,7 +170,7 @@ func TestWorkPlanningRelationsViewsCalendarWIP(t *testing.T) {
 				t.Fatal("calendar page duplicated item")
 			}
 			statusWant(t, f.owner, 400, "GET", strings.Replace(calPath, "to=2026-03-10", "to=2026-03-11", 1)+"&cursor="+url.QueryEscape(cal["nextCursor"].(string)), nil)
-			definition := map[string]any{"layout": "calendar", "calendarBasis": "dueAt", "filters": map[string]any{"priority": "high", "assigneeUserId": "me"}, "fields": []string{"key", "relations"}}
+			definition := map[string]any{"layout": "calendar", "calendarBasis": "dueAt", "filters": map[string]any{"priority": "high", "assigneeUserId": "me"}, "fields": []string{"id", "relations"}}
 			privateBody := map[string]any{"id": newID(), "name": "My calendar", "definition": definition}
 			view := f.owner.ok("POST", b+"/views", privateBody)
 			if view["visibility"] != "private" || view["canEdit"] != true {
@@ -235,7 +237,7 @@ func TestWorkPlanningMetricsNoticesAndRestart(t *testing.T) {
 			f := newWorkStatusFixture(t, provider)
 			b := f.base
 			create := func(title, status string) map[string]any {
-				return f.owner.ok("POST", b+"/items", map[string]any{"id": newID(), "title": title, "status": status})
+				return f.owner.ok("POST", b+"/items", map[string]any{"requestId": newID(), "title": title, "status": status})
 			}
 			observed := create("Observed cycle", "doing")
 			var start string
@@ -329,7 +331,7 @@ func TestWorkPlanningMetricsNoticesAndRestart(t *testing.T) {
 			if err := f.app.store.DB.QueryRow(f.app.store.Query("SELECT COUNT(*) FROM work_notices WHERE user_id=?"), member["id"]).Scan(&memberNotices); err != nil || memberNotices != 0 {
 				t.Fatal("unauthorized assignee received a notice", err)
 			}
-			view := f.owner.ok("POST", b+"/views", map[string]any{"id": newID(), "name": "Persistent", "definition": map[string]any{"layout": "list", "filters": map[string]any{}, "fields": []string{"key"}}})
+			view := f.owner.ok("POST", b+"/views", map[string]any{"id": newID(), "name": "Persistent", "definition": map[string]any{"layout": "list", "filters": map[string]any{}, "fields": []string{"id"}}})
 			configuration := f.app.config
 			if err := f.app.Close(); err != nil {
 				t.Fatal(err)
@@ -351,7 +353,7 @@ func TestWorkPlanningMetricsNoticesAndRestart(t *testing.T) {
 			if got := browser.ok("GET", b+"/views?id="+view["id"].(string), nil); got["total"] != float64(1) {
 				t.Fatal("saved view lost across restart")
 			}
-			if got := browser.ok("GET", b+"/items/W-1", nil); got["id"] != observed["id"] {
+			if got := browser.ok("GET", b+"/items/"+observed["id"].(string), nil); got["id"] != observed["id"] {
 				t.Fatal("short ID changed across restart")
 			}
 		})
@@ -388,7 +390,7 @@ func TestWorkPlanningAtomicityAndTemplateReuse(t *testing.T) {
 				t.Fatal("template edit rewrote generated work")
 			}
 			var next int64
-			if err := f.app.store.DB.QueryRow(f.app.store.Query("SELECT next_number FROM work_spaces WHERE space_id=?"), f.space).Scan(&next); err != nil {
+			if err := f.app.store.DB.QueryRow("SELECT next_number FROM work_item_sequence WHERE id=1").Scan(&next); err != nil {
 				t.Fatal(err)
 			}
 			trigger := "CREATE TRIGGER fail_planning_activity BEFORE INSERT ON work_activity BEGIN SELECT RAISE(ABORT,'intentional planning rollback'); END"
@@ -398,14 +400,14 @@ func TestWorkPlanningAtomicityAndTemplateReuse(t *testing.T) {
 			if _, err := f.app.store.DB.Exec(trigger); err != nil {
 				t.Fatal(err)
 			}
-			input := map[string]any{"id": newID(), "title": "Atomic allocation", "labelIds": []any{label["id"]}, "status": "doing"}
+			input := map[string]any{"requestId": newID(), "title": "Atomic allocation", "labelIds": []any{label["id"]}, "status": "doing"}
 			statusWant(t, f.owner, 500, "POST", b+"/items", input)
 			var after int64
 			var count int
-			if err := f.app.store.DB.QueryRow(f.app.store.Query("SELECT next_number FROM work_spaces WHERE space_id=?"), f.space).Scan(&after); err != nil {
+			if err := f.app.store.DB.QueryRow("SELECT next_number FROM work_item_sequence WHERE id=1").Scan(&after); err != nil {
 				t.Fatal(err)
 			}
-			if err := f.app.store.DB.QueryRow(f.app.store.Query("SELECT COUNT(*) FROM work_item_labels WHERE item_id=?"), input["id"]).Scan(&count); err != nil {
+			if err := f.app.store.DB.QueryRow(f.app.store.Query("SELECT COUNT(*) FROM work_item_labels WHERE item_id=?"), formatWorkItemID(next)).Scan(&count); err != nil {
 				t.Fatal(err)
 			}
 			if next != after || count != 0 {
@@ -419,7 +421,7 @@ func TestWorkPlanningAtomicityAndTemplateReuse(t *testing.T) {
 				t.Fatal(err)
 			}
 			created := f.owner.ok("POST", b+"/items", input)
-			if created["number"] != float64(next) {
+			if created["id"] != formatWorkItemID(next) {
 				t.Fatal("rollback consumed or reused an unrelated number", created)
 			}
 		})

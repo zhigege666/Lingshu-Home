@@ -57,16 +57,15 @@ func (a *App) registerIntegrationRoutes() {
 			if field == "spaceId" {
 				property["description"] = "Optional. Defaults to the authenticated token's space."
 			} else {
-				if field == "id" && strings.HasPrefix(tool.name, "work_items_") {
-					property["description"] = "Existing item ID from work_board_get, work_items_list, work_items_get or its creation receipt. Reuse the known ID; no preliminary lookup is required."
+				if field == "id" && (strings.HasPrefix(tool.name, "work_items_") || strings.HasPrefix(tool.name, "work_claims_") || strings.HasPrefix(tool.name, "work_events_") || strings.HasPrefix(tool.name, "work_relations_")) {
+					for key, value := range workMCPItemRef() {
+						property[key] = value
+					}
 				} else if field == "id" && strings.HasPrefix(tool.name, "work_projects_") {
 					property["description"] = "Existing project ID from work_projects_list or its creation receipt. Do not use the display name."
 				} else if field == "id" && strings.HasPrefix(tool.name, "work_sessions_") {
 					property["pattern"] = "^[0-9a-f]{32}$"
 					property["description"] = "Own Home application session ID returned by work_sessions_open, not a gateway transport session. Authorization is checked again on each call."
-				} else if field == "id" && (strings.HasPrefix(tool.name, "work_claims_") || strings.HasPrefix(tool.name, "work_events_")) {
-					property["pattern"] = "^[0-9a-f]{32}$"
-					property["description"] = "Existing item ID from work_items_get, board/list or its creation receipt; session and claim IDs belong inside input."
 				}
 				required = append(required, field)
 			}

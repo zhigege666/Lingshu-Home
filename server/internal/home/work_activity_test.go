@@ -37,7 +37,7 @@ func TestWorkActivityLifecycleAndPagination(t *testing.T) {
 	for _, provider := range []string{"sqlite", "postgres"} {
 		t.Run(provider, func(t *testing.T) {
 			f := newWorkStatusFixture(t, provider)
-			payload := map[string]any{"id": newID(), "title": "Title must not be copied to history", "description": "Body must not be copied to history"}
+			payload := map[string]any{"requestId": newID(), "title": "Title must not be copied to history", "description": "Body must not be copied to history"}
 			item := f.owner.ok("POST", f.base+"/items", payload)
 			path := workItemPath(f.space, item["id"].(string))
 			read := func() WorkActivityPage {
@@ -59,7 +59,7 @@ func TestWorkActivityLifecycleAndPagination(t *testing.T) {
 			if replay["revision"] != item["revision"] || noop["revision"] != item["revision"] || noop["updatedAt"] != item["updatedAt"] || noop["boardRevision"] != item["boardRevision"] || len(read().Items) != 1 {
 				t.Fatal("replay/no-op advanced time, revisions or history")
 			}
-			other := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Successor"})
+			other := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Successor"})
 			move := func(current map[string]any, before any) map[string]any {
 				board := f.owner.ok("GET", f.base+"/revision", nil)
 				return f.owner.ok("POST", path+"/move", map[string]any{"expectedRevision": current["revision"], "expectedBoardRevision": board["revision"], "status": current["status"], "beforeId": before})
@@ -143,7 +143,7 @@ func TestWorkActivityPermissionsAndMCP(t *testing.T) {
 			docs.source(t, f.space, "notes", false, map[string]string{"private-path.md": "# Private document canary\nNever copy this body\n"})
 			document := documentByPath(t, f.owner, f.space, "private-path.md")
 			link := f.owner.ok("POST", "/spaces/"+f.space+"/links", coreLink("Private bookmark canary", "https://example.com/private-canary"))
-			item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Scoped history", "bookmarkIds": []string{link["id"].(string)}, "documentIds": []string{document["id"].(string)}})
+			item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Scoped history", "bookmarkIds": []string{link["id"].(string)}, "documentIds": []string{document["id"].(string)}})
 			id, path := item["id"].(string), workItemPath(f.space, item["id"].(string))
 			auth := &integrationTestBrowser{t: t, base: f.owner.base, client: f.owner.client, csrf: f.owner.csrf}
 			caller := integrationBrowser(t, f.owner.base)
@@ -175,7 +175,7 @@ func TestWorkActivityPermissionsAndMCP(t *testing.T) {
 			anonymous := newCoreBrowser(t, f.owner.base)
 			anonymous.bootstrap()
 			statusWant(t, anonymous, 401, "GET", path+"/activity", nil)
-			foreign := f.owner.ok("POST", "/spaces/"+f.personal+"/work/items", map[string]any{"id": newID(), "title": "Personal canary"})
+			foreign := f.owner.ok("POST", "/spaces/"+f.personal+"/work/items", map[string]any{"requestId": newID(), "title": "Personal canary"})
 			caller.object("GET", "/api/v1"+workItemPath(f.space, foreign["id"].(string))+"/activity", nil, 404, read)
 			current := f.owner.ok("GET", path, nil)
 			caller.object("PATCH", "/api/v1"+path, map[string]any{"expectedRevision": current["revision"], "nextStep": "Direct bearer API"}, 200, full)
@@ -200,8 +200,8 @@ func TestWorkActivityBulkChangesAndAtomicity(t *testing.T) {
 			catalog := f.owner.ok("GET", f.base+"/statuses", nil)
 			custom := newID()
 			catalog = f.owner.ok("POST", f.base+"/statuses/batch-edit", map[string]any{"expectedRevision": catalog["revision"], "create": []map[string]any{{"id": custom, "name": "Custom original", "type": "todo"}}})
-			active := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Active", "status": custom})
-			archived := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Archived", "status": custom})
+			active := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Active", "status": custom})
+			archived := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Archived", "status": custom})
 			archived = f.owner.ok("PATCH", workItemPath(f.space, archived["id"].(string)), map[string]any{"expectedRevision": archived["revision"], "archived": true})
 			read := func(id string) WorkActivityPage {
 				return workActivityTestPage(t, f.owner.ok("GET", workItemPath(f.space, id)+"/activity?limit=100", nil))
@@ -234,7 +234,7 @@ func TestWorkActivityBulkChangesAndAtomicity(t *testing.T) {
 					link := f.owner.ok("POST", "/spaces/"+f.space+"/links", coreLink("Reference", "https://example.com/"+newID()))
 					links = append(links, link["id"].(string))
 				}
-				item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Delete references", "bookmarkIds": links})
+				item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Delete references", "bookmarkIds": links})
 				path := "/spaces/" + f.space
 				switch operation {
 				case "single":

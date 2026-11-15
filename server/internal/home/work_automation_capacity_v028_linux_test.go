@@ -23,9 +23,10 @@ func workAutomationPerfSeedBoard(t *testing.T, app *App, provider, space string)
 		t.Fatal(err)
 	}
 	stamp := workStamp()
+	firstID := reserveWorkTestIDs(t, app.store, tx, 1000)
 	for i := 0; i < 1000; i++ {
 		_, err = tx.Exec(app.store.Query("INSERT INTO work_items(id,space_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?)"),
-			newID(), space, fmt.Sprintf("Ordinary automation load %04d", i), strings.Repeat("Description ", 30), "Continue with evidence", "", workStatuses[i%4], false, false, int64(i/4+1)*workRankStep, stamp, stamp, "automation-capacity-fixture")
+			formatWorkItemID(firstID+int64(i)), space, fmt.Sprintf("Ordinary automation load %04d", i), strings.Repeat("Description ", 30), "Continue with evidence", "", workStatuses[i%4], false, false, int64(i/4+1)*workRankStep, stamp, stamp, "automation-capacity-fixture")
 		if err != nil {
 			tx.Rollback()
 			t.Fatal(err)

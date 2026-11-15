@@ -42,9 +42,10 @@ func TestWorkCapacityPerformance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			firstID := reserveWorkTestIDs(t, app.store, tx, 10000)
 			for i := 0; i < 10000; i++ {
 				_, err = tx.Exec(app.store.Query("INSERT INTO work_items(id,space_id,title,description,next_step,result,status,needs_attention,archived,sort_order,revision,created_at,updated_at,create_hash) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?)"),
-					fmt.Sprintf("%032x", i+1), space, fmt.Sprintf("Capacity item %05d", i), strings.Repeat("Description ", 30), "Continue with evidence", strings.Repeat("Result ", 20), workStatuses[i%4], i%11 == 0, false, int64(i/4+1)*workRankStep, stamp, stamp, "capacity-fixture")
+					formatWorkItemID(firstID+int64(i)), space, fmt.Sprintf("Capacity item %05d", i), strings.Repeat("Description ", 30), "Continue with evidence", strings.Repeat("Result ", 20), workStatuses[i%4], i%11 == 0, false, int64(i/4+1)*workRankStep, stamp, stamp, "capacity-fixture")
 				if err != nil {
 					tx.Rollback()
 					t.Fatal(err)
@@ -110,7 +111,7 @@ func TestWorkCapacityPerformance(t *testing.T) {
 								if i%5 == 0 {
 									method = "POST"
 									path = base + "/items"
-									body, _ = json.Marshal(map[string]any{"id": newID(), "title": fmt.Sprintf("Capacity created %d", i), "nextStep": "Check result"})
+									body, _ = json.Marshal(map[string]any{"requestId": newID(), "title": fmt.Sprintf("Capacity created %d", i), "nextStep": "Check result"})
 								} else if i%2 == 0 {
 									path = base + "/items?limit=30"
 								}

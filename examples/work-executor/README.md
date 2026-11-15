@@ -56,7 +56,7 @@ Require Authorization: Bearer TOKEN, Content-Type: application/json, Idempotency
 ~~~json
 {
   "id":"0123456789abcdef0123456789abcdef",
-  "item":{"id":"fedcba9876543210fedcba9876543210","title":"Read this snapshot"},
+  "item":{"id":"0000a","title":"Read this snapshot"},
   "event":{"kind":"item.created"}
 }
 ~~~

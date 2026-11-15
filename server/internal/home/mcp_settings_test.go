@@ -217,12 +217,12 @@ func TestMCPSettingsRuntimeContextAndClaimCleanup(t *testing.T) {
 			checkContext(false, false)
 			mcpSettingsTestSave(t, f.owner, true, false)
 			checkContext(true, false)
-			agent.tool(token, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Guidance does not require a claim"}}, "")
+			agent.tool(token, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Guidance does not require a claim"}}, "")
 			mcpSettingsTestSave(t, f.owner, false, true)
 			checkContext(false, true)
-			collaborationMCPCall(t, agent, token, "work_items_create", map[string]any{"input": map[string]any{"id": newID(), "title": "Cannot bypass enabled coordination"}}, true)
+			collaborationMCPCall(t, agent, token, "work_items_create", map[string]any{"input": map[string]any{"requestId": newID(), "title": "Cannot bypass enabled coordination"}}, true)
 			session := agent.tool(token, "work_sessions_open", map[string]any{"input": map[string]any{"registrationId": newID(), "agentName": "Settings fixture"}}, "")
-			item := f.owner.ok("POST", f.base+"/items", map[string]any{"id": newID(), "title": "Keep claim during disable"})
+			item := f.owner.ok("POST", f.base+"/items", map[string]any{"requestId": newID(), "title": "Keep claim during disable"})
 			itemPath := workItemPath(f.space, item["id"].(string))
 			claim := agent.tool(token, "work_claims_acquire", map[string]any{"id": item["id"], "input": map[string]any{"sessionId": session["id"], "operationId": newID(), "expectedRevision": item["revision"], "expectedGeneration": "0"}}, "")
 			beforeOffRevision := f.owner.ok("GET", f.base+"/revision", nil)
@@ -378,7 +378,7 @@ func TestMCPSettingsMigrationPreservesAndRollsBack(t *testing.T) {
 				for table, row := range before {
 					before[table] = workStatusTestRows(t, db, table, row.columns)
 				}
-				err = store.migrate(context.Background())
+				err = applyHistoricalWorkMigration(context.Background(), store, "019_mcp_settings.sql")
 				if rollback {
 					if err == nil {
 						t.Fatal("injected late migration failure succeeded")
@@ -412,12 +412,12 @@ func TestMCPSettingsMigrationPreservesAndRollsBack(t *testing.T) {
 				for table, row := range migrated {
 					migrated[table] = workStatusTestRows(t, db, table, row.columns)
 				}
-				if err = store.migrate(context.Background()); err != nil {
-					t.Fatal("second startup failed", err)
+				if err = applyHistoricalWorkMigration(context.Background(), store, "019_mcp_settings.sql"); err != nil {
+					t.Fatal("reapplying the historical migration failed", err)
 				}
 				for table, row := range migrated {
 					if !reflect.DeepEqual(row, workStatusTestRows(t, db, table, row.columns)) {
-						t.Fatalf("second startup changed %s", table)
+						t.Fatalf("reapplying the historical migration changed %s", table)
 					}
 				}
 			})

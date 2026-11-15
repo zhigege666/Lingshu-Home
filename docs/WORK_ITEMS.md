@@ -1,5 +1,11 @@
 # 事项看板
 
+## 卡片编号（当前开发版本，未发布）
+
+`id` 是卡片的唯一标识：全实例共用的小写 36 进制序号，从 `00001` 开始、至少五位，`00000` 保留，超过 `zzzzz` 后自然变为六位。编号创建后不变，归档／恢复不换号，已提交编号不复用。页面、链接、查询、MCP 返回及关联引用统一使用它；旧长编码和 `W-n` 停用，响应不再返回 `number/key`。
+
+迁移 **023** 在同一事务中转换已有卡片及结构化关联并保留实际列内顺序。它不改变项目、空间、状态、会话、认领和外部执行等其他资源的标识。升级后的旧卡片链接无效，需协调 Agent／客户端更新；详细备份、未知执行和回退要求见[存储契约](STORAGE.md#short-card-id-migration-023-unreleased)。
+
 事项看板自 0.1.0 提供，使用当前空间保存项目、事项与资料关联。项目用于归类；事项表示一件可以结束的工作。详细方案与报告仍保存在现有 Markdown 原文件中。
 
 ## 1. 用户体验
@@ -48,7 +54,7 @@
 | `GET /items` | 事项摘要列表及状态元数据，可按稳定状态键筛选 |
 | `GET /items/{id}` | 事项详情、`statusDefinition` 及当前调用者可见的关联资料 |
 | `GET /items/{id}/activity` | 该事项真实变更记录，默认 20 条、最大 100 条，游标分页 |
-| `POST /items` | 使用客户端稳定 ID 创建事项 |
+| `POST /items` | 使用稳定 `requestId` 创建事项，服务端返回短编号 `id` |
 | `PATCH /items/{id}` | 带事项版本的局部修改；归档和恢复也使用此接口 |
 | `POST /items/{id}/move` | 带事项版本和看板版本移动卡片 |
 | `GET /projects` | 当前空间的项目，包含归档项目 |
@@ -111,7 +117,7 @@ HTTP 详情可选 `?activityLimit=20&activityCursor=...`，MCP `work_items_get` 
 
 ### 查询与分页
 
-`GET /board` 和 `GET /items` 支持 `q`、`itemId`、`projectId`、`archived`、`attention`、`limit`，以及 `date=today|overdue`、`timezone` 和精确 `businessDate`；`archived` 默认 `false`，`attention=true` 筛选“待我处理”；省略或 `false` 不限制该标记。`projectId=none` 筛选未归类事项，省略或空值表示全部项目。`q` 最多 200 个字符，搜索标题、下一步、说明与结果。`itemId` 为可选的 32 位小写十六进制事项 ID，和空间及所有其他条件取交集；不存在或其他空间的 ID 返回空结果。它用于明确定位，不改变事项排序。`GET /items` 额外支持 `status` 和 `cursor`。`limit` 默认 30，最大 100；在看板中是每列的上限。
+`GET /board` 和 `GET /items` 支持 `q`、`itemId`、`requestId`、`projectId`、`archived`、`attention`、`limit`，以及 `date=today|overdue`、`timezone` 和精确 `businessDate`；`archived` 默认 `false`；按 `requestId` 恢复创建时若未显式指定归档条件，则同时检索普通与归档事项，`attention=true` 筛选“待我处理”；省略或 `false` 不限制该标记。`projectId=none` 筛选未归类事项，省略或空值表示全部项目。`q` 最多 200 个字符，同时精确匹配短编号并搜索标题、下一步、说明与结果。`itemId` 为可选的规范短编号，和空间及所有其他条件取交集；不存在或其他空间的 ID 返回空结果。它用于明确定位，不改变事项排序。`GET /items` 额外支持 `status` 和 `cursor`。`limit` 默认 30，最大 100；在看板中是每列的上限。
 
 ```text
 GET /board
@@ -169,7 +175,7 @@ GET /items
 
 ```json
 {
-  "id": "<new-32-lowercase-hex-id>",
+  "requestId": "home-task-create-01",
   "title": "整理部署验证结果",
   "projectId": null,
   "status": "todo",
@@ -182,13 +188,15 @@ GET /items
 }
 ```
 
-把示例 ID 替换为客户端新生成的 32 位小写十六进制 ID。每件新事项使用新 ID；同一次创建在未知响应恢复时保留原 ID。
+`requestId` 为客户端为这次创建选定的稳定请求键，允许 1–80 位 ASCII 字母、数字、`._:-`。服务端分配卡片短编号；输入 `id` 会被拒绝。每次真正的新建使用新请求键，响应未知时保留原键与原请求体；请求键不会作为卡片标识返回。
 
 标题必填，最多 160 个字符；说明与结果各最多 4,000 个字符，下一步最多 1,000 个字符。省略状态时使用当前目录的 `defaultStatus`，省略 `needsAttention` 时使用 `false`。显式状态必须是目录中的有效键；示例中的内置键同样需要仍然有效。每类关联最多 20 个，ID 必须唯一且属于当前空间。创建项目接受 `{id,name}`，名称必填且最多 80 个字符。
 
-同 ID、相同规范化创建内容不会重复插入；同 ID、不同创建内容返回 `409 work_id_conflict`。重复创建返回当前项或当前操作回执，不把后续编辑恢复成最初创建值。新的创建请求在解析可变默认状态前记录原始意图；默认状态随后改变，或原状态已经合并退役，不会让已成功的同 ID、同请求重放创建第二条事项。升级前创建记录保留原有哈希解释规则。响应未知时保留原 ID 和原请求体，不生成替代 ID。
+同一账号、空间和 `requestId` 的相同规范化创建内容不会重复插入；改变内容返回 `409 work_request_conflict`。重放返回当前事项或操作回执，不恢复原始字段，也不再次分配编号。默认状态随后改变、旧状态退役或事项被归档，都不使原请求创建第二张卡片。
 
-创建可选 `placement:"start"|"end"`：`start` 插入完整活动状态列的首位，包括当前筛选隐藏或尚未加载的事项；已有事项保留相对顺序。省略或 `end` 沿用尾插及旧创建哈希，显式空串、`null` 或非法值被拒绝。网页新建使用 `start`。成功创建的重放不会重新定位事项，即使它已移动或归档。该字段仅供创建，PATCH 不接受；之后调整位置使用 `/move`。
+响应未知先用 `GET /items?requestId=原键`（MCP 为 `work_items_list.input.requestId`）取得短编号，再读取详情比较；该精确查询限定当前用户和空间，默认包括归档记录。只写令牌没有回读权限，须保留原键与原输入，允许精确重复创建请求。网页在未确认时保留本次提交内容，不能更换键重复新建。
+
+创建可选 `placement:"start"|"end"`：`start` 插入完整活动状态列的首位，包括当前筛选隐藏或尚未加载的事项；已有事项保留相对顺序。省略或 `end` 使用相同尾插语义及规范化创建摘要，显式空串、`null` 或非法值被拒绝。网页新建使用 `start`。成功创建的重放不会重新定位事项，即使它已移动或归档。该字段仅供创建，PATCH 不接受；之后调整位置使用 `/move`。
 
 局部更新必须提交所读事项的 `expectedRevision`，以及至少一个修改字段：
 
@@ -227,7 +235,8 @@ GET /items
 | `409 work_version_conflict` | 看板版本或分页快照变化，刷新相关视图 |
 | `409 work_item_version_conflict` | 同一事项已改变，保留草稿并比较最新内容 |
 | `409 work_project_version_conflict` | 项目已改变，重新读取后决定如何修改 |
-| `409 work_id_conflict` | ID 已被另一创建请求占用，不能覆盖 |
+| `409 work_request_conflict` | 本次创建请求键已用于不同内容，保留原键与原意图核对 |
+| `409 work_id_conflict` | 项目等非卡片资源的 ID 被不同创建请求占用，不能覆盖 |
 | `409 work_project_name_conflict` | 项目重名，检索并复用现有或归档项目 |
 | `409 work_project_archived` | 新增或改关联到归档项目，先恢复项目 |
 | `409 work_move_target_conflict` | 移动锚点已不在目标列，刷新看板后选择 |
@@ -280,10 +289,10 @@ GET /items
 
 ### 任务轮次与交付边界
 
-0.2.8 的 `space_current.workflow.version` 为 `"3"`，新增执行结果核验与恢复指导，并延续 0.2.3（v2）引入的任务边界。启用工作流后，指南明确以下边界；`work_items_list`、`work_items_create`、`work_items_update` 工具说明前部也包含边界及 `space_current` 入口，便于按需发现：
+当前未发布短编号契约的 `space_current.workflow.version` 为 `"4"`，要求使用短编号＋标题汇报，并明确 `requestId` 创建恢复；延续 0.2.8 的执行结果核验和已有任务边界。启用工作流后，指南明确以下边界；`work_items_list`、`work_items_create`、`work_items_update` 工具说明前部也包含边界及 `space_current` 入口，便于按需发现：
 
 - 同一未结束轮次查询并复用原项目与事项，当前范围内的小补充继续更新原卡，不是每次补充都新建。
-- 原事项已完成或取消后，新版本或新验收范围另建事项。标题注明已知目标版本，在说明中引用前序真实事项 ID；版本未定不编造，也不把普通引用写成不存在的父子关系。
+- 原事项已完成或取消后，新版本或新验收范围另建事项。标题注明已知目标版本，在说明中引用前序事项的短编号；版本未定不编造，也不把普通引用写成不存在的父子关系。
 - 只有用户明确要求纠正或补验同一次交付时才重开原事项，并记录原因；不得把后续交付无限追加到已完成卡。
 
 工作流开关只控制主动登记与过程引导，关闭后仍支持用户明确要求的 CRUD；以上边界不构成服务端禁止所有“完成→进行中”转换的硬限制。配置方式见 [可选工作流](INTEGRATIONS.md#optional-workflow-guidance-and-module-state)。
@@ -292,11 +301,13 @@ GET /items
 
 ### 定向验证
 
-`server/internal/home/work_placement_test.go` 覆盖 SQLite/PostgreSQL 的创建位置、并发、历史哈希重放、精确过滤与权限；相关现有组为 `TestWorkBoardHTTPAndMCP` 和 `TestMCPWorkStatusDiscoveryAndMutation`。PostgreSQL 须配置隔离测试环境，不能把跳过视为通过。
+`server/internal/home/work_placement_test.go` 覆盖 SQLite/PostgreSQL 的创建位置、并发、请求键重放、精确过滤与权限；相关现有组为 `TestWorkBoardHTTPAndMCP` 和 `TestMCPWorkStatusDiscoveryAndMutation`。PostgreSQL 须配置隔离测试环境，不能把跳过视为通过。
 
 `tests/browser_work_context.cjs` 使用现有 `UI_FIXTURES`、`OUTPUT_DIR`、`PLAYWRIGHT_MODULE`、`CHROMIUM_PATH` 契约，只允许独立 loopback 测试实例。它验证项目创建及草稿保护、关注/归档边界、分页与列表定位、资料来源深链、冲突和四种桌面尺寸。`UI_BASELINE=1` 用于复现 0.2.0 的旧行为；`UI_CHECK_MATCH` 可只运行受影响组。`tests/browser_work_items.cjs` 保留拖动、动态状态、未知写入、归档和含详情抽屉的布局回归。
 
 ## 升级与恢复
+
+当前开发版本的 **023** 是卡片标识变更；完整要求见上方编号契约与存储文档。以下 012–022 说明其各自历史版本，不表示旧编号在 023 后仍可调用。
 
 0.1.0 通过 `012_work_board.sql` 增加看板表和索引。动态状态通过 SQLite/PostgreSQL 的 `014_work_statuses.sql` 增加空间状态目录、默认值和目录版本，并保留现有四个状态键、事项及旧创建重放规则。首次启动按顺序应用尚未执行的迁移。既有导航、页面与文档数据继续使用原有表和文件；不需要新增挂载、环境变量或外部服务。
 

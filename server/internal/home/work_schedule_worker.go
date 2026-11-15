@@ -2,10 +2,8 @@ package home
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
@@ -39,11 +37,6 @@ func scanWorkOccurrence(row interface{ Scan(...any) error }) (*WorkScheduleOccur
 	}
 	value.TemplateRevision = strconv.FormatInt(revision, 10)
 	return value, nil
-}
-
-func workScheduledItemID(schedule, date string) string {
-	sum := sha256.Sum256([]byte("work-schedule:" + schedule + ":" + date))
-	return hex.EncodeToString(sum[:16])
 }
 
 func (a *App) workScheduleRequest(ctx context.Context, q Queryer, value *WorkSchedule, settings Settings) (*Request, error) {
@@ -92,7 +85,7 @@ func (a *App) createWorkScheduleOccurrence(r *Request, value *WorkSchedule, plan
 			}
 		}
 		if runErr == nil && occurrence.Result == "created" {
-			in := value.Template.workInput(workScheduledItemID(value.ID, planned.BusinessDate))
+			in := value.Template.workInput()
 			in.BusinessDate, in.DueAt = planned.BusinessDate, planned.DueAt
 			if _, err = r.Q.ExecContext(r.HTTP.Context(), "SAVEPOINT work_schedule_create"); err != nil {
 				return nil, false, err

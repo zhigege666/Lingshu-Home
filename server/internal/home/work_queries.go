@@ -9,25 +9,28 @@ import (
 )
 
 type workFilter struct {
-	Priority       string   `json:"priority"`
-	LabelIDs       []string `json:"labelIds"`
-	AssigneeUserID string   `json:"assigneeUserId"`
-	VersionID      string   `json:"versionId"`
-	ParentID       string   `json:"parentId"`
-	Blocked        *bool    `json:"blocked"`
-	Fields         []string `json:"fields"`
-	Date           string   `json:"date"`
-	Timezone       string   `json:"timezone"`
-	BusinessDate   string   `json:"businessDate"`
-	cutoff         string
-	Q              string `json:"q"`
-	ItemID         string `json:"itemId"`
-	ProjectID      string `json:"projectId"`
-	Status         string `json:"status"`
-	Archived       bool   `json:"archived"`
-	Attention      bool   `json:"attention"`
-	Limit          int    `json:"limit"`
-	Cursor         string `json:"cursor"`
+	Priority         string   `json:"priority"`
+	LabelIDs         []string `json:"labelIds"`
+	AssigneeUserID   string   `json:"assigneeUserId"`
+	VersionID        string   `json:"versionId"`
+	ParentID         string   `json:"parentId"`
+	Blocked          *bool    `json:"blocked"`
+	Fields           []string `json:"fields"`
+	Date             string   `json:"date"`
+	Timezone         string   `json:"timezone"`
+	BusinessDate     string   `json:"businessDate"`
+	cutoff           string
+	Q                string `json:"q"`
+	ItemID           string `json:"itemId"`
+	RequestID        string `json:"requestId"`
+	requestUserID    string
+	allArchiveStates bool
+	ProjectID        string `json:"projectId"`
+	Status           string `json:"status"`
+	Archived         bool   `json:"archived"`
+	Attention        bool   `json:"attention"`
+	Limit            int    `json:"limit"`
+	Cursor           string `json:"cursor"`
 }
 type workCursor struct {
 	Cutoff   string `json:"a,omitempty"`
@@ -57,10 +60,16 @@ type workColumn struct {
 
 func readWorkFilter(r *Request) (workFilter, error) {
 	in := workFilter{Limit: 30}
+	archiveExplicit := false
 	if r.Input != nil {
 		if err := r.decode(&in); err != nil {
 			return in, err
 		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(r.Input, &fields); err != nil {
+			return in, err
+		}
+		_, archiveExplicit = fields["archived"]
 	} else {
 		q := r.HTTP.URL.Query()
 		in.Q = q.Get("q")
@@ -81,6 +90,8 @@ func readWorkFilter(r *Request) (workFilter, error) {
 		in.Timezone = q.Get("timezone")
 		in.BusinessDate = q.Get("businessDate")
 		in.ItemID = q.Get("itemId")
+		in.RequestID = q.Get("requestId")
+		archiveExplicit = q.Has("archived")
 		in.ProjectID = q.Get("projectId")
 		in.Status = q.Get("status")
 		in.Cursor = q.Get("cursor")
@@ -118,6 +129,16 @@ func readWorkFilter(r *Request) (workFilter, error) {
 	}
 	if in.ItemID != "" && !workItemRefValid(in.ItemID) {
 		return in, invalid("Invalid itemId.")
+	}
+	if in.RequestID != "" {
+		if !validWorkRequestID(in.RequestID) {
+			return in, invalid("Invalid requestId.")
+		}
+		if r.User == nil {
+			return in, unauthorized()
+		}
+		in.requestUserID = r.User.ID
+		in.allArchiveStates = !archiveExplicit
 	}
 	if in.Date != "" && in.Date != "today" && in.Date != "overdue" {
 		return in, invalid("date must be today or overdue.")
@@ -167,6 +188,9 @@ func (in workFilter) fingerprint(space string) string {
 	if in.ItemID != "" {
 		values = append(values, in.ItemID)
 	}
+	if in.RequestID != "" {
+		values = append(values, in.RequestID, in.requestUserID, in.allArchiveStates)
+	}
 	if in.Date != "" || in.BusinessDate != "" || in.Timezone != "" {
 		values = append(values, in.Date, in.BusinessDate, in.Timezone)
 	}
@@ -179,8 +203,16 @@ func workLike(value string) string {
 	return "%" + strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(strings.ToLower(value)) + "%"
 }
 func (in workFilter) where(space string) (string, []any) {
-	where := "w.space_id=? AND w.archived=?"
-	args := []any{space, in.Archived}
+	where := "w.space_id=?"
+	args := []any{space}
+	if !in.allArchiveStates {
+		where += " AND w.archived=?"
+		args = append(args, in.Archived)
+	}
+	if in.RequestID != "" {
+		where += " AND w.create_request_id<>'' AND w.create_request_id=? AND w.create_user_id=?"
+		args = append(args, in.RequestID, in.requestUserID)
+	}
 	if in.BusinessDate != "" {
 		where += " AND w.business_date<>'' AND w.business_date=?"
 		args = append(args, in.BusinessDate)
@@ -241,9 +273,9 @@ func (in workFilter) where(space string) (string, []any) {
 		}
 	}
 	if in.Q != "" {
-		where += " AND (LOWER(w.title) LIKE ? ESCAPE '\\' OR LOWER(w.next_step) LIKE ? ESCAPE '\\' OR LOWER(w.description) LIKE ? ESCAPE '\\' OR LOWER(w.result) LIKE ? ESCAPE '\\')"
+		where += " AND (w.id=? OR LOWER(w.title) LIKE ? ESCAPE '\\' OR LOWER(w.next_step) LIKE ? ESCAPE '\\' OR LOWER(w.description) LIKE ? ESCAPE '\\' OR LOWER(w.result) LIKE ? ESCAPE '\\')"
 		value := workLike(in.Q)
-		args = append(args, value, value, value, value)
+		args = append(args, strings.ToLower(in.Q), value, value, value, value)
 	}
 	return where, args
 }
@@ -263,7 +295,7 @@ func (a *App) queryWorkPage(r *Request, s *Space, in workFilter, revision string
 	if in.Cursor != "" {
 		var cursor workCursor
 		data, err := base64.RawURLEncoding.DecodeString(in.Cursor)
-		if err != nil || json.Unmarshal(data, &cursor) != nil || cursor.Filter != in.fingerprint(s.ID) || !validID(cursor.ID) || !workStatusValid(cursor.Status) || cursor.Rank < 0 {
+		if err != nil || json.Unmarshal(data, &cursor) != nil || cursor.Filter != in.fingerprint(s.ID) || !workItemRefValid(cursor.ID) || !workStatusValid(cursor.Status) || cursor.Rank < 0 {
 			return nil, invalid("Invalid cursor for these filters.")
 		}
 		if cursor.Revision != revision {
@@ -333,9 +365,6 @@ func (a *App) listWorkItems(r *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = a.resolveWorkFilterRefs(r, s.ID, &in); err != nil {
-		return nil, err
-	}
 	revision, err := a.workRevision(r, s.ID)
 	if err != nil {
 		return nil, err
@@ -368,9 +397,6 @@ func (a *App) getWorkBoard(r *Request) (*Response, error) {
 	}
 	if in.Status != "" || in.Cursor != "" {
 		return nil, invalid("Use items for status-specific or cursor requests.")
-	}
-	if err = a.resolveWorkFilterRefs(r, s.ID, &in); err != nil {
-		return nil, err
 	}
 	revision, err := a.workRevision(r, s.ID)
 	if err != nil {

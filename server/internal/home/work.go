@@ -20,8 +20,6 @@ const workRankStep int64 = 1024
 
 type WorkSummary struct {
 	WorkPlanningFields
-	Number                                                           int64                `json:"number,omitempty"`
-	Key                                                              string               `json:"key,omitempty"`
 	Labels                                                           []WorkLabel          `json:"labels,omitempty"`
 	Version                                                          *WorkVersion         `json:"version,omitempty"`
 	Relations                                                        *WorkRelationSummary `json:"relations,omitempty"`
@@ -175,18 +173,15 @@ func (a *App) workSummaryColumns(r *Request) string {
 	if r.workReads("documents:read") {
 		count += "+(SELECT COUNT(*) FROM work_item_documents wd WHERE wd.item_id=w.id)"
 	}
-	return "w.id,w.space_id,w.project_id,COALESCE(p.name,''),w.title,w.status,w.next_step,w.needs_attention,w.archived,w.revision,w.updated_at,w.sort_order,w.business_date,w.due_at,w.schedule_id,w.number,w.priority,w.label_ids_json,w.assignee_name,w.assignee_user_id,w.version_id,w.parent_id,w.predecessor_id,(" + count + ")"
+	return "w.id,w.space_id,w.project_id,COALESCE(p.name,''),w.title,w.status,w.next_step,w.needs_attention,w.archived,w.revision,w.updated_at,w.sort_order,w.business_date,w.due_at,w.schedule_id,w.priority,w.label_ids_json,w.assignee_name,w.assignee_user_id,w.version_id,w.parent_id,w.predecessor_id,(" + count + ")"
 }
 func workSummaryScan(s *WorkSummary) ([]any, *sql.NullString, *int64) {
 	var project sql.NullString
 	var revision int64
-	return []any{&s.ID, &s.SpaceID, &project, &s.ProjectName, &s.Title, &s.Status, &s.NextStep, &s.NeedsAttention, &s.Archived, &revision, &s.UpdatedAt, &s.rank, &s.BusinessDate, &s.DueAt, &s.ScheduleID, &s.Number, &s.Priority, workIDsScanner{&s.LabelIDs}, &s.assigneeName, &s.assigneeUserID, &s.versionID, &s.parentID, &s.predecessorID, &s.ReferenceCount}, &project, &revision
+	return []any{&s.ID, &s.SpaceID, &project, &s.ProjectName, &s.Title, &s.Status, &s.NextStep, &s.NeedsAttention, &s.Archived, &revision, &s.UpdatedAt, &s.rank, &s.BusinessDate, &s.DueAt, &s.ScheduleID, &s.Priority, workIDsScanner{&s.LabelIDs}, &s.assigneeName, &s.assigneeUserID, &s.versionID, &s.parentID, &s.predecessorID, &s.ReferenceCount}, &project, &revision
 }
 func finishWorkSummary(s *WorkSummary, project *sql.NullString, revision *int64) {
 	s.Revision = strconv.FormatInt(*revision, 10)
-	if s.Number > 0 {
-		s.Key = "W-" + strconv.FormatInt(s.Number, 10)
-	}
 	if s.assigneeName != "" {
 		s.Assignee = &WorkAssignee{Name: s.assigneeName, UserID: s.assigneeUserID}
 	}
@@ -199,12 +194,7 @@ func finishWorkSummary(s *WorkSummary, project *sql.NullString, revision *int64)
 	}
 }
 func (a *App) loadWorkItem(r *Request, space, id string) (*WorkItem, error) {
-	var resolveErr error
-	id, resolveErr = a.resolveWorkItemRef(r, space, id)
-	if resolveErr != nil {
-		return nil, resolveErr
-	}
-	if !validID(id) {
+	if !workItemRefValid(id) {
 		return nil, missing()
 	}
 	item := &WorkItem{BookmarkIDs: []string{}, DocumentIDs: []string{}, References: []WorkReference{}}

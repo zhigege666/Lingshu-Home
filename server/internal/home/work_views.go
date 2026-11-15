@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-var workViewFields = map[string]bool{"key": true, "priority": true, "labels": true, "assignee": true, "version": true, "project": true, "nextStep": true, "businessDate": true, "dueAt": true, "relations": true, "collaboration": true}
+var workViewFields = map[string]bool{"id": true, "priority": true, "labels": true, "assignee": true, "version": true, "project": true, "nextStep": true, "businessDate": true, "dueAt": true, "relations": true, "collaboration": true}
 var workViewFilters = map[string]bool{"q": true, "itemId": true, "projectId": true, "status": true, "archived": true, "attention": true, "date": true, "timezone": true, "businessDate": true, "priority": true, "labelIds": true, "assigneeUserId": true, "versionId": true, "parentId": true, "blocked": true}
 
 type WorkViewDefinition struct {
