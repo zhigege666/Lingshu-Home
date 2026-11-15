@@ -4,6 +4,15 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-15
+
+### Work navigation and regression coverage
+
+- **① User experience:** fix the Blocked → Needs my attention path retaining both selections and accidentally querying their intersection. Sidebar shortcuts, projects and archived views now replace the previous scope; repeated clicks keep the selected view. Correct headings for attention, assignment and blocking, expose one current-page marker, and keep saved/recurring views distinct. Explicit combined filters remain supported and display Filtered items.
+- **② Developer experience:** derive the current entry from effective query filters, preserving real `blocked=false` semantics, date timezone metadata, search within a view, URL restoration and unsaved-draft navigation guards. Add real-browser query/result regressions and a 48-scenario UX/DX/AG catalog. Keep planned, skipped, failed and passed evidence separate. No extra navigation state, requests, polling, fallback/retry layer or dependency is introduced.
+- **③ AI Agent experience:** provide numbered, reusable test scenarios and versioned execution guidance, including gateway schema alignment, short-ID request recovery and task handoff. Existing HTTP/MCP permissions, short IDs, requestId and revision/claim rules are unchanged.
+- **Upgrade:** no new database migration or API schema in this patch. The migration 023 and client coordination requirements introduced in 0.3.0 still apply when upgrading from 0.2.8 or earlier. Publishing a release does not upgrade an installed container or refresh an external gateway's tool catalog.
+
 ## [0.3.1] - 2026-11-15
 
 ### Work query and mutation performance

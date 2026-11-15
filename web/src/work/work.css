@@ -166,6 +166,7 @@
 .work-filter-dot { width:5px; height:5px; border-radius:50%; background:var(--work-accent,#739d87); }
 .work-saved-view-nav { display:flex; align-items:center; gap:9px; border:0; background:none; color:var(--work-muted); padding:10px 11px; margin:6px 0 4px; border-radius:7px; font-size:12px; cursor:pointer; }
 .work-saved-view-nav:hover { background:var(--work-soft); color:var(--work-ink); }
+.work-saved-view-nav.active { background:var(--work-tint); color:var(--work-accent); font-weight:600; }
 .work-active-view { display:flex; align-items:center; gap:6px; color:var(--work-muted); font-size:12px; }
 .work-active-view button { border:0; background:none; color:inherit; cursor:pointer; padding:2px; }
 .work-main:has(.work-calendar) { display:flex; flex-direction:column; }
