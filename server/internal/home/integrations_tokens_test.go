@@ -365,7 +365,7 @@ func TestIntegrationTokenMigrationPreservesLegacyTokens(t *testing.T) {
 				}
 			}
 			before := sessionUpgradeDatabaseState(t, db, store.Provider)
-			if err := store.migrate(context.Background()); err != nil {
+			if err := applyHistoricalWorkMigration(context.Background(), store, "015_integration_token_management.sql"); err != nil {
 				t.Fatal(err)
 			}
 			for table, original := range before {

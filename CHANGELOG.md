@@ -4,6 +4,8 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-15
+
 ### Short card identifiers
 
 - **① User experience:** replace card UUIDs and W-number aliases with five-character-minimum lowercase base-36 IDs across cards, details, copying, search, links, relations and execution targets. Recover an uncertain creation without losing its draft or duplicating the card.
@@ -11,6 +13,9 @@ Changes describe user-visible behavior, deployment, interfaces, and maintenance.
 - **③ AI Agent experience:** retain the 101-tool catalog while changing card schemas to short IDs, add precise `requestId` recovery to item lists and advance workflow guidance to v4. Report short ID plus title; other resource identifiers and existing authorization/claims remain unchanged.
 - **Upgrade:** this is a breaking card-identifier contract. Coordinate clients and active Agents, retain a complete pre-upgrade backup and refresh gateway schemas. Old long-ID/W-number URLs and create payloads are rejected. Rollback requires the matching pre-023 database/data/keys, not only an older executable.
 
+### Validation maintenance
+
+- Pin the legacy token-migration regression to its original migration 015 boundary without weakening its data-preservation or token-behavior assertions. Migration 023 retains its own SQLite/PostgreSQL conversion and rollback coverage.
 
 ## [0.2.8] - 2026-11-14
 

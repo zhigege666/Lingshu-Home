@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.2.8/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home 标识" width="80" height="80">
+<img src="https://raw.githubusercontent.com/zhigege666/Lingshu-Home/v0.3.0/web/src/assets/lingshu-home-logo.svg" alt="Lingshu-Home 标识" width="80" height="80">
 
 # Lingshu-Home
 
@@ -10,19 +10,19 @@
 
 Web 界面统一使用玉绿色折带房屋 Logo。[品牌资产、用法与来源](docs/BRANDING.md)记录原生 SVG、浏览器图标和触屏图标。
 
-## 开发中：卡片短编号（未发布）
+## 0.3.0 新变化
 
 - **① 用户体验。** 卡片统一使用 `00001`、`0000a` 这类五位起步的短编号，支持复制、搜索、链接和详情定位；已有卡片同步换号，保留内容、关联、历史和实际排序。
 - **② 开发体验。** SQLite／PostgreSQL 迁移 **023** 将卡片真实主键改为全实例唯一的 36 进制编号，创建使用独立 `requestId` 保证幂等；删除旧编号映射与 `number/key`，不保留长编码或 `W-n` 兼容入口。
 - **③ AI Agent 使用体验。** MCP 卡片读写只使用短编号，服务端分配新号，工作流指南升级为 **v4**。创建响应未知时按原 `requestId` 核对；汇报使用“短编号＋标题”。
 
-这是卡片 API 与链接的破坏性变更：升级需协调客户端／Agent、备份完整数据，并刷新 Gate 的工具定义；旧卡片链接不再有效。当前发行版本仍为 **0.2.8**。详见[卡片契约](docs/WORK_ITEMS.md)及[迁移与恢复](docs/STORAGE.md#short-card-id-migration-023-unreleased)。
+本版更改卡片标识、链接和创建 API，旧卡片链接及携带 `id` 的创建请求将被拒绝。升级需协调客户端／Agent，保留完整升级前备份，并在升级后刷新 Gate 的工具定义；回退到 0.2.8 或更早版本须恢复对应备份。详见[0.3.0 更新记录](CHANGELOG.md#030---2026-11-15)、[卡片契约](docs/WORK_ITEMS.md)及[迁移与恢复](docs/STORAGE.md#short-card-id-migration-023)。
 
-## 0.2.8 新变化
+### 沿用 0.2.8 能力
 
-- **① 用户体验。** 增加短编号（`W-123`）、优先级、标签、负责人、目标版本、父子／阻塞／前序事项关系，以及私有／共享视图、日历、WIP 提醒和真实活动统计。通知与事件自动化默认关闭；可选页面和执行记录按需加载，保留普通事项草稿与认领保护。
-- **② 开发体验。** SQLite／PostgreSQL 迁移 **021–022** 保留既有 ID、创建重放、引用和历史。事件／规则回执与生成事项原子提交；固定 HTTP 执行协议先持久化派发，再在事务外请求，按资源键串行，未知结果继续占用资源，不盲目重复 POST。空闲／关闭的自动化没有周期扫描；真实状态变化的统计写入成本单独实测。
-- **③ AI Agent 使用体验。** 新增 20 个规划工具、19 个自动化／执行工具，合计 **101 个工具，其中 67 个事项工具**。原调用继续有效；`work:execute` 显式依赖读写权限，配置执行器与人工处理还要求 Owner。`space_current` 返回实际执行能力，HTTP／MCP 共用稳定 ID、真实认领和未知结果核验规则。
+- **① 用户体验。** 保留优先级、标签、负责人、目标版本、父子／阻塞／前序事项关系，以及私有／共享视图、日历、WIP 提醒和真实活动统计。通知与事件自动化默认关闭；可选页面和执行记录按需加载，保留普通事项草稿与认领保护。
+- **② 开发体验。** SQLite／PostgreSQL 迁移 **021–022** 仍属于规划、事件规则、执行器及历史的升级链，随后由 023 更新卡片标识。事件／规则回执与生成事项原子提交；固定 HTTP 执行协议先持久化派发，再在事务外请求，按资源键串行，未知结果继续占用资源，不盲目重复 POST。空闲／关闭的自动化没有周期扫描；真实状态变化的统计写入成本单独实测。
+- **③ AI Agent 使用体验。** 0.2.8 新增 20 个规划工具、19 个自动化／执行工具，合计 **101 个工具，其中 67 个事项工具**。本版工具数量不变，卡片引用和创建遵循上方 0.3.0 契约；`work:execute` 显式依赖读写权限，配置执行器与人工处理还要求 Owner。`space_current` 返回实际执行能力，HTTP／MCP 共用稳定 ID、真实认领和未知结果核验规则。
 
 详见[规划契约](docs/WORK_PLANNING.md)、[自动化协议](docs/WORK_AUTOMATION.md)、[参考 HTTP 执行器](examples/work-executor/README.md)、[性能记录](docs/PERFORMANCE.md)及[0.2.8 更新记录](CHANGELOG.md#028---2026-11-14)。升级不会创建执行器或打开事件自动化。执行器成功不自动完成事项或解除认领；选择式令牌须显式添加执行权，原先明确选择“全部当前和未来动作”的令牌继续遵守原 all-mode 契约。
 
@@ -34,7 +34,7 @@ Web 界面统一使用玉绿色折带房屋 Logo。[品牌资产、用法与来�
 
 - **① 用户体验。** 在**管理中心 → 数据源与 MCP → MCP 与访问令牌**直接配置工作流指导和多 Agent 协作。Owner 可分别保存两个全站开关，成员可查看；后续请求立即生效、重启保留，日常调整无需修改 Docker 参数。保存失败、冲突或响应未知时保留草稿；已打开看板自动更新协作状态，不覆盖事项编辑内容。
 - **② 开发体验。** 复用 settings 单行、请求事务和独立 MCP 配置版本。SQLite／PostgreSQL 迁移 **019** 保留原数据；页面保存值优先于启动默认值，未保存时保持原 CLI／环境变量行为。写入要求 Cookie Owner、CSRF 和原子版本校验。
-- **③ AI Agent 使用体验。** 既有令牌和 55 个工具定义保持兼容，`space_current` 与协作读取在后续调用中反映已保存配置。工作流指导与认领机制独立；关闭协作仍保留未收尾认领的保护及收尾能力。
+- **③ AI Agent 使用体验。** 既有令牌授权保留。0.2.5 的 55 个工具现已扩充，当前卡片输入遵循上方 0.3.0 契约；`space_current` 与协作读取在后续调用中反映已保存配置。工作流指导与认领机制独立；关闭协作仍保留未收尾认领的保护及收尾能力。
 
 日常配置直接使用页面。启动参数只作为首次网页保存前的默认值；保存后的页面设置也优先于 Compose 注入的默认 `false`。详见[MCP 设置与接口行为](docs/INTEGRATIONS.md#optional-workflow-guidance-and-module-state)、[0.2.5 更新记录](CHANGELOG.md#025---2026-11-14)和[升级恢复说明](#保留数据与正常停止)。
 
@@ -50,7 +50,7 @@ Web 界面统一使用玉绿色折带房屋 Logo。[品牌资产、用法与来�
 
 ### 沿用 0.2.3 能力
 
-默认打开空间位于**管理中心 → 我的资料 → 浏览偏好**，页头保留快捷空间切换；偏好独立于个人资料草稿保存。工作流指南 v3 区分未结束的同轮工作与新交付：已完成／取消事项保留关闭，新版本或新验收范围创建新事项，并关联真实前序 ID；只有明确纠正同一次交付时才重开。详见[0.2.3 更新记录](CHANGELOG.md#023---2026-11-14)。
+默认打开空间位于**管理中心 → 我的资料 → 浏览偏好**，页头保留快捷空间切换；偏好独立于个人资料草稿保存。工作流指南区分未结束的同轮工作与新交付：已完成／取消事项保留关闭，新版本或新验收范围创建新事项，并关联真实前序 ID；只有明确纠正同一次交付时才重开。详见[0.2.3 更新记录](CHANGELOG.md#023---2026-11-14)。
 
 ### 保留 0.2.2 的功能
 
@@ -131,7 +131,7 @@ Docker／Unraid 的 `latest` 跟随已验证的最高稳定版，也可用精确
 
 ## 快速开始
 
-以下安装说明对应 **[0.2.8](VERSION)**，程序和 Docker 镜像面向 **Linux amd64（x86-64）**。Linux 程序、Docker 镜像归档、源码与校验和入口为 **[v0.2.8 发布页](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.2.8)**。选择下面一种安装方式即可；均可使用内置 SQLite，无需另装数据库或其他 Home 服务；未配置的新实例先在浏览器确认存储选择。
+以下安装说明对应 **[0.3.0](VERSION)**，程序和 Docker 镜像面向 **Linux amd64（x86-64）**。Linux 程序、Docker 镜像归档、源码与校验和入口为 **[v0.3.0 发布页](https://github.com/zhigege666/Lingshu-Home/releases/tag/v0.3.0)**。选择下面一种安装方式即可；均可使用内置 SQLite，无需另装数据库或其他 Home 服务；未配置的新实例先在浏览器确认存储选择。
 
 ### Docker 镜像
 
@@ -149,17 +149,17 @@ docker run -d --name lingshu-home \
   ghcr.io/zhigege666/lingshu-home:latest
 ```
 
-`latest` 跟随已经验证并发布的最高稳定版本，不包含预发布版。需要固定在本版本时，改用 `ghcr.io/zhigege666/lingshu-home:0.2.8`。标签更新不会直接升级运行中的容器：先阅读发行说明、备份数据，再拉取镜像并重建容器。
+`latest` 跟随已经验证并发布的最高稳定版本，不包含预发布版。需要固定在本版本时，改用 `ghcr.io/zhigege666/lingshu-home:0.3.0`。标签更新不会直接升级运行中的容器：先阅读发行说明、备份数据，再拉取镜像并重建容器。
 
 在 Docker 宿主机打开 **http://127.0.0.1:5180**。数据库、保存的存储选择、实例密钥和图片持久化在命名卷 `lingshu-home-data`，替换容器时继续使用这个卷。镜像以 UID/GID `10001:10001` 运行；自定义挂载到 `/data` 的目录需允许该身份写入。可以用 `docker logs --tail=100 lingshu-home` 查看启动日志。
 
 ### Linux amd64 发行包
 
-从发布页下载 `Lingshu-Home-0.2.8-linux-amd64.tar.gz`，解压后在该目录运行，无需安装 Go 或 Node.js：
+从发布页下载 `Lingshu-Home-0.3.0-linux-amd64.tar.gz`，解压后在该目录运行，无需安装 Go 或 Node.js：
 
 ```bash
-tar -xzf Lingshu-Home-0.2.8-linux-amd64.tar.gz
-cd Lingshu-Home-0.2.8-linux-amd64
+tar -xzf Lingshu-Home-0.3.0-linux-amd64.tar.gz
+cd Lingshu-Home-0.3.0-linux-amd64
 ./lingshu-home --language zh-CN --data-dir "$HOME/.local/share/lingshu-home"
 ```
 
@@ -189,13 +189,13 @@ cd Lingshu-Home-0.2.8-linux-amd64
 
 上述 Docker 实例使用 `docker stop lingshu-home` 和 `docker start lingshu-home` 停止、启动，停止等待时间为 30 秒。Linux 前台进程按 `Ctrl+C` 后等待退出。正常停止不需要删除数据。
 
-升级前先停止 Home，备份完整数据目录、数据库、已保存存储配置、实例密钥及文档历史；外置 PostgreSQL、外挂 Markdown／附件和部署配置单独备份。**0.2.8 新增 SQLite／PostgreSQL 迁移 021–022，保存规划、真实统计、可选事件规则和执行器**，保留原事项、定时规则、会话、认领和令牌。已有定时规则保持原配置；通知与事件自动化默认关闭，升级不创建执行器。021 为旧事项分配空间内短编号；SQLite 的 022 保留历史行与索引并重建活动 CHECK。升级耗时及临时磁盘占用随旧数据量增长。更早缺失的迁移仍依次执行，包括 019–020。沿用原数据、密钥、数据库、挂载、运行身份、语言和 HTTP／TLS 配置，不新增服务或挂载，也不转换数据库 provider。
+升级前协调正在使用的 Agent 和客户端，停止 Home，备份完整数据目录、数据库、已保存存储配置、实例密钥及文档历史；外置 PostgreSQL、外挂 Markdown／附件和部署配置单独备份。**0.3.0 新增 SQLite／PostgreSQL 迁移 023，将卡片真实 ID 改为全实例短编号。** 迁移同步更新结构化引用，保留卡片内容、关系、历史与实际排序；旧长编码／`W-n` 卡片链接和旧创建参数退役，新建事项使用 `requestId`。升级后重新加载客户端并刷新 Gate 工具定义。已发送的执行快照保留为历史证据，未知操作须核对，不能改写旧请求后盲目重放。其他资源标识、定时规则、会话、认领和令牌授权保留；迁移不重新派发执行，也不解除认领。更早缺失的迁移仍依次执行，包括 019–022。升级耗时及临时磁盘占用随旧数据量增长。沿用原数据、密钥、数据库、挂载、运行身份、语言和 HTTP／TLS 配置，不新增服务或挂载，也不转换数据库 provider。
 
 运行过未发布 `008_session_retention.sql` 的实例，使用严格识别的[兼容桥接](docs/STORAGE.md#compatibility-with-an-unpublished-session-migration)进入正式 008/009/010 顺序，仅接受已知且精确匹配的迁移记录与表结构。保留该构建自己的匹配备份，不要手工重编号迁移。
 
 拉取目标镜像后，使用原配置重建容器；单纯重启不会换成新镜像。Unraid 使用已安装容器的更新操作，并保留已有映射；新可选字段可能不会出现在已保存配置中，启用功能时核对并补充对应变量。需要接入文档或原生 HTTPS 时，再添加文档 Path／根目录白名单或证书挂载／TLS 成对配置。下方源码 Compose 部署使用该项目自己的 `home-data` 卷；更换安装方式不会自动移动数据。
 
-从 0.2.8 回退到 0.2.7 或更早版本，须恢复匹配的完整升级前数据库／数据、密钥及部署配置：先停止 Home，另行保留升级后数据的备份，恢复匹配备份，再启动旧镜像。旧程序不认识迁移 021–022，不能只改镜像标签、删除迁移记录或删表代替恢复。关闭协作只是功能设置，不是数据库降级；未收尾认领仍受保护，须正常收尾。恢复 Home 不会停止外部 Agent 命令，也不会撤销外挂 Markdown 原件的改动，须分别核对操作与文件备份。详见[存储与恢复说明](docs/STORAGE.md)。
+从 0.3.0 回退到 0.2.8 或更早版本，须恢复匹配的完整 023 迁移前数据库／数据、密钥及部署配置：先停止 Home，另行保留升级后数据的备份，恢复匹配备份，再启动旧镜像。旧程序不认识迁移 023 和新卡片标识，不能只改镜像标签、删除迁移记录、删列或补造旧编号映射代替恢复。关闭协作只是功能设置，不是数据库降级；未收尾认领仍受保护，须正常收尾。恢复 Home 不会停止外部 Agent 命令，也不会撤销外挂 Markdown 原件的改动，须分别核对操作与文件备份。详见[存储与恢复说明](docs/STORAGE.md)。
 
 日常操作见 **[中文使用手册](docs/USER_GUIDE.zh-CN.md)** 或 **[English user guide](docs/USER_GUIDE.md)**，包括账号、链接维护、书签与图标导入、可视化编辑、主题、分类联动、页面内容、语言、外部接入与恢复。
 
@@ -209,7 +209,7 @@ cd Lingshu-Home-0.2.8-linux-amd64
 
 0.0.5 在 Home 旁增加了**资料库**：统一查看书签和原始 Markdown 文件，支持书签“使用说明”、目录/文件夹筛选、全文搜索、阅读与原件编辑、标签、关联书签、冲突检查和历史恢复。**管理 → 文档目录**可以把多个目录绑定到同一个空间；一个目录只有一个管理空间。接入默认只读，新文件不会自动公开。
 
-通过 `LINGSHU_DOCUMENT_ROOTS='["/documents/notes","/documents/projects"]'` 配置允许接入的容器目录，已有宿主机目录分别挂载，原有 `/data` 卷继续保留。[compose.documents.yaml](compose.documents.yaml) 提供了两个外挂目录的示例，并在路径不存在时拒绝创建空目录。Docker/Unraid 接入、文件权限、API/MCP、备份和迁移 **008** 见[文档资料库指南](docs/DOCUMENT_LIBRARY.md)。**0.2.8** 镜像与 Linux 发行包继续包含这些资料库和 HTTPS 功能。仓库中的 Compose 文件用于构建对应版本源码；使用正式镜像时，可将相同的挂载和环境变量加入原部署配置。
+通过 `LINGSHU_DOCUMENT_ROOTS='["/documents/notes","/documents/projects"]'` 配置允许接入的容器目录，已有宿主机目录分别挂载，原有 `/data` 卷继续保留。[compose.documents.yaml](compose.documents.yaml) 提供了两个外挂目录的示例，并在路径不存在时拒绝创建空目录。Docker/Unraid 接入、文件权限、API/MCP、备份和迁移 **008** 见[文档资料库指南](docs/DOCUMENT_LIBRARY.md)。**0.3.0** 镜像与 Linux 发行包继续包含这些资料库和 HTTPS 功能。仓库中的 Compose 文件用于构建对应版本源码；使用正式镜像时，可将相同的挂载和环境变量加入原部署配置。
 
 原生 HTTPS 可通过 `LINGSHU_TLS_CERT_FILE` 与 `LINGSHU_TLS_KEY_FILE` 启用，两项必须同时配置。证书错误会阻止启动，不会退回明文 HTTP。[compose.tls.yaml](compose.tls.yaml) 和[传输加密说明](docs/TRANSPORT_SECURITY.md) 分别说明了原生 TLS 与反向代理部署。`LINGSHU_SECURE_COOKIES` 仍只控制 Cookie 的传输要求，本身不会开启 HTTPS。NAS 网络挂载需要单独配置加密链路；原始 Markdown 继续保持现有编辑器可用的文件格式。
 
@@ -260,11 +260,11 @@ cd Lingshu-Home-0.2.8-linux-amd64
 本节命令需要完整源码，不能直接在 Linux 程序发行包中执行。使用 Git 获取对应版本源码：
 
 ```bash
-git clone --branch v0.2.8 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
+git clone --branch v0.3.0 --depth 1 https://github.com/zhigege666/Lingshu-Home.git
 cd Lingshu-Home
 ```
 
-上面的检出固定为 **0.2.8**，包含定时事项、日期筛选、可选多 Agent 会话／认领／交接、个人资料中的浏览偏好、按迭代区分事项的 MCP 指引、统一页头、资料库／事项开关与事项变更历史；同时保留动态状态、可编辑令牌、资料关联、账号、资料库与 HTTPS 功能。
+上面的检出固定为 **0.3.0**，包含卡片短编号、按请求键恢复创建、规划与执行工具、定时事项、日期筛选、可选多 Agent 会话／认领／交接、个人资料中的浏览偏好、按迭代区分事项的 MCP 指引、统一页头、资料库／事项开关与事项变更历史；同时保留动态状态、可编辑令牌、资料关联、账号、资料库与 HTTPS 功能。
 
 ### 从源码构建 Docker 镜像
 
@@ -313,7 +313,7 @@ python3 scripts/dev.py run --listen 127.0.0.1:5180 --language zh-CN
 
 ### 运行配置与语言
 
-下表适用于 **0.2.8**。新实例可通过启动配置或首次页面确定一次语言；已有保存语言时始终沿用。
+下表适用于 **0.3.0**。新实例可通过启动配置或首次页面确定一次语言；已有保存语言时始终沿用。
 
 | 环境变量 | 默认值 / 含义 |
 | --- | --- |
@@ -368,7 +368,7 @@ python3 scripts/dev.py run --listen 127.0.0.1:5180 --language zh-CN
 
 组件与来源迭代增加了[模板导入、日程/天气与外部数据契约](docs/COMPONENTS.md)。模板配置已安装的渲染器；不会执行外部网页或安装远程 JavaScript。日程、天气、指标和状态只保留有界的最新快照，没有启用定时来源时调度器不周期唤醒。中英文初始化内容分别维护网站清单，初始化按已保存实例语言自动匹配内容包。
 
-**页面设置（更多）→ 调整布局 → 添加组件 → 预置仪表板**提供个人概览、服务运行、数据统计三套布局。为需要的组件选择兼容来源，也可以明确跳过组件。应用预置会替换尚未保存的组件布局，保留当前主题、页眉页脚和有效的导航来源，再由**保存页面**持久化。预置本身不启动采集，也不填入演示数值。[预置布局与接入说明](docs/DASHBOARDS.md) · [版本化数据样例](https://github.com/zhigege666/Lingshu-Home/blob/v0.2.8/examples/dashboard-data/README.md)。
+**页面设置（更多）→ 调整布局 → 添加组件 → 预置仪表板**提供个人概览、服务运行、数据统计三套布局。为需要的组件选择兼容来源，也可以明确跳过组件。应用预置会替换尚未保存的组件布局，保留当前主题、页眉页脚和有效的导航来源，再由**保存页面**持久化。预置本身不启动采集，也不填入演示数值。[预置布局与接入说明](docs/DASHBOARDS.md) · [版本化数据样例](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/examples/dashboard-data/README.md)。
 
 扩展契约区分两类：接收指定数据格式的面板渲染器、组合多种数据的整页主题。第三方主题包安装、知识库连接器和通用实时适配器属于后续工作。后台与登录页由宿主提供。
 
@@ -412,13 +412,13 @@ cd server
 go test ./...
 ```
 
-HTTP 验收使用新建的可丢弃实例，并执行真实进程重启，脚本会拒绝已初始化数据库与非回环目标。Go provider 测试通过 `LINGSHU_TEST_POSTGRES_URL`、`LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`、`LINGSHU_TEST_ICONS_POSTGRES_URL`、`LINGSHU_TEST_COMPONENTS_POSTGRES_URL`、`LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL`、`LINGSHU_TEST_NAVIGATION_POSTGRES_URL`、`LINGSHU_TEST_DOCUMENT_POSTGRES_URL`、`LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` 和 `LINGSHU_TEST_STORAGE_POSTGRES_URL` 使用九个不同的全新 PostgreSQL 数据库；分别隔离组件、导航、文档、书签说明和存储／资料等测试组，008／009 迁移的保留与失败回滚，以及 010 会话迁移用例分别覆盖两种数据库。语言与 007 迁移用例使用图标测试库中的隔离 schema。HTTP 验收另用自己的数据库。变量未设置而跳过测试不代表对应 provider 已验证。详见[测试步骤与覆盖范围](https://github.com/zhigege666/Lingshu-Home/blob/v0.2.8/tests/README.md)和[数据库隔离要求](docs/STORAGE.md#provider-validation)。
+HTTP 验收使用新建的可丢弃实例，并执行真实进程重启，脚本会拒绝已初始化数据库与非回环目标。Go provider 测试通过 `LINGSHU_TEST_POSTGRES_URL`、`LINGSHU_TEST_INTEGRATIONS_POSTGRES_URL`、`LINGSHU_TEST_ICONS_POSTGRES_URL`、`LINGSHU_TEST_COMPONENTS_POSTGRES_URL`、`LINGSHU_TEST_COMPONENT_MIGRATION_POSTGRES_URL`、`LINGSHU_TEST_NAVIGATION_POSTGRES_URL`、`LINGSHU_TEST_DOCUMENT_POSTGRES_URL`、`LINGSHU_TEST_BOOKMARK_CONTEXT_POSTGRES_URL` 和 `LINGSHU_TEST_STORAGE_POSTGRES_URL` 使用九个不同的全新 PostgreSQL 数据库；分别隔离组件、导航、文档、书签说明和存储／资料等测试组，008／009 迁移的保留与失败回滚，以及 010 会话迁移用例分别覆盖两种数据库。语言与 007 迁移用例使用图标测试库中的隔离 schema。HTTP 验收另用自己的数据库。变量未设置而跳过测试不代表对应 provider 已验证。详见[测试步骤与覆盖范围](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/tests/README.md)和[数据库隔离要求](docs/STORAGE.md#provider-validation)。
 
 每个变更集维护 CHANGELOG 与相关公开文档。**每次发布必须同时更新 `README.md`、`README.zh-CN.md` 和对应版本的 `CHANGELOG.md`**，核对当前版本、下载与源码链接、镜像固定标签、用户可见变化和升级要求。发布检查核对两份 README 与版本说明相对上一发行版的更新，GitHub Release 使用同一版本记录生成说明。`VERSION` 是唯一手工维护的产品版本来源，构建产物和发布标签均从它派生。更新说明来自对应日期版本节，自动发布需要先通过应用验证。创建或推送标签是独立的发布动作。
 
 内部设计文档与视觉探索资料排除在 Git、Docker 上下文、前端资源和发布包之外。公开接口与部署说明维护在 `docs/` 中。
 
-Tailwind 类名扫描明确限制在 `web/src`，构建输出目录、public 资源和私有文档不会影响生成样式。源码文件数量、产物一致性与浏览器耗时只适用于 [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.2.8/tests/README.md) 和 [PERFORMANCE.md](docs/PERFORMANCE.md) 记录的那次运行，不作为持续性能承诺。
+Tailwind 类名扫描明确限制在 `web/src`，构建输出目录、public 资源和私有文档不会影响生成样式。源码文件数量、产物一致性与浏览器耗时只适用于 [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/tests/README.md) 和 [PERFORMANCE.md](docs/PERFORMANCE.md) 记录的那次运行，不作为持续性能承诺。
 
 ### 历史验证记录
 
@@ -445,10 +445,10 @@ Tailwind 类名扫描明确限制在 `web/src`，构建输出目录、public 资
 | 数据源、推送、MCP、GitHub Traffic | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) |
 | 组件、日程/天气、模板导入与数据契约 | [docs/COMPONENTS.md](docs/COMPONENTS.md) |
 | 图标库、格式与网页图标缓存 | [docs/ICONS.md](docs/ICONS.md) |
-| 测试说明 | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.2.8/tests/README.md) |
+| 测试说明 | [tests/README.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/tests/README.md) |
 | 变更记录 | [CHANGELOG.md](CHANGELOG.md) |
-| 协作约束 | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.2.8/AGENTS.md) |
-| 内置图标来源 | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.2.8/assets/icons/manifest.json) |
+| 协作约束 | [AGENTS.md](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/AGENTS.md) |
+| 内置图标来源 | [assets/icons/manifest.json](https://github.com/zhigege666/Lingshu-Home/blob/v0.3.0/assets/icons/manifest.json) |
 | 版本与发布 | [docs/RELEASING.md](docs/RELEASING.md) |
 | 第三方许可 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 
